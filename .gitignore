@@ -21,8 +21,18 @@ exports/
 snapshots/
 *.snapshot.*
 *-export.*
+# JSON is data by default here; EspoCRM metadata and project manifests are whitelisted
+*.json
+!custom/**/*.json
+!client/custom/**/*.json
+!tests/**/*.json
+!**/*.example.json
+!composer.json
+!package.json
+!skills-lock.json
 # Anonymised maps are the only CSV files that belong in Git
-!docs/migration/*.csv
+!docs/migration/field-map.csv
+!docs/migration/relations.csv
 # SQL sources used by the audit are code, not dumps
 !scripts/audit/sql/*.sql
 

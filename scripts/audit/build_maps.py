@@ -51,8 +51,9 @@ def meaningful(row, trues):
     if row["uitype"] == "56":
         return trues.get((row["module"], row["fieldname"]), 0)
     if NUMERIC.match(row["db_type"]):
-        v = row["nonzero_live"] if row["nonzero_live"] != "" else row["nonzero_all"]
-        return int(v or 0)
+        if int(row["live_rows"] or 0) == 0:
+            return 0  # module has no live rows in this table: never fall back to whole-table counts
+        return int(row["nonzero_live"] or 0) if row["nonzero_live"] != "" else int(row["nonempty_live"] or 0)
     return int(row["nonempty_live"] or 0)
 
 
@@ -86,8 +87,8 @@ def field_rows(outdir):
             if mod in M.ARCHIVE_MODULES:
                 rule = (f"VtigerArchive.data.{fname}", "JSON как есть; ссылки как vtigerId", "count+hash")
             elif mod == "VTEItems":
-                rule = (None, "модуль VTEItems — дубль vtiger_inventoryproductrel (222 родителя, число строк совпадает)", "count")
-                status = "решено"
+                rule = (None, "модуль VTEItems — дубль vtiger_inventoryproductrel (222 родителя, число строк совпадает; "
+                              "1 расхождение суммы — Q-12)", "count")
             elif mod == "Notifications":
                 rule = (None, "служебное уведомление (1 запись 2018 г.)", "count")
                 status = "решено"
