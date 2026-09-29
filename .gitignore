@@ -23,9 +23,10 @@ snapshots/
 *-export.*
 # JSON is data by default here; EspoCRM metadata and project manifests are whitelisted
 *.json
-!custom/**/*.json
+!custom/Espo/Custom/**/*.json
 !client/custom/**/*.json
-!tests/**/*.json
+# test fixtures must be synthetic (AGENTS.md); only this directory is allowed
+!tests/fixtures/synthetic/**/*.json
 !**/*.example.json
 !composer.json
 !package.json
