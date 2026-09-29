@@ -24,6 +24,7 @@ snapshots/
 # JSON is data by default here; EspoCRM metadata and project manifests are whitelisted
 *.json
 !custom/Espo/Custom/**/*.json
+!custom/Espo/Modules/**/*.json
 !client/custom/**/*.json
 # test fixtures must be synthetic (AGENTS.md); only this directory is allowed
 !tests/fixtures/synthetic/**/*.json
@@ -31,6 +32,9 @@ snapshots/
 !composer.json
 !package.json
 !skills-lock.json
+# metaswarm configuration (no data)
+!/.coverage-thresholds.json
+!/.metaswarm/project-profile.json
 # Anonymised maps are the only CSV files that belong in Git
 !docs/migration/field-map.csv
 !docs/migration/relations.csv
@@ -75,23 +79,16 @@ htpasswd*
 /public/
 /vendor/
 /.htaccess
-/bootstrap.php
-/clear_cache.php
-/command.php
-/cron.php
-/daemon.php
-/extension.php
-/index.php
+/*.php
 /LICENSE.txt
-/preload.php
-/rebuild.php
-/upgrade.php
-/websocket.php
 /.espocrm-core
 /node_modules/
 /build/
 
 # Tooling
+# metaswarm/beads knowledge base stays local: learnings may quote private data
+/.beads/
+*.log
 .playwright-mcp/
 __pycache__/
 *.pyc

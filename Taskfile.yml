@@ -48,7 +48,7 @@ tasks:
       - scripts/stand/ctl.sh logs
 
   stand:backup:
-    desc: Local backup into the private directory (-- [--label NAME] [--quiesce])
+    desc: Local backup into the private directory, writers paused for ~1 s (-- [--label NAME] [--online])
     cmds:
       - scripts/stand/backup.sh {{.CLI_ARGS}}
 
@@ -61,6 +61,11 @@ tasks:
     desc: Restore from a local backup (-- <name|dir|latest> [--yes] [--no-safety-backup] [--skip-custom])
     cmds:
       - scripts/stand/restore.sh {{.CLI_ARGS}}
+
+  stand:restore-cleanup:
+    desc: Drop leftovers of failed restores (<db>__prev_*/__restore_* databases, .restore-aside-* dirs)
+    cmds:
+      - scripts/stand/ctl.sh restore-cleanup
 
   stand:uninstall:
     desc: Remove the stand (-- --yes [--purge]); Git files, private settings and backups stay

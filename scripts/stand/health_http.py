@@ -7,12 +7,15 @@ No response bodies, tokens or passwords are printed.
 """
 import base64
 import http.cookiejar
+import ipaddress
 import json
 import os
 import re
+import socket
 import sys
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 
 def env(name: str) -> str:
     return os.environ[name]
@@ -38,7 +41,29 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 # The login response sets the HttpOnly cookie `auth-token-secret`; token requests must send it back
 # (as the browser does), so the opener keeps cookies.
-OPENER = urllib.request.build_opener(NoRedirect, urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+# Proxies from the environment are ignored: credentials must only ever go to the local stand.
+OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect,
+                                     urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+
+
+def target_is_loopback() -> bool:
+    """The site URL must resolve only to loopback addresses before any credentials are sent."""
+    parts = urlsplit(BASE)
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        report("FAIL", "http: target", f"unsupported site URL scheme/host: {parts.scheme}")
+        return False
+    try:
+        infos = socket.getaddrinfo(parts.hostname, parts.port or (443 if parts.scheme == "https" else 80),
+                                   proto=socket.IPPROTO_TCP)
+    except OSError as err:
+        report("FAIL", "http: target", f"{parts.hostname} does not resolve ({err.__class__.__name__})")
+        return False
+    addrs = sorted({info[4][0] for info in infos})
+    if not addrs or not all(ipaddress.ip_address(a).is_loopback for a in addrs):
+        report("FAIL", "http: target", f"{parts.hostname} -> {', '.join(addrs)}: not loopback, no credentials sent")
+        return False
+    report("OK", "http: target", f"{parts.hostname} -> {', '.join(addrs)} (loopback, proxies ignored)")
+    return True
 
 
 def request(path: str, headers=None, method="GET", body=None):
@@ -57,6 +82,8 @@ def espo_auth(user: str, secret: str) -> str:
 
 
 def main() -> int:
+    if not target_is_loopback():
+        return fails
     # 1. Web UI entry page and its main stylesheet (served by Apache from /client/).
     code, _, body = request("/")
     text = body.decode("utf-8", "replace")
@@ -139,4 +166,10 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(min(main(), 100))
+    try:
+        main()
+    except Exception as exc:  # report the failure without request details
+        report("FAIL", "http: checks aborted", exc.__class__.__name__)
+    # health.sh treats a missing sentinel (e.g. a crash on start-up) as a failure.
+    print("# http checks completed")
+    sys.exit(min(fails, 100))

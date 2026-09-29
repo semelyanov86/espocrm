@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Blocks the commit when the secrets/PII scanner reports findings (AGENTS.md, "Checks before commit").
+# Enable once per clone: git config core.hooksPath .githooks
+set -euo pipefail
+exec "$(git rev-parse --show-toplevel)/scripts/check-secrets.sh" --history

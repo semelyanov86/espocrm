@@ -1,0 +1,39 @@
+{
+  "metaswarm_version": "1.0.0",
+  "distribution": "plugin",
+  "installed_at": "2026-09-29T23:15:48+02:00",
+  "updated_at": "2026-09-29T23:21:00+02:00",
+  "detection": {
+    "language": "PHP",
+    "secondary_languages": [
+      "Python",
+      "Bash"
+    ],
+    "framework": "EspoCRM 10.0.9 (core unpacked into the repo root, not tracked; project code in custom/ and client/custom/)",
+    "test_runner": null,
+    "linter": null,
+    "formatter": null,
+    "package_manager": null,
+    "type_checker": null,
+    "task_runner": "go-task (Taskfile.yml)",
+    "ci": null,
+    "git_hooks": "core.hooksPath=.githooks (pre-commit: scripts/check-secrets.sh --history)"
+  },
+  "choices": {
+    "coverage_threshold": 0,
+    "tests_required": false,
+    "external_tools": true,
+    "visual_review": true,
+    "ci_pipeline": false,
+    "git_hooks": true,
+    "setup_scope": "adapted-minimum"
+  },
+  "commands": {
+    "test": null,
+    "coverage": null,
+    "lint": null,
+    "typecheck": null,
+    "format_check": null,
+    "secrets_check": "scripts/check-secrets.sh --history"
+  }
+}

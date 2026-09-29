@@ -66,10 +66,15 @@ if getent hosts "$ESPO_SITE_HOST" | grep -q '^127\.0\.0\.1'; then
 else
     report FAIL "dns: $ESPO_SITE_HOST" "not resolved to 127.0.0.1"
 fi
-http_out="$(python3 "$STAND_DIR/health_http.py")" || true
-printf '%s\n' "$http_out"
+http_rc=0
+http_out="$(ESPO_ADMIN_USERNAME="$ESPO_ADMIN_USERNAME" ESPO_ADMIN_PASSWORD="$ESPO_ADMIN_PASSWORD" \
+    python3 "$STAND_DIR/health_http.py" 2>/dev/null)" || http_rc=$?
+grep -v '^# http checks completed$' <<<"$http_out" || true
 FAILS=$((FAILS + $(grep -c '^FAIL' <<<"$http_out" || true)))
 WARNS=$((WARNS + $(grep -c '^WARN' <<<"$http_out" || true)))
+if ! grep -q '^# http checks completed$' <<<"$http_out"; then
+    report FAIL "http: checks" "health_http.py did not complete (rc=$http_rc)"
+fi
 
 # --- cron / background jobs -------------------------------------------------------------------
 if [[ -f "$CRON_FILE" ]]; then
@@ -141,6 +146,19 @@ if [[ ${#drift[@]} -eq 0 ]]; then
     report OK "config: templates" "6 rendered files match Git templates"
 else
     report WARN "config: templates" "differs: ${drift[*]} (re-run task stand:install)"
+fi
+
+# --- leftovers of failed restores (kept on purpose for a manual rollback) --------------------
+# restore.sh runs this check before it drops its own leftovers; it passes their timestamp here.
+own="${RESTORE_TS:-none}"
+left_db="$(mysql_root -N -B -e "SELECT COUNT(*) FROM information_schema.schemata WHERE (schema_name
+    LIKE '${DB_NAME}\\_\\_prev\\_%' OR schema_name LIKE '${DB_NAME}\\_\\_restore\\_%')
+    AND schema_name NOT LIKE '%\\_$own'" 2>/dev/null || echo '?')"
+left_dir="$(find "$STAND_PRIVATE_DIR" -mindepth 1 -maxdepth 1 -name '.restore-aside-*' ! -name ".restore-aside-$own" | wc -l)"
+if [[ "$left_db" == 0 && "$left_dir" == 0 ]]; then
+    report OK "restore: leftovers" "none"
+else
+    report WARN "restore: leftovers" "$left_db databases, $left_dir directories (task stand:restore-cleanup)"
 fi
 
 # --- backups (informational) ------------------------------------------------------------------

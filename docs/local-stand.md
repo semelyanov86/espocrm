@@ -29,7 +29,7 @@ grep ESPO_ADMIN /data/itvolga/espo-private/stand/local.env
 | Cron | `cron.php` каждую минуту от `espocrm`, параллельные задачи включены | `/etc/cron.d/itvolga-espo`, вывод — `journalctl -t itvolga-espo-cron` | |
 | Пользователь | системный `espocrm` (nologin) — процессы PHP-FPM и cron | | данные CRM недоступны другим сайтам, работающим от `www-data` |
 | Конфиги | отрендерены из шаблонов `deploy/local/templates/*.tmpl` | `/etc/itvolga-espo/{my.cnf,php-fpm.conf}`, `/etc/systemd/system/itvolga-espo-*.service` | в Git — только шаблоны без секретов |
-| Секреты | `DB_PASSWORD`, `ESPO_ADMIN_USERNAME`, `ESPO_ADMIN_PASSWORD` | `/data/itvolga/espo-private/stand/local.env` (600), шаблон — `deploy/local/local.env.example` | вне Git; в программы передаются через stdin, не через argv |
+| Секреты | `DB_PASSWORD`, `ESPO_ADMIN_USERNAME`, `ESPO_ADMIN_PASSWORD` | `/data/itvolga/espo-private/stand/local.env` (600), шаблон — `deploy/local/local.env.example` | вне Git; не экспортируются, передаются только нужной программе через stdin или окружение одной команды, не через argv |
 | Backup | `db.sql.gz`, `files.tar.gz`, `table-counts.tsv`, `MANIFEST`, `SHA256SUMS` | `/data/itvolga/espo-private/stand/backups/<время>[-метка]/` (700/600) | содержат `config-internal.php` и данные — только приватно |
 
 Все имена, пути, порты и версии — в `deploy/local/stand.conf`; любое значение переопределяется переменной окружения (`MYSQL_PORT=3390 task stand:install`).
@@ -49,13 +49,14 @@ grep ESPO_ADMIN /data/itvolga/espo-private/stand/local.env
 |---|---|
 | `task stand:install` | все шаги: `preflight private user core perms mysql fpm espo apache cron health`; отдельные шаги — `task stand:install -- perms cron` |
 | `task stand:health` | health-check; код возврата 1 при любой ошибке |
-| `task stand:status` / `stand:start` / `stand:stop` | состояние; запуск; остановка (сначала снимается запись cron, затем FPM и MySQL) |
+| `task stand:status` / `stand:start` / `stand:stop` | состояние; запуск; остановка (сначала запись cron и FPM с ожиданием процессов задач, затем MySQL) |
 | `task stand:restart` | перезапуск MySQL и PHP-FPM, reload Apache, health-check |
 | `task stand:logs` | журнал сервисов, ошибки vhost, последний лог EspoCRM |
-| `task stand:backup -- [--label имя] [--quiesce]` | локальный backup; `--quiesce` останавливает cron и FPM на время снятия |
+| `task stand:backup -- [--label имя] [--online]` | локальный backup; по умолчанию cron и FPM приостанавливаются (≈1 с), `--online` — без остановки |
 | `task stand:backups` | список backup |
 | `task stand:restore -- <имя\|путь\|latest> [--yes] [--skip-custom] [--no-safety-backup]` | восстановление |
-| `task stand:uninstall -- --yes [--purge]` | удалить сервисы/vhost/cron/конфиги; `--purge` — также данные MySQL, ядро, `data/`, пользователя `espocrm` |
+| `task stand:restore-cleanup` | удалить остатки неудачного restore (`espocrm__prev_*`, `espocrm__restore_*`, `.restore-aside-*`) после отката; health-check предупреждает о них |
+| `task stand:uninstall -- --yes [--purge]` | удалить сервисы/vhost/cron/конфиги (только файлы с меткой шаблонов стенда); `--purge` — также данные MySQL (только каталог с меткой `.itvolga-espo-stand`), бинарники MySQL стенда, ядро и `data/` (только при наличии `.espocrm-core`), пользователя `espocrm` |
 | `task espo -- <команда>` | консоль EspoCRM (`rebuild`, `clear-cache`, `app-check`, `run-job Cleanup`, `version`…) |
 | `task espo:rebuild` | `clear-cache` + `rebuild` |
 | `task db:shell` | MySQL-консоль базы `espocrm` от MySQL root |
@@ -68,7 +69,7 @@ grep ESPO_ADMIN /data/itvolga/espo-private/stand/local.env
 
 ## Права
 
-- **Ядро** (всё из `.espocrm-core`): владелец — разработчик, `755/644`; `espocrm` не может его менять, поэтому обновления и расширения — только через скрипты, не через UI (загрузка расширений в UI отключена: `adminExtensionUpload=false`, решение D-03 — без платных пакетов).
+- **Ядро** (всё из `.espocrm-core`): установщик до записи проверяет, что каждый элемент ядра игнорируется `.gitignore` и не совпадает с файлом в Git; владелец — разработчик, `755/644`; `espocrm` не может его менять, поэтому обновления и расширения — только через скрипты, не через UI (загрузка расширений в UI отключена: `adminExtensionUpload=false`, решение D-03 — без платных пакетов).
 - **`data/`**: `espocrm:espocrm`, `0770` — настройки с секретами, вложения, кэш, логи; прочие пользователи (включая `www-data` и разработчика) внутрь не попадают, чтение — через `sudo`.
 - **`custom/Espo/Custom`, `custom/Espo/Modules`, `client/custom`** (в Git): владелец — разработчик; `espocrm` получает `rwX` через ACL, default ACL сохраняет общий доступ к новым файлам в обе стороны (Git и правки в UI EspoCRM работают без смены владельца).
 - **Сокет FPM**: `www-data:www-data 0660` — к пулу обращается только Apache.
@@ -77,9 +78,15 @@ grep ESPO_ADMIN /data/itvolga/espo-private/stand/local.env
 
 ## Backup и restore
 
-Backup: `mysqldump --single-transaction` своей MySQL 8.4 + архив `data/` (без `cache/` и `tmp/`) и каталогов кастомизаций + точные числа строк всех таблиц + `MANIFEST` (версии, git HEAD, кодировка БД) + `SHA256SUMS`. Без `--quiesce` БД снимается согласованным снимком, файлы — сразу после него; с `--quiesce` на время снятия нет ни одного писателя.
+Backup: `mysqldump --single-transaction` своей MySQL 8.4 + архив `data/` (без `cache/` и `tmp/`) и каталогов кастомизаций + точные числа строк всех таблиц + `MANIFEST` (версии, git HEAD, кодировка БД) + `SHA256SUMS`. По умолчанию на время снятия (доли секунды) снимается запись cron, останавливается PHP-FPM и скрипт дожидается завершения процессов `espocrm` (включая параллельные задачи) — дамп, числа строк и файлы описывают одно состояние (`counts_exact=1`). С `--online` сервисы не останавливаются: дамп остаётся согласованным снимком, но числа строк сняты рядом с ним (`counts_exact=0`), и restore при их расхождении только предупреждает. Неудавшийся backup удаляется целиком.
 
-Restore (`restore.sh`): проверка `SHA256SUMS` и версии EspoCRM → страховочный backup текущего состояния (`…-pre-restore`) → остановка cron и FPM → пересоздание БД из дампа → **сверка чисел строк всех таблиц с backup** → замена `data/` (и каталогов кастомизаций, если нет `--skip-custom`; при незакоммиченных изменениях в них restore отказывается) → права, реквизиты БД из текущего `local.env`, `rebuild`, cron → ожидание первого `cron.php` → health-check. Заменённые каталоги держатся в `…/stand/.restore-aside-<время>` до успеха; при ошибке cron остаётся выключенным, скрипт подсказывает, как откатиться.
+Restore (`restore.sh`):
+1. проверка `SHA256SUMS` и версии EspoCRM, страховочный backup текущего состояния (`…-pre-restore`);
+2. приостановка cron и FPM, ожидание процессов задач;
+3. импорт дампа во **временную БД** `espocrm__restore_<время>` и сверка чисел строк всех таблиц с backup (строгая для `counts_exact=1`) — повреждённый или несогласованный backup не трогает живую БД: restore прерывается, стенд продолжает работать как был;
+4. подмена: живые таблицы → `espocrm__prev_<время>`, таблицы временной БД → `espocrm` (атомарный `RENAME TABLE`);
+5. замена `data/` (и каталогов кастомизаций, если нет `--skip-custom`; при незакоммиченных изменениях в них restore отказывается), прежние каталоги — в `…/stand/.restore-aside-<время>`; права, реквизиты БД из текущего `local.env`, `rebuild`, cron;
+6. ожидание первого `cron.php` и health-check. Только после успешной проверки удаляются `espocrm__prev_<время>` и `.restore-aside-<время>`. При любой ошибке после шага 4 cron и FPM остаются остановленными, прежние таблицы и каталоги сохраняются, а скрипт печатает команду отката (`restore.sh <…-pre-restore> --yes --no-safety-backup`).
 
 Хранение backup не ограничено — лишние удалять вручную из `/data/itvolga/espo-private/stand/backups/`.
 

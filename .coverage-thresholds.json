@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Coverage gate is disabled: the project owner decided on 2026-09-29 that automated tests are not required. Re-enable by setting thresholds, a command and the block flags.",
+  "thresholds": {
+    "lines": 0,
+    "branches": 0,
+    "functions": 0,
+    "statements": 0
+  },
+  "enforcement": {
+    "command": null,
+    "blockPRCreation": false,
+    "blockTaskCompletion": false,
+    "description": "No coverage enforcement. Agents MUST NOT block PR creation or task completion on coverage and MUST NOT add test tooling unless the user asks for it."
+  }
+}

@@ -2,19 +2,22 @@
 # Local backup of the stand into $BACKUP_DIR/<timestamp>[-label]/ (private directory, mode 700):
 #   db.sql.gz        mysqldump of $DB_NAME (InnoDB snapshot, --single-transaction)
 #   files.tar.gz     data/ (without cache/ and tmp/), custom/Espo/{Custom,Modules}, client/custom
-#   table-counts.tsv exact row count of every table at dump time (restore verification)
+#   table-counts.tsv exact row count of every table (restore verification)
 #   MANIFEST         versions, git HEAD, schema charset; SHA256SUMS over all of the above
 #
-#   scripts/stand/backup.sh [--label NAME] [--quiesce]
-# --quiesce stops cron and PHP-FPM for the duration, so DB and files are taken with no writers.
+#   scripts/stand/backup.sh [--label NAME] [--online]
+# By default cron and PHP-FPM are paused for the (sub-second) duration, so the dump, the row counts
+# and the files describe one state. --online keeps them running: the dump is still a consistent
+# snapshot, but row counts may differ from it (recorded as counts_exact=0; restore then only warns).
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-label="" quiesce=0
+label="" quiesce=1
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --label) label="${2:?}"; shift 2 ;;
-        --quiesce) quiesce=1; shift ;;
-        *) die "usage: backup.sh [--label NAME] [--quiesce]" ;;
+        --online) quiesce=0; shift ;;
+        --quiesce) quiesce=1; shift ;;  # the default; kept for compatibility
+        *) die "usage: backup.sh [--label NAME] [--online]" ;;
     esac
 done
 [[ $EUID -ne 0 ]] || die "run as the developer user, not root"
@@ -27,16 +30,15 @@ name="$(date +%Y%m%dT%H%M%S)${label:+-$label}"
 dir="$BACKUP_DIR/$name"
 mkdir -m 0700 "$dir"
 
-resume() {
-    if [[ -f "$CRON_FILE.backup-paused" ]]; then as_root mv "$CRON_FILE.backup-paused" "$CRON_FILE"; fi
-    unit_active "$FPM_UNIT" || as_root systemctl start "$FPM_UNIT"
+on_exit() {
+    local rc=$?
+    resume_writers
+    if [[ $rc -ne 0 ]]; then rm -rf "$dir"; warn "backup failed; incomplete $dir removed"; fi
 }
+trap on_exit EXIT
 if [[ $quiesce == 1 ]]; then
-    log "quiesce: pausing cron and $FPM_UNIT"
-    [[ -f "$CRON_FILE" ]] && as_root mv "$CRON_FILE" "$CRON_FILE.backup-paused"
-    trap resume EXIT
-    for _ in $(seq 60); do pgrep -u "$ESPO_USER" -f "$ESPO_ROOT/cron.php" >/dev/null || break; sleep 1; done
-    as_root systemctl stop "$FPM_UNIT"
+    log "pausing writers (cron, $FPM_UNIT)"
+    pause_writers
 fi
 
 log "dumping database $DB_NAME"
@@ -49,7 +51,7 @@ log "archiving data/ and customizations"
 as_root tar -C "$ESPO_ROOT" --exclude=data/cache --exclude=data/tmp -czf - \
     data custom/Espo/Custom custom/Espo/Modules client/custom >"$dir/files.tar.gz"
 
-[[ $quiesce == 1 ]] && { resume; trap - EXIT; }
+resume_writers
 
 IFS=$'\t' read -r db_cs db_coll < <(mysql_root -N -B -e "SELECT default_character_set_name,
     default_collation_name FROM information_schema.schemata WHERE schema_name='$DB_NAME'")
@@ -57,6 +59,7 @@ IFS=$'\t' read -r db_cs db_coll < <(mysql_root -N -B -e "SELECT default_characte
     echo "name=$name"
     echo "created=$(date -Is)"
     echo "quiesced=$quiesce"
+    echo "counts_exact=$quiesce"
     echo "espocrm_version=$(espo_cmd version)"
     echo "mysql_version=$(mysql_root -N -B -e 'SELECT @@version')"
     echo "db_name=$DB_NAME"
@@ -71,6 +74,7 @@ IFS=$'\t' read -r db_cs db_coll < <(mysql_root -N -B -e "SELECT default_characte
 gzip -t "$dir/db.sql.gz"
 tar -tzf "$dir/files.tar.gz" >/dev/null
 ( cd "$dir" && sha256sum db.sql.gz files.tar.gz table-counts.tsv MANIFEST >SHA256SUMS )
+trap - EXIT
 
 log "backup ready: $dir ($(du -sh "$dir" | cut -f1))"
 printf '%s\n' "$dir"

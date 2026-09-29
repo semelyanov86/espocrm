@@ -1,0 +1,27 @@
+# External Tools Configuration (metaswarm)
+# The Codex adapter does not pass -m: the model comes from the Codex CLI config
+# (~/.codex/config.toml, model = "gpt-6-sol" as of 2026-09-29). "model" below is informational.
+# Stage reviews do not go through the adapter: see the "metaswarm" section of CLAUDE.md.
+
+adapters:
+  codex:
+    enabled: true
+    model: "gpt-6-sol"
+    timeout_seconds: 1800            # gpt-6-sol reviews at high reasoning take long
+    sandbox: platform
+    auth_env_var: "OPENAI_API_KEY"
+  gemini:
+    enabled: false                   # CLI not installed
+    model: "pro"
+    timeout_seconds: 300
+    sandbox: none
+    auth_env_var: "GEMINI_API_KEY"
+
+routing:
+  # Implementation is never delegated automatically (see CLAUDE.md)
+  default_implementer: "claude"
+  escalation_order: ["claude"]
+
+budget:
+  per_task_usd: 2.00
+  per_session_usd: 20.00

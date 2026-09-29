@@ -45,7 +45,6 @@
 
 Не сделано / вне рамок этапа:
 - Модели, поля, роли — этап 03. Обновление ядра EspoCRM не автоматизировано (установщик останавливается при смене версии).
-- Restore каталогов кастомизаций (без `--skip-custom`) до коммита не проверялся — `custom/` ещё не был в Git (restore отказывается затирать незакоммиченное).
 - HTTPS/Basic Auth, изоляция пула на production, внешние задачи EspoCRM (проверка версий, курсы валют) — этап 09.
 - Системный PHP рабочей станции переключён владельцем на 8.5 (`php-switch 8.5`, CLI + Apache mod_php); стенд от этого не зависит.
 
@@ -80,7 +79,9 @@
 | Перезапуск | `stand:restart`, полный restart `mysql/fpm/apache2/cron`, `stand:stop`→`stand:start` — health 0 FAIL после каждого; негативные контроли дают 6 и 12 FAIL |
 | Backup / restore | `--quiesce` backup 0,7 с; restore: числа строк 141 таблицы совпали, удалённые запись/документ/файл вернулись (sha256 совпал), запись после backup исчезла; то же на чистой установке |
 | shellcheck 0.11 / `py_compile` / `php -l` | 0 замечаний |
-| `scripts/check-secrets.sh --self-test` / `--history` | самотест ok; 0 находок (144 файла, сверка с 4853 хешами ПДн); реальные пароли стенда в индексе и истории Git не найдены |
+| `scripts/check-secrets.sh --self-test` / `--history` | самотест ok; 0 находок (сверка с 4853 хешами ПДн); реальные пароли стенда в индексе и истории Git не найдены |
+| Внешнее ревью Codex `gpt-6-sol` коммита `c56cc0b` | FAIL: 6 блокирующих + 2 предупреждения — все подтверждены и исправлены (временная БД при restore, откат, защита `--purge`, loopback для пароля, `.gitignore`, секреты не в окружении); второй раунд не проводился по решению владельца (`evidence.md`) |
+| Повторные проверки после исправлений | порченный backup → отказ без изменений; падение health после подмены → откат; purge с чужими путями — ничего не удалено; restore с `custom/`; установка с нуля + restore — health 0/0 |
 
 ## Проверки этапа 01 (2026-09-29)
 
@@ -103,7 +104,7 @@
 - `/data/itvolga/espo-private/audit/20260929T221708/` — **актуальный** прогон (с проверками Q-03/Q-05/Q-20); из него сгенерированы текущие `field-map.csv`/`relations.csv`.
 - `/data/itvolga/espo-private/pii-hashes.txt` — sha256 реальных ПДн для `check-secrets.sh`.
 - `/data/itvolga/espo-private/stand/local.env` — секреты локального стенда (600).
-- `/data/itvolga/espo-private/stand/backups/` — backup стенда (`20260929T225608-restore-test` и страховочные `…-pre-restore`).
+- `/data/itvolga/espo-private/stand/backups/` — backup проверок стенда (`…-restore-test`, `…-after-review`, страховочные `…-pre-restore` и др.).
 - `/data/itvolga/espo-private/stand/evidence/` — полные выводы health-check проверок этапа 02 и скриншот входа.
 
 ## Стартовая команда следующей сессии (этап 03)

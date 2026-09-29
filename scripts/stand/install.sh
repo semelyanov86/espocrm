@@ -34,15 +34,20 @@ step_preflight() {
         grep -qx "$ext" <<<"$cli_mods" || missing+=("cli:$ext")
     done
     [[ ${#missing[@]} -eq 0 ]] || die "missing PHP $PHP_VERSION extensions: ${missing[*]}"
-    local php_ver
+    local php_ver fpm_ver
     php_ver="$("$PHP_BIN" -r 'echo PHP_VERSION;')"
-    "$PHP_BIN" -r 'exit(version_compare(PHP_VERSION, "8.3.0", ">=") && version_compare(PHP_VERSION, "8.6.0", "<") ? 0 : 1);' \
-        || die "EspoCRM $ESPO_VERSION needs PHP >=8.3 <8.6, found $php_ver"
+    fpm_ver="$("$PHP_FPM_BIN" -v 2>/dev/null | sed -nE '1s/^PHP ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p')"
+    for v in "$php_ver" "$fpm_ver"; do
+        [[ -n "$v" ]] || die "cannot determine the version of $PHP_FPM_BIN"
+        [[ "$(printf '%s\n8.3.0\n' "$v" | sort -V | head -n1)" == 8.3.0 && "$(printf '%s\n8.6.0\n' "$v" | sort -V | head -n1)" == "$v" && "$v" != 8.6.0 ]] \
+            || die "EspoCRM $ESPO_VERSION needs PHP >=8.3 <8.6, found $v"
+        [[ "$v" == "$PHP_VERSION".* ]] || die "PHP $v does not match PHP_VERSION=$PHP_VERSION"
+    done
     local glibc
     glibc="$(getconf GNU_LIBC_VERSION | awk '{print $2}')"
     [[ "$(printf '%s\n2.28\n' "$glibc" | sort -V | head -n1)" == 2.28 ]] || die "glibc $glibc < 2.28 (MySQL generic build)"
     systemctl list-unit-files cron.service >/dev/null 2>&1 || die "cron.service not found"
-    log "preflight ok: PHP $php_ver, glibc $glibc"
+    log "preflight ok: PHP CLI $php_ver, FPM $fpm_ver, glibc $glibc"
 }
 
 step_private() {
@@ -104,12 +109,23 @@ step_core() {
 
     local entries=()
     while IFS= read -r entry; do entries+=("$entry"); done < <(cd "$src" && find . -mindepth 1 -maxdepth 1 -printf '%P\n' | sort)
-    for entry in "${entries[@]}"; do
-        case "$entry" in custom|data) continue ;; esac
-        if git -C "$REPO_ROOT" ls-files --error-unmatch -- "$entry" >/dev/null 2>&1 && [[ "$entry" != client ]]; then
-            die "core entry '$entry' collides with a file tracked in Git"
+    # Nothing of the core may become committable: every top-level entry (and every entry of client/
+    # except custom/) must be ignored by .gitignore and must not collide with a tracked file.
+    local path unignored=()
+    while IFS= read -r path; do
+        [[ -d "$src/$path" ]] && path="$path/"
+        if [[ "$REPO_ROOT" == "$ESPO_ROOT" ]] && ! git -C "$REPO_ROOT" check-ignore -q --no-index -- "$path"; then
+            unignored+=("$path")
         fi
-    done
+        if git -C "$REPO_ROOT" ls-files --error-unmatch -- "${path%/}" >/dev/null 2>&1; then
+            die "core entry '${path%/}' collides with a file tracked in Git"
+        fi
+    done < <(cd "$src" && { find . -mindepth 1 -maxdepth 1 ! -name custom ! -name client -printf '%P\n'
+                           find client -mindepth 1 -maxdepth 1 ! -name custom -printf '%p\n'; } | sort)
+    [[ ${#unignored[@]} -eq 0 ]] || die "core entries not ignored by .gitignore: ${unignored[*]}"
+    if [[ "$REPO_ROOT" != "$ESPO_ROOT" && ! -f "$CORE_STAMP" && -n "$(ls -A "$ESPO_ROOT" 2>/dev/null)" ]]; then
+        die "ESPO_ROOT=$ESPO_ROOT is not empty and holds no stand install"
+    fi
 
     log "installing EspoCRM $ESPO_VERSION core into $ESPO_ROOT"
     for entry in "${entries[@]}"; do
@@ -200,6 +216,8 @@ step_mysql() {
             grep -E '\[(ERROR|Warning)\]' <<<"$out" >&2 || true
             die "MySQL initialisation failed; remove $MYSQL_DATADIR before retrying"
         fi
+        # Marker: uninstall.sh --purge deletes only a data directory created here.
+        as_root install -m 0644 -o root -g root /dev/null "$MYSQL_DATADIR/.itvolga-espo-stand"
     fi
     as_root systemctl enable --quiet "$MYSQL_UNIT"
     if unit_active "$MYSQL_UNIT"; then
