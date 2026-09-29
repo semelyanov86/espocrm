@@ -38,7 +38,8 @@ python3 "$HERE/gen_sql.py" table-live-counts "$OUT" > "$OUT/15_table_live_counts
 remote_sql < "$OUT/15_table_live_counts.sql" > "$OUT/15_table_live_counts.raw"
 
 echo "3. relations, ACL, workflows, finance, telephony"
-for n in 20_relations 21_acl 25_activity_workflows 26_finance 27_payments 28_pbx 31_misc 32_cardinality 33_allocation_check 34_finance_config; do
+for n in 20_relations 21_acl 25_activity_workflows 26_finance 27_payments 28_pbx 31_misc 32_cardinality 33_allocation_check \
+         34_finance_config 36_rounding 37_timezone; do
     run_sql "$n"
 done
 run_sql 40_cdr asteriskcdrdb
@@ -55,7 +56,17 @@ ssh "${AUDIT_SSH_OPTS[@]}" "$AUDIT_HOST" 'sudo -n bash -s' < "$HERE/remote/telep
 remote_sql_py asteriskcdrdb cdr_overlap.py > "$OUT/30_cdr_overlap.tsv" <<'SQL'
 SELECT uniqueid, linkedid, calldate, IFNULL(recordingpath,''), dst, dstchannel, billsec, sequence FROM cdr;
 SQL
-for f in 22_attachments_files.tsv 23_templates.tsv 24_access_usage.tsv 29_telephony.txt 30_cdr_overlap.tsv; do
+remote_sql_py asteriskcdrdb wav_csv_match.py > "$OUT/38_wav_csv_match.tsv" <<'SQL'
+SELECT uniqueid, calldate, IFNULL(recordingpath,''), src, dst FROM cdr;
+SQL
+remote_sql_py "$AUDIT_DB" attachment_tz.py /var/www/serv_itvolga/vtiger7 > "$OUT/39_attachment_tz.tsv" <<'SQL'
+SELECT a.attachmentsid, c.createdtime, a.path, a.name FROM vtiger_attachments a JOIN vtiger_crmentity c ON c.crmid=a.attachmentsid AND c.deleted=0;
+SQL
+remote_sql_py "$AUDIT_DB" login_tz.py > "$OUT/39_login_tz.tsv" <<'SQL'
+SELECT login_time FROM vtiger_loginhistory WHERE login_time >= NOW() - INTERVAL 20 DAY;
+SQL
+for f in 22_attachments_files.tsv 23_templates.tsv 24_access_usage.tsv 29_telephony.txt 30_cdr_overlap.tsv \
+         38_wav_csv_match.tsv 39_attachment_tz.tsv 39_login_tz.tsv; do
     echo "  $f: $(wc -l < "$OUT/$f") lines"
 done
 

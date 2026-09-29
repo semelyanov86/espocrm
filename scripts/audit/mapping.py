@@ -54,9 +54,9 @@ COMMON = {
     "assigned_user_id": ("assignedUser / teams", "owner-map: user→User; group→Team (assignedUser пуст)", "fk"),
     "created_user_id": ("createdBy", "user-map по vtiger_users.id", "fk"),
     "modifiedby": ("modifiedBy", "user-map по vtiger_users.id", "fk"),
-    "createdtime": ("createdAt", "datetime; часовой пояс источника не проверен (см. open-questions)", "count+hash"),
-    "modifiedtime": ("modifiedAt", "datetime; часовой пояс источника не проверен", "count+hash"),
-    "ModifiedTime": ("modifiedAt", "datetime; часовой пояс источника не проверен", "count+hash"),
+    "createdtime": ("createdAt", "datetime → UTC по эпохам D-30 (Europe/Moscow до 2022-11, Europe/Berlin до 2026-06-12, далее UTC)", "count+hash"),
+    "modifiedtime": ("modifiedAt", "datetime → UTC по эпохам D-30 (Europe/Moscow до 2022-11, Europe/Berlin до 2026-06-12, далее UTC)", "count+hash"),
+    "ModifiedTime": ("modifiedAt", "datetime → UTC по эпохам D-30 (Europe/Moscow до 2022-11, Europe/Berlin до 2026-06-12, далее UTC)", "count+hash"),
     "description": ("description", "text as-is", "count+hash"),
     "source": (None, "исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE)", "count"),
     "starred": (None, "исключено: персональная «звёздочка» пользователя (истинных значений — единицы)", "count"),
@@ -232,7 +232,7 @@ F["Potentials"] = {
 
 F["Calendar"] = {
     "subject": ("name", "string", "count+hash"),
-    "date_start": ("dateStart", "date+time_start → datetime", "count+hash"),
+    "date_start": ("dateStart", "date+time_start → datetime → UTC по эпохам D-30", "count+hash"),
     "time_start": ("dateStart (время)", "склейка с date_start", "count+hash"),
     "due_date": ("dateEnd", "date (срок задачи)", "count+hash"),
     "parent_id": ("parent", "fk из vtiger_seactivityrel", "fk"),
@@ -253,9 +253,9 @@ F["Calendar"] = {
 
 F["Events"] = {
     "subject": ("name", "string", "count+hash"),
-    "date_start": ("dateStart", "date+time_start → datetime", "count+hash"),
+    "date_start": ("dateStart", "date+time_start → datetime → UTC по эпохам D-30", "count+hash"),
     "time_start": ("dateStart (время)", "склейка", "count+hash"),
-    "due_date": ("dateEnd", "date+time_end → datetime", "count+hash"),
+    "due_date": ("dateEnd", "date+time_end → datetime → UTC по эпохам D-30", "count+hash"),
     "time_end": ("dateEnd (время)", "склейка", "count+hash"),
     "duration_hours": ("duration", "часы+минуты → секунды", "count+sum"),
     "duration_minutes": ("duration", "часы+минуты → секунды", "count+sum"),
@@ -280,7 +280,7 @@ F["Events"] = {
 F["Emails"] = {
     "subject": ("name", "string", "count+hash"),
     "description": ("body", "html", "count+hash"),
-    "date_start": ("dateSent", "date+time_start", "count+hash"),
+    "date_start": ("dateSent", "date+time_start → UTC по эпохам D-30", "count+hash"),
     "time_start": ("dateSent (время)", "склейка", "count+hash"),
     "from_email": ("fromString / from", "email", "count+hash"),
     "saved_toid": ("to", "список адресов (JSON/строка)", "count+hash"),
@@ -449,8 +449,8 @@ F["PBXManager"] = {
     "user": ("assignedUser", "user-map", "fk"),
     "customernumber": ("cPhoneNumber", "phone (для сопоставления с клиентом)", "count+hash"),
     "customertype": (None, "производное от parent", "count"),
-    "starttime": ("dateStart", "datetime", "count+hash"),
-    "endtime": ("dateEnd", "datetime", "count+hash"),
+    "starttime": ("dateStart", "datetime → UTC: до 2020-10-22 Europe/Berlin (время коннектора), далее по эпохам D-30", "count+hash"),
+    "endtime": ("dateEnd", "datetime → UTC: до 2020-10-22 Europe/Berlin (время коннектора), далее по эпохам D-30", "count+hash"),
     "recordingurl": ("cLegacyRecordingUrl", "архивная ссылка на коннектор 127.0.0.1:5000 — аудио недоступно, не выдавать за запись", "count"),
     "totalduration": ("duration", "секунды", "count+sum"),
     "billduration": ("cBillDuration", "секунды", "count+sum"),

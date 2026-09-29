@@ -15,7 +15,7 @@
 | БД | MySQL 8.4.11, база `vtiger7`: 784 таблицы, **534 непустые**, ~42.6 МБ | совпадает |
 | Веб | Apache vhost `serv.itvolga.com` → fcgi `127.0.0.1:9074`, HTTP Basic Auth (1 общая учётная запись в htpasswd) | совпадает |
 | Cron | `/etc/cron.d/vtiger`: `*/5` от `www-data` через `flock` + `sudo` враппер → `docker exec` в `php74-fpm` | совпадает |
-| Язык/валюта | `ru_ru`, `Russia, Rubles`; в `config.inc.php` дважды задан `$default_timezone` (`Europe/Moscow`, затем `UTC+3`) | не документировано; см. `open-questions.md` Q-05 |
+| Язык/валюта/время | `ru_ru`, `Russia, Rubles`; в `config.inc.php` дважды задан `$default_timezone` (`Europe/Moscow`, затем некорректное `UTC+3`, которое PHP игнорирует). Фактический пояс записи дат: Europe/Moscow до 2022-10, Europe/Berlin с 2022-11 до 2026-06-12, UTC с 2026-06-13 (проверено по времени файлов и логу входа, D-30) | не документировано |
 | Asterisk | 22.5.2 (apt), `chan_pjsip`, CDR: `cdr_adaptive_odbc` (MySQL `asteriskcdrdb.cdr`) + `cdr_csv` | совпадает с README роли `asterisk` |
 | Backup | restic-тиры `db` (ночные `mysqldump` в `/var/backups/mysql`, есть `vtiger7.sql` и `asteriskcdrdb.sql`), `system` (`/etc`, `/var/www`, …) | **`/var/spool/asterisk/monitor` и `/var/log/asterisk/cdr-csv` в бэкап не входят**; глобальное исключение `**/vendor` исключает и `vtiger7/vendor` (восстановим по `composer.lock`) |
 
