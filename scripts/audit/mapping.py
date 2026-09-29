@@ -8,7 +8,8 @@ Conventions (see docs/migration/decisions.md):
 - own entities (Invoice, Act, Payment, ...) use plain camelCase names;
 - `vtigerId` (source crmid) and `vtigerNo` (source record number) exist on every imported entity;
 - `vtigerData` is a read-only JSON archive field for non-empty source values without a work field;
-- VtigerArchive is a read-only archive entity for modules without a work entity.
+- VtigerArchive is a read-only archive entity for modules without a work entity;
+- change history (vtiger_modtracker_*) is NOT migrated (owner decision Q-27).
 """
 
 # module -> (target entity, module fate)
@@ -18,14 +19,14 @@ MODULES = {
     "Leads": ("Lead", "рабочая сущность"),
     "Potentials": ("Opportunity", "рабочая сущность"),
     "Calendar": ("Task", "рабочая сущность"),
-    "Events": ("Call/Meeting/Task по activitytype", "рабочая сущность"),
+    "Events": ("Call/Meeting/Task (вид «Письмо») по activitytype", "рабочая сущность"),
     "Emails": ("Email", "рабочая сущность (архивные письма)"),
     "HelpDesk": ("Case", "рабочая сущность"),
     "Faq": ("KnowledgeBaseArticle", "рабочая сущность"),
     "Documents": ("Document", "рабочая сущность"),
     "Products": ("Product (собственная)", "рабочая сущность"),
     "Services": ("Product (собственная, type=service)", "рабочая сущность"),
-    "Vendors": ("Account (type=Vendor)", "рабочая сущность"),
+    "Vendors": ("Vendor (собственная)", "рабочая сущность"),
     "Quotes": ("Quote (собственная)", "рабочая сущность"),
     "SalesOrder": ("SalesOrder (собственная)", "рабочая сущность"),
     "Invoice": ("Invoice (собственная)", "рабочая сущность"),
@@ -128,13 +129,13 @@ F["Accounts"] = {
     "accountname": ("name", "string", "count+hash"),
     "account_no": ("vtigerNo", "string (КОНТР_N)", "count+hash"),
     "website": ("website", "url", "count+hash"),
-    "tickersymbol": ("vtigerData.tickersymbol", "string; семантика использования не проверена (99 значений)", "count+hash"),
+    "tickersymbol": ("cShortName", "string: краткое название организации (подтверждено владельцем, Q-24)", "count+hash"),
     "account_id": ("parent (cParentAccount)", "fk (в источнике пусто)", "fk"),
     "employees": ("cEmployees", "int (0 = пусто)", "count+sum"),
     "email1": ("emailAddress (primary)", "email lower-case", "count+hash"),
     "email2": ("emailAddress (secondary)", "email lower-case", "count+hash"),
     "ownership": ("vtigerData.ownership", "string", "count+hash"),
-    "industry": ("industry", "enum: значения источника как опции", "count+distribution"),
+    "industry": ("industry", "enum: словарь синонимов (D-19), исходное значение → vtigerData", "count+distribution"),
     "rating": ("cRating", "enum", "count+distribution"),
     "accounttype": ("type", "enum: Клиент/Customer → Customer", "count+distribution"),
     "siccode": ("sicCode", "string", "count+hash"),
@@ -194,7 +195,7 @@ F["Leads"] = {
     "lastname": ("lastName", "string", "count+hash"),
     "company": ("accountName", "string", "count+hash"),
     "designation": ("title", "string", "count+hash"),
-    "leadsource": ("source", "enum mapping (значения источника как опции)", "count+distribution"),
+    "leadsource": ("source", "enum: словарь синонимов (D-19), исходное значение → vtigerData", "count+distribution"),
     "email": ("emailAddress (primary)", "email", "count+hash"),
     "secondaryemail": ("emailAddress (secondary)", "email", "count+hash"),
     "industry": ("industry", "enum", "count+distribution"),
@@ -259,7 +260,7 @@ F["Events"] = {
     "duration_hours": ("duration", "часы+минуты → секунды", "count+sum"),
     "duration_minutes": ("duration", "часы+минуты → секунды", "count+sum"),
     "eventstatus": ("status", "Held→Held; Planned→Planned", "count+distribution"),
-    "activitytype": ("(entityType)", "Call→Call; Meeting→Meeting; 'Письмо'→решение в open-questions", "count+distribution"),
+    "activitytype": ("(entityType)", "Call→Call; Meeting→Meeting; 'Письмо'→Task с видом «Письмо» (Q-10)", "count+distribution"),
     "taskpriority": ("vtigerData.taskpriority", "enum", "count"),
     "visibility": (None, "исключено: все Public", "count"),
     "sendnotification": (None, "исключено: все 0", "count"),
@@ -303,7 +304,7 @@ F["HelpDesk"] = {
     "ticketpriorities": ("priority", "Normal→Normal; Высокий→High; Low→Low", "count+distribution"),
     "ticketstatus": ("status", "Open→New; In Progress→Assigned; Wait For Response→Pending; Closed→Closed", "count+distribution"),
     "ticketseverities": ("cSeverity", "enum", "count+distribution"),
-    "ticketcategories": ("type", "enum (значения источника)", "count+distribution"),
+    "ticketcategories": ("type", "enum: словарь синонимов (D-19), исходное значение → vtigerData", "count+distribution"),
     "hours": ("vtigerData.hours", "decimal (0 = пусто)", "count+sum"),
     "days": ("vtigerData.days", "decimal (0 = пусто)", "count+sum"),
     "from_portal": (None, "исключено: все 0 (портал не используется)", "count"),
@@ -339,7 +340,7 @@ F["Products"] = {
     "product_no": ("vtigerNo", "string (ТОВ_N)", "count+hash"),
     "discontinued": ("isActive", "в Vtiger discontinued=1 означает «активен»", "count"),
     "productcode": ("code", "string", "count+hash"),
-    "vendor_id": ("vendor (Account)", "fk (пусто)", "fk"),
+    "vendor_id": ("vendor (Vendor)", "fk (пусто)", "fk"),
     "unit_price": ("unitPrice", "decimal", "count+sum"),
     "purchase_cost": ("purchaseCost", "decimal", "count+sum"),
     "usageunit": ("unit", "enum", "count+distribution"),
@@ -362,7 +363,7 @@ F["Services"] = {
     "start_date": ("vtigerData.start_date", "date", "count"),
     "commissionrate": ("vtigerData.commissionrate", "decimal", "count+sum"),
     "cf_billable_time_tracker": ("vtigerData.billable_time_tracker", "bool (расширение TimeTracker)", "count"),
-    "qty_per_unit": ("vtigerData.qty_per_unit", "decimal; семантика для услуг не проверена", "count+sum"),
+    "qty_per_unit": ("qtyPerUnit", "decimal: количество единиц (подтверждено владельцем, Q-24)", "count+sum"),
 }
 
 F["Vendors"] = {
@@ -371,7 +372,7 @@ F["Vendors"] = {
     "email": ("emailAddress", "email", "count+hash"),
     "phone": ("phoneNumber[Office]", "phone", "count+hash"),
     "website": ("website", "url", "count+hash"),
-    "cf_1206": ("cInn", "string (ИНН поставщика; ключ банковского импорта расходов)", "count+hash"),
+    "cf_1206": ("inn", "string (ИНН поставщика)", "count+hash"),
 }
 
 _INV_COMMON = dict(INVENTORY_HEADER, **{k: (v, "address", "count+hash") for k, v in ADDRESS_INV.items()})
@@ -389,7 +390,7 @@ F["Invoice"] = dict(_INV_COMMON, **{
 })
 F["Quotes"] = dict(_INV_COMMON, **{
     "quote_no": ("number", "string (ПРЕД_N)", "count+hash"),
-    "quotestage": ("status", "enum (значения источника)", "count+distribution"),
+    "quotestage": ("status", "enum: словарь синонимов (D-19), исходное значение → vtigerData", "count+distribution"),
     "validtill": ("dateValidUntil", "date", "count+hash"),
     "potential_id": ("opportunity", "fk", "fk"),
     "assigned_user_id1": ("cInventoryManager", "fk User", "fk"),
@@ -423,7 +424,7 @@ F["SPPayments"] = {
     "pay_no": ("number", "string (цифры, уникальны)", "count+hash"),
     "pay_date": ("datePaid", "date", "count+hash"),
     "pay_type": ("direction", "Приход→incoming; Expense→outgoing", "count+distribution"),
-    "payer": ("payer (Account|Contact)", "fk; Vendors→Account(type=Vendor)", "fk"),
+    "payer": ("payer (Account|Contact|Vendor)", "fk (link-parent); Vendors→Vendor", "fk"),
     "related_to": ("PaymentAllocation.invoice|salesOrder", "fk ∪ vtiger_crmentityrel Invoice↔SPPayments (см. finance-contract)", "fk"),
     "type_payment": ("method", "Наличные→cash; Cashless Transfer→bank", "count+distribution"),
     "amount": ("amount", "decimal(25,8), всегда ≥0; знак задаётся direction", "count+sum"),
@@ -491,7 +492,7 @@ F["Project"] = {
     "startdate": ("dateStart", "date", "count+hash"),
     "targetenddate": ("dateEndPlanned", "date", "count+hash"),
     "actualenddate": ("dateEnd", "date", "count+hash"),
-    "projectstatus": ("status", "enum (значения источника)", "count+distribution"),
+    "projectstatus": ("status", "enum: словарь синонимов (D-19), исходное значение → vtigerData", "count+distribution"),
     "projecttype": ("type", "enum", "count+distribution"),
     "linktoaccountscontacts": ("account", "fk Accounts", "fk"),
     "potentialid": ("opportunity", "fk", "fk"),
@@ -533,7 +534,7 @@ F["Users"] = {
     "department": ("vtigerData.department", "string", "count"),
     "phone_work": ("phoneNumber[Office]", "phone", "count+hash"),
     "phone_mobile": ("phoneNumber[Mobile]", "phone", "count+hash"),
-    "phone_home": (None, "исключено: личный телефон сотрудника не нужен CRM (подтвердить)", "count"),
+    "phone_home": (None, "исключено: личный телефон сотрудника (решение владельца, Q-09)", "count"),
     "phone_crm_extension": ("cPhoneExtension", "string: внутренний номер для телефонии", "count+hash"),
     "signature": ("preferences.signature", "html", "count+hash"),
     "language": ("preferences.language", "ru_ru→ru_RU", "count+distribution"),
@@ -543,11 +544,11 @@ F["Users"] = {
     "dayoftheweek": ("preferences.weekStart", "Monday→1", "count"),
     "currency_id": ("preferences (валюта)", "RUB", "count"),
     "imagename": ("avatar", "Users Image", "file-hash"),
-    "address_street": (None, "исключено: адрес сотрудника (подтвердить)", "count"),
-    "address_city": (None, "исключено: адрес сотрудника (подтвердить)", "count"),
-    "address_state": (None, "исключено: адрес сотрудника (подтвердить)", "count"),
-    "address_postalcode": (None, "исключено: адрес сотрудника (подтвердить)", "count"),
-    "address_country": (None, "исключено: адрес сотрудника (подтвердить)", "count"),
+    "address_street": (None, "исключено: адрес сотрудника (решение владельца, Q-09)", "count"),
+    "address_city": (None, "исключено: адрес сотрудника (решение владельца, Q-09)", "count"),
+    "address_state": (None, "исключено: адрес сотрудника (решение владельца, Q-09)", "count"),
+    "address_postalcode": (None, "исключено: адрес сотрудника (решение владельца, Q-09)", "count"),
+    "address_country": (None, "исключено: адрес сотрудника (решение владельца, Q-09)", "count"),
 }
 USERS_UI_PREFS = {
     "lead_view", "end_hour", "is_owner", "currency_grouping_pattern", "currency_decimal_separator",
@@ -621,10 +622,10 @@ TABLE_RULES = [
     (r"^vtiger_(crmentityrel|seactivityrel|cntactivityrel|salesmanactivityrel|salesmanattachmentsrel|senotesrel|seattachmentsrel|contpotentialrel|freetagged_objects|invitees)$",
      "связь", "переносится как связь (см. relations.csv)", "links EspoCRM"),
     (r"^vtiger_(modtracker_basic|modtracker_detail|modtracker_relations)$", "история изменений",
-     "исторический архив (VtigerChangeLog, только чтение); значения полей доступа Contacts не переносятся", "VtigerChangeLog"),
+     "не переносится (решение владельца, Q-27): остаётся в защищённом снимке", "—"),
     (r"^vtiger_modtracker_tabs$", "настройка истории", "не переносится: включить аудит полей в EspoCRM", "—"),
     (r"^vtiger_(invoicestatushistory|sp_actstatushistory|potstagehistory)$", "история статусов",
-     "исторический архив (VtigerChangeLog)", "VtigerChangeLog"),
+     "не переносится (решение владельца, Q-27): остаётся в защищённом снимке", "—"),
     (r"^vtiger_loginhistory$", "журнал входов", "не переносится: журнал безопасности остаётся в защищённом снимке", "—"),
     (r"^vtiger_(profile|profile2.*|role|role2profile|role2picklist|def_org_share|def_org_field|org_share_.*|datashare_.*|tmp_(read|write)_user_sharing_per|groups|group2.*|users2group|user2role)$",
      "ACL", "не переносится как данные: права воспроизводятся ролями/командами EspoCRM по module-decisions.md", "Role/Team"),
@@ -633,7 +634,7 @@ TABLE_RULES = [
     (r"^vtiger_(customview|cvadvfilter|cvadvfilter_grouping|cvcolumnlist|cvstdfilter)$", "фильтры списков",
      "не переносится автоматически: ключевые фильтры воссоздаются вручную", "—"),
     (r"^vtiger_(report|reportmodules|selectquery|selectcolumn|relcriteria|relcriteria_grouping|reportfilters|reportsortcol|reportsummary|reportdatefilter|reportfolder)$",
-     "отчёты", "не переносится: отчёты EspoCRM платные; нужные выборки — списки/фильтры или собственный код", "—"),
+     "отчёты", "не переносится: отчёты не нужны (решение владельца, Q-16)", "—"),
     (r"^com_vtiger_workflow", "workflows", "не переносится как данные: логика реализуется собственными hooks/formula по decisions.md", "—"),
     (r"^vtiger_cron_task$", "планировщик", "не переносится: задачи EspoCRM Scheduled Jobs", "—"),
     (r"^(sp_templates|vtiger_emailtemplates|vtiger_quotingtool.*|vtiger_inventory_tandc|vtiger_notificationscheduler|vtiger_inventorynotification)$",

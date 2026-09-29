@@ -88,7 +88,7 @@ def field_rows(outdir):
                 rule = (f"VtigerArchive.data.{fname}", "JSON как есть; ссылки как vtigerId", "count+hash")
             elif mod == "VTEItems":
                 rule = (None, "модуль VTEItems — дубль vtiger_inventoryproductrel (222 родителя, число строк совпадает; "
-                              "1 расхождение суммы — Q-12)", "count")
+                              "1 расхождение суммы — в отчёт; решение владельца, Q-12)", "count")
             elif mod == "Notifications":
                 rule = (None, "служебное уведомление (1 запись 2018 г.)", "count")
                 status = "решено"
@@ -113,6 +113,8 @@ def field_rows(outdir):
             target, transform, verification = rule
             if "не проверен" in transform and status == "предложено":
                 status = "не проверено"
+            if "владельц" in transform:
+                status = "решено"  # confirmed by the owner in open-questions.md
             fate = fate_for(None if target is None else target, transform, count)
             if target == "—":
                 fate = "пусто — данных нет"
@@ -161,6 +163,8 @@ def field_rows(outdir):
                         break
                 transform = category
                 entity = "—"
+                if "владельц" in fate:
+                    status = "решено"
                 if fate == "не классифицировано":
                     status = "не проверено"
             out.append(["", tbl, col, "", "", "", r["db_type"], "нет", r["nonempty_all"], live_records,
@@ -277,7 +281,7 @@ CRMREL_TARGETS = {
     ("Project", "ProjectTask"): "ProjectTask.project (дублирует projectid)",
     ("SPCallPopup", "Contacts"): "слияние в Call", ("SPCallPopup", "Leads"): "слияние в Call",
     ("SPCallPopup", "PBXManager"): "слияние в Call (1:1)",
-    ("Vendors", "SPPayments"): "Payment.payer (Account type=Vendor)",
+    ("Vendors", "SPPayments"): "Payment.payer (Vendor)",
 }
 
 
@@ -439,7 +443,7 @@ def relation_rows(outdir):
                      f"{p[1]} → multiEnum tags", "count", "перенос", "предложено"])
     for p in read_kind_rows(outdir / "25_activity_workflows.tsv", "modtracker_relations"):
         rows.append([f"history-link:{p[1]}->{p[2]}", "history", "vtiger_modtracker_relations", p[1], p[2], "журнал", p[3], 0, "",
-                     "VtigerChangeLog", "count", "архив (только чтение)", "предложено"])
+                     "—", "count", "исключено: история не переносится (Q-27)", "решено"])
     rows.append(["users2group", "acl", "vtiger_users2group", "Users", "Groups", "M:N", 4, 0, "", "User.teams", "count", "перенос", "предложено"])
     rows.append(["user2role", "acl", "vtiger_user2role", "Users", "Roles", "N:1", 7, 0, "", "User.roles", "count", "перенос (роли пересобираются)", "предложено"])
     return rows

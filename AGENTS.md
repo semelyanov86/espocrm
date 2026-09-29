@@ -38,7 +38,7 @@
 - `docs/migration/` — постоянная память миграции (карта полей, связи, решения, вопросы, доказательства).
 - Будущие этапы: код EspoCRM в `custom/` и `client/custom/` (не игнорировать целиком), импорт в `scripts/import/`, тесты в `tests/`, Ansible — отдельно, по этапу 09.
 - Язык общения и документации — русский; код, идентификаторы и комментарии в коде — английский.
-- Имена: собственные сущности — `Invoice`, `InvoiceItem`, `Act`, `ActItem`, `Payment`, `PaymentAllocation`, `Quote`, `SalesOrder`, `Product`, `Project`, `ProjectTask`, `VtigerArchive`, `VtigerChangeLog`, `ContactAccess`; кастомные поля стандартных сущностей — с префиксом `c` (`cInn`); на каждой импортируемой сущности — `vtigerId`, при наличии номера — `vtigerNo`/`number`; нераспределённые значения — `vtigerData` (JSON, только чтение).
+- Имена: собственные сущности — `Invoice`, `InvoiceItem`, `Act`, `ActItem`, `Payment`, `PaymentAllocation`, `Quote`, `SalesOrder`, `Product`, `Project`, `ProjectTask`, `Vendor`, `LegalEntity`, `VtigerArchive`, `ContactAccess`; кастомные поля стандартных сущностей — с префиксом `c` (`cInn`); на каждой импортируемой сущности — `vtigerId`, при наличии номера — `vtigerNo`/`number`; нераспределённые значения — `vtigerData` (JSON, только чтение).
 - Деньги — десятичная арифметика, без float. Исходные суммы Vtiger — эталон: пересчёт не должен молча их менять.
 
 ## Проверки перед коммитом

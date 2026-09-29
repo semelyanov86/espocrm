@@ -177,7 +177,7 @@ crmentityrel:Project->ProjectTask,m2m,vtiger_crmentityrel,Project,ProjectTask,"M
 crmentityrel:SPCallPopup->Contacts,m2m,vtiger_crmentityrel,SPCallPopup,Contacts,"M:N (max 1 на источник, 1 на цель)",1,0,,слияние в Call,count: пары live/live; дубли с полями-ссылками схлопываются,слияние,предложено
 crmentityrel:SPCallPopup->Leads,m2m,vtiger_crmentityrel,SPCallPopup,Leads,"M:N (max 1 на источник, 1 на цель)",2,0,,слияние в Call,count: пары live/live; дубли с полями-ссылками схлопываются,слияние,предложено
 crmentityrel:SPCallPopup->PBXManager,m2m,vtiger_crmentityrel,SPCallPopup,PBXManager,"M:N (max 1 на источник, 1 на цель)",210,0,,слияние в Call (1:1),count: пары live/live; дубли с полями-ссылками схлопываются,слияние,предложено
-crmentityrel:Vendors->SPPayments,m2m,vtiger_crmentityrel,Vendors,SPPayments,"M:N (max 24 на источник, 1 на цель)",23,21,,Payment.payer (Account type=Vendor),count: пары live/live; дубли с полями-ссылками схлопываются,перенос,предложено
+crmentityrel:Vendors->SPPayments,m2m,vtiger_crmentityrel,Vendors,SPPayments,"M:N (max 24 на источник, 1 на цель)",23,21,,Payment.payer (Vendor),count: пары live/live; дубли с полями-ссылками схлопываются,перенос,предложено
 seactivityrel:Accounts->Call,m2m,vtiger_seactivityrel,Accounts,activity:Call,N:1 (max 1 родитель на активность),2,0,,Call|Meeting.parent,count,перенос,предложено
 seactivityrel:Accounts->Meeting,m2m,vtiger_seactivityrel,Accounts,activity:Meeting,N:1 (max 1 родитель на активность),3,0,,Call|Meeting.parent,count,перенос,предложено
 seactivityrel:Accounts->Task,m2m,vtiger_seactivityrel,Accounts,activity:Task,N:1 (max 1 родитель на активность),14,0,,Task.parent,count,перенос,предложено
@@ -228,61 +228,61 @@ starred:Users->*,m2m,vtiger_crmentity_user_field,*,Users,M:N,3,0,истинны�
 tags:Faq,m2m,vtiger_freetagged_objects,Faq,tags,M:N,29,0,тегов 13,Faq → multiEnum tags,count,перенос,предложено
 tags:HelpDesk,m2m,vtiger_freetagged_objects,HelpDesk,tags,M:N,2,0,тегов 2,HelpDesk → multiEnum tags,count,перенос,предложено
 tags:ProjectTask,m2m,vtiger_freetagged_objects,ProjectTask,tags,M:N,2,0,тегов 2,ProjectTask → multiEnum tags,count,перенос,предложено
-history-link:Accounts->Calendar,history,vtiger_modtracker_relations,Accounts,Calendar,журнал,21,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Accounts->Contacts,history,vtiger_modtracker_relations,Accounts,Contacts,журнал,20,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Accounts->Documents,history,vtiger_modtracker_relations,Accounts,Documents,журнал,5,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Accounts->HelpDesk,history,vtiger_modtracker_relations,Accounts,HelpDesk,журнал,3,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Accounts->Invoice,history,vtiger_modtracker_relations,Accounts,Invoice,журнал,442,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Accounts->ModComments,history,vtiger_modtracker_relations,Accounts,ModComments,журнал,7,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Accounts->Potentials,history,vtiger_modtracker_relations,Accounts,Potentials,журнал,63,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Accounts->Project,history,vtiger_modtracker_relations,Accounts,Project,журнал,3,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Accounts->SPPayments,history,vtiger_modtracker_relations,Accounts,SPPayments,журнал,180,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Act->Documents,history,vtiger_modtracker_relations,Act,Documents,журнал,42,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Consignment->Documents,history,vtiger_modtracker_relations,Consignment,Documents,журнал,2,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Contacts->Documents,history,vtiger_modtracker_relations,Contacts,Documents,журнал,2,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Contacts->Emails,history,vtiger_modtracker_relations,Contacts,Emails,журнал,1,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Contacts->HelpDesk,history,vtiger_modtracker_relations,Contacts,HelpDesk,журнал,3,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Contacts->Invoice,history,vtiger_modtracker_relations,Contacts,Invoice,журнал,2,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Contacts->ModComments,history,vtiger_modtracker_relations,Contacts,ModComments,журнал,11,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Contacts->PBXManager,history,vtiger_modtracker_relations,Contacts,PBXManager,журнал,1,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Contacts->Potentials,history,vtiger_modtracker_relations,Contacts,Potentials,журнал,4,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Contacts->SPCallPopup,history,vtiger_modtracker_relations,Contacts,SPCallPopup,журнал,1,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Contacts->SPPayments,history,vtiger_modtracker_relations,Contacts,SPPayments,журнал,5,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Faq->Documents,history,vtiger_modtracker_relations,Faq,Documents,журнал,3,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Faq->ModComments,history,vtiger_modtracker_relations,Faq,ModComments,журнал,3,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:HelpDesk->Documents,history,vtiger_modtracker_relations,HelpDesk,Documents,журнал,4,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:HelpDesk->Emails,history,vtiger_modtracker_relations,HelpDesk,Emails,журнал,105,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:HelpDesk->ModComments,history,vtiger_modtracker_relations,HelpDesk,ModComments,журнал,3,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Invoice->Calendar,history,vtiger_modtracker_relations,Invoice,Calendar,журнал,1,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Invoice->Consignment,history,vtiger_modtracker_relations,Invoice,Consignment,журнал,1,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Invoice->Documents,history,vtiger_modtracker_relations,Invoice,Documents,журнал,74,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Invoice->SPPayments,history,vtiger_modtracker_relations,Invoice,SPPayments,журнал,656,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Leads->Calendar,history,vtiger_modtracker_relations,Leads,Calendar,журнал,46,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Leads->Documents,history,vtiger_modtracker_relations,Leads,Documents,журнал,5,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Leads->Emails,history,vtiger_modtracker_relations,Leads,Emails,журнал,1,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Leads->Jivosite,history,vtiger_modtracker_relations,Leads,Jivosite,журнал,52,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Leads->ModComments,history,vtiger_modtracker_relations,Leads,ModComments,журнал,14,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Leads->PBXManager,history,vtiger_modtracker_relations,Leads,PBXManager,журнал,2,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Leads->SPCallPopup,history,vtiger_modtracker_relations,Leads,SPCallPopup,журнал,2,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:PBXManager->SPCallPopup,history,vtiger_modtracker_relations,PBXManager,SPCallPopup,журнал,210,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Potentials->Calendar,history,vtiger_modtracker_relations,Potentials,Calendar,журнал,26,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Potentials->Documents,history,vtiger_modtracker_relations,Potentials,Documents,журнал,40,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Potentials->Emails,history,vtiger_modtracker_relations,Potentials,Emails,журнал,69,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Potentials->Invoice,history,vtiger_modtracker_relations,Potentials,Invoice,журнал,22,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Potentials->ModComments,history,vtiger_modtracker_relations,Potentials,ModComments,журнал,15,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Potentials->Quotes,history,vtiger_modtracker_relations,Potentials,Quotes,журнал,1,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Potentials->Services,history,vtiger_modtracker_relations,Potentials,Services,журнал,4,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Products->Documents,history,vtiger_modtracker_relations,Products,Documents,журнал,2,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Project->Documents,history,vtiger_modtracker_relations,Project,Documents,журнал,6,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Project->HelpDesk,history,vtiger_modtracker_relations,Project,HelpDesk,журнал,1,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Project->ModComments,history,vtiger_modtracker_relations,Project,ModComments,журнал,14,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Project->ProjectTask,history,vtiger_modtracker_relations,Project,ProjectTask,журнал,486,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:ProjectTask->Documents,history,vtiger_modtracker_relations,ProjectTask,Documents,журнал,49,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:ProjectTask->ModComments,history,vtiger_modtracker_relations,ProjectTask,ModComments,журнал,11,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:SPCallPopup->Contacts,history,vtiger_modtracker_relations,SPCallPopup,Contacts,журнал,1,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:SPCallPopup->Leads,history,vtiger_modtracker_relations,SPCallPopup,Leads,журнал,2,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:SPCallPopup->PBXManager,history,vtiger_modtracker_relations,SPCallPopup,PBXManager,журнал,210,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:SPPayments->Documents,history,vtiger_modtracker_relations,SPPayments,Documents,журнал,1,0,,VtigerChangeLog,count,архив (только чтение),предложено
-history-link:Vendors->SPPayments,history,vtiger_modtracker_relations,Vendors,SPPayments,журнал,44,0,,VtigerChangeLog,count,архив (только чтение),предложено
+history-link:Accounts->Calendar,history,vtiger_modtracker_relations,Accounts,Calendar,журнал,21,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Accounts->Contacts,history,vtiger_modtracker_relations,Accounts,Contacts,журнал,20,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Accounts->Documents,history,vtiger_modtracker_relations,Accounts,Documents,журнал,5,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Accounts->HelpDesk,history,vtiger_modtracker_relations,Accounts,HelpDesk,журнал,3,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Accounts->Invoice,history,vtiger_modtracker_relations,Accounts,Invoice,журнал,442,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Accounts->ModComments,history,vtiger_modtracker_relations,Accounts,ModComments,журнал,7,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Accounts->Potentials,history,vtiger_modtracker_relations,Accounts,Potentials,журнал,63,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Accounts->Project,history,vtiger_modtracker_relations,Accounts,Project,журнал,3,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Accounts->SPPayments,history,vtiger_modtracker_relations,Accounts,SPPayments,журнал,180,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Act->Documents,history,vtiger_modtracker_relations,Act,Documents,журнал,42,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Consignment->Documents,history,vtiger_modtracker_relations,Consignment,Documents,журнал,2,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Contacts->Documents,history,vtiger_modtracker_relations,Contacts,Documents,журнал,2,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Contacts->Emails,history,vtiger_modtracker_relations,Contacts,Emails,журнал,1,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Contacts->HelpDesk,history,vtiger_modtracker_relations,Contacts,HelpDesk,журнал,3,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Contacts->Invoice,history,vtiger_modtracker_relations,Contacts,Invoice,журнал,2,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Contacts->ModComments,history,vtiger_modtracker_relations,Contacts,ModComments,журнал,11,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Contacts->PBXManager,history,vtiger_modtracker_relations,Contacts,PBXManager,журнал,1,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Contacts->Potentials,history,vtiger_modtracker_relations,Contacts,Potentials,журнал,4,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Contacts->SPCallPopup,history,vtiger_modtracker_relations,Contacts,SPCallPopup,журнал,1,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Contacts->SPPayments,history,vtiger_modtracker_relations,Contacts,SPPayments,журнал,5,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Faq->Documents,history,vtiger_modtracker_relations,Faq,Documents,журнал,3,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Faq->ModComments,history,vtiger_modtracker_relations,Faq,ModComments,журнал,3,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:HelpDesk->Documents,history,vtiger_modtracker_relations,HelpDesk,Documents,журнал,4,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:HelpDesk->Emails,history,vtiger_modtracker_relations,HelpDesk,Emails,журнал,105,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:HelpDesk->ModComments,history,vtiger_modtracker_relations,HelpDesk,ModComments,журнал,3,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Invoice->Calendar,history,vtiger_modtracker_relations,Invoice,Calendar,журнал,1,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Invoice->Consignment,history,vtiger_modtracker_relations,Invoice,Consignment,журнал,1,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Invoice->Documents,history,vtiger_modtracker_relations,Invoice,Documents,журнал,74,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Invoice->SPPayments,history,vtiger_modtracker_relations,Invoice,SPPayments,журнал,656,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Leads->Calendar,history,vtiger_modtracker_relations,Leads,Calendar,журнал,46,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Leads->Documents,history,vtiger_modtracker_relations,Leads,Documents,журнал,5,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Leads->Emails,history,vtiger_modtracker_relations,Leads,Emails,журнал,1,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Leads->Jivosite,history,vtiger_modtracker_relations,Leads,Jivosite,журнал,52,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Leads->ModComments,history,vtiger_modtracker_relations,Leads,ModComments,журнал,14,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Leads->PBXManager,history,vtiger_modtracker_relations,Leads,PBXManager,журнал,2,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Leads->SPCallPopup,history,vtiger_modtracker_relations,Leads,SPCallPopup,журнал,2,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:PBXManager->SPCallPopup,history,vtiger_modtracker_relations,PBXManager,SPCallPopup,журнал,210,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Potentials->Calendar,history,vtiger_modtracker_relations,Potentials,Calendar,журнал,26,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Potentials->Documents,history,vtiger_modtracker_relations,Potentials,Documents,журнал,40,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Potentials->Emails,history,vtiger_modtracker_relations,Potentials,Emails,журнал,69,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Potentials->Invoice,history,vtiger_modtracker_relations,Potentials,Invoice,журнал,22,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Potentials->ModComments,history,vtiger_modtracker_relations,Potentials,ModComments,журнал,15,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Potentials->Quotes,history,vtiger_modtracker_relations,Potentials,Quotes,журнал,1,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Potentials->Services,history,vtiger_modtracker_relations,Potentials,Services,журнал,4,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Products->Documents,history,vtiger_modtracker_relations,Products,Documents,журнал,2,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Project->Documents,history,vtiger_modtracker_relations,Project,Documents,журнал,6,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Project->HelpDesk,history,vtiger_modtracker_relations,Project,HelpDesk,журнал,1,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Project->ModComments,history,vtiger_modtracker_relations,Project,ModComments,журнал,14,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Project->ProjectTask,history,vtiger_modtracker_relations,Project,ProjectTask,журнал,486,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:ProjectTask->Documents,history,vtiger_modtracker_relations,ProjectTask,Documents,журнал,49,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:ProjectTask->ModComments,history,vtiger_modtracker_relations,ProjectTask,ModComments,журнал,11,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:SPCallPopup->Contacts,history,vtiger_modtracker_relations,SPCallPopup,Contacts,журнал,1,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:SPCallPopup->Leads,history,vtiger_modtracker_relations,SPCallPopup,Leads,журнал,2,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:SPCallPopup->PBXManager,history,vtiger_modtracker_relations,SPCallPopup,PBXManager,журнал,210,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:SPPayments->Documents,history,vtiger_modtracker_relations,SPPayments,Documents,журнал,1,0,,—,count,исключено: история не переносится (Q-27),решено
+history-link:Vendors->SPPayments,history,vtiger_modtracker_relations,Vendors,SPPayments,журнал,44,0,,—,count,исключено: история не переносится (Q-27),решено
 users2group,acl,vtiger_users2group,Users,Groups,M:N,4,0,,User.teams,count,перенос,предложено
 user2role,acl,vtiger_user2role,Users,Roles,N:1,7,0,,User.roles,count,перенос (роли пересобираются),предложено
