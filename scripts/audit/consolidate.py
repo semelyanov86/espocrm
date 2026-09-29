@@ -51,6 +51,14 @@ def main():
         for col, v in cols.items():
             live[(module, tbl, col)] = v if isinstance(v, list) else [v, None]
 
+    tlive, tlive_rows = {}, {}
+    raw = outdir / "15_table_live_counts.raw"
+    if raw.exists():
+        for (tbl,), n, cols in read_json_rows(raw, ["tbl"]):
+            tlive_rows[tbl] = n
+            for col, (ne, nz) in cols.items():
+                tlive[(tbl, col)] = (ne, nz)
+
     dtype = {(c["TABLE_NAME"], c["COLUMN_NAME"]): c["COLUMN_TYPE"] for c in columns}
     out = []
     seen = set()
@@ -75,8 +83,12 @@ def main():
         if key in seen or table_rows.get(c["TABLE_NAME"], 0) == 0:
             continue
         nonempty, nonzero = all_counts.get(key, (0, None))
+        # Live counts exist only for module tables linked to vtiger_crmentity; service tables have none.
+        lr = tlive_rows.get(c["TABLE_NAME"], "")
+        lne, lnz = tlive.get(key, ("", None))
         out.append(["", c["TABLE_NAME"], c["COLUMN_NAME"], "", "", "", "", "", "", "", c["COLUMN_TYPE"],
-                    table_rows[c["TABLE_NAME"]], nonempty or 0, "" if nonzero is None else nonzero, "", "", "", "0"])
+                    table_rows[c["TABLE_NAME"]], nonempty or 0, "" if nonzero is None else nonzero,
+                    lr, "" if lne is None else lne, "" if lnz is None else lnz, "0"])
     header = ["module", "table", "column", "fieldname", "label", "uitype", "typeofdata", "generatedtype", "presence",
               "displaytype", "db_type", "table_rows", "nonempty_all", "nonzero_all", "live_rows", "nonempty_live", "nonzero_live", "in_vtiger_field"]
     with open(outdir / "columns.tsv", "w", newline="", encoding="utf-8") as fh:

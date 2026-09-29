@@ -40,8 +40,10 @@
 
 - MySQL `asteriskcdrdb.cdr` — колонки `id, calldate, clid, src, dst, dcontext, channel, dstchannel, lastapp, lastdata, duration, billsec, disposition, amaflags, accountcode, uniqueid, linkedid, peeraccount, sequence, userfield, recordingpath`; 106 строк (2026-08-… 2026-09-28), 102 различных `uniqueid`, 98 `linkedid` (плечи одного звонка), `recordingpath` у 90 строк (86 различных путей).
 - `Master.csv` — 196 строк, 18 полей (стандартный формат `cdr_csv` без `linkedid`), 2026-06-13 … 2026-09-28, 192 различных `uniqueid`.
-- Пересечение по `uniqueid`: в обоих — 102, только в CSV — 90 (период до включения ODBC), только в MySQL — 0.
-- Ключ дедупликации для импорта: `uniqueid` (общий); группировка плеч — `linkedid` (есть только в MySQL; для CSV-only строк — по `uniqueid` + времени/каналам, **не проверено**, Q-20).
+- **`uniqueid` не уникален для строки CDR** (одна запись вызова может дать несколько строк): MySQL 106 строк / 102 `uniqueid`, CSV 196 / 192. В MySQL пара (`uniqueid`, `sequence`) уникальна для всех 106 строк.
+- **Часовые пояса различаются:** время начала в `Master.csv` — UTC, `calldate` в MySQL — местное время сервера (ровно +2 ч в CEST у всех 114 пар с общим `uniqueid`).
+- Сопоставление по составному ключу (`uniqueid`, время начала после перевода CSV в местное время, `dst`, `dstchannel`, `billsec`): в обоих — 106 строк, только в CSV — 90 (период до включения ODBC), только в MySQL — 0; внутри каждого источника ключ уникален. Без перевода времени совпадений 0.
+- Ключи для импорта (D-20): строка MySQL — (`uniqueid`, `sequence`); CSV-строка сопоставляется с MySQL по составному ключу; группировка плеч — `linkedid` (только MySQL); для 90 CSV-only строк группировка плеч — по `uniqueid` и времени, **не проверено** (Q-20).
 - Бэкап: ночной `mysqldump` `asteriskcdrdb.sql` есть (тир `db`); `/var/log/asterisk/cdr-csv` в бэкап **не** входит.
 
 ## 6. Записи разговоров (WAV)
@@ -55,7 +57,7 @@
 | Источник | Ключ | Клиент | Пользователь | Аудио |
 |---|---|---|---|---|
 | PBXManager | `vtigerId`, `sourceuuid` (архив) | `customer` → Contact/Lead/Account; иначе поиск по `customernumber` | `user` → User | нет (только архивная ссылка) |
-| MySQL CDR | `uniqueid`, группировка по `linkedid` | поиск по `src`/`dst` среди телефонов | внутренний номер → `User.cPhoneExtension` | `recordingpath` (проверка существования + sha256) |
-| CSV CDR | `uniqueid` (дедупликация с MySQL) | как выше | как выше | по времени/номеру из имени файла |
+| MySQL CDR | (`uniqueid`, `sequence`), группировка по `linkedid` | поиск по `src`/`dst` среди телефонов | внутренний номер → `User.cPhoneExtension` | `recordingpath` (проверка существования + sha256) |
+| CSV CDR | составной ключ с переводом UTC → местное (дедупликация с MySQL) | как выше | как выше | по времени/номеру из имени файла |
 
 Требования: не создавать вымышленных звонков; каждое плечо и каждый файл — в отчёт с причиной, если не сопоставлен; доступ к записи — по ACL звонка (владелец/команда), без публичных ссылок.

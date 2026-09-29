@@ -7,6 +7,7 @@ Usage:
   gen_sql.py field-live-counts OUTDIR > field_live_counts.sql
   gen_sql.py reference-targets OUTDIR > reference_targets.sql
   gen_sql.py picklist-values OUTDIR > picklist_values.sql
+  gen_sql.py table-live-counts OUTDIR > table_live_counts.sql
 
 The generated SQL returns only counts, never row values.
 """
@@ -89,6 +90,17 @@ ACTIVITY_FILTER = {
     "Emails": "a.activitytype='Emails'",
 }
 SETYPE = {"Events": "Calendar"}
+# Tables whose rows belong to a different setype than the module declaring the field.
+SETYPE_BY_TABLE = {("Emails", "vtiger_attachments"): "Emails Attachment"}
+
+
+def setype_for(module, tbl):
+    return SETYPE_BY_TABLE.get((module, tbl), SETYPE.get(module, module))
+
+
+def activity_filtered(module, tbl):
+    """Calendar/Events/Emails rows live in vtiger_activity, except tables mapped to another setype."""
+    return module in ACTIVITY_FILTER and (module, tbl) not in SETYPE_BY_TABLE
 
 
 def field_live_counts(outdir):
@@ -116,9 +128,9 @@ def field_live_counts(outdir):
                 continue
             nz = f"SUM(t.{q(col)} IS NOT NULL AND t.{q(col)}<>0)" if dt in NUMERIC_TYPES else "NULL"
             exprs.append(f"'{col}', JSON_ARRAY({nonempty_expr(col, dt, 't')}, {nz})")
-        where = [f"c.setype='{SETYPE.get(module, module)}'", "c.deleted=0"]
+        where = [f"c.setype='{setype_for(module, tbl)}'", "c.deleted=0"]
         join_activity = ""
-        if module in ACTIVITY_FILTER:
+        if activity_filtered(module, tbl):
             join_activity = "JOIN vtiger_activity a ON a.activityid=c.crmid"
             where.append(ACTIVITY_FILTER[module])
         print(f"SELECT '{module}' module, '{tbl}' tbl, COUNT(*) n, JSON_OBJECT({', '.join(exprs)}) cols "
@@ -140,19 +152,26 @@ def reference_targets(outdir):
         if counts.get(tbl, 0) == 0 or module == "Users":
             continue
         key = LINK_KEY_OVERRIDES.get(tbl, pks.get(tbl))
+        if not key:
+            continue
+        # Calendar and Events share vtiger_activity/vtiger_crmentity(setype='Calendar'): split by activitytype.
+        act_join = act_where = ""
+        if activity_filtered(module, tbl):
+            act_join = " JOIN vtiger_activity a ON a.activityid=c.crmid"
+            act_where = " WHERE " + ACTIVITY_FILTER[module]
         if f["uitype"] in REFERENCE_UITYPES:
             print(f"SELECT '{module}' module, '{tbl}' tbl, '{col}' col, '{f['uitype']}' uitype, "
                   f"IFNULL(r.setype, IF(t.{q(col)} IS NULL OR t.{q(col)} IN ('', '0'), '(empty)', '(dangling)')) target, "
                   f"IFNULL(r.deleted, '') target_deleted, COUNT(*) n "
-                  f"FROM {q(tbl)} t JOIN vtiger_crmentity c ON c.crmid=t.{q(key)} AND c.deleted=0 AND c.setype='{SETYPE.get(module, module)}' "
-                  f"LEFT JOIN vtiger_crmentity r ON r.crmid=t.{q(col)} "
+                  f"FROM {q(tbl)} t JOIN vtiger_crmentity c ON c.crmid=t.{q(key)} AND c.deleted=0 AND c.setype='{setype_for(module, tbl)}'{act_join} "
+                  f"LEFT JOIN vtiger_crmentity r ON r.crmid=t.{q(col)}{act_where} "
                   f"GROUP BY 5, 6;")
         elif f["uitype"] in OWNER_UITYPES:
             print(f"SELECT '{module}' module, '{tbl}' tbl, '{col}' col, '{f['uitype']}' uitype, "
                   f"CASE WHEN u.id IS NOT NULL THEN CONCAT('user:', u.status) WHEN g.groupid IS NOT NULL THEN 'group' "
                   f"WHEN t.{q(col)} IS NULL OR t.{q(col)} IN ('', '0') THEN '(empty)' ELSE '(dangling)' END target, '' target_deleted, COUNT(*) n "
-                  f"FROM {q(tbl)} t JOIN vtiger_crmentity c ON c.crmid=t.{q(key)} AND c.deleted=0 AND c.setype='{SETYPE.get(module, module)}' "
-                  f"LEFT JOIN vtiger_users u ON u.id=t.{q(col)} LEFT JOIN vtiger_groups g ON g.groupid=t.{q(col)} "
+                  f"FROM {q(tbl)} t JOIN vtiger_crmentity c ON c.crmid=t.{q(key)} AND c.deleted=0 AND c.setype='{setype_for(module, tbl)}'{act_join} "
+                  f"LEFT JOIN vtiger_users u ON u.id=t.{q(col)} LEFT JOIN vtiger_groups g ON g.groupid=t.{q(col)}{act_where} "
                   f"GROUP BY 5;")
 
 
@@ -177,13 +196,35 @@ def picklist_values(outdir):
             continue
         extra = ""
         join_activity = ""
-        if module in ACTIVITY_FILTER:
+        if activity_filtered(module, tbl):
             join_activity = "JOIN vtiger_activity a ON a.activityid=c.crmid"
             extra = " AND " + ACTIVITY_FILTER[module]
         print(f"SELECT '{module}' module, '{f['fieldname']}' field, '{f['uitype']}' uitype, "
               f"IFNULL(CAST(t.{q(col)} AS CHAR), '(null)') value, COUNT(*) n "
               f"FROM {q(tbl)} t JOIN vtiger_crmentity c ON c.crmid=t.{q(key)} {join_activity} "
-              f"WHERE c.deleted=0 AND c.setype='{SETYPE.get(module, module)}'{extra} GROUP BY 4;")
+              f"WHERE c.deleted=0 AND c.setype='{setype_for(module, tbl)}'{extra} GROUP BY 4;")
+
+
+def table_live_counts(outdir):
+    """For every non-empty module table (referenced by vtiger_field) that links to vtiger_crmentity:
+    rows belonging to live records (deleted=0, any setype) and non-empty/non-zero counts per column.
+    Used for physical columns without a vtiger_field entry."""
+    fields = read_tsv(outdir / "02_fields.tsv")
+    pks = {r["TABLE_NAME"]: r["pk"].split(",")[0] for r in read_tsv(outdir / "05_primary_keys.tsv")}
+    counts = {r["tbl"]: int(r["n"]) for r in read_tsv(outdir / "10_table_counts.tsv")}
+    cols = {}
+    for r in read_tsv(outdir / "03_columns.tsv"):
+        cols.setdefault(r["TABLE_NAME"], []).append(r)
+    for tbl in sorted({f["tablename"] for f in fields if f["module"] != "Users"}):
+        key = LINK_KEY_OVERRIDES.get(tbl, pks.get(tbl))
+        if counts.get(tbl, 0) == 0 or not key:
+            continue
+        pairs = []
+        for c in cols[tbl]:
+            nz = f"SUM(t.{q(c['COLUMN_NAME'])} IS NOT NULL AND t.{q(c['COLUMN_NAME'])}<>0)" if c["DATA_TYPE"] in NUMERIC_TYPES else "NULL"
+            pairs.append(f"'{c['COLUMN_NAME']}', JSON_ARRAY({nonempty_expr(c['COLUMN_NAME'], c['DATA_TYPE'], 't')}, {nz})")
+        print(f"SELECT '{tbl}' tbl, COUNT(*) n, JSON_OBJECT({', '.join(pairs)}) cols FROM {q(tbl)} t "
+              f"JOIN vtiger_crmentity c ON c.crmid=t.{q(key)} AND c.deleted=0;")
 
 
 def main():
@@ -192,7 +233,7 @@ def main():
     cmd, outdir = sys.argv[1], Path(sys.argv[2])
     {"table-counts": table_counts, "column-counts": column_counts,
      "field-live-counts": field_live_counts, "reference-targets": reference_targets,
-     "picklist-values": picklist_values}[cmd](outdir)
+     "picklist-values": picklist_values, "table-live-counts": table_live_counts}[cmd](outdir)
 
 
 if __name__ == "__main__":

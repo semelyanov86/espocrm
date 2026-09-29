@@ -61,7 +61,7 @@ scripts/
     mapping.py            правила маппинга Vtiger → EspoCRM (предложения этапа 01)
     build_maps.py         генерация field-map.csv и relations.csv
     build-pii-hashes.sh   приватный список sha256 реальных ПДн для проверки Git
-  check-secrets.sh        проверка секретов/ПДн перед коммитом (+ --history)
+  check-secrets.sh        проверка секретов/ПДн перед коммитом (--history, --self-test)
   check-secrets.allow     обоснованные исключения проверки
 ```
 
@@ -82,7 +82,7 @@ scripts/audit/build-pii-hashes.sh                   # обновить хеши 
 
 ### Колонки `field-map.csv`
 
-`source_module, source_table, source_column, source_field, source_label, uitype, source_db_type, custom, nonempty_all_rows` (все строки таблицы), `live_records`, `nonempty_live` (непустые среди живых записей; числа — ненулевые; чекбоксы — «да»), `target_entity, target_field, transform, verification` (`count`, `count+hash`, `count+sum`, `count+distribution`, `fk`, `file-hash`), `fate` (перенос / архив / защищённое хранилище / пусто / исключено / категория служебной таблицы), `mapping_status` (**предложено** — цель ещё не реализована и не проверена в EspoCRM; **решено**; **не проверено** — семантика не установлена), `count_status`.
+`source_module, source_table, source_column, source_field, source_label, uitype, source_db_type, custom, nonempty_all_rows` (все строки таблицы, включая удалённые записи), `live_records`, `nonempty_live` (непустые среди живых записей; числа — ненулевые; чекбоксы — «да»; для служебных таблиц без связи с `vtiger_crmentity` эти две колонки пусты — понятие «живая запись» к ним не применимо), `target_entity, target_field, transform, verification` (`count`, `count+hash`, `count+sum`, `count+distribution`, `fk`, `file-hash`), `fate` (перенос / архив / защищённое хранилище / пусто / исключено / категория служебной таблицы), `mapping_status` (**предложено** — цель ещё не реализована и не проверена в EspoCRM; **решено**; **не проверено** — семантика не установлена), `count_status`.
 
 ### Правила безопасности
 

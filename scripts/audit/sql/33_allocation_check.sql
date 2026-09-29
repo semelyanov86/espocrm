@@ -1,24 +1,31 @@
--- Allocation evidence quality: relation-table links vs related_to (live records, aggregates only).
-SET @eps := 0.005;
+-- Payment allocation evidence as a strict partition of live payments (aggregates only).
+-- rt = sp_payments.related_to target; rel = live Invoice<->live payment pairs in vtiger_crmentityrel (both directions).
+WITH p AS (
+  SELECT pay.payid, pay.related_to rt, rc.setype rt_setype, rc.deleted rt_deleted
+  FROM sp_payments pay JOIN vtiger_crmentity c ON c.crmid=pay.payid AND c.deleted=0
+  LEFT JOIN vtiger_crmentity rc ON rc.crmid=pay.related_to),
+rel AS (
+  SELECT DISTINCT x.payid, x.invoiceid FROM (
+    SELECT r.relcrmid payid, r.crmid invoiceid FROM vtiger_crmentityrel r
+    UNION ALL SELECT r.crmid, r.relcrmid FROM vtiger_crmentityrel r) x
+  JOIN vtiger_crmentity ci ON ci.crmid=x.invoiceid AND ci.deleted=0 AND ci.setype='Invoice'
+  JOIN vtiger_crmentity cp ON cp.crmid=x.payid AND cp.deleted=0 AND cp.setype='SPPayments'),
+a AS (SELECT payid, COUNT(*) nrel FROM rel GROUP BY payid),
+cls AS (
+  SELECT p.payid,
+    CASE
+      WHEN p.rt_setype='Invoice' AND p.rt_deleted=0 AND EXISTS (SELECT 1 FROM rel WHERE rel.payid=p.payid AND rel.invoiceid=p.rt) THEN 'both_same_invoice'
+      WHEN p.rt_setype='Invoice' AND p.rt_deleted=0 AND IFNULL(a.nrel,0)>0 THEN 'conflict_rel_other_invoice'
+      WHEN p.rt_setype='Invoice' AND p.rt_deleted=0 THEN 'related_to_invoice_only'
+      WHEN p.rt_setype='SalesOrder' AND p.rt_deleted=0 THEN CONCAT('related_to_salesorder', IF(IFNULL(a.nrel,0)>0,'_plus_rel',''))
+      WHEN p.rt_setype IS NOT NULL AND p.rt_deleted=1 THEN CONCAT('related_to_deleted_', p.rt_setype, IF(IFNULL(a.nrel,0)>0,'_plus_rel',''))
+      WHEN IFNULL(a.nrel,0)>0 THEN 'rel_only'
+      ELSE 'unallocated' END category,
+    IFNULL(a.nrel,0) nrel
+  FROM p LEFT JOIN a ON a.payid=p.payid)
+SELECT 'alloc_partition' k, category, COUNT(*) payments, SUM(nrel>1) with_2plus_rel FROM cls GROUP BY 2 ORDER BY 2;
 WITH rel AS (
-  SELECT r.crmid invoiceid, r.relcrmid payid FROM vtiger_crmentityrel r
-  JOIN vtiger_crmentity ci ON ci.crmid=r.crmid AND ci.deleted=0 AND ci.setype='Invoice'
-  JOIN vtiger_crmentity cp ON cp.crmid=r.relcrmid AND cp.deleted=0 AND cp.setype='SPPayments'),
-per_inv AS (SELECT invoiceid, COUNT(*) n FROM rel GROUP BY invoiceid)
-SELECT 'rel_per_invoice' k, MAX(n) max_payments, SUM(n>5) invoices_gt5, COUNT(*) invoices FROM per_inv;
-WITH rel AS (
-  SELECT r.crmid invoiceid, r.relcrmid payid FROM vtiger_crmentityrel r
+  SELECT DISTINCT r.crmid invoiceid, r.relcrmid payid FROM vtiger_crmentityrel r
   JOIN vtiger_crmentity ci ON ci.crmid=r.crmid AND ci.deleted=0 AND ci.setype='Invoice'
   JOIN vtiger_crmentity cp ON cp.crmid=r.relcrmid AND cp.deleted=0 AND cp.setype='SPPayments')
-SELECT 'rel_vs_related_to' k,
-  SUM(p.related_to=rel.invoiceid) same_invoice, SUM(p.related_to IS NOT NULL AND p.related_to<>0 AND p.related_to<>rel.invoiceid) other_invoice,
-  SUM(p.related_to IS NULL OR p.related_to=0) related_empty, SUM(cf.cf_1204<>'' AND cf.cf_1204 IS NOT NULL) from_bank_import, COUNT(*) n
-FROM rel JOIN sp_payments p ON p.payid=rel.payid JOIN sp_paymentscf cf ON cf.payid=p.payid;
-WITH alloc AS (
-  SELECT DISTINCT x.invoiceid, x.payid FROM (
-    SELECT p.related_to invoiceid, p.payid FROM sp_payments p JOIN vtiger_crmentity c ON c.crmid=p.payid AND c.deleted=0 WHERE p.related_to IS NOT NULL AND p.related_to<>0
-    UNION ALL
-    SELECT r.crmid, r.relcrmid FROM vtiger_crmentityrel r JOIN vtiger_crmentity ci ON ci.crmid=r.crmid AND ci.deleted=0 AND ci.setype='Invoice'
-    JOIN vtiger_crmentity cp ON cp.crmid=r.relcrmid AND cp.deleted=0 AND cp.setype='SPPayments') x),
-multi AS (SELECT payid, COUNT(DISTINCT invoiceid) ninv FROM alloc GROUP BY payid)
-SELECT 'union_alloc' k, COUNT(*) payments_allocated, SUM(ninv>1) payments_in_2plus_invoices, MAX(ninv) max_invoices_per_payment FROM multi;
+SELECT 'rel_per_invoice' k, MAX(n) max_payments, SUM(n>5) invoices_gt5, COUNT(*) invoices FROM (SELECT invoiceid, COUNT(*) n FROM rel GROUP BY invoiceid) t;

@@ -20,15 +20,6 @@ run_sql() { # name [db]
     remote_sql "${2:-$AUDIT_DB}" < "$HERE/sql/$1.sql" > "$OUT/$1.tsv"
     echo "  $1: $(wc -l < "$OUT/$1.tsv") lines"
 }
-run_remote_py() { # script.py outfile stdin-sql [args]
-    local script="$1" out="$2" sql="$3"; shift 3
-    local tmp="/tmp/espo_audit_$$_$(basename "$script")"
-    scp -q "${AUDIT_SSH_OPTS[@]}" "$HERE/remote/$script" "$AUDIT_HOST:$tmp"
-    { echo "SET SESSION TRANSACTION READ ONLY;"; echo "$sql"; } \
-        | ssh "${AUDIT_SSH_OPTS[@]}" "$AUDIT_HOST" "sudo -n mysql --batch --default-character-set=utf8mb4 $AUDIT_DB | sudo -n python3 $tmp $*; rm -f $tmp" > "$OUT/$out"
-    echo "  $out: $(wc -l < "$OUT/$out") lines"
-}
-
 echo "1. schema metadata"
 for n in 01_tabs 02_fields 03_columns 04_tables 05_primary_keys 06_shapes; do run_sql "$n"; done
 
@@ -43,6 +34,8 @@ python3 "$HERE/gen_sql.py" reference-targets "$OUT" > "$OUT/13_reference_targets
 remote_sql < "$OUT/13_reference_targets.sql" | grep -v '^module	' > "$OUT/13_reference_targets.tsv"
 python3 "$HERE/gen_sql.py" picklist-values "$OUT" > "$OUT/14_picklist_values.sql"
 remote_sql < "$OUT/14_picklist_values.sql" | grep -v '^module	field' > "$OUT/14_picklist_values.tsv"
+python3 "$HERE/gen_sql.py" table-live-counts "$OUT" > "$OUT/15_table_live_counts.sql"
+remote_sql < "$OUT/15_table_live_counts.sql" > "$OUT/15_table_live_counts.raw"
 
 echo "3. relations, ACL, workflows, finance, telephony"
 for n in 20_relations 21_acl 25_activity_workflows 26_finance 27_payments 28_pbx 31_misc 32_cardinality 33_allocation_check 34_finance_config; do
@@ -51,18 +44,20 @@ done
 run_sql 40_cdr asteriskcdrdb
 run_sql 35_control_sums_private   # monetary aggregates: private only
 
-echo "4. host-side checks (only counts leave the host)"
-run_remote_py template_tokens.py 23_templates.tsv "$(cat "$HERE/sql/23_templates.sql")"
-run_remote_py check_attachments.py 22_attachments_files.tsv \
-    "SELECT a.attachmentsid, IFNULL(c.setype,'(no crmentity)'), IFNULL(c.deleted,''), a.path, a.name FROM vtiger_attachments a LEFT JOIN vtiger_crmentity c ON c.crmid=a.attachmentsid;" \
-    /var/www/serv_itvolga/vtiger7
-tmp="/tmp/espo_audit_$$_access.py"
-scp -q "${AUDIT_SSH_OPTS[@]}" "$HERE/remote/access_log_usage.py" "$AUDIT_HOST:$tmp"
-ssh "${AUDIT_SSH_OPTS[@]}" "$AUDIT_HOST" "sudo -n python3 $tmp; rm -f $tmp" > "$OUT/24_access_usage.tsv"
+echo "4. host-side checks (only counts leave the host; scripts run inline, no files on the host)"
+remote_sql_py "$AUDIT_DB" template_tokens.py < "$HERE/sql/23_templates.sql" > "$OUT/23_templates.tsv"
+remote_sql_py "$AUDIT_DB" check_attachments.py /var/www/serv_itvolga/vtiger7 > "$OUT/22_attachments_files.tsv" <<'SQL'
+SELECT a.attachmentsid, IFNULL(c.setype,'(no crmentity)'), IFNULL(c.deleted,''), a.path, a.name
+FROM vtiger_attachments a LEFT JOIN vtiger_crmentity c ON c.crmid=a.attachmentsid;
+SQL
+remote_py access_log_usage.py > "$OUT/24_access_usage.tsv"
 ssh "${AUDIT_SSH_OPTS[@]}" "$AUDIT_HOST" 'sudo -n bash -s' < "$HERE/remote/telephony_inventory.sh" > "$OUT/29_telephony.txt" 2>&1
-tmp="/tmp/espo_audit_$$_cdr.py"
-scp -q "${AUDIT_SSH_OPTS[@]}" "$HERE/remote/cdr_overlap.py" "$AUDIT_HOST:$tmp"
-ssh "${AUDIT_SSH_OPTS[@]}" "$AUDIT_HOST" "sudo -n mysql --batch --raw asteriskcdrdb -e \"SET SESSION TRANSACTION READ ONLY; SELECT uniqueid, linkedid, calldate, IFNULL(recordingpath,'') FROM cdr\" | sudo -n python3 $tmp; rm -f $tmp" > "$OUT/30_cdr_overlap.tsv"
+remote_sql_py asteriskcdrdb cdr_overlap.py > "$OUT/30_cdr_overlap.tsv" <<'SQL'
+SELECT uniqueid, linkedid, calldate, IFNULL(recordingpath,''), dst, dstchannel, billsec, sequence FROM cdr;
+SQL
+for f in 22_attachments_files.tsv 23_templates.tsv 24_access_usage.tsv 29_telephony.txt 30_cdr_overlap.tsv; do
+    echo "  $f: $(wc -l < "$OUT/$f") lines"
+done
 
 echo "5. consolidate and build anonymised maps"
 python3 "$HERE/consolidate.py" "$OUT"

@@ -137,8 +137,8 @@ SalesPlatform-поля с `generatedtype=1`, но нестандартные д�
 - Активности: `vtiger_seactivityrel` 260 (1 родитель на активность), `vtiger_cntactivityrel` 6, `vtiger_salesmanactivityrel` 186 (приглашённые пользователи).
 - Документы: `vtiger_senotesrel` 233 (M:N; до 15 документов на задачу проекта), `vtiger_seattachmentsrel` 203.
 - Строки документов `vtiger_inventoryproductrel`: Invoice 711 (до 6 на счёт), Act 416 (до 2), Quotes 27, SalesOrder 14, Consignment 3; позиции ссылаются на Services (и 3 раза на Products).
-- **Invoice → Act** (`Invoice.sp_act_id`): 391 счёт → 391 разный акт; ни один акт не связан с двумя счетами; 11 актов без счёта.
-- **Платежи:** `SPPayments.related_to` → Invoice 615 / SalesOrder 7 / пусто 176, плюс `crmentityrel` Invoice↔SPPayments; у 38 платежей эти два источника указывают **разные** счета (см. `finance-contract.md`).
+- **Invoice → Act** (`Invoice.sp_act_id`): 391 живой счёт → 391 разный акт; ни один акт не связан с двумя счетами; 12 живых актов без живого счёта.
+- **Платежи:** `SPPayments.related_to` → Invoice 615 / SalesOrder 7 / пусто 176, плюс `crmentityrel` Invoice↔SPPayments; у 38 платежей эти два источника указывают **разные** счета, 120 платежей не распределены (разбиение — `finance-contract.md` §8).
 
 ## 7. Вложения и файлы
 

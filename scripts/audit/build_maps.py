@@ -110,6 +110,8 @@ def field_rows(outdir):
                 else:
                     rule = ("—", "нет данных", "count")
             target, transform, verification = rule
+            if "не проверен" in transform and status == "предложено":
+                status = "не проверено"
             fate = fate_for(None if target is None else target, transform, count)
             if target == "—":
                 fate = "пусто — данных нет"
@@ -118,13 +120,21 @@ def field_rows(outdir):
                         target or "—", transform, verification, fate, status, f"проверено SQL {AUDIT_DATE}"])
         else:
             tbl, col = r["table"], r["column"]
+            numeric = bool(NUMERIC.match(r["db_type"]))
             ne = int(r["nonempty_all"] or 0)
             nz = r["nonzero_all"]
-            eff = int(nz) if nz not in ("", None) and NUMERIC.match(r["db_type"]) else ne
+            eff_all = int(nz) if nz not in ("", None) and numeric else ne
+            if r["live_rows"] != "":
+                # module table linked to vtiger_crmentity: count only rows of live records
+                lnz = r["nonzero_live"]
+                eff = int(lnz) if lnz not in ("", None) and numeric else int(r["nonempty_live"] or 0)
+                live_records = r["live_rows"]
+            else:
+                eff, live_records = eff_all, ""
             if tbl in module_tables:
                 rule = M.UNDECLARED.get((tbl, col))
                 if rule is None:
-                    if col.endswith("id") and eff == int(r["table_rows"]):
+                    if col.endswith("id") and eff_all == int(r["table_rows"]):
                         rule = ("(ключ записи)", "первичный ключ модульной таблицы = crmid", "count")
                     elif eff == 0:
                         rule = ("—", "нет данных", "count")
@@ -152,8 +162,9 @@ def field_rows(outdir):
                 entity = "—"
                 if fate == "не классифицировано":
                     status = "не проверено"
-            out.append(["", tbl, col, "", "", "", r["db_type"], "нет", r["nonempty_all"], r["table_rows"], eff,
-                        entity, target, transform, verification, fate, status, f"проверено SQL {AUDIT_DATE}"])
+            out.append(["", tbl, col, "", "", "", r["db_type"], "нет", r["nonempty_all"], live_records,
+                        eff if live_records != "" else "", entity, target, transform, verification, fate, status,
+                        f"проверено SQL {AUDIT_DATE}"])
     return out
 
 
@@ -321,6 +332,21 @@ def relation_rows(outdir):
         verify = "fk-resolve: число разрешённых ссылок = число в источнике; висячие — в отчёт"
         rows.append([f"{module}.{col}", kind, f"{tbl}.{col}", module, to_module,
                      card, count, dangling, distribution, target, verify, fate, status])
+    # 1b. Reference/owner fields of non-empty tables that returned no rows at all (e.g. Calendar tasks
+    # have no vtiger_cntactivityrel rows) — listed with zero so the inventory of links is complete.
+    counts = {r["tbl"]: int(r["n"]) for r in read_tsv(outdir / "10_table_counts.tsv")}
+    seen_ref = {(r[3], r[2].split(".")[0], r[2].split(".", 1)[1]) for r in rows}
+    live_modules = {t["name"] for t in read_tsv(outdir / "01_tabs.tsv") if int(t["live"]) > 0} | {"Events"}
+    for f in read_tsv(outdir / "02_fields.tsv"):
+        mod, tbl, col = f["module"], f["tablename"], f["columnname"]
+        if mod == "Users" or mod not in live_modules or counts.get(tbl, 0) == 0 or (mod, tbl, col) in seen_ref:
+            continue
+        if f["uitype"] not in ("10", "51", "57", "58", "59", "66", "68", "73", "75", "76", "78", "80", "81",
+                               "52", "53", "77", "101"):
+            continue
+        seen_ref.add((mod, tbl, col))
+        rows.append([f"{mod}.{col}", "field", f"{tbl}.{col}", mod, "—", "N:1", 0, 0, "(нет строк у живых записей модуля)",
+                     REL_TARGETS.get((mod, col), "—"), "fk-resolve", "пусто — данных нет", "предложено"])
     # 2. vtiger_crmentityrel pairs.
     card = {(p[1], p[2]): (p[4], p[5]) for p in read_kind_rows(outdir / "32_cardinality.tsv", "crmentityrel_card")}
     pairs = defaultdict(lambda: [0, 0])
@@ -386,25 +412,25 @@ def relation_rows(outdir):
         if p:
             rows.append([f"lines:{mod}", "lines", "vtiger_inventoryproductrel.id", mod, "lines", f"1:N (max {p[4]} строк)", p[3], 0,
                          f"документов {p[2]}", f"{item}.{ 'parent' if item != 'lines' else 'data'}", "count+sum по документу", "перенос" if mod != "Consignment" else "архив (только чтение)", "предложено"])
-    pay = {p[0]: p for p in read_kind_rows(outdir / "27_payments.tsv", "rel_consistency")}
     ppi = read_kind_rows(outdir / "32_cardinality.tsv", "payments_per_invoice")
-    if pay:
-        p = pay["rel_consistency"]
-        ua = read_kind_rows(outdir / "33_allocation_check.tsv", "union_alloc")[0]
-        rv = read_kind_rows(outdir / "33_allocation_check.tsv", "rel_vs_related_to")[0]
+    part = {p[1]: int(p[2]) for p in read_kind_rows(outdir / "33_allocation_check.tsv", "alloc_partition")}
+    if part:
+        allocated = sum(v for k, v in part.items() if k != "unallocated")
         rows.append(["allocation:SPPayments->Invoice", "derived", "sp_payments.related_to ∪ vtiger_crmentityrel(Invoice,SPPayments)",
                      "SPPayments", "Invoice|SalesOrder",
-                     f"related_to: N:1 (до {ppi[0][1] if ppi else '?'} платежей на счёт); объединение: {ua[2]} платежей в 2 счетах (конфликт)",
-                     ua[1], ua[2],
-                     f"совпадают: {rv[1]}; связь указывает другой счёт: {rv[2]}; только связь (related_to пуст): {rv[3]}; только related_to: {p[2]}",
+                     f"related_to: N:1 (до {ppi[0][1] if ppi else '?'} платежей на счёт); связь: ≤1 счёт на платёж; "
+                     f"конфликтов {part.get('conflict_rel_other_invoice', 0)}",
+                     allocated, part.get("conflict_rel_other_invoice", 0),
+                     "; ".join(f"{k}: {v}" for k, v in sorted(part.items())),
                      "PaymentAllocation(payment, invoice|salesOrder, amount)",
-                     "count; сумма распределений = сумма платежа; конфликты — ручной разбор",
+                     "count по категориям разбиения; сумма распределений = сумма платежа; конфликты — ручной разбор",
                      "перенос: related_to — основной; связь — только при пустом related_to; конфликты не угадывать", "не проверено"])
     ia = read_kind_rows(outdir / "27_payments.tsv", "invoice_act")
+    awi = read_kind_rows(outdir / "27_payments.tsv", "act_without_invoice")
     if ia:
         rows.append(["invoice_act:Invoice->Act", "field", "vtiger_invoice.sp_act_id", "Invoice", "Act",
                      f"N:1, фактически ≤1:1 (актов со связью {ia[0][1]}, макс. счетов на акт {ia[0][3]})", ia[0][1], 0,
-                     "11 актов без счёта", "Invoice.act / Act.invoices (hasMany, без ограничения 1:1)", "fk-resolve", "перенос", "предложено"])
+                     f"живых актов без живого счёта: {awi[0][1] if awi else '?'}", "Invoice.act / Act.invoices (hasMany, без ограничения 1:1)", "fk-resolve", "перенос", "предложено"])
     rows.append(["starred:Users->*", "m2m", "vtiger_crmentity_user_field", "*", "Users", "M:N", 3, 0, "истинных отметок: Faq 3",
                  "—", "count", "исключено: персональные «звёздочки»", "решено"])
     for p in read_kind_rows(outdir / "25_activity_workflows.tsv", "tags"):

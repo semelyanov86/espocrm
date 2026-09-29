@@ -7,10 +7,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib.sh
 source "$HERE/lib.sh"
 DEST="${PII_HASHES:-$(dirname "$AUDIT_PRIVATE_ROOT")/pii-hashes.txt}"
-tmp="/tmp/espo_audit_$$_pii.py"
-scp -q "${AUDIT_SSH_OPTS[@]}" "$HERE/remote/pii_hashes.py" "$AUDIT_HOST:$tmp"
-{ echo "SET SESSION TRANSACTION READ ONLY;"; cat "$HERE/sql/50_pii_hash_input.sql"; } \
-    | ssh "${AUDIT_SSH_OPTS[@]}" "$AUDIT_HOST" "sudo -n mysql --batch --default-character-set=utf8mb4 $AUDIT_DB | python3 $tmp; rm -f $tmp" > "$DEST.tmp"
+remote_sql_py "$AUDIT_DB" pii_hashes.py < "$HERE/sql/50_pii_hash_input.sql" > "$DEST.tmp"
 mv "$DEST.tmp" "$DEST"
 chmod 600 "$DEST"
 echo "hashes: $(wc -l < "$DEST") -> $DEST"

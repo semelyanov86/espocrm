@@ -13,10 +13,18 @@ reports/private/
 *.sql.zst
 *.dump
 *.tsv
+*.csv
 *.jsonl
 *.ndjson
+*.xlsx
+exports/
+snapshots/
+*.snapshot.*
+*-export.*
+# Anonymised maps are the only CSV files that belong in Git
+!docs/migration/*.csv
 # SQL sources used by the audit are code, not dumps
-!scripts/**/*.sql
+!scripts/audit/sql/*.sql
 
 # Call recordings, CDR copies, attachments from the source
 *.wav
