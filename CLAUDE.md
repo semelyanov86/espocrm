@@ -19,6 +19,9 @@ AUDIT_TS=<метка> scripts/audit/run-audit.sh
 scripts/audit/build-pii-hashes.sh          # обновить приватные хеши ПДн для проверки Git
 scripts/check-secrets.sh --self-test       # самопроверка правил сканера
 scripts/check-secrets.sh --history         # обязательная проверка перед каждым коммитом
+task stand:install | stand:health          # локальный стенд EspoCRM (docs/local-stand.md)
+task stand:backup | stand:restore -- latest --yes
+task espo -- rebuild                       # консоль EspoCRM; bin/command напрямую не запускать
 ```
 
 - `docs/migration/field-map.csv` и `relations.csv` **не редактировать вручную**: правила — `scripts/audit/mapping.py`, генерация — `scripts/audit/build_maps.py` из приватного прогона.

@@ -1,0 +1,36 @@
+; Dedicated PHP-FPM @@PHP_VERSION@@ master for the local EspoCRM stand (stage 02).
+; Rendered from deploy/local/templates/php-fpm.conf.tmpl — do not edit here.
+[global]
+pid = @@FPM_RUN_DIR@@/php-fpm.pid
+error_log = syslog
+syslog.ident = @@FPM_UNIT@@
+log_level = notice
+
+[espocrm]
+user = @@ESPO_USER@@
+group = @@ESPO_USER@@
+; Only Apache (www-data) may talk FastCGI to this pool.
+listen = @@FPM_SOCKET@@
+listen.owner = www-data
+listen.group = www-data
+listen.mode = 0660
+pm = ondemand
+pm.max_children = @@FPM_MAX_CHILDREN@@
+pm.process_idle_timeout = 60s
+pm.max_requests = 500
+request_terminate_timeout = 300s
+security.limit_extensions = .php
+catch_workers_output = yes
+decorate_workers_output = no
+clear_env = yes
+env[PATH] = /usr/local/bin:/usr/bin:/bin
+; EspoCRM recommendations (docs.espocrm.com, server-configuration); the stock php.ini values
+; (128M / 2M / 8M / 30 s) are too low. PHP errors go to the Apache vhost error log.
+php_admin_value[memory_limit] = 256M
+php_admin_value[max_execution_time] = 180
+php_admin_value[max_input_time] = 180
+php_admin_value[post_max_size] = 50M
+php_admin_value[upload_max_filesize] = 50M
+php_admin_value[date.timezone] = UTC
+php_admin_flag[display_errors] = off
+php_admin_flag[log_errors] = on

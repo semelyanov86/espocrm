@@ -1,0 +1,47 @@
+# Local EspoCRM stand (stage 02). Rendered from deploy/local/templates/apache-vhost.conf.tmpl
+# by scripts/stand/install.sh — do not edit here.
+# Layout per docs.espocrm.com (apache-server-configuration): document root = public/,
+# alias /client/; everything else in the repository is not reachable over HTTP.
+<VirtualHost *:80>
+    ServerName @@ESPO_SITE_HOST@@
+    DocumentRoot @@ESPO_ROOT@@/public
+    Alias /client/ @@ESPO_ROOT@@/client/
+
+    ErrorLog ${APACHE_LOG_DIR}/@@ESPO_SITE_HOST@@-error.log
+    CustomLog ${APACHE_LOG_DIR}/@@ESPO_SITE_HOST@@-access.log combined
+
+    <Directory @@ESPO_ROOT@@/>
+        Options None
+        AllowOverride None
+        Require all denied
+    </Directory>
+
+    <Directory @@ESPO_ROOT@@/public/>
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+        # Pass the Authorization header to PHP-FPM (API Basic auth).
+        CGIPassAuth On
+    </Directory>
+
+    <Directory @@ESPO_ROOT@@/client/>
+        Options -Indexes
+        AllowOverride None
+        Require all granted
+        <FilesMatch "\.ph(ar|p|tml)$">
+            Require all denied
+        </FilesMatch>
+    </Directory>
+
+    # The web installer is not used: the stand is installed from the CLI.
+    <Location "/install">
+        Require all denied
+    </Location>
+
+    # All PHP of this vhost goes to the dedicated pool (overrides the global mod_php handler).
+    <FilesMatch "\.ph(ar|p|tml)$">
+        <If "-f %{REQUEST_FILENAME}">
+            SetHandler "proxy:unix:@@FPM_SOCKET@@|fcgi://itvolga-espo/"
+        </If>
+    </FilesMatch>
+</VirtualHost>

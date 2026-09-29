@@ -62,14 +62,37 @@ vault.yml
 .vault_pass
 htpasswd*
 
-# --- EspoCRM runtime (stage 02+). Keep custom/ and client/custom/ tracked -------
-/data/*
-!/data/.gitkeep
+# --- EspoCRM core and runtime (stage 02+). Keep custom/ and client/custom/ tracked ---
+# The core of the pinned release is unpacked into the repository root by
+# scripts/stand/install.sh (list of entries: .espocrm-core) and is never committed.
+/data/
+/application/
+/bin/
+/client/*
+!/client/custom/
+/html/
+/install/
+/public/
 /vendor/
+/.htaccess
+/bootstrap.php
+/clear_cache.php
+/command.php
+/cron.php
+/daemon.php
+/extension.php
+/index.php
+/LICENSE.txt
+/preload.php
+/rebuild.php
+/upgrade.php
+/websocket.php
+/.espocrm-core
 /node_modules/
 /build/
 
 # Tooling
+.playwright-mcp/
 __pycache__/
 *.pyc
 .phpunit.result.cache

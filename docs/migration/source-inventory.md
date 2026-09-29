@@ -14,6 +14,9 @@
 | PHP | 7.4.33 в Docker-контейнере `php74-fpm` (образ `php-docker-local:7.4`), модули ionCube Loader, imap, mysqli, gd, zip, curl, intl, soap, mbstring | совпадает |
 | БД | MySQL 8.4.11, база `vtiger7`: 784 таблицы, **534 непустые**, ~42.6 МБ | совпадает |
 | Веб | Apache vhost `serv.itvolga.com` → fcgi `127.0.0.1:9074`, HTTP Basic Auth (1 общая учётная запись в htpasswd) | совпадает |
+| PHP хоста (для EspoCRM, проверено 2026-09-29, этап 02) | нативный `php8.5-fpm` / `php8.5-cli` **8.5.4** (Ubuntu), пул `www` от `www-data`; расширения, нужные EspoCRM 10, есть все (`pdo_mysql gd zip mbstring curl xml exif bcmath intl pcntl posix`); значения FPM `php.ini` ниже рекомендаций EspoCRM: `memory_limit 128M`, `upload_max_filesize 2M`, `post_max_size 8M`, `max_execution_time 30`, `date.timezone UTC` | в прежних документах не упоминался |
+| Apache (проверено 2026-09-29, этап 02) | 2.4.66, `mpm_event`, модули `proxy_fcgi rewrite headers ssl auth_basic`; сайтов в `sites-enabled` — 17 | — |
+| Параметры MySQL (проверено 2026-09-29, этап 02) | глобальный `sql_mode=ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION` (не strict), `utf8mb4`/`utf8mb4_0900_ai_ci`, `time_zone=SYSTEM` (CEST), `bind_address=127.0.0.1`, `max_allowed_packet=64M`, `innodb_buffer_pool_size=128M`, `lower_case_table_names=0`; хост: 6 CPU, 18 ГБ ОЗУ, 744 ГБ свободно | — |
 | Cron | `/etc/cron.d/vtiger`: `*/5` от `www-data` через `flock` + `sudo` враппер → `docker exec` в `php74-fpm` | совпадает |
 | Язык/валюта/время | `ru_ru`, `Russia, Rubles`; в `config.inc.php` дважды задан `$default_timezone` (`Europe/Moscow`, затем некорректное `UTC+3`, которое PHP игнорирует). Фактический пояс записи дат: Europe/Moscow до 2022-10, Europe/Berlin с 2022-11 до 2026-06-12, UTC с 2026-06-13 (проверено по времени файлов и логу входа, D-30) | не документировано |
 | Asterisk | 22.5.2 (apt), `chan_pjsip`, CDR: `cdr_adaptive_odbc` (MySQL `asteriskcdrdb.cdr`) + `cdr_csv` | совпадает с README роли `asterisk` |

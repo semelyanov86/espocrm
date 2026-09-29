@@ -2,7 +2,7 @@
 
 Репозиторий переноса CRM `serv.itvolga.com` с Vtiger 7.1 (SalesPlatform) на EspoCRM без платных расширений. Здесь живут аудит источника, карта полей и связей, решения, а на следующих этапах — собственный код EspoCRM (финансы, печатные формы, телефония), импорт, тесты и развёртывание.
 
-**Текущее состояние:** завершён этап 01 — аудит источника. EspoCRM ещё не установлена, production не менялся. Подробности — `TASKS.md`.
+**Текущее состояние:** завершены этап 01 (аудит источника) и этап 02 (локальный стенд EspoCRM 10.0.9 без Docker: http://crm.itvolga.test). Модели и данные ещё не переносились, production не менялся. Подробности — `TASKS.md`.
 
 ## Для пользователя
 
@@ -36,12 +36,27 @@
 
 ## Для разработчика
 
+### Локальный стенд
+
+```bash
+task stand:install      # установка/обновление EspoCRM, MySQL 8.4, PHP-FPM 8.5, vhost, cron (идемпотентно)
+task stand:health       # health-check
+task stand:backup       # локальный backup в /data/itvolga/espo-private/stand/backups
+task --list             # все команды
+```
+
+Вход: http://crm.itvolga.test, `admin`, пароль — `ESPO_ADMIN_PASSWORD` в `/data/itvolga/espo-private/stand/local.env`. Полная инструкция, пути, права, backup/restore и ограничения — `docs/local-stand.md`.
+
 ### Структура
 
 ```
 AGENTS.md                 правила проекта для агентов/сессий (читать первым)
 CLAUDE.md                 порядок работы сессий Claude Code (импортирует AGENTS.md)
 TASKS.md                  состояние этапов, блокеры, стартовая команда следующей сессии
+Taskfile.yml              команды стенда, аудита и проверок (go-task)
+custom/, client/custom/   собственный код EspoCRM (единственные части EspoCRM в Git)
+deploy/local/             настройки стенда (stand.conf), шаблон секретов, шаблоны конфигов
+docs/local-stand.md       инструкция запуска локального стенда
 docs/migration/
   source-inventory.md     инвентаризация источника (модули, поля, статусы, ACL, файлы, логика)
   field-map.csv           каждая колонка каждой непустой таблицы → цель, преобразование, сверка, судьба
@@ -64,6 +79,7 @@ scripts/
     mapping.py            правила маппинга Vtiger → EspoCRM (предложения этапа 01)
     build_maps.py         генерация field-map.csv и relations.csv
     build-pii-hashes.sh   приватный список sha256 реальных ПДн для проверки Git
+  stand/                  локальный стенд: install, health, backup, restore, uninstall, ctl, espo
   check-secrets.sh        проверка секретов/ПДн перед коммитом (--history, --self-test)
   check-secrets.allow     обоснованные исключения проверки
 ```
@@ -71,6 +87,7 @@ scripts/
 ### Требования
 
 - Linux, `bash`, `python3` (≥ 3.10), `ssh` с ключом к `sergey@serv.sergeyem.ru` и `sudo -n` на сервере (используется только для чтения).
+- Для стенда: Ubuntu 24.04+, Apache 2.4, PHP 8.5 (CLI + FPM), `task` (go-task), `sudo` без пароля локально — подробно в `docs/local-stand.md`.
 - Приватный каталог `/data/itvolga/espo-private/` (создаётся скриптами, права 700).
 
 ### Повторить аудит

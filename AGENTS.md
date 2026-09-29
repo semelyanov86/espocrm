@@ -29,13 +29,14 @@
 - **Поля доступа контактов** (`Contacts.cf_1322` AnyDesk ID, `cf_1324` AnyDesk Password, `cf_1326` Hostname, `cf_1328` IP) и их история в `vtiger_modtracker_detail`: значения **никогда** не выводить в консоль, логи, отчёты, тесты, фикстуры. Только счётчики и хеши, вычисленные на сервере.
 - Имена людей, телефоны, e-mail, ИНН/счета, IP клиентов в документах заменяются на `user#<id>`, счётчики или шаблоны (`С-999`).
 - Запросы для доказательств — в `scripts/audit/sql/*.sql` или `docs/migration/evidence.md`: воспроизводимые, без значений строк и без секретов.
-- Секреты (пароли БД, AMI, API-ключи) — только вне Git (vault/`.env` вне репозитория); в Git — шаблоны `*.example`.
+- Секреты (пароли БД, AMI, API-ключи) — только вне Git (vault/`.env` вне репозитория); в Git — шаблоны `*.example`. Секреты стенда — `/data/itvolga/espo-private/stand/local.env`, backup стенда — `/data/itvolga/espo-private/stand/backups/` (содержат `config-internal.php`).
 - Тестовые данные — только синтетические, в `tests/fixtures/synthetic/`; JSON вне `custom/Espo/Custom/`, `client/custom/` и этого каталога игнорируется `.gitignore`.
 
 ## Код и структура
 
 - `scripts/audit/` — воспроизводимый аудит источника (`run-audit.sh`).
 - `docs/migration/` — постоянная память миграции (карта полей, связи, решения, вопросы, доказательства).
+- Локальный стенд (этап 02, `docs/local-stand.md`): ядро EspoCRM распаковывается в корень репозитория из закреплённого релиза и в Git не попадает; настройки — `deploy/local/stand.conf`, шаблоны — `deploy/local/templates/`, скрипты — `scripts/stand/`, команды — `Taskfile.yml`. Консоль EspoCRM — только `task espo -- …` (от пользователя `espocrm`, PHP 8.5), не `bin/command` напрямую. Ядро не править: изменения — только в `custom/`, `client/custom/`.
 - Будущие этапы: код EspoCRM в `custom/` и `client/custom/` (не игнорировать целиком), импорт в `scripts/import/`, тесты в `tests/`, Ansible — отдельно, по этапу 09.
 - Язык общения и документации — русский; код, идентификаторы и комментарии в коде — английский.
 - Имена: собственные сущности — `Invoice`, `InvoiceItem`, `Act`, `ActItem`, `Payment`, `PaymentAllocation`, `Quote`, `SalesOrder`, `Product`, `Project`, `ProjectTask`, `Vendor`, `LegalEntity`, `VtigerArchive`, `ContactAccess`; кастомные поля стандартных сущностей — с префиксом `c` (`cInn`); на каждой импортируемой сущности — `vtigerId`, при наличии номера — `vtigerNo`/`number`; нераспределённые значения — `vtigerData` (JSON, только чтение).

@@ -1,0 +1,20 @@
+# Rendered from deploy/local/templates/itvolga-espo-php-fpm.service.tmpl — do not edit here.
+[Unit]
+Description=PHP-FPM @@PHP_VERSION@@ pool for the local EspoCRM stand (@@ESPO_SITE_HOST@@)
+After=network.target @@MYSQL_UNIT@@.service
+Wants=@@MYSQL_UNIT@@.service
+
+[Service]
+Type=notify
+RuntimeDirectory=itvolga-espo-php-fpm
+RuntimeDirectoryMode=0755
+ExecStartPre=@@PHP_FPM_BIN@@ --test --fpm-config @@ETC_DIR@@/php-fpm.conf
+ExecStart=@@PHP_FPM_BIN@@ --nodaemonize --fpm-config @@ETC_DIR@@/php-fpm.conf
+ExecReload=/bin/kill -USR2 $MAINPID
+Restart=on-failure
+RestartSec=5
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

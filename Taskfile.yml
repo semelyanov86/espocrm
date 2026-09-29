@@ -1,0 +1,106 @@
+# Tasks of the Vtiger 7.1 -> EspoCRM migration repository (go-task v3, https://taskfile.dev).
+# Local stand: docs/local-stand.md. Arguments after `--` go to the script: task stand:backup -- --label x
+# Names and paths live in deploy/local/stand.conf; the tasks only call scripts.
+version: '3'
+
+tasks:
+  default:
+    desc: List tasks
+    silent: true
+    cmds:
+      - task --list
+
+  # --- local EspoCRM stand (stage 02) -------------------------------------------------------
+  stand:install:
+    desc: Install or update the local stand (idempotent); optional step names after --
+    cmds:
+      - scripts/stand/install.sh {{.CLI_ARGS}}
+
+  stand:health:
+    desc: Health check (services, MySQL, EspoCRM, HTTP and login, cron, permissions)
+    cmds:
+      - scripts/stand/health.sh
+
+  stand:status:
+    desc: State of the stand services and of the cron entry
+    cmds:
+      - scripts/stand/ctl.sh status
+
+  stand:start:
+    desc: Start MySQL and PHP-FPM of the stand and restore its cron entry
+    cmds:
+      - scripts/stand/ctl.sh start
+
+  stand:stop:
+    desc: Stop the stand (cron entry removed, PHP-FPM and MySQL stopped)
+    cmds:
+      - scripts/stand/ctl.sh stop
+
+  stand:restart:
+    desc: Restart MySQL and PHP-FPM, reload Apache, then run the health check
+    cmds:
+      - scripts/stand/ctl.sh restart
+      - scripts/stand/health.sh
+
+  stand:logs:
+    desc: Recent logs (journal, Apache vhost, EspoCRM); LINES=100 task stand:logs
+    cmds:
+      - scripts/stand/ctl.sh logs
+
+  stand:backup:
+    desc: Local backup into the private directory (-- [--label NAME] [--quiesce])
+    cmds:
+      - scripts/stand/backup.sh {{.CLI_ARGS}}
+
+  stand:backups:
+    desc: List local backups
+    cmds:
+      - scripts/stand/ctl.sh backups
+
+  stand:restore:
+    desc: Restore from a local backup (-- <name|dir|latest> [--yes] [--no-safety-backup] [--skip-custom])
+    cmds:
+      - scripts/stand/restore.sh {{.CLI_ARGS}}
+
+  stand:uninstall:
+    desc: Remove the stand (-- --yes [--purge]); Git files, private settings and backups stay
+    cmds:
+      - scripts/stand/uninstall.sh {{.CLI_ARGS}}
+
+  espo:
+    desc: EspoCRM console as the web user (-- rebuild | clear-cache | app-check | run-job NAME ...)
+    cmds:
+      - scripts/stand/espo.sh {{.CLI_ARGS}}
+
+  espo:rebuild:
+    desc: Clear cache and rebuild EspoCRM (metadata, DB schema)
+    cmds:
+      - scripts/stand/espo.sh clear-cache
+      - scripts/stand/espo.sh rebuild
+
+  db:shell:
+    desc: MySQL shell of the stand database as MySQL root (auth_socket via sudo)
+    interactive: true
+    cmds:
+      - scripts/stand/ctl.sh db-shell
+
+  # --- source audit and repository checks (stage 01) ------------------------------------------
+  audit:run:
+    desc: Full read-only audit of the Vtiger source (results go to the private directory)
+    cmds:
+      - scripts/audit/run-audit.sh
+
+  check:secrets:
+    desc: Scan files that would be committed for secrets and personal data
+    cmds:
+      - scripts/check-secrets.sh
+
+  check:secrets-history:
+    desc: Scan the working tree and the whole Git history (required before every commit)
+    cmds:
+      - scripts/check-secrets.sh --history
+
+  check:secrets-self-test:
+    desc: Self-test of the scanner rules
+    cmds:
+      - scripts/check-secrets.sh --self-test

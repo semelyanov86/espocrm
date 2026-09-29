@@ -1,0 +1,26 @@
+# Dedicated MySQL @@MYSQL_VERSION@@ instance of the local EspoCRM stand (stage 02).
+# Rendered from deploy/local/templates/my.cnf.tmpl by scripts/stand/install.sh — do not edit here.
+# No secrets: root uses auth_socket, the EspoCRM account password lives outside Git.
+[client]
+socket = @@MYSQL_SOCKET@@
+default-character-set = utf8mb4
+
+[mysqld]
+basedir = @@MYSQL_HOME@@
+datadir = @@MYSQL_DATADIR@@
+socket = @@MYSQL_SOCKET@@
+pid-file = @@MYSQL_RUN_DIR@@/mysqld.pid
+port = @@MYSQL_PORT@@
+bind-address = 127.0.0.1
+mysqlx = OFF
+skip-name-resolve
+# The system MySQL of the workstation keeps /var/run/mysqld and port 3306; nothing is shared.
+character-set-server = utf8mb4
+collation-server = utf8mb4_0900_ai_ci
+# Same global settings as the production server (MySQL 8.4.11, checked 2026-09-29).
+sql_mode = @@MYSQL_SQL_MODE@@
+max_allowed_packet = @@MYSQL_MAX_ALLOWED_PACKET@@
+innodb_buffer_pool_size = @@MYSQL_BUFFER_POOL@@
+innodb_file_per_table = ON
+lower_case_table_names = 0
+# Error log goes to stderr, i.e. the systemd journal (journalctl -u @@MYSQL_UNIT@@).

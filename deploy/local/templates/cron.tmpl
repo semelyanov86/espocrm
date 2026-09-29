@@ -1,0 +1,6 @@
+# EspoCRM scheduler of the local stand (stage 02), every minute as @@ESPO_USER@@.
+# Rendered from deploy/local/templates/cron.tmpl — do not edit here. Output: journalctl -t @@CRON_TAG@@
+SHELL=/bin/sh
+# `php` in PATH is a shim to @@PHP_BIN@@ (parallel job processes are started as `php`).
+PATH=@@STAND_PATH@@
+* * * * * @@ESPO_USER@@ @@PHP_BIN@@ -f @@ESPO_ROOT@@/cron.php 2>&1 | /usr/bin/logger -t @@CRON_TAG@@

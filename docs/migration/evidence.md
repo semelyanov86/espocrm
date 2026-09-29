@@ -153,3 +153,54 @@ grep -o -E "'[A-Z_]+'\s*=>" config.performance.php                          # т
 ## Проверка Git перед коммитом
 
 `scripts/check-secrets.sh` (регулярные выражения по секретам/ПДн + сверка sha256 с хешами реальных ПДн из БД, подготовленными на сервере) — результат фиксируется в `TASKS.md`.
+
+## Этап 02 — локальный стенд EspoCRM (2026-09-29, 22:20–23:05 CEST)
+
+Рабочая станция: Ubuntu 24.04.5, Apache 2.4.58 (prefork), системная MySQL 8.0.46 (не используется стендом), PHP 8.5.11 (PPA `ondrej/php`). Инструкция и модель прав — `docs/local-stand.md`; решения — D-32…D-37. Секреты и тела ответов не выводились; вход через браузер выполнен временным синтетическим пользователем, удалённым после проверки.
+
+### Перепроверка фактов, от которых зависит этап (production, только чтение)
+
+| Факт | Команда (read-only) | Результат |
+|---|---|---|
+| ОС, пакеты PHP/Apache/MySQL хоста | `ssh … 'dpkg-query -W php*-fpm apache2 mysql-server; apache2 -v; sudo -n apache2ctl -M'` | Ubuntu 26.04; `php8.5-fpm` 8.5.4; Apache 2.4.66 `mpm_event` + `proxy_fcgi rewrite headers ssl auth_basic`; `mysql-server` 8.4.11 |
+| Расширения и `php.ini` PHP-FPM 8.5 хоста | `php8.5 -m`; `php-fpm8.5 -i \| grep -E '^(memory_limit\|upload_max_filesize\|post_max_size\|max_execution_time\|date.timezone)'` | все расширения EspoCRM 10 есть; лимиты ниже рекомендаций (128M/2M/8M/30 с) → нужны параметры пула (этап 09) |
+| Параметры MySQL | `remote_sql mysql`: `SELECT @@version, @@sql_mode, @@character_set_server, @@collation_server, @@global.time_zone, @@max_allowed_packet, @@innodb_buffer_pool_size, @@lower_case_table_names, @@bind_address` | 8.4.11; `ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION`; `utf8mb4`/`utf8mb4_0900_ai_ci`; `SYSTEM` (CEST); 64M; 128M; 0; 127.0.0.1 → перенесено в `my.cnf.tmpl` |
+| Совместимость EspoCRM | GitHub API релизов, `composer.json` тега `10.0.9`, docs.espocrm.com (`server-configuration.md`) | последний релиз 10.0.9 (2026-09-29): PHP `>=8.3 <8.6`, MySQL 8.0+ → совместим с PHP 8.5 и MySQL 8.4 production |
+
+Расхождений с документами этапа 01 нет; добавлены новые факты о PHP 8.5 хоста, Apache и параметрах MySQL (`source-inventory.md` §1).
+
+### Целостность загрузок
+
+| Архив | Проверка |
+|---|---|
+| `EspoCRM-10.0.9.zip` | sha256 `9b53a4f8…17e32e5` = digest GitHub-релиза; закреплён в `deploy/local/stand.conf` |
+| `mysql-8.4.11-linux-glibc2.28-x86_64-minimal.tar.xz` | md5 с cdn.mysql.com — совпал; подпись `.asc` — действительна, ключ `BCA4 3417 C3B4 85DD 128E C6D4 B7B3 B788 A8D3 785C` (MySQL Release Engineering); sha256 `383f54e1…a4cc6b143` закреплён |
+
+При установке с нуля (кэш удалён) оба архива скачаны заново и прошли сверку sha256.
+
+### Проверки стенда
+
+| # | Проверка | Как | Результат |
+|---|---|---|---|
+| 1 | Установка | `task stand:install` (шаги по отдельности, затем целиком) | EspoCRM 10.0.9, 141 таблица, MySQL 8.4.11 :3384, PHP-FPM 8.5.11 от `espocrm`, vhost, cron |
+| 2 | Идемпотентность | повторный `task stand:install` (2 раза, в т. ч. финальный 23:02) | ни один файл не переписан, сервисы не перезапускались; health 0/0 |
+| 3 | HTTP | health-check | `/` 200 (страница EspoCRM от PHP-FPM), CSS 200; `data/`, `application/`, `vendor/`, `custom/`, `bootstrap.php`, `client/../data`, `AGENTS.md`, `.git/`, `deploy/` → 404; `/install/` → 403 |
+| 4 | Вход (API) | health-check: как веб-клиент (пароль → токен + cookie `auth-token-secret` → запросы по токену → выход) | аноним 401, неверный пароль 401, вход 200 (`admin`), сессия по токену 200, после выхода 401; активных токенов не остаётся |
+| 5 | Вход (браузер) | Playwright: `http://crm.itvolga.test/` → форма «Имя пользователя/Пароль» → «Войти» | открыт дашборд («Лента», «Моя деятельность»), ошибок в консоли 0; скриншот — приватно; вход подтвердил и владелец |
+| 6 | Требования глазами веб-процесса | `GET /api/v1/Admin/action/systemRequirementList` | PHP 8.5.11, 18 проверок PHP, 4 БД, 4 права записи — все приемлемы |
+| 7 | Cron | `journalctl -u cron`, таблицы `job`/`scheduled_job`, `cronLastRunTime` | `cron.php` каждую минуту от `espocrm`, вывод пуст; очереди q0/q1/e0 и `SubmitPopupReminders` — каждую минуту, `*/2` и `*/10` задачи — по расписанию, 0 упавших; `php` в `PATH` cron — 8.5.11 |
+| 8 | Негативный контроль | остановлен только PHP-FPM; затем `task stand:stop` | health: 6 FAIL (503 на HTTP/API) и 12 FAIL соответственно — проверка не «зелёная» по умолчанию |
+| 9 | Перезапуск | `task stand:restart`; `systemctl restart itvolga-espo-mysql itvolga-espo-php-fpm apache2 cron`; `stand:stop` → `stand:start` | после каждого — health 0 FAIL; сервисы `enabled` (поднимутся после перезагрузки) |
+| 10 | Backup | `task stand:backup -- --label restore-test --quiesce` (≈0,7 с) | 141 таблица / 177 строк, 9 файлов, `SHA256SUMS`; cron и FPM возвращены |
+| 11 | Restore | после backup: удалена проба A и документ, **физически удалён файл вложения**, создана проба B → `restore.sh … --yes --skip-custom` | страховочный backup; числа строк всех 141 таблицы = backup; проба A и документ вернулись, файл скачивается с тем же sha256, проба B исчезла; health 0/0 |
+| 12 | Установка с нуля | `task stand:uninstall -- --yes --purge` (не осталось сервисов, конфигов, данных MySQL, ядра, пользователя), удалён кэш загрузок → `task stand:install` (1 мин 05 с) | health 0 FAIL / 0 WARN |
+| 13 | Восстановление на чистую установку | `restore.sh 20260929T225608-restore-test --yes --skip-custom` | пробы и файл вернулись, health 0/0 (сценарий аварийного восстановления) |
+| 14 | Статический анализ | shellcheck 0.11.0 (`-x`), `py_compile`, `php8.5 -l` | 0 замечаний после исправлений |
+
+Восстановление каталогов кастомизаций (`restore.sh` без `--skip-custom`) до коммита не проверялось: файлы `custom/` ещё не были в Git, и restore по правилу отказывается затирать незакоммиченное.
+
+### Приватные результаты (вне Git, содержимое не публикуется)
+
+- `/data/itvolga/espo-private/stand/local.env` — секреты стенда (600).
+- `/data/itvolga/espo-private/stand/backups/20260929T225608-restore-test/`, `…T225633-pre-restore/`, `…T225927-pre-restore/` — backup проверок.
+- `/data/itvolga/espo-private/stand/evidence/` — полные выводы health-check (негативные контроли, перезапуски, установка с нуля, восстановление) и скриншот входа.

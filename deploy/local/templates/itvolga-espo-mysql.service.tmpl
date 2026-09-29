@@ -1,0 +1,27 @@
+# Rendered from deploy/local/templates/itvolga-espo-mysql.service.tmpl — do not edit here.
+[Unit]
+Description=MySQL @@MYSQL_VERSION@@ for the local EspoCRM stand (@@ESPO_SITE_HOST@@)
+After=network.target
+
+[Service]
+Type=simple
+User=mysql
+Group=mysql
+RuntimeDirectory=itvolga-espo-mysql
+RuntimeDirectoryMode=0755
+# The generic tarball links libaio.so.1; Ubuntu 24.04+ ships it as libaio.so.1t64.
+Environment=LD_LIBRARY_PATH=@@MYSQL_HOME@@/lib/compat
+ExecStart=@@MYSQL_HOME@@/bin/mysqld --defaults-file=@@ETC_DIR@@/my.cnf
+ExecStartPost=/bin/sh -c 'for i in $$(seq 120); do @@MYSQL_HOME@@/bin/mysqladmin --socket=@@MYSQL_SOCKET@@ ping >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1'
+TimeoutStartSec=180
+TimeoutStopSec=600
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=10000
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
