@@ -1,0 +1,60 @@
+# --- Private migration data: never commit -------------------------------------
+# Private audit/import reports, snapshots and hash lists live outside the repo
+# (/data/itvolga/espo-private). These patterns are a second line of defence.
+/private/
+/espo-private/
+*.private.*
+*-private.*
+reports/private/
+
+# Database dumps and data exports
+*.sql
+*.sql.gz
+*.sql.zst
+*.dump
+*.tsv
+*.jsonl
+*.ndjson
+# SQL sources used by the audit are code, not dumps
+!scripts/**/*.sql
+
+# Call recordings, CDR copies, attachments from the source
+*.wav
+*.WAV
+*.mp3
+*.gsm
+Master.csv*
+/storage/
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.ovpn
+*.kdbx
+id_rsa*
+id_ed25519*
+secrets.*
+vault.yml
+.vault_pass
+htpasswd*
+
+# --- EspoCRM runtime (stage 02+). Keep custom/ and client/custom/ tracked -------
+/data/*
+!/data/.gitkeep
+/vendor/
+/node_modules/
+/build/
+
+# Tooling
+__pycache__/
+*.pyc
+.phpunit.result.cache
+.idea/
+.vscode/
+.DS_Store
+*.swp
