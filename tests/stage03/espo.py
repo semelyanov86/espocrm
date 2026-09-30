@@ -57,6 +57,8 @@ class Client:
         try:
             with _OPENER.open(req, timeout=30) as resp:
                 raw = resp.read()
+                if raw and "json" not in resp.headers.get("Content-Type", ""):
+                    return resp.status, raw, dict(resp.headers)  # file downloads
                 return resp.status, (json.loads(raw) if raw else None), dict(resp.headers)
         except urllib.error.HTTPError as err:
             raw = err.read()

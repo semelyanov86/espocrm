@@ -68,7 +68,10 @@
             "noLoad": true
         },
         "amount": {
-            "required": false
+            "required": false,
+            "decimal": true,
+            "precision": 25,
+            "scale": 8
         }
     },
     "links": {

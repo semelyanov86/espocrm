@@ -1,7 +1,8 @@
 /**
  * AnyDesk password of ContactAccess. The API never returns the value with the record (entityAcl internal);
  * «Показать пароль» calls POST /ContactAccess/:id/password, which checks access and writes an Action History
- * record. The revealed value lives only in the DOM for 30 seconds and is never put into the model.
+ * record. The revealed value lives only in the DOM for 30 seconds and is never put into the model; a value typed
+ * in the form is removed from the model once it is saved.
  */
 define('itvolga:views/contact-access/fields/password', ['views/fields/password'], (PasswordFieldView) => {
 
@@ -43,6 +44,25 @@ define('itvolga:views/contact-access/fields/password', ['views/fields/password']
             });
 
             this.once('remove', () => this.hidePassword());
+
+            // A value typed in the form is sent once; it must not stay in the client model after saving.
+            this.listenTo(this.model, 'sync', () => this.forgetPlainValue());
+        }
+
+        forgetPlainValue() {
+            if (this.model.has(this.name)) {
+                this.model.unset(this.name, {silent: true});
+            }
+
+            if (this.model._previousAttributes) {
+                delete this.model._previousAttributes[this.name];
+            }
+
+            const input = this.element ? this.element.querySelector('input') : null;
+
+            if (input) {
+                input.value = '';
+            }
         }
 
         data() {

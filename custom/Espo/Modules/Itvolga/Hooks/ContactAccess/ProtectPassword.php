@@ -20,7 +20,8 @@ use Espo\ORM\Repository\Option\SaveOptions;
  */
 class ProtectPassword implements BeforeSave
 {
-    public static int $order = 1;
+    // After the before-save formula (Espo\Hooks\Common\Formula, order 11): a formula may set the plain value too.
+    public static int $order = 100;
 
     public function __construct(private Crypt $crypt) {}
 

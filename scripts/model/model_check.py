@@ -247,6 +247,15 @@ def check_field_row(model, row, max_len=None):
         if max_len and ml and name not in ("vtigerData",) and ftype in ("varchar", "url", "password", "email") \
                 and int(max_len) > int(ml):
             problems.append(f"{desc}({ml}) < max {max_len}")
+        # Money and other exact numbers stay exact (AGENTS.md: no float): a decimal source needs a decimal target.
+        if row.get("source_db_type", "").startswith("decimal"):
+            if ftype == "float" or (ftype == "currency" and not f.get("decimal")):
+                problems.append(f"{desc}: float для decimal-источника")
+            if ftype == "int" and "дробных значений нет" not in row.get("transform", ""):
+                problems.append(f"{desc}: int для decimal-источника без проверки дробной части")
+            if ftype in ("currency", "decimal") and f.get("decimal", ftype == "decimal"):
+                desc += f" decimal({f.get('precision', '?')},{f.get('scale', '?')})"
+
         notes.append(desc + (f"({ml})" if ml and ftype in ("varchar", "url") else ""))
     if problems:
         return False, "ОШИБКА: " + "; ".join(problems)

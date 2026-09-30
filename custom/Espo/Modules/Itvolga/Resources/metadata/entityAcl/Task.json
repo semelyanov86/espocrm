@@ -7,5 +7,10 @@
             "readOnly": true,
             "onlyAdmin": true
         }
+    },
+    "links": {
+        "teams": {
+            "nonAdminReadOnly": true
+        }
     }
 }

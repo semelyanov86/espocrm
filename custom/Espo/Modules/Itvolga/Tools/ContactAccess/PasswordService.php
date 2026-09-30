@@ -7,11 +7,12 @@ use Espo\Core\Acl\Table;
 use Espo\Core\Exceptions\Forbidden;
 use Espo\Core\Exceptions\NotFound;
 use Espo\Core\Field\LinkParent;
-use Espo\Core\Utils\Crypt;
+use Espo\Core\Utils\Config;
 use Espo\Entities\ActionHistoryRecord;
 use Espo\Entities\User;
 use Espo\Modules\Itvolga\Entities\ContactAccess;
 use Espo\ORM\EntityManager;
+use RuntimeException;
 
 /**
  * Returns the plain AnyDesk password of a ContactAccess record to a user who may read that record,
@@ -25,7 +26,7 @@ class PasswordService
         private EntityManager $entityManager,
         private Acl $acl,
         private User $user,
-        private Crypt $crypt,
+        private Config $config,
     ) {}
 
     /**
@@ -52,7 +53,29 @@ class PasswordService
 
         $encrypted = $entity->getEncryptedPassword();
 
-        return $encrypted === null ? null : $this->crypt->decrypt($encrypted);
+        return $encrypted === null ? null : $this->decrypt($encrypted);
+    }
+
+    /**
+     * Inverse of Espo\Core\Utils\Crypt::encrypt() (AES-256-CBC, key = sha256(cryptKey), IV appended). Unlike
+     * Crypt::decrypt() it does not trim the result: leading and trailing spaces of a password are preserved.
+     */
+    private function decrypt(string $encrypted): string
+    {
+        $decoded = base64_decode($encrypted, true);
+
+        if ($decoded === false || strlen($decoded) <= 16) {
+            throw new RuntimeException("Malformed ciphertext.");
+        }
+
+        $key = hash('sha256', (string) $this->config->get('cryptKey', ''), true);
+        $value = openssl_decrypt(substr($decoded, 0, -16), 'aes-256-cbc', $key, OPENSSL_RAW_DATA, substr($decoded, -16));
+
+        if ($value === false) {
+            throw new RuntimeException("OpenSSL decrypt failure.");
+        }
+
+        return $value;
     }
 
     private function log(ContactAccess $entity): void

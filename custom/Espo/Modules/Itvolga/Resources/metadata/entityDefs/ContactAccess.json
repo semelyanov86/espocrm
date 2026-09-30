@@ -25,7 +25,7 @@
         },
         "anydeskPassword": {
             "type": "password",
-            "maxLength": 255,
+            "maxLength": 1024,
             "view": "itvolga:views/contact-access/fields/password",
             "tooltip": true,
             "exportDisabled": true,

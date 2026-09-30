@@ -17,7 +17,7 @@ class ContactAccess extends Base
     public const FIELD_PASSWORD = 'anydeskPassword';
     public const FIELD_HAS_PASSWORD = 'hasAnydeskPassword';
 
-    /** Plain-text limit; the column keeps the base64 ciphertext, which is longer. */
+    /** Plain-text limit in characters; the column (varchar 1024) keeps the base64 ciphertext: ≤ 576 chars for 100 4-byte chars. */
     public const PASSWORD_MAX_LENGTH = 100;
 
     public function getContactId(): ?string

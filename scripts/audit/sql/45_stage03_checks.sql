@@ -17,6 +17,10 @@ GROUP BY 2;
 SELECT 'pbx_no_end' k, COUNT(*) n, SUM(totalduration IS NULL OR totalduration=0) zero_duration
 FROM vtiger_pbxmanager p JOIN vtiger_crmentity c ON c.crmid=p.pbxmanagerid AND c.deleted=0
 WHERE p.endtime IS NULL OR CAST(p.endtime AS CHAR) LIKE '0000%';
+-- Opportunity probability is decimal(7,3) in Vtiger and int in EspoCRM: fractional values would be lost.
+SELECT 'probability_fraction' k, SUM(p.probability IS NOT NULL AND p.probability<>0) nonzero,
+  SUM(p.probability<>FLOOR(p.probability)) fractional
+FROM vtiger_potential p JOIN vtiger_crmentity c ON c.crmid=p.potentialid AND c.deleted=0;
 -- Opportunities without amount (EspoCRM core makes amount required).
 SELECT 'potential_no_amount' k, SUM(p.amount IS NULL OR p.amount=0) n FROM vtiger_potential p JOIN vtiger_crmentity c ON c.crmid=p.potentialid AND c.deleted=0;
 -- Export/import/merge utilities of the profiles of the used roles (module names only).

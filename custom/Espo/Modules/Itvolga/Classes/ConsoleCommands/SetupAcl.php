@@ -10,7 +10,7 @@ use Espo\Core\Utils\Config\ConfigWriter;
 use Espo\Core\Utils\Metadata;
 use Espo\Entities\Role;
 use Espo\Entities\Team;
-use Espo\Entities\User;
+use Espo\Modules\Itvolga\Tools\Acl\HierarchyTeams;
 use Espo\ORM\EntityManager;
 
 /**
@@ -71,6 +71,7 @@ class SetupAcl implements Command
         private Metadata $metadata,
         private Config $config,
         private ConfigWriter $configWriter,
+        private HierarchyTeams $hierarchyTeams,
     ) {}
 
     /**
@@ -185,7 +186,7 @@ class SetupAcl implements Command
         }
 
         if (!$dryRun) {
-            $changes = array_merge($changes, $this->syncHierarchyMembership());
+            $changes = array_merge($changes, $this->hierarchyTeams->syncAllUsers());
         }
 
         $tabList = $this->config->get('tabList') ?? [];
@@ -215,40 +216,5 @@ class SetupAcl implements Command
         }
 
         return false;
-    }
-
-    /**
-     * Members of hierarchy teams are the users holding `memberRoles` (Vtiger: superior roles see subordinates).
-     *
-     * @return string[]
-     */
-    private function syncHierarchyMembership(): array
-    {
-        $changes = [];
-
-        foreach ($this->metadata->get(['app', 'itvolgaAcl', 'hierarchyTeams']) ?? [] as $rule) {
-            $team = $this->entityManager->getRDBRepositoryByClass(Team::class)->where(['name' => $rule['team']])->findOne();
-
-            if (!$team) {
-                continue;
-            }
-
-            $users = $this->entityManager->getRDBRepositoryByClass(User::class)
-                ->join('roles')
-                ->where(['roles.name' => $rule['memberRoles'], 'isActive' => true])
-                ->distinct()
-                ->find();
-
-            foreach ($users as $user) {
-                $relation = $this->entityManager->getRelation($user, 'teams');
-
-                if (!$relation->isRelated($team)) {
-                    $relation->relate($team);
-                    $changes[] = "member + {$user->getUserName()} → {$rule['team']}";
-                }
-            }
-        }
-
-        return $changes;
     }
 }

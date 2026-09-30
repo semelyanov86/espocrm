@@ -148,6 +148,15 @@ class ModelTest(unittest.TestCase):
                        f"AND table_name='{table}' AND column_name='vtiger_id'")
             self.assertEqual(rows, [["0"]], f"{entity}: unique index on vtiger_id")
 
+    def test_money_is_decimal(self):
+        rows = sql("SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema=DATABASE() "
+                   "AND ((table_name='opportunity' AND column_name='amount') OR (table_name='lead' AND column_name="
+                   "'opportunity_amount') OR (table_name='product' AND column_name='unit_price') OR "
+                   "(table_name='project' AND column_name='budget'))")
+        self.assertEqual(len(rows), 4)
+        for table, column, data_type in rows:
+            self.assertEqual(data_type, "decimal", f"{table}.{column}")
+
     def test_value_dictionary_matches_enum_options(self):
         """Every Vtiger value maps to an option of the EspoCRM enum (D-19 dictionary, Q-32)."""
         model = model_check.Model(REPO)
@@ -365,6 +374,68 @@ class AclTest(unittest.TestCase):
         self.assertNotIn(team, ok(self, S["admin"].get(f"Task/{task['id']}"))["teamsIds"])
         self.assertRead("dep1", "Task", task["id"], False)
 
+    def test_telephony_history_mass_actions_are_denied(self):
+        a = S["admin"]
+        pbx = ok(self, a.post("Call", {"name": f"{TAG} pbx mass", "status": "Held", "dateStart": "2020-02-01 10:00:00",
+                                       "assignedUserId": uid("dep1")}))
+        cal = ok(self, a.post("Call", {"name": f"{TAG} cal mass", "status": "Planned", "dateStart": "2020-02-01 11:00:00",
+                                       "assignedUserId": uid("dep1")}))
+        S["created"] += [("Call", pbx["id"]), ("Call", cal["id"])]
+        sql(f"UPDATE `call` SET c_connector_call_id='998' WHERE id='{pbx['id']}'")
+        result = ok(self, c("dep1").post("MassAction", {"entityType": "Call", "action": "update",
+                                                        "params": {"ids": [pbx["id"], cal["id"]]},
+                                                        "data": {"description": "mass"}}))
+        self.assertEqual(result.get("count"), 1, "only the calendar call is updated")
+        self.assertIsNone(ok(self, a.get(f"Call/{pbx['id']}"))["description"])
+        ok(self, c("dep1").post("MassAction", {"entityType": "Call", "action": "delete", "params": {"ids": [pbx["id"]]}}))
+        self.assertEqual(a.get(f"Call/{pbx['id']}")[0], 200, "history call survives mass delete")
+
+    def test_hierarchy_team_cannot_be_removed_by_editing_teams(self):
+        team = S["teams"]["Подчинённые заместителей"]
+        status, task = create("Task", {"name": f"{TAG} keep team", "assignedUserId": uid("sales")}, client=c("sales"))
+        self.assertEqual(status, 200, task)
+        ok(self, c("sales").put(f"Task/{task['id']}", {"teamsIds": []}))
+        self.assertIn(team, ok(self, S["admin"].get(f"Task/{task['id']}"))["teamsIds"])
+        self.assertEqual(c("sales").request("DELETE", f"Task/{task['id']}/teams", {"id": team})[0], 403)
+        self.assertRead("dep1", "Task", task["id"], True)
+
+    def test_hierarchy_membership_follows_role_change_at_once(self):
+        a = S["admin"]
+        roles = {r["name"]: r["id"] for r in a.get("Role", maxSize=50)[1]["list"]}
+        password = secrets.token_urlsafe(18) + "Aa1!"
+        user = ok(self, a.post("User", {"userName": f"synth-{RUN}-member2", "lastName": f"{TAG} member2",
+                                        "type": "regular", "password": password, "passwordConfirm": password,
+                                        "rolesIds": [roles["Заместитель директора"]]}))
+        S["user_ids"]["member2"] = user["id"]
+        team = S["teams"]["Подчинённые заместителей"]
+
+        def member():
+            return any(u["id"] == user["id"] for u in ok(self, a.get(f"Team/{team}/users", maxSize=200))["list"])
+
+        self.assertTrue(member(), "joins on creation, without the console command")
+        ok(self, a.put(f"User/{user['id']}", {"rolesIds": []}))
+        self.assertFalse(member(), "leaves as soon as the role is removed")
+
+    def test_hierarchy_membership_follows_roles(self):
+        """itvolga-setup-acl: holders of the superior role join hierarchy teams and leave them without it."""
+        a = S["admin"]
+        roles = {r["name"]: r["id"] for r in a.get("Role", maxSize=50)[1]["list"]}
+        password = secrets.token_urlsafe(18) + "Aa1!"
+        user = ok(self, a.post("User", {"userName": f"synth-{RUN}-member", "lastName": f"{TAG} member",
+                                        "type": "regular", "password": password, "passwordConfirm": password,
+                                        "rolesIds": [roles["Заместитель директора"]]}))
+        S["user_ids"]["member"] = user["id"]
+        team = S["teams"]["Подчинённые заместителей"]
+
+        def member():
+            return any(u["id"] == user["id"] for u in ok(self, a.get(f"Team/{team}/users", maxSize=200))["list"])
+
+        espo_console("itvolga-setup-acl")
+        self.assertTrue(member())
+        ok(self, a.put(f"User/{user['id']}", {"rolesIds": []}))
+        espo_console("itvolga-setup-acl")
+        self.assertFalse(member())
+
     def test_telephony_history_is_read_only(self):
         status, call = create("Call", {"name": f"{TAG} pbx", "status": "Held", "dateStart": "2020-01-01 10:00:00",
                                        "assignedUserId": uid("dep1")})
@@ -375,6 +446,54 @@ class AclTest(unittest.TestCase):
         self.assertEqual(c("dep1").delete(f"Call/{call['id']}")[0], 403)
         self.assertEqual(c("dep1").put(f"Call/{cal['id']}", {"description": "x"})[0], 200)
         self.assertEqual(S["admin"].put(f"Call/{call['id']}", {"description": "admin"})[0], 200)
+
+
+# ---------------------------------------------------------------------------------------------------- attachments
+class AttachmentAccessTest(unittest.TestCase):
+    """Files follow the access to their record (Vtiger: attachments are visible with the record)."""
+    PNG = base64.b64encode(bytes.fromhex(
+        "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000154a2"
+        "4f5d0000000049454e44ae426082")).decode()
+
+    @classmethod
+    def upload(cls, related_type, field, role="Attachment", name="synthetic.png"):
+        return ok_setup(S["admin"].post("Attachment", {
+            "name": name, "type": "image/png", "role": role, "relatedType": related_type, "field": field,
+            "file": "data:image/png;base64," + cls.PNG}))["id"]
+
+    @classmethod
+    def setUpClass(cls):
+        a = S["admin"]
+        cls.doc_file = cls.upload("Document", "file")
+        doc = ok_setup(a.post("Document", {"name": f"{TAG} doc", "fileId": cls.doc_file, "status": "Active",
+                                           "assignedUserId": uid("dir")}))
+        cls.acc = ok_setup(a.post("Account", {"name": f"{TAG} acc with note", "assignedUserId": uid("dir")}))["id"]
+        cls.note_file = cls.upload("Note", "attachments")
+        note = ok_setup(a.post("Note", {"type": "Post", "parentType": "Account", "parentId": cls.acc,
+                                        "post": f"{TAG} comment", "attachmentsIds": [cls.note_file]}))
+        cls.photo = cls.upload("Contact", "cPhoto")
+        con = ok_setup(a.post("Contact", {"lastName": f"{TAG} photo", "cPhotoId": cls.photo,
+                                          "assignedUserId": uid("dep1")}))
+        for entity, rid in (("Document", doc["id"]), ("Note", note["id"]), ("Account", cls.acc), ("Contact", con["id"])):
+            S["created"].append((entity, rid))
+
+    def download(self, user, attachment_id):
+        return c(user).get(f"Attachment/file/{attachment_id}")[0]
+
+    def test_document_file_follows_document_access(self):
+        self.assertEqual(self.download("dir", self.doc_file), 200)
+        self.assertEqual(self.download("dep1", self.doc_file), 403)   # director's document (Private)
+        self.assertEqual(self.download("sales", self.doc_file), 403)  # no Documents at all
+        self.assertEqual(self.download("norole", self.doc_file), 403)
+
+    def test_comment_attachment_follows_parent_record(self):
+        self.assertEqual(self.download("dir", self.note_file), 200)
+        self.assertEqual(self.download("dep1", self.note_file), 403)  # parent account is not visible
+
+    def test_contact_photo_follows_contact_access(self):
+        self.assertEqual(self.download("dep1", self.photo), 200)
+        self.assertEqual(self.download("dep2", self.photo), 200)      # sharing rule H3→H3 for Contacts
+        self.assertEqual(self.download("cust", self.photo), 403)      # no Contacts for Менеджер клиентов
 
 
 # ---------------------------------------------------------------------------------------------------- ContactAccess
@@ -453,6 +572,27 @@ class ContactAccessTest(unittest.TestCase):
         self.assertFalse(got["hasAnydeskPassword"])
         self.assertIsNone(c("access").post(f"ContactAccess/{rec['id']}/password")[1]["password"])
         self.assertEqual(c("access").put(f"ContactAccess/{rec['id']}", {"anydeskPassword": "x" * 101})[0], 400)
+
+    def test_long_multibyte_and_spaced_passwords_roundtrip(self):
+        for value in ("Ж" * 100, "  spaced value  ", "𝔘" * 100):
+            status, rec = create("ContactAccess", {"contactId": self.contact, "anydeskPassword": value}, client=c("access"))
+            self.assertEqual(status, 200, rec)
+            self.assertEqual(c("access").post(f"ContactAccess/{rec['id']}/password")[1]["password"], value)
+
+    def test_encryption_runs_after_before_save_formula(self):
+        order = lambda path, rx: int(__import__("re").search(rx, Path(path).read_text()).group(1))  # noqa: E731
+        ours = order(REPO / "custom/Espo/Modules/Itvolga/Hooks/ContactAccess/ProtectPassword.php", r"\$order = (\d+)")
+        formula = order(REPO / "application/Espo/Hooks/Common/Formula.php", r"\$order = (\d+)")
+        self.assertGreater(ours, formula)
+
+    def test_no_webhooks_for_contact_access(self):
+        status, payload, _ = S["admin"].post("Webhook", {"event": "ContactAccess.create", "url": "https://example.org/x",
+                                                          "isActive": False})
+        if status in (200, 201):
+            S["admin"].delete(f"Webhook/{payload['id']}")
+        self.assertEqual(status, 403)
+        live = ok(self, S["admin"].get("Metadata"))
+        self.assertFalse(live["scopes"]["ContactAccess"].get("object"), "no webhook events, no related stream notes")
 
     def test_read_is_audited(self):
         c("access").get(f"ContactAccess/{self.rec['id']}")

@@ -233,7 +233,7 @@ F["Potentials"] = {
     "sales_stage": ("stage", "enum: " + D.format("Opportunity.json") + "; английские стадии Vtiger — ключи, «Переговоры» — "
                                    "отдельная опция до решения по Q-32", "count+distribution"),
     "campaignid": ("campaign", "fk (в источнике пусто)", "fk"),
-    "probability": ("probability", "int %", "count+sum"),
+    "probability": ("probability", "int %: дробных значений нет (13 непустых, проверено 2026-09-30)", "count+sum"),
     "forecast_amount": (None, "исключено: вычисляется workflow (amount×probability) — пересчитывается", "count+sum"),
     "spcompany": ("vtigerData.spcompany", "одно юрлицо; в сделке не используется в расчётах", "count+distribution"),
 }

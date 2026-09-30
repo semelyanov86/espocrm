@@ -14,8 +14,8 @@
 | `…/layouts/`, `…/i18n/{ru_RU,en_US}/` | раскладки карточек/списков/фильтров, подписи |
 | `custom/Espo/Modules/Itvolga/{Controllers,Entities}/` | классы собственных сущностей |
 | `…/Hooks/ContactAccess/`, `…/Tools/ContactAccess/` | шифрование пароля, показ с журналом (`POST /ContactAccess/:id/password`) |
-| `…/Hooks/Common/HierarchyTeams.php` | иерархические команды при смене ответственного |
-| `…/Classes/RecordHooks/Call/ProtectTelephonyHistory.php` | история PBXManager только для чтения |
+| `…/Tools/Acl/HierarchyTeams.php`, `…/Hooks/Common/HierarchyTeams.php`, `…/Hooks/User/SyncHierarchyTeams.php` | иерархические команды записей и членство пользователей |
+| `…/Classes/Acl/Call/AccessChecker.php`, `…/metadata/aclDefs/Call.json` | история PBXManager только для чтения (ACL) |
 | `…/Classes/ConsoleCommands/SetupAcl.php` | роли, команды, вкладки: `task espo -- itvolga-setup-acl [--dry-run]` |
 | `client/custom/modules/itvolga/src/views/` | поле JSON-архива, поле пароля с кнопкой «Показать» |
 | `scripts/model/` | сверка модели с картой, генератор словаря значений |
@@ -33,14 +33,14 @@
 |---|---|---|---|
 | Account | `cShortName`, `cEmployees`, `cRating`, `cInn`, `cKpp`, `cBankAccount`, `cBankName`, `cCorrAccount`, `cBic`, `cVkUrl` | опции `type`, `industry` | `cProjects`, `cVtigerArchives` |
 | Contact | `cLeadSource`, `cDepartment`, `cBirthday`, `cVkUrl`, `cSupportStartDate`, `cSupportEndDate`, `cNeedOriginalDocs`, `cSendNews`, `cPartnerAds`, `cSendAlerts`, `cOtherAddress` (адрес), `cPhoto` (изображение) | опции `salutationName` (+`Prof.`) | `cContactAccesses`, `cVtigerArchives` |
-| Lead | `cRating`, `cPriority`, `cJivositeId`, `cVkUrl` | опции `status`, `source`, `salutationName` | `cVtigerArchives` |
-| Opportunity | `cOpportunityType`, `cProducts` | опции и вероятности `stage`; `amount` необязательно | `cProducts` (M:N Product), `cProjects` |
+| Lead | `cRating`, `cPriority`, `cJivositeId`, `cVkUrl` | опции `status`, `source`, `salutationName`; `opportunityAmount` decimal(25,8) | `cVtigerArchives` |
+| Opportunity | `cOpportunityType`, `cProducts` | опции и вероятности `stage`; `amount` decimal(25,8), необязательно | `cProducts` (M:N Product), `cProjects` |
 | Task | `cTaskType` (вид «Письмо», D-24) | опции `status` (+`Planned`, `Pending Input`), `priority` (+пусто) | — |
 | Call | `cPhoneNumber`, `cCallStatusRaw`, `cLegacyRecordingUrl` (не воспроизводится, D-10), `cBillDuration`, `cConnectorCallId`, `cIncomingLine` — только чтение | — | — |
 | Meeting | — | `dateStart/dateEnd` необязательны (D-43) | — |
 | Case | `cSeverity`, `cSolution`, `cTags` | опции `status`/`priority` (подписи Vtiger), `type` | `cDocuments` |
 | KnowledgeBaseArticle | `cTags` | `name` до 500 символов, опции `status` | `cDocuments` |
-| Document | `cExternalUrl` | `file`, `publishDate` необязательны | `cCases`, `cKnowledgeBaseArticles`, `cProjects`, `cProjectTasks`, `cVtigerArchives` |
+| Document | `cExternalUrl` | `file` необязателен и без ограничения типов, `publishDate` необязательна | `cCases`, `cKnowledgeBaseArticles`, `cProjects`, `cProjectTasks`, `cVtigerArchives` |
 | User | `cPhoneExtension` | — | — |
 | Email, Note, DocumentFolder, Attachment | только служебные поля | — | — |
 | ActionHistoryRecord | — | действие `reveal` («Показ пароля») | — |
@@ -75,7 +75,7 @@
 | VtigerArchive | чтение all | — | — | — |
 | ContactAccess | только с ролью «Доступы» (создание, чтение, правка, удаление: all) |||||
 
-`team` = свои записи + записи команд пользователя: групп Vtiger и иерархических команд («Подчинённые заместителей» — записи менеджеров, «Заместители директора» — контакты заместителей). Назначение — всем пользователям; экспорт, импорт и массовое обновление разрешены (кроме ContactAccess). Звонки из истории PBXManager не редактируются и не удаляются не-администраторами. Пользователь без ролей не имеет доступа ни к чему.
+`team` = свои записи + записи команд пользователя: групп Vtiger и иерархических команд («Подчинённые заместителей» — записи менеджеров, «Заместители директора» — контакты заместителей). Иерархические команды записи восстанавливаются при любом сохранении, связь `teams` не меняется через API link/unlink не-администраторами; членство следует ролям сразу при их изменении. Назначение — всем пользователям; экспорт, импорт и массовое обновление разрешены (кроме ContactAccess). Звонки из истории PBXManager не редактируются и не удаляются не-администраторами. Пользователь без ролей не имеет доступа ни к чему.
 
 ## Отложено
 

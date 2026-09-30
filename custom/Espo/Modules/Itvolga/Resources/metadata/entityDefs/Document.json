@@ -31,7 +31,8 @@
             "maxLength": 255
         },
         "file": {
-            "required": false
+            "required": false,
+            "accept": []
         },
         "publishDate": {
             "required": false

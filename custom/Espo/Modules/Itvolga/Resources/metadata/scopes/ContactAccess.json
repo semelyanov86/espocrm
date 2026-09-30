@@ -8,7 +8,7 @@
     "customizable": false,
     "importable": false,
     "notifications": false,
-    "object": true,
+    "object": false,
     "type": "Base",
     "stream": false
 }

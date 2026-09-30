@@ -29,6 +29,15 @@ def must(result):
 
 
 def create():
+    try:
+        _create()
+    except BaseException:
+        if STATE.exists():
+            delete()
+        raise
+
+
+def _create():
     admin = Client(*admin_credentials())
     roles = {r["name"]: r["id"] for r in must(admin.get("Role", maxSize=50))["list"]}
     teams = {t["name"]: t["id"] for t in must(admin.get("Team", maxSize=50))["list"]}
@@ -42,18 +51,21 @@ def create():
             "teamsIds": [teams[t] for t in team_names]}))
         state["users"][key] = user["id"]
         passwords[key] = password
+        save_state(state)
         env.append(f"UI_{key.upper()}_USERNAME=synth-ui-{key}\nUI_{key.upper()}_PASSWORD={password}\n")
 
     def rec(entity, data):
         payload = must(admin.post(entity, data))
         state["records"].append([entity, payload["id"]])
+        save_state(state)
         return payload["id"]
 
     acc = rec("Account", {"name": "SYNTH-UI ООО Пример", "cShortName": "Пример", "cInn": "77-SYNTH-01",
                           "cKpp": "770-SYNTH", "cBankAccount": "40702-810-SYNTH-0001", "cBic": "04-SYNTH",
                           "cRating": "Active", "industry": "Retail", "type": "Customer",
                           "assignedUserId": state["users"]["deputy"]})
-    sql(f"UPDATE account SET vtiger_id=999000001, vtiger_no='КОНТР_SYNTH', "
+    # soft-deleted records keep their vtigerId (unique, D-41): every run takes a fresh synthetic key
+    sql(f"UPDATE account SET vtiger_id={990_000_000 + secrets.randbelow(9_000_000)}, vtiger_no='КОНТР_SYNTH', "
         f"vtiger_data='{{\"ownership\": \"synthetic\", \"isconvertedfromlead\": \"0\"}}' WHERE id='{acc}'")
     con = rec("Contact", {"lastName": "SYNTH-UI Контакт", "accountId": acc, "cDepartment": "ИТ",
                           "cSupportStartDate": "2024-01-01", "cSupportEndDate": "2024-12-31",
@@ -74,6 +86,12 @@ def create():
     STATE.write_text(json.dumps(state, indent=2), encoding="utf-8")
     STATE.chmod(0o600)
     print(json.dumps({k: v for k, v in state.items() if k != "records"}, indent=2))
+
+
+def save_state(state):
+    PRIVATE.mkdir(parents=True, exist_ok=True)
+    STATE.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    STATE.chmod(0o600)
 
 
 def delete():
