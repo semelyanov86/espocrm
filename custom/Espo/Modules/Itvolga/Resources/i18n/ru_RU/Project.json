@@ -1,9 +1,9 @@
 {
     "options": {
         "status": {
-            "waiting for feedback": "Ожидание отзывов",
-            "on hold": "В ожидании",
-            "completed": "Завершен",
+            "waiting for feedback": "Ожидание обратной связи",
+            "on hold": "Приостановлен",
+            "completed": "Завершён",
             "archived": "В архиве"
         },
         "type": {

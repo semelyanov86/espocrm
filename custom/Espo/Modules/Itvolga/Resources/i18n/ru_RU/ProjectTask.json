@@ -1,11 +1,11 @@
 {
     "options": {
         "status": {
-            "Open": "Открыт",
-            "In Progress": "В прогрессе",
-            "Completed": "Завершенный",
-            "Deferred": "Отложенный",
-            "Canceled": "Отменен"
+            "Open": "Открыта",
+            "In Progress": "В работе",
+            "Completed": "Завершена",
+            "Deferred": "Отложена",
+            "Canceled": "Отменена"
         },
         "priority": {
             "low": "Низкий",

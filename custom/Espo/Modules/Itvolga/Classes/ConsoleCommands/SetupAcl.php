@@ -21,7 +21,8 @@ use Espo\ORM\EntityManager;
  *   task espo -- itvolga-setup-acl            apply
  *   task espo -- itvolga-setup-acl --dry-run  show what would change
  *
- * Levels follow the Vtiger organisation-wide sharing (vtiger_def_org_share): Private modules → `team`
+ * Levels follow the Vtiger organisation-wide sharing (vtiger_def_org_share): Private modules → `team` (the deputy reads
+ * all records of its modules, owner decision Q-34)
  * (owner + members of the record's teams: group teams and hierarchy teams), Public → `all`; modules hidden
  * in a profile (vtiger_profile2tab) → no access; denied standard actions (vtiger_profile2standardpermissions)
  * → `no`. Historic Project/ProjectTask and VtigerArchive are read-only for every role (module-decisions.md).
@@ -35,6 +36,9 @@ class SetupAcl implements Command
     private const PUBLIC = self::FULL;
     private const READ_ALL = ['create' => 'no', 'read' => 'all', 'edit' => 'no', 'delete' => 'no', 'stream' => 'all'];
     private const READ_TEAM = ['create' => 'no', 'read' => 'team', 'edit' => 'no', 'delete' => 'no', 'stream' => 'team'];
+    /** Private module for the deputy (owner decision Q-34): reads all records, edits as Vtiger sharing allowed. */
+    private const READ_ALL_EDIT_TEAM = ['create' => 'yes', 'read' => 'all', 'edit' => 'team', 'delete' => 'team',
+        'stream' => 'all'];
 
     /** Scopes every working role needs regardless of its modules. */
     private const COMMON = [
@@ -89,13 +93,16 @@ class SetupAcl implements Command
             'GlobalStream' => true,
         ];
         // Vtiger profile «Заместитель директора+Профиль»: hidden Leads, Potentials, Vendors, Assets, Consignment,
-        // ServiceContracts and all finance; Faq delete denied; PBXManager edit/delete denied (see ProtectTelephonyHistory).
+        // ServiceContracts and all finance; Faq delete denied; PBXManager edit/delete denied (Call access checker).
+        // Private modules: all records readable (owner decision 2026-09-30, Q-34), editing as the Vtiger sharing.
         $deputy = [
-            'Account' => self::TEAM, 'Contact' => self::TEAM, 'Task' => self::TEAM, 'Call' => self::TEAM,
-            'Meeting' => self::TEAM, 'Email' => self::TEAM, 'Case' => self::TEAM, 'Document' => self::TEAM,
+            'Account' => self::READ_ALL_EDIT_TEAM, 'Contact' => self::READ_ALL_EDIT_TEAM,
+            'Task' => self::READ_ALL_EDIT_TEAM, 'Call' => self::READ_ALL_EDIT_TEAM,
+            'Meeting' => self::READ_ALL_EDIT_TEAM, 'Email' => self::READ_ALL_EDIT_TEAM,
+            'Case' => self::READ_ALL_EDIT_TEAM, 'Document' => self::READ_ALL_EDIT_TEAM,
             'KnowledgeBaseArticle' => ['delete' => 'no'] + self::PUBLIC,
             'Product' => self::PUBLIC,
-            'Project' => self::READ_TEAM, 'ProjectTask' => self::READ_TEAM,
+            'Project' => self::READ_ALL, 'ProjectTask' => self::READ_ALL,
             'Lead' => false, 'Opportunity' => false, 'Vendor' => false, 'VtigerArchive' => false,
         ];
         // «Менеджер по Продажам+Профиль»: hidden Accounts, Contacts, Documents, Faq, HelpDesk, Potentials, Project(Task),

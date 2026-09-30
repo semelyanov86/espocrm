@@ -12,7 +12,6 @@
                 "Perception Analysis",
                 "Proposal or Price Quote",
                 "Negotiation or Review",
-                "Переговоры",
                 "Closed Won",
                 "Closed Lost"
             ],
@@ -27,11 +26,11 @@
                     "Proposal or Price Quote": "Proposal or Price Quote",
                     "Qualification": "Qualification",
                     "Value Proposition": "Value Proposition",
-                    "Переговоры": "Переговоры"
+                    "Переговоры": "Negotiation or Review"
                 },
                 "(picklist)": {
                     "Qualification": "Qualification",
-                    "Переговоры": "Переговоры",
+                    "Переговоры": "Negotiation or Review",
                     "Needs Analysis": "Needs Analysis",
                     "Value Proposition": "Value Proposition",
                     "Id. Decision Makers": "Id. Decision Makers",

@@ -14,7 +14,7 @@ Outputs (module Itvolga):
 - option labels in Resources/i18n/ru_RU/<Entity>.json.
 With --check nothing is written; the exit code is 1 if any output would change.
 
-Rules (docs/migration/decisions.md, D-38; the dictionary itself is a proposal for the owner, Q-32):
+Rules (docs/migration/decisions.md, D-38; dictionary approved by the owner 2026-09-30, Q-32):
 1. Vocabulary = configured picklist values (Vtiger sort order) plus values used by live records but missing in
    the picklist (webhooks wrote such values). Empty source values stay empty ("" option) — never defaulted.
 2. A value stored in English keeps its key; its label is what SalesPlatform showed (ru_ru language file).
@@ -51,9 +51,9 @@ ENUMS = [
     dict(entity="Contact", field="salutationName", picklists=["salutationtype"], used=[], empty=True,
          only=STANDARD_SALUTATIONS),
     dict(entity="Opportunity", field="stage", picklists=["sales_stage"], used=["Potentials.sales_stage"],
-         empty=False, default_first=True,
+         empty=False, default_first=True, core={"Переговоры": "Negotiation or Review"},
          order=["Qualification", "Needs Analysis", "Value Proposition", "Id. Decision Makers", "Perception Analysis",
-                "Proposal or Price Quote", "Negotiation or Review", "Переговоры", "Closed Won", "Closed Lost"]),
+                "Proposal or Price Quote", "Negotiation or Review", "Closed Won", "Closed Lost"]),
     dict(entity="Opportunity", field="cOpportunityType", picklists=["opportunity_type"],
          used=["Potentials.opportunity_type"], empty=True),
     dict(entity="Case", field="status", picklists=["ticketstatus"], used=["HelpDesk.ticketstatus"], empty=False,
@@ -110,10 +110,69 @@ STATIC_OPTIONS = {
     ("Task", "cTaskType"): (["", "Письмо"], {"Письмо": "Письмо"}, ""),
     ("Product", "type"): (["product", "service"], {"product": "Товар", "service": "Услуга"}, "service"),
 }
-# Vtiger default probabilities of its stages (proposal, Q-32); the merged «Переговоры» follows Negotiation.
+# Vtiger default probabilities of its stages (approved by the owner 2026-09-30, Q-32).
 PROBABILITY = {"Qualification": 20, "Needs Analysis": 25, "Value Proposition": 30, "Id. Decision Makers": 40,
                "Perception Analysis": 50, "Proposal or Price Quote": 65, "Negotiation or Review": 80,
-               "Переговоры": 80, "Closed Won": 100, "Closed Lost": 0}
+               "Closed Won": 100, "Closed Lost": 0}
+
+# SalesPlatform labels that were mistranslated or clumsy; corrected by the owner's decision (2026-09-30, Q-32).
+# Key: (entity, field, option key) -> label shown in EspoCRM.
+LABEL_FIXES = {
+    ("Account", "industry", "Retail"): "Розничная торговля",            # SalesPlatform: «Недвижимость»
+    ("Account", "industry", "Hospitality"): "Гостиничный бизнес",       # «Скорая помощь»
+    ("Account", "industry", "Not For Profit"): "Некоммерческие организации",
+    ("Account", "industry", "Government"): "Государственный сектор",
+    ("Account", "industry", "Banking"): "Банковское дело",
+    ("Account", "industry", "Engineering"): "Инжиниринг",
+    ("Account", "industry", "Environmental"): "Экология",
+    ("Account", "industry", "Media"): "СМИ",
+    ("Lead", "source", "Self Generated"): "Собственная инициатива",
+    ("Lead", "source", "Word of mouth"): "Сарафанное радио",
+    ("Lead", "source", "Public Relations"): "Связи с общественностью",
+    ("Lead", "status", "New"): "Не связывались",
+    ("Lead", "status", "Contacted"): "Есть контакт",
+    ("Lead", "status", "Pre Qualified"): "Предварительно квалифицирован",
+    ("Lead", "status", "Qualified"): "Квалифицирован",
+    ("Lead", "status", "Junk Lead"): "Нецелевое обращение",
+    ("Lead", "status", "Lost Lead"): "Потерянное обращение",
+    ("Opportunity", "stage", "Qualification"): "Квалификация",           # «Оценка»
+    ("Opportunity", "stage", "Needs Analysis"): "Анализ потребностей",   # «Нуждается в анализе»
+    ("Opportunity", "stage", "Value Proposition"): "Ценностное предложение",
+    ("Opportunity", "stage", "Id. Decision Makers"): "Поиск ЛПР",
+    ("Opportunity", "stage", "Perception Analysis"): "Анализ восприятия",
+    ("Opportunity", "stage", "Proposal or Price Quote"): "Ценовое предложение",
+    ("Opportunity", "stage", "Negotiation or Review"): "Переговоры",
+    ("Opportunity", "stage", "Closed Won"): "Закрыта успешно",
+    ("Opportunity", "stage", "Closed Lost"): "Закрыта неудачно",
+    ("Case", "status", "Assigned"): "В работе",
+    ("Case", "priority", "Urgent"): "Срочный",
+    ("Case", "type", "Small Problem"): "Небольшая проблема",             # «Средняя проблема»
+    ("Task", "status", "Started"): "В работе",
+    ("Task", "status", "Deferred"): "Отложено",
+    ("Task", "status", "Pending Input"): "Ожидает информации",
+    ("KnowledgeBaseArticle", "status", "In Review"): "На рассмотрении",
+    ("KnowledgeBaseArticle", "status", "Archived"): "В архиве",
+    ("Project", "status", "completed"): "Завершён",
+    ("Project", "status", "on hold"): "Приостановлен",
+    ("Project", "status", "waiting for feedback"): "Ожидание обратной связи",
+    ("ProjectTask", "status", "Open"): "Открыта",
+    ("ProjectTask", "status", "In Progress"): "В работе",
+    ("ProjectTask", "status", "Completed"): "Завершена",
+    ("ProjectTask", "status", "Deferred"): "Отложена",
+    ("ProjectTask", "status", "Canceled"): "Отменена",
+    ("Product", "unit", "Lb"): "фунт",                                   # «кг»
+    ("Product", "unit", "Sq Ft"): "кв. фут",                             # «м2»
+    ("Product", "unit", "Pieces"): "штуки",
+    ("Product", "unit", "Incidents"): "Инциденты",
+    ("Product", "category", "Training"): "Обучение",
+    ("Lead", "salutationName", "Mr."): "Г-н", ("Contact", "salutationName", "Mr."): "Г-н",
+    ("Lead", "salutationName", "Ms."): "Г-жа", ("Contact", "salutationName", "Ms."): "Г-жа",
+    ("Lead", "salutationName", "Mrs."): "Г-жа (замужем)", ("Contact", "salutationName", "Mrs."): "Г-жа (замужем)",
+    ("Lead", "salutationName", "Dr."): "Д-р", ("Contact", "salutationName", "Dr."): "Д-р",
+}
+# English keys whose SalesPlatform label meant something else: a Russian value equal to that old label is NOT merged
+# into the key, because users picked it for the meaning of the label (e.g. «Недвижимость» = real estate, not Retail).
+NO_MERGE = {("industry", "Retail"), ("industry", "Hospitality")}
 
 
 def read_rows(path):
@@ -169,7 +228,7 @@ def build_enum(spec, config, labels, used):
     by_label = {}
     for v in vocabulary:
         lab = label_of.get(v)
-        if lab and lab != v and lab not in by_label:
+        if lab and lab != v and lab not in by_label and not any((pl, v) in NO_MERGE for pl in spec["picklists"]):
             by_label[lab] = v
     mapping, option_labels, synonyms = OrderedDict(), {}, set()
     for v in vocabulary:
@@ -243,6 +302,9 @@ def main():
         if (spec["entity"], spec["field"]) == ("Opportunity", "stage"):
             field_defs["probabilityMap"] = {k: PROBABILITY.get(k, 50) for k in options}
         defs[spec["entity"]][spec["field"]] = field_defs
+        for (entity, field, key), label in LABEL_FIXES.items():
+            if (entity, field) == (spec["entity"], spec["field"]) and key in options:
+                option_labels[key] = label
         i18n[spec["entity"]][spec["field"]] = {k: v for k, v in option_labels.items() if k != v}
     for (entity, field), maps in STATIC.items():
         entry = value_maps[entity].setdefault(field, {"picklists": [], "options": None, "map": {}})

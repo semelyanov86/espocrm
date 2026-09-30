@@ -56,7 +56,7 @@
 | VtigerArchive | архив Consignment, ServiceContracts, Assets, Jivosite, JVmes; только чтение, создаётся только импортом | `vtigerModule`, `vtigerNo`, `data` (JSON записи и строк), `recordDate`, `account`, `contact`, `lead`, `product`, `parentArchive` (сообщение → чат) | `childArchives`, `documents` |
 | ContactAccess | поля доступа контактов (D-06, D-42) | `contact`, `anydeskId`, `anydeskPassword` (шифр, не читается через API), `hasAnydeskPassword`, `hostname`, `ipAddress` | `contact` |
 
-## Справочники (D-38, Q-32)
+## Справочники (D-38, утверждены — Q-32)
 
 Опции enum и подписи сгенерированы из настроенных списков Vtiger и подписей SalesPlatform (`task model:value-maps -- <приватный срез>`); словарь `vtigerValueMap/<Entity>.json` задаёт для каждого поля соответствие «значение Vtiger → ключ EspoCRM» по источникам (`Leads.leadstatus`, `Events.eventstatus`, `PBXManager.callstatus` …). Тест проверяет, что каждое значение источника попадает в опцию. Общие списки: `Lead.industry` ← `Account.industry`, `Lead.cRating` ← `Account.cRating`, `Contact.cLeadSource`/`Opportunity.leadSource` ← `Lead.source` (`optionsReference`).
 
@@ -64,14 +64,14 @@
 
 | Область | Директор | Заместитель директора | Менеджер по продажам | Менеджер клиентов |
 |---|---|---|---|---|
-| Account, Contact, Case, Document | all | team | — | Case, Document: team |
+| Account, Contact, Case, Document | all | чтение all, правка team | — | Case, Document: team |
 | Lead | all | — | all | — |
 | Opportunity, Vendor | all | — | — | — |
-| Task, Call, Meeting | all | team | team | team |
-| Email | all | team | team | — |
+| Task, Call, Meeting | all | чтение all, правка team | team | team |
+| Email | all | чтение all, правка team | team | — |
 | KnowledgeBaseArticle | all | all, без удаления | — | all |
 | Product | all | all | all | all |
-| Project, ProjectTask | чтение all | чтение team | — | чтение team |
+| Project, ProjectTask | чтение all | чтение all | — | чтение team |
 | VtigerArchive | чтение all | — | — | — |
 | ContactAccess | только с ролью «Доступы» (создание, чтение, правка, удаление: all) |||||
 

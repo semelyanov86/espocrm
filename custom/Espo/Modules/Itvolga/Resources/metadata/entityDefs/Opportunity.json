@@ -35,7 +35,6 @@
                 "Perception Analysis",
                 "Proposal or Price Quote",
                 "Negotiation or Review",
-                "Переговоры",
                 "Closed Won",
                 "Closed Lost"
             ],
@@ -48,7 +47,6 @@
                 "Perception Analysis": 50,
                 "Proposal or Price Quote": 65,
                 "Negotiation or Review": 80,
-                "Переговоры": 80,
                 "Closed Won": 100,
                 "Closed Lost": 0
             }

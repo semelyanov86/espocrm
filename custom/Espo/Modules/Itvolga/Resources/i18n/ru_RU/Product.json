@@ -3,28 +3,28 @@
         "unit": {
             "Hours": "Часы",
             "Days": "Дни",
-            "Incidents": "События",
+            "Incidents": "Инциденты",
             "Box": "Ящик",
             "Carton": "Коробка",
             "Dozen": "Дюжина",
             "Each": "шт.",
             "Impressions": "Показ",
-            "Lb": "кг",
+            "Lb": "фунт",
             "Pack": "Пакет",
             "Pages": "Страница",
-            "Pieces": "Единица",
+            "Pieces": "штуки",
             "Quantity": "Кол-во",
             "Reams": "Стопка",
             "Sheet": "Лист",
             "Spiral Binder": "Переплет",
-            "Sq Ft": "м2"
+            "Sq Ft": "кв. фут"
         },
         "category": {
             "Support": "Поддержка",
             "Migration": "Миграция",
             "Customization": "Настройка",
             "Installation": "Установка",
-            "Training": "Тренинг"
+            "Training": "Обучение"
         },
         "type": {
             "product": "Товар",

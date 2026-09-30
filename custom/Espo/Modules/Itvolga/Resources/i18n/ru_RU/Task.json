@@ -2,10 +2,10 @@
     "options": {
         "status": {
             "Not Started": "Не начато",
-            "Started": "В прогрессе",
+            "Started": "В работе",
             "Completed": "Завершено",
-            "Pending Input": "В ожидании",
-            "Deferred": "Отсрочено",
+            "Pending Input": "Ожидает информации",
+            "Deferred": "Отложено",
             "Planned": "Запланировано"
         },
         "priority": {

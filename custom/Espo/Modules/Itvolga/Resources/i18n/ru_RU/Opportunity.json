@@ -1,14 +1,14 @@
 {
     "options": {
         "stage": {
-            "Qualification": "Оценка",
-            "Needs Analysis": "Нуждается в анализе",
-            "Value Proposition": "Предложение",
-            "Id. Decision Makers": "Поиск принимающих решение",
-            "Perception Analysis": "Анализ ситуации",
+            "Qualification": "Квалификация",
+            "Negotiation or Review": "Переговоры",
+            "Needs Analysis": "Анализ потребностей",
+            "Value Proposition": "Ценностное предложение",
+            "Id. Decision Makers": "Поиск ЛПР",
+            "Perception Analysis": "Анализ восприятия",
             "Proposal or Price Quote": "Ценовое предложение",
-            "Negotiation or Review": "Переговоры или отзыв",
-            "Closed Won": "Закрыта удачно",
+            "Closed Won": "Закрыта успешно",
             "Closed Lost": "Закрыта неудачно"
         },
         "cOpportunityType": {

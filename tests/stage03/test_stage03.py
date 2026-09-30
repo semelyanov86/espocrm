@@ -194,8 +194,11 @@ class FieldTypesTest(unittest.TestCase):
         status, _ = create("Account", {"name": f"{TAG} bad enum", "cRating": "No such rating"})
         self.assertEqual(status, 400)
         i18n = ok(self, S["admin"].get("I18n", default="false"))
-        self.assertEqual(i18n["Account"]["options"]["industry"]["Retail"], "Недвижимость")
+        # corrected SalesPlatform labels (Q-32): Retail was shown as «Недвижимость»; that Russian value stays separate
+        self.assertEqual(i18n["Account"]["options"]["industry"]["Retail"], "Розничная торговля")
+        self.assertIn("Недвижимость", S["admin"].get("Metadata")[1]["entityDefs"]["Account"]["fields"]["industry"]["options"])
         self.assertEqual(i18n["Case"]["options"]["status"]["New"], "Открыто")
+        self.assertEqual(i18n["Opportunity"]["options"]["stage"]["Negotiation or Review"], "Переговоры")
 
     def test_contact_fields_address_bool_date_image(self):
         att = ok(self, S["admin"].post("Attachment", {
@@ -226,7 +229,7 @@ class FieldTypesTest(unittest.TestCase):
                                           "unitPriceCurrency": "RUB", "unit": "Hours", "qtyPerUnit": 10000,
                                           "category": "Support", "isBillableTime": True, "code": "S1"})
         self.assertEqual(status, 200, prod)
-        status, opp = create("Opportunity", {"name": f"{TAG} Opp", "stage": "Переговоры", "cOpportunityType": "New Business",
+        status, opp = create("Opportunity", {"name": f"{TAG} Opp", "stage": "Negotiation or Review", "cOpportunityType": "New Business",
                                              "leadSource": "Cold Call", "closeDate": "2025-05-06", "amount": 100,
                                              "amountCurrency": "RUB", "cProductsIds": [prod["id"]]})
         self.assertEqual(status, 200, opp)
@@ -323,6 +326,10 @@ class AclTest(unittest.TestCase):
         status = c(user).get(f"{entity}/{rid}")[0]
         self.assertEqual(status, 200 if allowed else 403, f"{user} read {entity}: HTTP {status}")
 
+    def assertEdit(self, user, entity, rid, allowed):
+        status = c(user).put(f"{entity}/{rid}", {"description": f"{TAG} edit"})[0]
+        self.assertEqual(status, 200 if allowed else 403, f"{user} edit {entity}: HTTP {status}")
+
     def test_director_reads_everything_but_contact_access(self):
         for entity, rid in (("Account", self.acc_dep1), ("Contact", self.con_dep1), ("Case", self.case_cust),
                             ("Lead", self.lead), ("Opportunity", self.opp), ("Vendor", self.vendor),
@@ -330,17 +337,22 @@ class AclTest(unittest.TestCase):
             self.assertRead("dir", entity, rid, True)
         self.assertEqual(c("dir").get("ContactAccess")[0], 403)
 
-    def test_deputy_private_modules_follow_vtiger_sharing(self):
-        self.assertRead("dep1", "Account", self.acc_dir, False)     # director's record: not visible (Private)
-        self.assertRead("dep1", "Account", self.acc_dep1, True)     # own
-        self.assertRead("dep2", "Account", self.acc_dep1, False)    # another deputy's account: no sharing rule
-        self.assertRead("dep2", "Contact", self.con_dep1, True)     # sharing rule H3→H3 Contacts (read-write)
-        self.assertEqual(c("dep2").put(f"Contact/{self.con_dep1}", {"title": "synthetic"})[0], 200)
-        self.assertRead("dep1", "Contact", self.con_group, True)    # group «Отдел Поддержки»
-        self.assertRead("cust", "Contact", self.con_group, False)
-        self.assertRead("dep1", "Case", self.case_cust, True)       # subordinate (Менеджер клиентов)
-        self.assertRead("dep1", "Task", self.task_sales, True)      # subordinate (Менеджер по продажам)
-        self.assertRead("cust", "Task", self.task_sales, False)     # sibling roles do not see each other
+    def test_deputy_reads_all_and_edits_as_vtiger_sharing(self):
+        # Q-34: the deputy reads every record of its modules; editing follows the Vtiger sharing
+        self.assertRead("dep1", "Account", self.acc_dir, True)
+        self.assertEdit("dep1", "Account", self.acc_dir, False)    # director's record
+        self.assertEdit("dep1", "Account", self.acc_dep1, True)    # own
+        self.assertRead("dep2", "Account", self.acc_dep1, True)
+        self.assertEdit("dep2", "Account", self.acc_dep1, False)   # another deputy's account: no sharing rule
+        self.assertEdit("dep2", "Contact", self.con_dep1, True)    # sharing rule H3→H3 Contacts (read-write)
+        self.assertEdit("dep1", "Contact", self.con_group, True)   # group «Отдел Поддержки»
+        self.assertEdit("dep1", "Case", self.case_cust, True)      # subordinate (Менеджер клиентов)
+        self.assertEdit("dep1", "Task", self.task_sales, True)     # subordinate (Менеджер по продажам)
+
+    def test_managers_see_only_own_and_group_records(self):
+        self.assertRead("cust", "Contact", self.con_group, False)  # no Contacts for Менеджер клиентов
+        self.assertRead("cust", "Task", self.task_sales, False)    # sibling roles do not see each other
+        self.assertRead("sales", "Task", self.task_sales, True)
 
     def test_hidden_modules_per_role(self):
         for user, entity, rid in (("dep1", "Lead", self.lead), ("dep1", "Opportunity", self.opp),
@@ -355,7 +367,7 @@ class AclTest(unittest.TestCase):
 
     def test_standard_action_restrictions(self):
         self.assertEqual(c("dep1").delete(f"KnowledgeBaseArticle/{self.kb}")[0], 403)  # Faq delete denied
-        self.assertRead("dep1", "Project", self.proj, True)                            # subordinate's project
+        self.assertRead("dep1", "Project", self.proj, True)
         self.assertEqual(c("dep1").put(f"Project/{self.proj}", {"name": "x"})[0], 403)  # archive: read-only
         self.assertEqual(c("dir").post("Project", {"name": "x"})[0], 403)
         self.assertEqual(c("dir").post("ProjectTask", {"name": "x"})[0], 403)
@@ -369,10 +381,10 @@ class AclTest(unittest.TestCase):
         status, task = create("Task", {"name": f"{TAG} hierarchy", "assignedUserId": uid("sales")}, client=c("sales"))
         self.assertEqual(status, 200, task)
         self.assertIn(team, ok(self, S["admin"].get(f"Task/{task['id']}"))["teamsIds"])
-        self.assertRead("dep1", "Task", task["id"], True)
+        self.assertEdit("dep1", "Task", task["id"], True)
         ok(self, S["admin"].put(f"Task/{task['id']}", {"assignedUserId": uid("dir")}))
         self.assertNotIn(team, ok(self, S["admin"].get(f"Task/{task['id']}"))["teamsIds"])
-        self.assertRead("dep1", "Task", task["id"], False)
+        self.assertEdit("dep1", "Task", task["id"], False)
 
     def test_telephony_history_mass_actions_are_denied(self):
         a = S["admin"]
@@ -397,7 +409,7 @@ class AclTest(unittest.TestCase):
         ok(self, c("sales").put(f"Task/{task['id']}", {"teamsIds": []}))
         self.assertIn(team, ok(self, S["admin"].get(f"Task/{task['id']}"))["teamsIds"])
         self.assertEqual(c("sales").request("DELETE", f"Task/{task['id']}/teams", {"id": team})[0], 403)
-        self.assertRead("dep1", "Task", task["id"], True)
+        self.assertEdit("dep1", "Task", task["id"], True)
 
     def test_hierarchy_membership_follows_role_change_at_once(self):
         a = S["admin"]
@@ -482,13 +494,15 @@ class AttachmentAccessTest(unittest.TestCase):
 
     def test_document_file_follows_document_access(self):
         self.assertEqual(self.download("dir", self.doc_file), 200)
-        self.assertEqual(self.download("dep1", self.doc_file), 403)   # director's document (Private)
+        self.assertEqual(self.download("dep1", self.doc_file), 200)   # the deputy reads all documents (Q-34)
+        self.assertEqual(self.download("cust", self.doc_file), 403)   # director's document, team level
         self.assertEqual(self.download("sales", self.doc_file), 403)  # no Documents at all
         self.assertEqual(self.download("norole", self.doc_file), 403)
 
     def test_comment_attachment_follows_parent_record(self):
         self.assertEqual(self.download("dir", self.note_file), 200)
-        self.assertEqual(self.download("dep1", self.note_file), 403)  # parent account is not visible
+        self.assertEqual(self.download("dep1", self.note_file), 200)  # parent account is readable
+        self.assertEqual(self.download("cust", self.note_file), 403)  # parent account is not visible
 
     def test_contact_photo_follows_contact_access(self):
         self.assertEqual(self.download("dep1", self.photo), 200)

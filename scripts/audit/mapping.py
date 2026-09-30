@@ -51,7 +51,7 @@ MODULES = {
 ARCHIVE_MODULES = {"Consignment", "ServiceContracts", "Assets", "Jivosite", "JVmes"}
 
 # Enum values go through the generated dictionary of stage 03 (scripts/model/build_value_maps.py).
-D = "словарь metadata/vtigerValueMap/{} (D-19, на утверждении — Q-32)"
+D = "словарь metadata/vtigerValueMap/{} (D-19; утверждён владельцем 2026-09-30, Q-32)"
 
 # Fields shared by most modules (vtiger_crmentity and common columns).
 COMMON = {
@@ -230,8 +230,8 @@ F["Potentials"] = {
     "closingdate": ("closeDate", "date", "count+hash"),
     "leadsource": ("leadSource", "enum: " + D.format("Lead.json") + " (optionsReference Lead.source)", "count+distribution"),
     "nextstep": ("vtigerData.nextstep", "string", "count+hash"),
-    "sales_stage": ("stage", "enum: " + D.format("Opportunity.json") + "; английские стадии Vtiger — ключи, «Переговоры» — "
-                                   "отдельная опция до решения по Q-32", "count+distribution"),
+    "sales_stage": ("stage", "enum: " + D.format("Opportunity.json") + "; английские стадии Vtiger — ключи, «Переговоры» "
+                                   "объединены с Negotiation or Review", "count+distribution"),
     "campaignid": ("campaign", "fk (в источнике пусто)", "fk"),
     "probability": ("probability", "int %: дробных значений нет (13 непустых, проверено 2026-09-30)", "count+sum"),
     "forecast_amount": (None, "исключено: вычисляется workflow (amount×probability) — пересчитывается", "count+sum"),
@@ -545,7 +545,7 @@ F["Users"] = {
     "confirm_password": (None, "исключено: секрет", "count"),
     "accesskey": (None, "исключено: секрет API", "count"),
     "is_admin": ("type", "эффективный флаг Vtiger ($is_admin в user_privileges): 'on' → admin (1 пользователь); '1' у user#8 "
-                         "прав администратора не даёт → regular (проверено 2026-09-30, D-39)", "count+distribution"),
+                         "прав администратора не даёт → regular (проверено 2026-09-30; подтверждено владельцем, Q-35)", "count+distribution"),
     "roleid": ("roles", "H2→Директор, H3→Заместитель директора, H4→Менеджер по продажам, H10→Менеджер клиентов "
                         "(роли EspoCRM: itvolga-setup-acl, D-22)", "count+distribution"),
     "status": ("isActive", "Active→true", "count+distribution"),

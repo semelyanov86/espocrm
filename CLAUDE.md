@@ -38,8 +38,8 @@ task espo -- rebuild                       # консоль EspoCRM; bin/command
 1. Обновить `TASKS.md` (статус, проверки с датой, пути приватных отчётов без содержимого, стартовая команда следующего этапа) и затронутые `docs/migration/*`.
 2. `scripts/check-secrets.sh --history` → 0 находок; `git diff --cached` — только безопасные артефакты.
 3. Отдельный коммит (Conventional Commits, тело на английском); SHA — в итоговом ответе.
-4. Внешнее ревью: закоммиченный результат отдать Codex `gpt-6-sol` в отдельном git worktree, read-only, без сети и без доступа к `/data/itvolga/espo-private`:
-   `env -i HOME=$HOME PATH=$PATH codex exec -m gpt-6-sol --sandbox read-only --ephemeral -C <worktree> -o <review.md> - < prompt.md`.
+4. Внешнее ревью: закоммиченный результат отдать Codex `gpt-6.1-sol` (с 2026-09-30; этапы 01–02 — `gpt-6-sol`) в отдельном git worktree, read-only, без сети и без доступа к `/data/itvolga/espo-private`:
+   `env -i HOME=$HOME PATH=$PATH codex exec -m gpt-6.1-sol --sandbox read-only --ephemeral -C <worktree> -o <review.md> - < prompt.md`.
    Каждое замечание проверить самостоятельно, исправить подтверждённые, записать итог в `docs/migration/evidence.md` и `TASKS.md`.
 5. Остановиться: следующий этап — только в новой сессии; этапы 10 и 11 — только по отдельному явному разрешению пользователя.
 

@@ -2,7 +2,7 @@
     "options": {
         "status": {
             "New": "Открыто",
-            "Assigned": "В прогрессе",
+            "Assigned": "В работе",
             "Pending": "Ожидание ответа",
             "Closed": "Закрыто"
         },
@@ -10,11 +10,11 @@
             "Low": "Низкий",
             "Normal": "Нормальный",
             "High": "Высокий",
-            "Urgent": "Чрезвычайный"
+            "Urgent": "Срочный"
         },
         "type": {
             "Big Problem": "Большая проблема",
-            "Small Problem": "Средняя проблема"
+            "Small Problem": "Небольшая проблема"
         },
         "cSeverity": {
             "Minor": "Незначительная",

@@ -2,9 +2,9 @@
     "options": {
         "status": {
             "Draft": "Черновик",
-            "In Review": "Просмотрено",
+            "In Review": "На рассмотрении",
             "Published": "Опубликовано",
-            "Archived": "Устарело"
+            "Archived": "В архиве"
         }
     },
     "fields": {
