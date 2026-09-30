@@ -30,6 +30,11 @@ final class DecimalTest extends TestCase
             $this->assertThrows(InvalidValue::class, fn () => Decimal::of($bad));
         }
 
+        // A caller without strict_types must not get floats through typed parameters either.
+        foreach (\Itvolga\Tests\Finance\Support\NonStrictCaller::floatOperations() as $i => $operation) {
+            $this->assertThrows(InvalidValue::class, $operation, 'Float');
+        }
+
         $this->assertThrows(InvalidValue::class, fn () => Decimal::of(null));
         $this->assertThrows(InvalidValue::class, fn () => Decimal::of(true));
     }

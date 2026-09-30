@@ -12,6 +12,8 @@ use Stringable;
  *
  * A value keeps the scale it was written with; add, sub, mul and percent are exact, rounding happens only
  * through round() (half away from zero — «0,5 вверх» of D-29, symmetric for negative values like MySQL ROUND).
+ * Every operand goes through of(): parameters are `mixed` on purpose, so that a float from code without
+ * strict_types is rejected instead of being coerced to int or string by the engine.
  */
 final class Decimal implements Stringable
 {
@@ -81,7 +83,7 @@ final class Decimal implements Stringable
         return $result;
     }
 
-    public function add(self|string|int $other): self
+    public function add(mixed $other): self
     {
         $other = self::of($other);
         $scale = max($this->scale, $other->scale);
@@ -89,7 +91,7 @@ final class Decimal implements Stringable
         return new self(bcadd($this->value, $other->value, $scale), $scale);
     }
 
-    public function sub(self|string|int $other): self
+    public function sub(mixed $other): self
     {
         $other = self::of($other);
         $scale = max($this->scale, $other->scale);
@@ -97,7 +99,7 @@ final class Decimal implements Stringable
         return new self(bcsub($this->value, $other->value, $scale), $scale);
     }
 
-    public function mul(self|string|int $other): self
+    public function mul(mixed $other): self
     {
         $other = self::of($other);
         $scale = $this->scale + $other->scale;
@@ -108,7 +110,7 @@ final class Decimal implements Stringable
     /**
      * this × percent / 100, exact (division by 100 only moves the decimal point).
      */
-    public function percent(self|string|int $percent): self
+    public function percent(mixed $percent): self
     {
         $product = $this->mul($percent);
         $scale = $product->scale + 2;
@@ -144,14 +146,14 @@ final class Decimal implements Stringable
         return new self(bcadd(bcadd($this->value, $half, $this->scale + 1), '0', $scale), $scale);
     }
 
-    public function compare(self|string|int $other): int
+    public function compare(mixed $other): int
     {
         $other = self::of($other);
 
         return bccomp($this->value, $other->value, max($this->scale, $other->scale));
     }
 
-    public function equals(self|string|int $other): bool
+    public function equals(mixed $other): bool
     {
         return $this->compare($other) === 0;
     }

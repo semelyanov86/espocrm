@@ -8,7 +8,7 @@ use Espo\Modules\Itvolga\Tools\Finance\Decimal;
 
 /**
  * Allocation of one source payment. `candidate*` is the target that D-11 names literally (related_to, otherwise the
- * link); it is set even when the decision is Unresolved, so reports can show what the literal rule would do.
+ * link); it is set even when nothing is allocated (Q-36, Unresolved), so reports can show the source reference.
  */
 final class SourceAllocation
 {

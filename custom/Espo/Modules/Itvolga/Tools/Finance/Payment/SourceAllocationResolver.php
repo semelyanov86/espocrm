@@ -9,8 +9,8 @@ namespace Espo\Modules\Itvolga\Tools\Finance\Payment;
  * vtiger_crmentityrel counts only when `related_to` is empty; a link that disagrees with `related_to` is a conflict that
  * is reported, not guessed; the allocated amount is the whole payment (the source never splits payments).
  *
- * Shapes the owner has not ruled on yet are Unresolved: outgoing payments that only have a link to a customer invoice
- * (bank import artefacts, Q-36) and any shape absent from the live data.
+ * Outgoing payments that only have a link to a customer invoice (bank import artefacts) are not allocated (owner
+ * decision Q-36); any shape absent from the live data is Unresolved.
  */
 final class SourceAllocationResolver
 {
@@ -37,8 +37,10 @@ final class SourceAllocationResolver
         }
 
         if ($payment->direction === Direction::Outgoing) {
-            return $this->unresolved(AllocationCategory::RelOnly, self::INVOICE, $candidate,
-                'outgoing payment linked to a customer invoice only through the related list (Q-36)');
+            // Bank import artefacts: payer and amount never match the invoice. Owner decision Q-36: not allocated;
+            // the link goes to vtigerData and the report.
+            return new SourceAllocation(AllocationCategory::RelOnly, AllocationDecision::None, self::INVOICE, $candidate, null, [],
+                'outgoing payment linked to a customer invoice only through the related list: not allocated (Q-36)');
         }
 
         return $this->allocate(AllocationCategory::RelOnly, $payment, self::INVOICE, $candidate);
@@ -53,7 +55,8 @@ final class SourceAllocationResolver
         $id = $payment->relatedToId;
 
         if ($payment->relatedToDeleted || !in_array($type, [self::INVOICE, self::SALES_ORDER], true)) {
-            return $this->unresolved(AllocationCategory::Other, $type ?: null, $id,
+            // No candidate: the link must not replace a non-empty related_to (D-11), and the target is not a document.
+            return $this->unresolved(AllocationCategory::Other, null, null,
                 'related_to points to a deleted or non-document record (not in the source data)');
         }
 

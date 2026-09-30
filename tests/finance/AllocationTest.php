@@ -33,9 +33,10 @@ final class AllocationTest extends TestCase
             'sales order' => [$this->payment(relatedTo: 201, type: 'SalesOrder'), AllocationCategory::RelatedToSalesOrder, AllocationDecision::Allocate, 'SalesOrder', 201, []],
             'link only, incoming' => [$this->payment(links: [103]), AllocationCategory::RelOnly, AllocationDecision::Allocate, 'Invoice', 103, []],
             'nothing' => [$this->payment(), AllocationCategory::Unallocated, AllocationDecision::None, null, null, []],
-            'link only, outgoing (Q-36)' => [$this->payment(direction: Direction::Outgoing, links: [103]), AllocationCategory::RelOnly, AllocationDecision::Unresolved, 'Invoice', 103, []],
-            'related_to deleted' => [$this->payment(relatedTo: 101, deleted: true), AllocationCategory::Other, AllocationDecision::Unresolved, 'Invoice', 101, []],
-            'related_to non-document' => [$this->payment(relatedTo: 301, type: 'Accounts'), AllocationCategory::Other, AllocationDecision::Unresolved, 'Accounts', 301, []],
+            'link only, outgoing (Q-36: not allocated)' => [$this->payment(direction: Direction::Outgoing, links: [103]), AllocationCategory::RelOnly, AllocationDecision::None, 'Invoice', 103, []],
+            'related_to deleted' => [$this->payment(relatedTo: 101, deleted: true), AllocationCategory::Other, AllocationDecision::Unresolved, null, null, []],
+            'related_to deleted and a link (the link does not replace it)' => [$this->payment(relatedTo: 101, deleted: true, links: [102]), AllocationCategory::Other, AllocationDecision::Unresolved, null, null, []],
+            'related_to non-document' => [$this->payment(relatedTo: 301, type: 'Accounts'), AllocationCategory::Other, AllocationDecision::Unresolved, null, null, []],
             'two links, no related_to' => [$this->payment(links: [104, 103]), AllocationCategory::Other, AllocationDecision::Unresolved, 'Invoice', 103, []],
             'two links next to related_to' => [$this->payment(relatedTo: 101, links: [101, 102]), AllocationCategory::Other, AllocationDecision::Unresolved, 'Invoice', 101, []],
             'sales order and a link' => [$this->payment(relatedTo: 201, type: 'SalesOrder', links: [101]), AllocationCategory::Other, AllocationDecision::Unresolved, 'SalesOrder', 201, []],
@@ -64,6 +65,7 @@ final class AllocationTest extends TestCase
         }
 
         $this->assertTrue(str_contains((string) $resolver->resolve($this->payment(direction: Direction::Outgoing, links: [103]))->reason, 'Q-36'), 'outgoing link names Q-36');
+        $this->assertSame(null, $resolver->resolve($this->payment())->reason, 'no reason when nothing references a document');
         $this->assertSame(Direction::Incoming, Direction::fromSource('Приход'));
         $this->assertSame(Direction::Outgoing, Direction::fromSource('Expense'));
         $this->assertThrows(InvalidValue::class, fn () => Direction::fromSource('Refund'));
@@ -81,6 +83,11 @@ final class AllocationTest extends TestCase
         $this->assertThrows(InvalidValue::class, fn () => $calculator->remainder(Decimal::of('10000'), [Decimal::of('-1')]), 'positive');
         $this->assertThrows(InvalidValue::class, fn () => $calculator->remainder(Decimal::of('10000'), [Decimal::of('0.005')]), 'kopeck');
         $this->assertThrows(InvalidValue::class, fn () => $calculator->remainder(Decimal::of('-5'), []), 'negative');
+
+        // The same limits hold for settlement input: no fractions of a kopeck, no zero allocations.
+        $this->assertThrows(InvalidValue::class, fn () => $calculator->settle(Decimal::of('1.00'), [AllocationShare::of('0.005', Direction::Incoming, 'Executed')]), 'kopeck');
+        $this->assertThrows(InvalidValue::class, fn () => $calculator->settle(Decimal::of('1.00'), [AllocationShare::of('0', Direction::Incoming, 'Executed')]), 'positive');
+        $this->assertThrows(InvalidValue::class, fn () => $calculator->settle(Decimal::of('1.00'), [AllocationShare::of('-1', Direction::Incoming, 'Executed')]), 'positive');
     }
 
     public function testSettlementOfADocument(): void
@@ -88,25 +95,24 @@ final class AllocationTest extends TestCase
         $calculator = new AllocationCalculator();
         $in = Direction::Incoming;
         $total = Decimal::of('10000.00000000');
-        // [shares, state, paid, balance, counted, unknown, excluded]
+        // [shares, state, paid, balance, counted, excluded]
         $cases = [
-            'no payments' => [[], SettlementState::Unpaid, '0', '10000', 0, '0', '0'],
-            'paid exactly' => [[AllocationShare::of('10000.00', $in, 'Executed')], SettlementState::Paid, '10000', '0', 1, '0', '0'],
-            'partial' => [[AllocationShare::of('4000', $in, 'Executed')], SettlementState::Partial, '4000', '6000', 1, '0', '0'],
-            'two payments' => [[AllocationShare::of('4000', $in, 'Executed'), AllocationShare::of('6000', $in, 'Executed')], SettlementState::Paid, '10000', '0', 2, '0', '0'],
-            'overpaid' => [[AllocationShare::of('6000', $in, 'Executed'), AllocationShare::of('6000', $in, 'Executed')], SettlementState::Overpaid, '12000', '-2000', 2, '0', '0'],
-            'planned, cancelled, outgoing' => [[AllocationShare::of('1000', $in, 'Запланирован'), AllocationShare::of('2000', $in, 'Canceled'),
-                AllocationShare::of('3000', Direction::Outgoing, 'Executed')], SettlementState::Unpaid, '0', '10000', 0, '0', '6000'],
-            'empty status kept apart (Q-37)' => [[AllocationShare::of('10000', $in, '')], SettlementState::Unpaid, '0', '10000', 0, '10000', '0'],
+            'no payments' => [[], SettlementState::Unpaid, '0', '10000', 0, '0'],
+            'paid exactly' => [[AllocationShare::of('10000.00', $in, 'Executed')], SettlementState::Paid, '10000', '0', 1, '0'],
+            'partial' => [[AllocationShare::of('4000', $in, 'Executed')], SettlementState::Partial, '4000', '6000', 1, '0'],
+            'two payments' => [[AllocationShare::of('4000', $in, 'Executed'), AllocationShare::of('6000', $in, 'Executed')], SettlementState::Paid, '10000', '0', 2, '0'],
+            'overpaid' => [[AllocationShare::of('6000', $in, 'Executed'), AllocationShare::of('6000', $in, 'Executed')], SettlementState::Overpaid, '12000', '-2000', 2, '0'],
+            'planned, cancelled, delayed, outgoing' => [[AllocationShare::of('1000', $in, 'Запланирован'), AllocationShare::of('2000', $in, 'Canceled'),
+                AllocationShare::of('500', $in, 'Delayed'), AllocationShare::of('3000', Direction::Outgoing, 'Executed')], SettlementState::Unpaid, '0', '10000', 0, '6500'],
+            'empty status counts as executed (Q-37)' => [[AllocationShare::of('4000', $in, ''), AllocationShare::of('6000', $in, 'Executed')], SettlementState::Paid, '10000', '0', 2, '0'],
         ];
 
-        foreach ($cases as $name => [$shares, $state, $paid, $balance, $counted, $unknown, $excluded]) {
+        foreach ($cases as $name => [$shares, $state, $paid, $balance, $counted, $excluded]) {
             $settlement = $calculator->settle($total, $shares);
             $this->assertSame($state, $settlement->state, "$name: state");
             $this->assertDecimal($paid, $settlement->paid, "$name: paid");
             $this->assertDecimal($balance, $settlement->balance, "$name: balance");
             $this->assertSame($counted, $settlement->countedPayments, "$name: counted");
-            $this->assertDecimal($unknown, $settlement->unknownStatusAmount, "$name: unknown status");
             $this->assertDecimal($excluded, $settlement->excludedAmount, "$name: excluded");
         }
     }

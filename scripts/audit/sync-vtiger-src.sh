@@ -20,6 +20,14 @@ rsync -a --delete --delete-excluded --chmod=D700,F600 --rsync-path="sudo -n rsyn
 encoded=0
 while IFS= read -r -d '' f; do rm -f "$f"; encoded=$((encoded + 1)); done \
     < <(grep -rlZE 'ionCube Loader|<\?php //00' --include='*.php' "$SRC_ROOT/vtiger7" || true)
+# Second line of defence: nothing that looks like a secret or data may be left in the copy.
+leftovers="$(find "$SRC_ROOT/vtiger7" \( -name .git -o -name '.env*' -o -name '*.key' -o -name '*.pem' -o -name '*.p12' \
+    -o -name '*.pfx' -o -name '*.kdbx' -o -name 'id_rsa*' -o -name 'id_ed25519*' -o -name '.htpasswd*' -o -name '*.sql' \
+    -o -name '*.csv' -o -name '*.wav' -o -name 'config.inc.php*' -o -path '*/storage/*' -o -path '*/user_privileges/*' \) -print | wc -l)"
+if [ "$leftovers" != 0 ]; then
+    echo "copy contains $leftovers secret-like or data files: check vtiger-src.exclude" >&2
+    exit 1
+fi
 {
     date -Is
     ssh "${AUDIT_SSH_OPTS[@]}" "$AUDIT_HOST" "cat $REMOTE_DIR/spServicePackVersion.txt; grep -o \"vtiger_current_version = .*\" $REMOTE_DIR/vtigerversion.php" < /dev/null

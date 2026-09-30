@@ -125,16 +125,21 @@ final class SourceSnapshotTest extends TestCase
 
         ksort($categories);
         $this->assertSame(self::$profile['allocationPartition'], $categories, 'allocation categories (core vs MySQL)');
-        // The only unresolved shape of the live data: outgoing bank-import payments linked to customer invoices (Q-36).
-        $this->assertSame(self::$profile['outgoingLinkedToInvoices'], $decisions['unresolved'] ?? 0, 'unresolved allocations');
+        // Every live shape has a rule: nothing is left unresolved.
+        $this->assertSame(0, $decisions['unresolved'] ?? 0, 'unresolved allocations');
+        $outgoingNotAllocated = 0;
 
         foreach (self::$snapshot->payments as $row) {
             $allocation = self::$allocations[(int) $row['payid']];
 
-            if ($allocation->decision === AllocationDecision::Unresolved) {
-                $this->assertSame('Expense', $row['pay_type'], 'unresolved allocation of an incoming payment');
+            if ($row['pay_type'] === 'Expense') {
+                // Outgoing payments are never allocated; those linked to invoices by the bank import are reported (Q-36).
+                $this->assertTrue($allocation->decision === AllocationDecision::None, 'allocated outgoing payment');
+                $outgoingNotAllocated += $allocation->candidateId !== null ? 1 : 0;
             }
         }
+
+        $this->assertSame(self::$profile['outgoingLinkedToInvoices'], $outgoingNotAllocated, 'outgoing payments linked to invoices');
     }
 
     public function testSettlementsMatchTheCoverageOfTheSource(): void

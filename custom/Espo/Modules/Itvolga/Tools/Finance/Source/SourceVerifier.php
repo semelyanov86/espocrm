@@ -16,8 +16,8 @@ use Espo\Modules\Itvolga\Tools\Finance\TaxMode;
  * The stored totals stay the reference (D-05): this class never returns "corrected" values for storage, it only says
  * which formula explains them (FormulaClass) and where they differ (TotalCheck). Formulas are the ones that reproduce
  * every live document of the source (finance-contract.md §4, §12); combinations the data does not contain —
- * VAT added per line after 2018-07, percent discounts, shipping, adjustment, group tax with a document discount —
- * are Unverified instead of being guessed.
+ * VAT added per line after 2018-07, percent discounts, shipping, adjustment, group tax with a document discount,
+ * negative quantities, prices or line sums (returns) — are Unverified instead of being guessed.
  */
 final class SourceVerifier
 {
@@ -61,9 +61,30 @@ final class SourceVerifier
         }
 
         foreach ($document->lines as $index => $line) {
+            $n = $index + 1;
+
             if (!$line->discountPercent->isZero()) {
-                $reasons[] = 'line ' . ($index + 1) . ': percent discount (not used in the source)';
+                $reasons[] = "line $n: percent discount (not used in the source)";
             }
+
+            // Signs the live data never has (no returns or corrections): quantity and line sum are always positive.
+            $signs = [
+                'non-positive quantity' => !$line->quantity->isPositive(),
+                'negative unit price' => $line->unitPrice->isNegative(),
+                'negative discount' => $line->discountAmount->isNegative(),
+                'negative tax rate' => $line->taxPercent->isNegative(),
+                'negative line sum' => $line->net()->isNegative(),
+            ];
+
+            foreach ($signs as $name => $present) {
+                if ($present) {
+                    $reasons[] = "line $n: $name (not in the source)";
+                }
+            }
+        }
+
+        if ($document->discountAmount->isNegative()) {
+            $reasons[] = 'negative document discount (not in the source)';
         }
 
         $header = [

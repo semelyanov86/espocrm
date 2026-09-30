@@ -84,7 +84,8 @@ final class ControlSums
             $add('payment_sums', [$payment['y'], $payment['pay_type'], $payment['status']], [$amount]);
             $add('alloc_sums', [$allocation->candidateType ?? '(none)', $payment['pay_type'], $payment['status']], [$amount]);
 
-            if ($payment['pay_type'] === 'Приход' && $payment['status'] === 'Executed' && $allocation->candidateId !== null) {
+            // Paid = incoming, status Executed or empty (Q-37), D-11 candidate target — as coverage_sums on the server.
+            if ($payment['pay_type'] === 'Приход' && in_array($payment['status'], ['Executed', ''], true) && $allocation->candidateId !== null) {
                 $paid[$allocation->candidateId] = ($paid[$allocation->candidateId] ?? Decimal::zero())->add($amount);
             }
         }

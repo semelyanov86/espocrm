@@ -8,6 +8,19 @@
 /user_privileges/
 /packages/
 /kcfinder/upload/
+# version control and secret files anywhere
+.git/
+.svn/
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+*.kdbx
+id_rsa*
+id_ed25519*
+secrets.*
 # secrets and security findings at the root
 /config.inc.php*
 /config.db.php

@@ -74,12 +74,11 @@ final class SourceVerifierTest extends TestCase
             $seen[$case['module'] . '|' . $case['taxtype'] . '|' . $case['expect']['class']] = true;
         }
 
-        // Every module × tax mode × formula class of the live data (finance-contract.md §12.2).
-        foreach ([
-            'Invoice|individual|noLineTax', 'Invoice|individual|lineTaxNotApplied', 'Invoice|group|groupTaxAdded',
-            'Invoice|group_tax_inc|taxIncludedInPrice', 'Invoice|group_tax_inc|noLineTax', 'Act|individual|noLineTax',
-            'Quotes|individual|lineTaxNotApplied', 'SalesOrder|individual|lineTaxNotApplied', 'SalesOrder|group_tax_inc|noLineTax',
-        ] as $structure) {
+        // Every module × tax mode × formula class of the live data, as counted by MySQL (anonymised profile in Git).
+        $live = array_keys((require __DIR__ . '/fixtures/source-profile.php')['formulaClasses']);
+        $this->assertTrue(count($live) >= 11, 'profile lists ' . count($live) . ' structures');
+
+        foreach ($live as $structure) {
             $this->assertTrue(isset($seen[$structure]), "no synthetic document for $structure");
         }
     }

@@ -2,158 +2,846 @@
   "_about": "Synthetic documents shaped like the live Vtiger documents (finance-contract.md §4, §12): tax regimes, region_id NULL/0, line counts, fractional hours, line and document discounts, stored margins. Amounts are invented; values are written the way MySQL returns DECIMAL columns. Used by tests/finance/SourceVerifierTest.php.",
   "documents": [
     {
-      "name": "invoice-2026-one-service", "module": "Invoice", "taxtype": "individual", "region": 0,
-      "lines": [{"quantity": "1.000", "listprice": "15000.00000000", "discount_amount": null, "discount_percent": null, "tax1": null, "purchase_cost": "0.00000000", "margin": "15000.00000000"}],
-      "stored": {"subtotal": "15000.00000000", "pre_tax_total": "15000.00000000", "total": "15000.00000000"},
-      "expect": {"class": "noLineTax", "check": "exact", "subtotal": "15000", "grandTotal": "15000", "margins": ["ok"]}
-    },
-    {
-      "name": "invoice-fractional-hours", "module": "Invoice", "taxtype": "individual", "region": 0,
+      "name": "invoice-2026-one-service",
+      "module": "Invoice",
+      "taxtype": "individual",
+      "region": 0,
       "lines": [
-        {"quantity": "2.500", "listprice": "1200.00000000", "discount_amount": null, "discount_percent": null, "tax1": null, "purchase_cost": "0.00000000", "margin": "3000.00000000"},
-        {"quantity": "0.750", "listprice": "1800.00000000", "discount_amount": null, "discount_percent": null, "tax1": null, "purchase_cost": "0.00000000", "margin": "1350.00000000"}
+        {
+          "quantity": "1.000",
+          "listprice": "15000.00000000",
+          "discount_amount": null,
+          "discount_percent": null,
+          "tax1": null,
+          "purchase_cost": "0.00000000",
+          "margin": "15000.00000000"
+        }
       ],
-      "stored": {"subtotal": "4350.00000000", "pre_tax_total": "4350.00000000", "total": "4350.00000000"},
-      "expect": {"class": "noLineTax", "check": "exact", "subtotal": "4350", "grandTotal": "4350", "margins": ["ok", "ok"]}
+      "stored": {
+        "subtotal": "15000.00000000",
+        "pre_tax_total": "15000.00000000",
+        "total": "15000.00000000"
+      },
+      "expect": {
+        "class": "noLineTax",
+        "check": "exact",
+        "subtotal": "15000",
+        "grandTotal": "15000",
+        "margins": [
+          "ok"
+        ]
+      }
     },
     {
-      "name": "invoice-six-lines", "module": "Invoice", "taxtype": "individual", "region": 0,
+      "name": "invoice-fractional-hours",
+      "module": "Invoice",
+      "taxtype": "individual",
+      "region": 0,
       "lines": [
-        {"quantity": "1.000", "listprice": "500.00000000", "tax1": "0.000", "purchase_cost": "0.00000000", "margin": "500.00000000"},
-        {"quantity": "2.000", "listprice": "750.50000000", "tax1": "0.000", "purchase_cost": "0.00000000", "margin": "1501.00000000"},
-        {"quantity": "3.000", "listprice": "100.00000000", "tax1": "0.000", "purchase_cost": "0.00000000", "margin": "300.00000000"},
-        {"quantity": "1.000", "listprice": "2000.00000000", "tax1": "0.000", "purchase_cost": "0.00000000", "margin": "2000.00000000"},
-        {"quantity": "4.250", "listprice": "400.00000000", "tax1": "0.000", "purchase_cost": "0.00000000", "margin": "1700.00000000"},
-        {"quantity": "1.000", "listprice": "99.99000000", "tax1": "0.000", "purchase_cost": "0.00000000", "margin": "99.99000000"}
+        {
+          "quantity": "2.500",
+          "listprice": "1200.00000000",
+          "discount_amount": null,
+          "discount_percent": null,
+          "tax1": null,
+          "purchase_cost": "0.00000000",
+          "margin": "3000.00000000"
+        },
+        {
+          "quantity": "0.750",
+          "listprice": "1800.00000000",
+          "discount_amount": null,
+          "discount_percent": null,
+          "tax1": null,
+          "purchase_cost": "0.00000000",
+          "margin": "1350.00000000"
+        }
       ],
-      "stored": {"subtotal": "6100.99000000", "pre_tax_total": "6100.99000000", "total": "6100.99000000"},
-      "expect": {"class": "noLineTax", "check": "exact", "subtotal": "6100.99", "grandTotal": "6100.99", "margins": ["ok", "ok", "ok", "ok", "ok", "ok"]}
+      "stored": {
+        "subtotal": "4350.00000000",
+        "pre_tax_total": "4350.00000000",
+        "total": "4350.00000000"
+      },
+      "expect": {
+        "class": "noLineTax",
+        "check": "exact",
+        "subtotal": "4350",
+        "grandTotal": "4350",
+        "margins": [
+          "ok",
+          "ok"
+        ]
+      }
     },
     {
-      "name": "invoice-line-discount-amount", "module": "Invoice", "taxtype": "individual", "region": 0,
+      "name": "invoice-six-lines",
+      "module": "Invoice",
+      "taxtype": "individual",
+      "region": 0,
       "lines": [
-        {"quantity": "1.000", "listprice": "10000.00000000", "discount_amount": "1500.00000000", "tax1": null, "purchase_cost": "0.00000000", "margin": "8500.00000000"},
-        {"quantity": "2.000", "listprice": "250.00000000", "discount_amount": null, "tax1": null, "purchase_cost": "0.00000000", "margin": "500.00000000"}
+        {
+          "quantity": "1.000",
+          "listprice": "500.00000000",
+          "tax1": "0.000",
+          "purchase_cost": "0.00000000",
+          "margin": "500.00000000"
+        },
+        {
+          "quantity": "2.000",
+          "listprice": "750.50000000",
+          "tax1": "0.000",
+          "purchase_cost": "0.00000000",
+          "margin": "1501.00000000"
+        },
+        {
+          "quantity": "3.000",
+          "listprice": "100.00000000",
+          "tax1": "0.000",
+          "purchase_cost": "0.00000000",
+          "margin": "300.00000000"
+        },
+        {
+          "quantity": "1.000",
+          "listprice": "2000.00000000",
+          "tax1": "0.000",
+          "purchase_cost": "0.00000000",
+          "margin": "2000.00000000"
+        },
+        {
+          "quantity": "4.250",
+          "listprice": "400.00000000",
+          "tax1": "0.000",
+          "purchase_cost": "0.00000000",
+          "margin": "1700.00000000"
+        },
+        {
+          "quantity": "1.000",
+          "listprice": "99.99000000",
+          "tax1": "0.000",
+          "purchase_cost": "0.00000000",
+          "margin": "99.99000000"
+        }
       ],
-      "stored": {"subtotal": "9000.00000000", "pre_tax_total": "9000.00000000", "total": "9000.00000000"},
-      "expect": {"class": "noLineTax", "check": "exact", "subtotal": "9000", "grandTotal": "9000", "margins": ["ok", "ok"]}
+      "stored": {
+        "subtotal": "6100.99000000",
+        "pre_tax_total": "6100.99000000",
+        "total": "6100.99000000"
+      },
+      "expect": {
+        "class": "noLineTax",
+        "check": "exact",
+        "subtotal": "6100.99",
+        "grandTotal": "6100.99",
+        "margins": [
+          "ok",
+          "ok",
+          "ok",
+          "ok",
+          "ok",
+          "ok"
+        ]
+      }
     },
     {
-      "name": "invoice-document-discount-amount", "module": "Invoice", "taxtype": "individual", "region": 0,
-      "header": {"discount_amount": "1000.00000000"},
+      "name": "invoice-line-discount-amount",
+      "module": "Invoice",
+      "taxtype": "individual",
+      "region": 0,
       "lines": [
-        {"quantity": "1.000", "listprice": "12000.00000000", "tax1": null, "purchase_cost": "0.00000000", "margin": "12000.00000000"},
-        {"quantity": "1.000", "listprice": "3000.00000000", "tax1": null, "purchase_cost": "0.00000000", "margin": "3000.00000000"}
+        {
+          "quantity": "1.000",
+          "listprice": "10000.00000000",
+          "discount_amount": "1500.00000000",
+          "tax1": null,
+          "purchase_cost": "0.00000000",
+          "margin": "8500.00000000"
+        },
+        {
+          "quantity": "2.000",
+          "listprice": "250.00000000",
+          "discount_amount": null,
+          "tax1": null,
+          "purchase_cost": "0.00000000",
+          "margin": "500.00000000"
+        }
       ],
-      "stored": {"subtotal": "15000.00000000", "pre_tax_total": "14000.00000000", "total": "14000.00000000"},
-      "expect": {"class": "noLineTax", "check": "exact", "subtotal": "15000", "preTaxTotal": "14000", "grandTotal": "14000", "margins": ["ok", "ok"]}
+      "stored": {
+        "subtotal": "9000.00000000",
+        "pre_tax_total": "9000.00000000",
+        "total": "9000.00000000"
+      },
+      "expect": {
+        "class": "noLineTax",
+        "check": "exact",
+        "subtotal": "9000",
+        "grandTotal": "9000",
+        "margins": [
+          "ok",
+          "ok"
+        ]
+      }
     },
     {
-      "name": "invoice-2017-individual-line-tax-not-applied", "module": "Invoice", "taxtype": "individual", "region": null,
+      "name": "invoice-document-discount-amount",
+      "module": "Invoice",
+      "taxtype": "individual",
+      "region": 0,
+      "header": {
+        "discount_amount": "1000.00000000"
+      },
       "lines": [
-        {"quantity": "1.000", "listprice": "20000.00000000", "tax1": "18.000", "purchase_cost": "0.00000000", "margin": "0.00000000"},
-        {"quantity": "1.000", "listprice": "5000.00000000", "tax1": "18.000", "purchase_cost": "0.00000000", "margin": "0.00000000"}
+        {
+          "quantity": "1.000",
+          "listprice": "12000.00000000",
+          "tax1": null,
+          "purchase_cost": "0.00000000",
+          "margin": "12000.00000000"
+        },
+        {
+          "quantity": "1.000",
+          "listprice": "3000.00000000",
+          "tax1": null,
+          "purchase_cost": "0.00000000",
+          "margin": "3000.00000000"
+        }
       ],
-      "stored": {"subtotal": "25000.00000000", "pre_tax_total": "25000.00000000", "total": "25000.00000000"},
-      "expect": {"class": "lineTaxNotApplied", "check": "exact", "subtotal": "25000", "grandTotal": "25000", "margins": ["notComputed", "notComputed"]}
+      "stored": {
+        "subtotal": "15000.00000000",
+        "pre_tax_total": "14000.00000000",
+        "total": "14000.00000000"
+      },
+      "expect": {
+        "class": "noLineTax",
+        "check": "exact",
+        "subtotal": "15000",
+        "preTaxTotal": "14000",
+        "grandTotal": "14000",
+        "margins": [
+          "ok",
+          "ok"
+        ]
+      }
     },
     {
-      "name": "invoice-2016-group-tax-added", "module": "Invoice", "taxtype": "group", "region": null,
+      "name": "invoice-2017-individual-line-tax-not-applied",
+      "module": "Invoice",
+      "taxtype": "individual",
+      "region": null,
       "lines": [
-        {"quantity": "1.000", "listprice": "21000.00000000", "tax1": "18.000", "purchase_cost": "0.00000000", "margin": "0.00000000"},
-        {"quantity": "1.000", "listprice": "4000.00000000", "tax1": "18.000", "purchase_cost": "0.00000000", "margin": "0.00000000"}
+        {
+          "quantity": "1.000",
+          "listprice": "20000.00000000",
+          "tax1": "18.000",
+          "purchase_cost": "0.00000000",
+          "margin": "0.00000000"
+        },
+        {
+          "quantity": "1.000",
+          "listprice": "5000.00000000",
+          "tax1": "18.000",
+          "purchase_cost": "0.00000000",
+          "margin": "0.00000000"
+        }
       ],
-      "stored": {"subtotal": "25000.00000000", "pre_tax_total": "25000.00000000", "total": "29500.00000000"},
-      "expect": {"class": "groupTaxAdded", "check": "exact", "subtotal": "25000", "taxAmount": "4500", "grandTotal": "29500", "margins": ["notComputed", "notComputed"]}
+      "stored": {
+        "subtotal": "25000.00000000",
+        "pre_tax_total": "25000.00000000",
+        "total": "25000.00000000"
+      },
+      "expect": {
+        "class": "lineTaxNotApplied",
+        "check": "exact",
+        "subtotal": "25000",
+        "grandTotal": "25000",
+        "margins": [
+          "notComputed",
+          "notComputed"
+        ]
+      }
     },
     {
-      "name": "group-tax-rounded-to-kopecks", "module": "Invoice", "taxtype": "group", "region": null,
-      "lines": [{"quantity": "1.000", "listprice": "1234.56000000", "tax1": "18.000", "purchase_cost": "0.00000000", "margin": "0.00000000"}],
-      "stored": {"subtotal": "1234.56000000", "pre_tax_total": "1234.56000000", "total": "1456.78000000"},
-      "expect": {"class": "groupTaxAdded", "check": "exact", "taxAmount": "222.22", "grandTotal": "1456.78", "margins": ["notComputed"]}
-    },
-    {
-      "name": "invoice-2017-group-tax-included", "module": "Invoice", "taxtype": "group_tax_inc", "region": null,
-      "lines": [{"quantity": "1.000", "listprice": "11800.00000000", "tax1": "18.000", "purchase_cost": "0.00000000", "margin": "0.00000000"}],
-      "stored": {"subtotal": "11800.00000000", "pre_tax_total": "11800.00000000", "total": "11800.00000000"},
-      "expect": {"class": "taxIncludedInPrice", "check": "exact", "taxAmount": "0", "grandTotal": "11800", "margins": ["notComputed"]}
-    },
-    {
-      "name": "invoice-2024-group-tax-inc-without-tax", "module": "Invoice", "taxtype": "group_tax_inc", "region": 0,
-      "lines": [{"quantity": "1.000", "listprice": "7000.00000000", "tax1": null, "purchase_cost": "0.00000000", "margin": "7000.00000000"}],
-      "stored": {"subtotal": "7000.00000000", "pre_tax_total": "7000.00000000", "total": "7000.00000000"},
-      "expect": {"class": "noLineTax", "check": "exact", "grandTotal": "7000", "margins": ["ok"]}
-    },
-    {
-      "name": "act-hours-with-line-discount", "module": "Act", "taxtype": "individual", "region": 0,
+      "name": "invoice-2016-group-tax-added",
+      "module": "Invoice",
+      "taxtype": "group",
+      "region": null,
       "lines": [
-        {"quantity": "12.500", "listprice": "1500.00000000", "discount_amount": null, "tax1": null, "purchase_cost": "0.00000000", "margin": "18750.00000000"},
-        {"quantity": "1.000", "listprice": "2500.00000000", "discount_amount": "250.00000000", "tax1": null, "purchase_cost": "0.00000000", "margin": "2250.00000000"}
+        {
+          "quantity": "1.000",
+          "listprice": "21000.00000000",
+          "tax1": "18.000",
+          "purchase_cost": "0.00000000",
+          "margin": "0.00000000"
+        },
+        {
+          "quantity": "1.000",
+          "listprice": "4000.00000000",
+          "tax1": "18.000",
+          "purchase_cost": "0.00000000",
+          "margin": "0.00000000"
+        }
       ],
-      "stored": {"subtotal": "21000.00000000", "pre_tax_total": "21000.00000000", "total": "21000.00000000"},
-      "expect": {"class": "noLineTax", "check": "exact", "subtotal": "21000", "grandTotal": "21000", "margins": ["ok", "ok"]}
+      "stored": {
+        "subtotal": "25000.00000000",
+        "pre_tax_total": "25000.00000000",
+        "total": "29500.00000000"
+      },
+      "expect": {
+        "class": "groupTaxAdded",
+        "check": "exact",
+        "subtotal": "25000",
+        "taxAmount": "4500",
+        "grandTotal": "29500",
+        "margins": [
+          "notComputed",
+          "notComputed"
+        ]
+      }
     },
     {
-      "name": "quote-2016-line-tax-not-applied", "module": "Quotes", "taxtype": "individual", "region": null,
-      "lines": [{"quantity": "1.000", "listprice": "45000.00000000", "tax1": "18.000", "purchase_cost": "0.00000000", "margin": "0.00000000"}],
-      "stored": {"subtotal": "45000.00000000", "pre_tax_total": "45000.00000000", "total": "45000.00000000"},
-      "expect": {"class": "lineTaxNotApplied", "check": "exact", "grandTotal": "45000", "margins": ["notComputed"]}
+      "name": "group-tax-rounded-to-kopecks",
+      "module": "Invoice",
+      "taxtype": "group",
+      "region": null,
+      "lines": [
+        {
+          "quantity": "1.000",
+          "listprice": "1234.56000000",
+          "tax1": "18.000",
+          "purchase_cost": "0.00000000",
+          "margin": "0.00000000"
+        }
+      ],
+      "stored": {
+        "subtotal": "1234.56000000",
+        "pre_tax_total": "1234.56000000",
+        "total": "1456.78000000"
+      },
+      "expect": {
+        "class": "groupTaxAdded",
+        "check": "exact",
+        "taxAmount": "222.22",
+        "grandTotal": "1456.78",
+        "margins": [
+          "notComputed"
+        ]
+      }
     },
     {
-      "name": "salesorder-2016-line-tax-not-applied", "module": "SalesOrder", "taxtype": "individual", "region": null,
-      "lines": [{"quantity": "2.000", "listprice": "6000.00000000", "tax1": "18.000", "purchase_cost": "0.00000000", "margin": "0.00000000"}],
-      "stored": {"subtotal": "12000.00000000", "pre_tax_total": "12000.00000000", "total": "12000.00000000"},
-      "expect": {"class": "lineTaxNotApplied", "check": "exact", "grandTotal": "12000", "margins": ["notComputed"]}
+      "name": "invoice-2017-group-tax-included",
+      "module": "Invoice",
+      "taxtype": "group_tax_inc",
+      "region": null,
+      "lines": [
+        {
+          "quantity": "1.000",
+          "listprice": "11800.00000000",
+          "tax1": "18.000",
+          "purchase_cost": "0.00000000",
+          "margin": "0.00000000"
+        }
+      ],
+      "stored": {
+        "subtotal": "11800.00000000",
+        "pre_tax_total": "11800.00000000",
+        "total": "11800.00000000"
+      },
+      "expect": {
+        "class": "taxIncludedInPrice",
+        "check": "exact",
+        "taxAmount": "0",
+        "grandTotal": "11800",
+        "margins": [
+          "notComputed"
+        ]
+      }
     },
     {
-      "name": "salesorder-2023-group-tax-inc-without-tax", "module": "SalesOrder", "taxtype": "group_tax_inc", "region": 0,
-      "lines": [{"quantity": "1.000", "listprice": "18000.00000000", "tax1": null, "purchase_cost": "0.00000000", "margin": "18000.00000000"}],
-      "stored": {"subtotal": "18000.00000000", "pre_tax_total": "18000.00000000", "total": "18000.00000000"},
-      "expect": {"class": "noLineTax", "check": "exact", "grandTotal": "18000", "margins": ["ok"]}
+      "name": "invoice-2024-group-tax-inc-without-tax",
+      "module": "Invoice",
+      "taxtype": "group_tax_inc",
+      "region": 0,
+      "lines": [
+        {
+          "quantity": "1.000",
+          "listprice": "7000.00000000",
+          "tax1": null,
+          "purchase_cost": "0.00000000",
+          "margin": "7000.00000000"
+        }
+      ],
+      "stored": {
+        "subtotal": "7000.00000000",
+        "pre_tax_total": "7000.00000000",
+        "total": "7000.00000000"
+      },
+      "expect": {
+        "class": "noLineTax",
+        "check": "exact",
+        "grandTotal": "7000",
+        "margins": [
+          "ok"
+        ]
+      }
     },
     {
-      "name": "stored-total-differs-by-a-kopeck", "module": "Invoice", "taxtype": "individual", "region": 0,
-      "lines": [{"quantity": "1.000", "listprice": "5000.00000000", "tax1": null, "purchase_cost": "0.00000000", "margin": "5000.00000000"}],
-      "stored": {"subtotal": "5000.00000000", "pre_tax_total": "5000.00000000", "total": "5000.01000000"},
-      "expect": {"class": "noLineTax", "check": "mismatch", "checks": {"subtotal": "exact", "preTaxTotal": "exact", "grandTotal": "mismatch"}, "consistent": false, "margins": ["ok"]}
+      "name": "act-hours-with-line-discount",
+      "module": "Act",
+      "taxtype": "individual",
+      "region": 0,
+      "lines": [
+        {
+          "quantity": "12.500",
+          "listprice": "1500.00000000",
+          "discount_amount": null,
+          "tax1": null,
+          "purchase_cost": "0.00000000",
+          "margin": "18750.00000000"
+        },
+        {
+          "quantity": "1.000",
+          "listprice": "2500.00000000",
+          "discount_amount": "250.00000000",
+          "tax1": null,
+          "purchase_cost": "0.00000000",
+          "margin": "2250.00000000"
+        }
+      ],
+      "stored": {
+        "subtotal": "21000.00000000",
+        "pre_tax_total": "21000.00000000",
+        "total": "21000.00000000"
+      },
+      "expect": {
+        "class": "noLineTax",
+        "check": "exact",
+        "subtotal": "21000",
+        "grandTotal": "21000",
+        "margins": [
+          "ok",
+          "ok"
+        ]
+      }
     },
     {
-      "name": "fraction-of-a-kopeck-rounded", "module": "Invoice", "taxtype": "individual", "region": 0,
-      "lines": [{"quantity": "3.000", "listprice": "33.33500000", "tax1": null, "purchase_cost": "0.00000000", "margin": "100.01000000"}],
-      "stored": {"subtotal": "100.01000000", "pre_tax_total": "100.01000000", "total": "100.01000000"},
-      "expect": {"class": "noLineTax", "check": "rounded", "subtotal": "100.005", "consistent": true, "margins": ["ok"]}
+      "name": "quote-2016-line-tax-not-applied",
+      "module": "Quotes",
+      "taxtype": "individual",
+      "region": null,
+      "lines": [
+        {
+          "quantity": "1.000",
+          "listprice": "45000.00000000",
+          "tax1": "18.000",
+          "purchase_cost": "0.00000000",
+          "margin": "0.00000000"
+        }
+      ],
+      "stored": {
+        "subtotal": "45000.00000000",
+        "pre_tax_total": "45000.00000000",
+        "total": "45000.00000000"
+      },
+      "expect": {
+        "class": "lineTaxNotApplied",
+        "check": "exact",
+        "grandTotal": "45000",
+        "margins": [
+          "notComputed"
+        ]
+      }
     },
     {
-      "name": "vat-on-lines-after-2018", "module": "Invoice", "taxtype": "individual", "region": 0,
-      "lines": [{"quantity": "1.000", "listprice": "10000.00000000", "tax1": "20.000", "purchase_cost": "0.00000000", "margin": "10000.00000000"}],
-      "stored": {"subtotal": "12000.00000000", "pre_tax_total": "10000.00000000", "total": "12000.00000000"},
-      "expect": {"class": "unverified", "reason": "region_id 0", "consistent": false, "margins": ["ok"]}
+      "name": "salesorder-2016-line-tax-not-applied",
+      "module": "SalesOrder",
+      "taxtype": "individual",
+      "region": null,
+      "lines": [
+        {
+          "quantity": "2.000",
+          "listprice": "6000.00000000",
+          "tax1": "18.000",
+          "purchase_cost": "0.00000000",
+          "margin": "0.00000000"
+        }
+      ],
+      "stored": {
+        "subtotal": "12000.00000000",
+        "pre_tax_total": "12000.00000000",
+        "total": "12000.00000000"
+      },
+      "expect": {
+        "class": "lineTaxNotApplied",
+        "check": "exact",
+        "grandTotal": "12000",
+        "margins": [
+          "notComputed"
+        ]
+      }
     },
     {
-      "name": "line-percent-discount", "module": "Invoice", "taxtype": "individual", "region": 0,
-      "lines": [{"quantity": "1.000", "listprice": "10000.00000000", "discount_percent": "10.000", "tax1": null, "purchase_cost": "0.00000000", "margin": "9000.00000000"}],
-      "stored": {"subtotal": "9000.00000000", "pre_tax_total": "9000.00000000", "total": "9000.00000000"},
-      "expect": {"class": "unverified", "reason": "percent discount", "consistent": false, "margins": ["ok"]}
+      "name": "salesorder-2023-group-tax-inc-without-tax",
+      "module": "SalesOrder",
+      "taxtype": "group_tax_inc",
+      "region": 0,
+      "lines": [
+        {
+          "quantity": "1.000",
+          "listprice": "18000.00000000",
+          "tax1": null,
+          "purchase_cost": "0.00000000",
+          "margin": "18000.00000000"
+        }
+      ],
+      "stored": {
+        "subtotal": "18000.00000000",
+        "pre_tax_total": "18000.00000000",
+        "total": "18000.00000000"
+      },
+      "expect": {
+        "class": "noLineTax",
+        "check": "exact",
+        "grandTotal": "18000",
+        "margins": [
+          "ok"
+        ]
+      }
     },
     {
-      "name": "adjustment", "module": "Invoice", "taxtype": "individual", "region": 0,
-      "header": {"adjustment": "100.00000000"},
-      "lines": [{"quantity": "1.000", "listprice": "1000.00000000", "tax1": null, "purchase_cost": "0.00000000", "margin": "1000.00000000"}],
-      "stored": {"subtotal": "1000.00000000", "pre_tax_total": "1000.00000000", "total": "1100.00000000"},
-      "expect": {"class": "unverified", "reason": "adjustment", "consistent": false, "margins": ["ok"]}
+      "name": "stored-total-differs-by-a-kopeck",
+      "module": "Invoice",
+      "taxtype": "individual",
+      "region": 0,
+      "lines": [
+        {
+          "quantity": "1.000",
+          "listprice": "5000.00000000",
+          "tax1": null,
+          "purchase_cost": "0.00000000",
+          "margin": "5000.00000000"
+        }
+      ],
+      "stored": {
+        "subtotal": "5000.00000000",
+        "pre_tax_total": "5000.00000000",
+        "total": "5000.01000000"
+      },
+      "expect": {
+        "class": "noLineTax",
+        "check": "mismatch",
+        "checks": {
+          "subtotal": "exact",
+          "preTaxTotal": "exact",
+          "grandTotal": "mismatch"
+        },
+        "consistent": false,
+        "margins": [
+          "ok"
+        ]
+      }
     },
     {
-      "name": "group-tax-with-document-discount", "module": "Invoice", "taxtype": "group", "region": null,
-      "header": {"discount_amount": "500.00000000"},
-      "lines": [{"quantity": "1.000", "listprice": "10000.00000000", "tax1": "18.000", "purchase_cost": "0.00000000", "margin": "0.00000000"}],
-      "stored": {"subtotal": "10000.00000000", "pre_tax_total": "9500.00000000", "total": "11210.00000000"},
-      "expect": {"class": "unverified", "reason": "document discount", "consistent": false, "margins": ["notComputed"]}
+      "name": "fraction-of-a-kopeck-rounded",
+      "module": "Invoice",
+      "taxtype": "individual",
+      "region": 0,
+      "lines": [
+        {
+          "quantity": "3.000",
+          "listprice": "33.33500000",
+          "tax1": null,
+          "purchase_cost": "0.00000000",
+          "margin": "100.01000000"
+        }
+      ],
+      "stored": {
+        "subtotal": "100.01000000",
+        "pre_tax_total": "100.01000000",
+        "total": "100.01000000"
+      },
+      "expect": {
+        "class": "noLineTax",
+        "check": "rounded",
+        "subtotal": "100.005",
+        "consistent": true,
+        "margins": [
+          "ok"
+        ]
+      }
     },
     {
-      "name": "margin-differs", "module": "Act", "taxtype": "individual", "region": 0,
-      "lines": [{"quantity": "1.000", "listprice": "5000.00000000", "tax1": null, "purchase_cost": "0.00000000", "margin": "100.00000000"}],
-      "stored": {"subtotal": "5000.00000000", "pre_tax_total": "5000.00000000", "total": "5000.00000000"},
-      "expect": {"class": "noLineTax", "check": "exact", "margins": ["mismatch"]}
+      "name": "vat-on-lines-after-2018",
+      "module": "Invoice",
+      "taxtype": "individual",
+      "region": 0,
+      "lines": [
+        {
+          "quantity": "1.000",
+          "listprice": "10000.00000000",
+          "tax1": "20.000",
+          "purchase_cost": "0.00000000",
+          "margin": "10000.00000000"
+        }
+      ],
+      "stored": {
+        "subtotal": "12000.00000000",
+        "pre_tax_total": "10000.00000000",
+        "total": "12000.00000000"
+      },
+      "expect": {
+        "class": "unverified",
+        "reason": "region_id 0",
+        "consistent": false,
+        "margins": [
+          "ok"
+        ]
+      }
+    },
+    {
+      "name": "line-percent-discount",
+      "module": "Invoice",
+      "taxtype": "individual",
+      "region": 0,
+      "lines": [
+        {
+          "quantity": "1.000",
+          "listprice": "10000.00000000",
+          "discount_percent": "10.000",
+          "tax1": null,
+          "purchase_cost": "0.00000000",
+          "margin": "9000.00000000"
+        }
+      ],
+      "stored": {
+        "subtotal": "9000.00000000",
+        "pre_tax_total": "9000.00000000",
+        "total": "9000.00000000"
+      },
+      "expect": {
+        "class": "unverified",
+        "reason": "percent discount",
+        "consistent": false,
+        "margins": [
+          "ok"
+        ]
+      }
+    },
+    {
+      "name": "adjustment",
+      "module": "Invoice",
+      "taxtype": "individual",
+      "region": 0,
+      "header": {
+        "adjustment": "100.00000000"
+      },
+      "lines": [
+        {
+          "quantity": "1.000",
+          "listprice": "1000.00000000",
+          "tax1": null,
+          "purchase_cost": "0.00000000",
+          "margin": "1000.00000000"
+        }
+      ],
+      "stored": {
+        "subtotal": "1000.00000000",
+        "pre_tax_total": "1000.00000000",
+        "total": "1100.00000000"
+      },
+      "expect": {
+        "class": "unverified",
+        "reason": "adjustment",
+        "consistent": false,
+        "margins": [
+          "ok"
+        ]
+      }
+    },
+    {
+      "name": "group-tax-with-document-discount",
+      "module": "Invoice",
+      "taxtype": "group",
+      "region": null,
+      "header": {
+        "discount_amount": "500.00000000"
+      },
+      "lines": [
+        {
+          "quantity": "1.000",
+          "listprice": "10000.00000000",
+          "tax1": "18.000",
+          "purchase_cost": "0.00000000",
+          "margin": "0.00000000"
+        }
+      ],
+      "stored": {
+        "subtotal": "10000.00000000",
+        "pre_tax_total": "9500.00000000",
+        "total": "11210.00000000"
+      },
+      "expect": {
+        "class": "unverified",
+        "reason": "document discount",
+        "consistent": false,
+        "margins": [
+          "notComputed"
+        ]
+      }
+    },
+    {
+      "name": "margin-differs",
+      "module": "Act",
+      "taxtype": "individual",
+      "region": 0,
+      "lines": [
+        {
+          "quantity": "1.000",
+          "listprice": "5000.00000000",
+          "tax1": null,
+          "purchase_cost": "0.00000000",
+          "margin": "100.00000000"
+        }
+      ],
+      "stored": {
+        "subtotal": "5000.00000000",
+        "pre_tax_total": "5000.00000000",
+        "total": "5000.00000000"
+      },
+      "expect": {
+        "class": "noLineTax",
+        "check": "exact",
+        "margins": [
+          "mismatch"
+        ]
+      }
+    },
+    {
+      "name": "act-group-tax-inc-without-tax",
+      "module": "Act",
+      "taxtype": "group_tax_inc",
+      "region": 0,
+      "lines": [
+        {
+          "quantity": "3.500",
+          "listprice": "2000.00000000",
+          "tax1": null,
+          "purchase_cost": "0.00000000",
+          "margin": "7000.00000000"
+        }
+      ],
+      "stored": {
+        "subtotal": "7000.00000000",
+        "pre_tax_total": "7000.00000000",
+        "total": "7000.00000000"
+      },
+      "expect": {
+        "class": "noLineTax",
+        "check": "exact",
+        "grandTotal": "7000",
+        "margins": [
+          "ok"
+        ]
+      }
+    },
+    {
+      "name": "quote-2018-without-tax",
+      "module": "Quotes",
+      "taxtype": "individual",
+      "region": 0,
+      "lines": [
+        {
+          "quantity": "1.000",
+          "listprice": "32000.00000000",
+          "tax1": null,
+          "purchase_cost": "0.00000000",
+          "margin": "32000.00000000"
+        },
+        {
+          "quantity": "2.000",
+          "listprice": "1500.00000000",
+          "tax1": null,
+          "purchase_cost": "0.00000000",
+          "margin": "3000.00000000"
+        }
+      ],
+      "stored": {
+        "subtotal": "35000.00000000",
+        "pre_tax_total": "35000.00000000",
+        "total": "35000.00000000"
+      },
+      "expect": {
+        "class": "noLineTax",
+        "check": "exact",
+        "grandTotal": "35000",
+        "margins": [
+          "ok",
+          "ok"
+        ]
+      }
+    },
+    {
+      "name": "negative-line-return",
+      "module": "Invoice",
+      "taxtype": "individual",
+      "region": 0,
+      "lines": [
+        {
+          "quantity": "1.000",
+          "listprice": "100.00000000",
+          "tax1": null,
+          "purchase_cost": "0.00000000",
+          "margin": "100.00000000"
+        },
+        {
+          "quantity": "-1.000",
+          "listprice": "25.00000000",
+          "tax1": null,
+          "purchase_cost": "0.00000000",
+          "margin": "-25.00000000"
+        }
+      ],
+      "stored": {
+        "subtotal": "75.00000000",
+        "pre_tax_total": "75.00000000",
+        "total": "75.00000000"
+      },
+      "expect": {
+        "class": "unverified",
+        "reason": "non-positive quantity",
+        "consistent": false,
+        "margins": [
+          "ok",
+          "ok"
+        ]
+      }
+    },
+    {
+      "name": "discount-above-line-sum",
+      "module": "Invoice",
+      "taxtype": "individual",
+      "region": 0,
+      "lines": [
+        {
+          "quantity": "1.000",
+          "listprice": "100.00000000",
+          "discount_amount": "150.00000000",
+          "tax1": null,
+          "purchase_cost": "0.00000000",
+          "margin": "-50.00000000"
+        }
+      ],
+      "stored": {
+        "subtotal": "-50.00000000",
+        "pre_tax_total": "-50.00000000",
+        "total": "-50.00000000"
+      },
+      "expect": {
+        "class": "unverified",
+        "reason": "negative line sum",
+        "consistent": false,
+        "margins": [
+          "ok"
+        ]
+      }
     }
   ]
 }

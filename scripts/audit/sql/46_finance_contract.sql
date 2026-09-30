@@ -79,6 +79,7 @@ FROM vtiger_inventoryproductrel i JOIN vtiger_crmentity c ON c.crmid=i.id AND c.
 GROUP BY 2,3,4 ORDER BY 2,3,4;
 
 -- 4. Payments: amount shape, links, payer types and D-11 allocation (related_to first, Invoice<->payment link only when related_to is empty).
+--    Coverage counts incoming payments in status Executed or with an empty status (owner decision Q-37).
 WITH rel AS (
   SELECT DISTINCT x.payid, x.invoiceid FROM (
     SELECT r.relcrmid payid, r.crmid invoiceid FROM vtiger_crmentityrel r UNION ALL SELECT r.crmid, r.relcrmid FROM vtiger_crmentityrel r) x
@@ -97,9 +98,10 @@ WITH rel AS (
   JOIN vtiger_crmentity cp ON cp.crmid=x.payid AND cp.deleted=0 AND cp.setype='SPPayments'),
 a AS (
   SELECT p.payid, p.amount, p.pay_type, p.spstatus,
-    CASE WHEN rc.setype IN ('Invoice','SalesOrder') AND rc.deleted=0 THEN p.related_to ELSE (SELECT MIN(rel.invoiceid) FROM rel WHERE rel.payid=p.payid) END target
+    CASE WHEN IFNULL(p.related_to,0)=0 THEN (SELECT MIN(rel.invoiceid) FROM rel WHERE rel.payid=p.payid)
+         WHEN rc.setype IN ('Invoice','SalesOrder') AND rc.deleted=0 THEN p.related_to END target
   FROM sp_payments p JOIN vtiger_crmentity c ON c.crmid=p.payid AND c.deleted=0 LEFT JOIN vtiger_crmentity rc ON rc.crmid=p.related_to),
-s AS (SELECT target id, COUNT(*) npay, SUM(amount) paid FROM a WHERE pay_type='Приход' AND spstatus='Executed' AND target IS NOT NULL GROUP BY target)
+s AS (SELECT target id, COUNT(*) npay, SUM(amount) paid FROM a WHERE pay_type='Приход' AND (spstatus='Executed' OR IFNULL(spstatus,'')='') AND target IS NOT NULL GROUP BY target)
 SELECT 'coverage_d11' k, c.setype m, IFNULL(h.st,'(null)') st, COUNT(*) n, SUM(s.id IS NULL) no_payment, SUM(s.npay=1) one_payment, SUM(s.npay>1) many_payments,
   SUM(ABS(IFNULL(s.paid,0)-h.total) < @eps) paid_eq_total, SUM(IFNULL(s.paid,0)>0 AND IFNULL(s.paid,0) < h.total-@eps) partial, SUM(IFNULL(s.paid,0) > h.total+@eps) overpaid
 FROM (SELECT invoiceid id, invoicestatus st, total FROM vtiger_invoice UNION ALL SELECT salesorderid, sostatus, total FROM vtiger_salesorder) h

@@ -49,4 +49,5 @@ foreach ($files as $file) {
 }
 
 echo "---\nfinance tests: $passed passed, $failed failed, $skipped skipped\n";
-exit($failed > 0 || $passed === 0 ? 1 : 0);
+// Fail on a failure or when the filter selected nothing; a run where every selected test is skipped is not a failure.
+exit($failed > 0 || $passed + $skipped === 0 ? 1 : 0);

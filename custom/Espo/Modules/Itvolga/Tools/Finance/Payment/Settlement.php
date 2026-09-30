@@ -14,14 +14,12 @@ final class Settlement
 {
     public function __construct(
         public readonly Decimal $total,
-        /** Sum of counted allocations (incoming, status Executed). */
+        /** Sum of counted allocations: incoming, status Executed or empty (owner decision Q-37). */
         public readonly Decimal $paid,
         /** total − paid; negative when overpaid. */
         public readonly Decimal $balance,
         public readonly SettlementState $state,
         public readonly int $countedPayments,
-        /** Incoming allocations with an empty status: not counted until Q-37 is decided. */
-        public readonly Decimal $unknownStatusAmount,
         /** Allocations that never count: outgoing, planned, cancelled, delayed. */
         public readonly Decimal $excludedAmount,
     ) {}

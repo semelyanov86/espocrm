@@ -12,12 +12,13 @@ use Espo\Modules\Itvolga\Tools\Finance\Scale;
 /**
  * Sums of payment allocations: what is left of a payment, and how much of a document is paid.
  *
- * Paid = allocations of incoming payments in status Executed — the definition of the source audit
- * (finance-contract.md §8); planned, cancelled and outgoing payments never count; an empty status is kept apart (Q-37).
+ * Paid = allocations of incoming payments in status Executed or with an empty status (old records made before the
+ * status existed; owner decision Q-37); planned, cancelled, delayed and outgoing payments never count (D-49).
  */
 final class AllocationCalculator
 {
-    public const COUNTED_STATUS = 'Executed';
+    /** @var list<string> */
+    public const COUNTED_STATUSES = ['Executed', ''];
 
     /**
      * Unallocated rest of a payment. Every allocation must be positive and in kopecks; together they may not exceed
@@ -35,12 +36,7 @@ final class AllocationCalculator
         $allocated = Decimal::zero();
 
         foreach ($allocations as $allocation) {
-            $this->requireMoney($allocation, 'Allocation amount');
-
-            if (!$allocation->isPositive()) {
-                throw new InvalidValue('Allocation amount must be positive.');
-            }
-
+            $this->requireAllocation($allocation);
             $allocated = $allocated->add($allocation);
         }
 
@@ -57,20 +53,15 @@ final class AllocationCalculator
     public function settle(Decimal $total, iterable $shares): Settlement
     {
         $paid = Decimal::zero();
-        $unknown = Decimal::zero();
         $excluded = Decimal::zero();
         $counted = 0;
 
         foreach ($shares as $share) {
-            if ($share->amount->isNegative()) {
-                throw new InvalidValue('Allocation amount is never negative.');
-            }
+            $this->requireAllocation($share->amount);
 
-            if ($share->direction === Direction::Incoming && $share->status === self::COUNTED_STATUS) {
+            if ($share->direction === Direction::Incoming && in_array($share->status, self::COUNTED_STATUSES, true)) {
                 $paid = $paid->add($share->amount);
                 $counted++;
-            } elseif ($share->direction === Direction::Incoming && $share->status === '') {
-                $unknown = $unknown->add($share->amount);
             } else {
                 $excluded = $excluded->add($share->amount);
             }
@@ -83,7 +74,19 @@ final class AllocationCalculator
             default => SettlementState::Overpaid,
         };
 
-        return new Settlement($total, $paid, $total->sub($paid), $state, $counted, $unknown, $excluded);
+        return new Settlement($total, $paid, $total->sub($paid), $state, $counted, $excluded);
+    }
+
+    /**
+     * Every allocation, wherever it comes from, is positive and in kopecks (D-49).
+     */
+    private function requireAllocation(Decimal $amount): void
+    {
+        $this->requireMoney($amount, 'Allocation amount');
+
+        if (!$amount->isPositive()) {
+            throw new InvalidValue('Allocation amount must be positive.');
+        }
     }
 
     private function requireMoney(Decimal $value, string $name): void
