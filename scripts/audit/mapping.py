@@ -48,6 +48,12 @@ MODULES = {
     "Users": ("User", "рабочая сущность"),
 }
 
+# Finance modules whose fields and links are fixed by the stage 04.1 contract (docs/migration/finance-contract.md §11).
+FINANCE_CONTRACT_MODULES = {"Quotes", "SalesOrder", "Invoice", "Act", "SPPayments"}
+FINANCE_CONTRACT_TABLES = {"vtiger_inventoryproductrel", "vtiger_organizationdetails", "vtiger_spcompany", "sp_payments", "sp_paymentscf"}
+# Columns whose NULL is information, not absence (fate is not "пусто" even with no non-zero values).
+NULL_SIGNIFICANT = {"region_id"}
+
 ARCHIVE_MODULES = {"Consignment", "ServiceContracts", "Assets", "Jivosite", "JVmes"}
 
 # Enum values go through the generated dictionary of stage 03 (scripts/model/build_value_maps.py).
@@ -70,8 +76,10 @@ COMMON = {
     "emailoptout": ("emailAddressIsOptedOut", "bool '1'→true", "count"),
     "currency_id": ("currency", "1→RUB (единственная валюта)", "count"),
     "conversion_rate": (None, "исключено: всегда 1.000 (одна валюта)", "count"),
-    "region_id": ("vtigerData.region_id", "NULL=документ до 2018-07 (налог в строках не входит в итоги)", "count"),
-    "spcompany": ("legalEntity", "'Default' и 'По умолчанию' → одно юрлицо (vtiger_organizationdetails.company='Default')", "count"),
+    "region_id": ("sourceFormula + vtigerData.region_id", "значимы и NULL, и 0: NULL — документ до 2018-07 (налог строк не входит в итоги), "
+                  "0 — после; класс формулы ядра (FormulaClass, этап 04.1) → sourceFormula, исходное значение → vtigerData", "count"),
+    "spcompany": ("legalEntity", "'Default', 'По умолчанию' (русская подпись ключа 'Default') и пусто → одна запись LegalEntity "
+                  "(D-04, LegalEntityResolver); другое значение — остановка импорта, не второе юрлицо", "count"),
 }
 
 ADDRESS_INV = {
@@ -110,11 +118,11 @@ LINE_ITEM = {
     "comment": ("<Doc>Item.description", "text", "count+hash"),
     "discount_amount": ("<Doc>Item.discountAmount", "decimal", "count+sum"),
     "discount_percent": ("<Doc>Item.discountPercent", "decimal", "count+sum"),
-    "tax1": ("<Doc>Item.taxRate", "decimal % (НДС tax1); у документов с region_id NULL в итоги не входит", "count+sum"),
+    "tax1": ("<Doc>Item.taxRate", "decimal % (НДС tax1); в итоги входит только у 2 group-счетов (класс формулы — sourceFormula)", "count+sum"),
     "tax2": ("<Doc>Item.vtigerData.tax2", "decimal %", "count+sum"),
     "tax3": ("<Doc>Item.vtigerData.tax3", "decimal %", "count+sum"),
     "purchase_cost": ("<Doc>Item.purchaseCost", "decimal", "count+sum"),
-    "margin": ("<Doc>Item.margin", "decimal: исходное значение как контроль", "count+sum"),
+    "margin": ("<Doc>Item.margin", "decimal: исходное значение; ядро проверяет margin = net − purchase_cost или 0 (не вычислялась)", "count+sum"),
     "image": (None, "исключено: пустое служебное поле", "count"),
     "description": ("<Doc>Item.vtigerData.description", "text", "count+hash"),
 }
@@ -404,7 +412,7 @@ F["Quotes"] = dict(_INV_COMMON, **{
     "quotestage": ("status", "enum: словарь синонимов (D-19), исходное значение → vtigerData", "count+distribution"),
     "validtill": ("dateValidUntil", "date", "count+hash"),
     "potential_id": ("opportunity", "fk", "fk"),
-    "assigned_user_id1": ("cInventoryManager", "fk User", "fk"),
+    "assigned_user_id1": ("inventoryManager", "fk User", "fk"),
     "carrier": ("vtigerData.carrier", "enum", "count"),
     "shipping": ("vtigerData.shipping", "string", "count"),
 })
@@ -436,10 +444,11 @@ F["SPPayments"] = {
     "pay_date": ("datePaid", "date", "count+hash"),
     "pay_type": ("direction", "Приход→incoming; Expense→outgoing", "count+distribution"),
     "payer": ("payer (Account|Contact|Vendor)", "fk (link-parent); Vendors→Vendor", "fk"),
-    "related_to": ("PaymentAllocation.invoice|salesOrder", "fk ∪ vtiger_crmentityrel Invoice↔SPPayments (см. finance-contract)", "fk"),
+    "related_to": ("PaymentAllocation.invoice|salesOrder", "D-11 (SourceAllocationResolver): related_to — основной, связь vtiger_crmentityrel — "
+                   "только при пустом related_to; сумма = сумма платежа; расходы со связью со счётом — Q-36", "fk"),
     "type_payment": ("method", "Наличные→cash; Cashless Transfer→bank", "count+distribution"),
     "amount": ("amount", "decimal(25,8), всегда ≥0; знак задаётся direction", "count+sum"),
-    "spstatus": ("status", "Executed/Запланирован/Canceled/пусто", "count+distribution"),
+    "spstatus": ("status", "Executed/Запланирован/Canceled/пусто (оплатой считается только Executed; пусто — Q-37)", "count+distribution"),
     "doc_no": ("documentNumber", "int→string (номер платёжного документа)", "count+hash"),
     "pay_details": ("purpose", "string (назначение платежа)", "count+hash"),
     "analytics_code": ("vtigerData.analytics_code", "string", "count"),
@@ -591,7 +600,7 @@ UNDECLARED = {
     ("vtiger_attachments", "path"): ("Attachment (файл)", "storage/<path>/<id>_<name> → хранилище EspoCRM", "file-hash"),
     ("vtiger_attachments", "description"): ("Attachment.vtigerData.description", "string", "count"),
     ("vtiger_attachments", "name"): ("Attachment.name", "string", "count+hash"),
-    ("vtiger_inventoryproductrel", "id"): ("<Doc>Item.parent", "fk документа", "fk"),
+    ("vtiger_inventoryproductrel", "id"): ("<Doc>Item.<документ>", "fk документа: InvoiceItem.invoice, ActItem.act, QuoteItem.quote, SalesOrderItem.salesOrder", "fk"),
     ("vtiger_inventoryproductrel", "sequence_no"): ("<Doc>Item.order", "int", "count"),
     ("vtiger_inventoryproductrel", "lineitem_id"): ("<Doc>Item.vtigerId", "id строки", "count"),
     ("vtiger_inventoryproductrel", "incrementondel"): (None, "исключено: складской флаг Vtiger", "count"),
@@ -659,6 +668,8 @@ TABLE_RULES = [
     (r"^(sp_templates|vtiger_emailtemplates|vtiger_quotingtool.*|vtiger_inventory_tandc|vtiger_notificationscheduler|vtiger_inventorynotification)$",
      "шаблоны", "переносится как спецификация (print-forms.md); реализация собственным кодом", "Template (собств.)"),
     (r"^vtiger_(organizationdetails)$", "реквизиты организации", "переносится в настройку юрлица (LegalEntity) — значения вне Git", "LegalEntity"),
+    (r"^vtiger_spcompany$", "справочник юрлиц SalesPlatform",
+     "не переносится как опции: 'Default' и 'По умолчанию' — одно юрлицо, одна запись LegalEntity (D-04)", "LegalEntity"),
     (r"^vtiger_(currency_info|currencies|inventorytaxinfo|shippingtaxinfo|inventorycharges|taxclass)$", "финансовые настройки",
      "переносится как конфигурация (валюта RUB, НДС 18% исторически)", "config"),
     (r"^vtiger_inventorychargesrel$", "доп. расходы документов", "исключено: во всех записях значения 0 (проверено)", "—"),

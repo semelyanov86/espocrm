@@ -8,6 +8,7 @@ Inputs (private, outside Git): OUTDIR/columns.tsv (consolidate.py), 14_picklist_
 Outputs contain only schema metadata, counts, maximum string lengths and the mapping — never row values.
 Stage 03: every target is checked against the EspoCRM model (scripts/model/model_check.py): column `espo_check`,
 and `mapping_status=реализовано (этап 03)` for rows whose target exists with a compatible type and length.
+Stage 04.1: rows of finance modules not yet in the model get `контракт (этап 04.1)` (finance-contract.md §11).
 """
 import csv
 import re
@@ -21,6 +22,8 @@ import mapping as M  # noqa: E402
 import model_check  # noqa: E402
 
 AUDIT_DATE = "2026-09-29"
+CONTRACT = "контракт (этап 04.1)"  # finance rows fixed by docs/migration/finance-contract.md §11
+DOC_LINK = {"Invoice": "invoice", "Act": "act", "Quotes": "quote", "SalesOrder": "salesOrder", "Consignment": "data"}
 NUMERIC = re.compile(r"^(int|tinyint|smallint|mediumint|bigint|decimal|float|double)")
 
 
@@ -141,6 +144,10 @@ def field_rows(outdir):
             fate = fate_for(None if target is None else target, transform, count)
             if target == "—":
                 fate = "пусто — данных нет"
+            elif fname in M.NULL_SIGNIFICANT and r["live_rows"] not in ("", "0"):
+                fate = "перенос (значимы NULL и 0)"
+            if mod in M.FINANCE_CONTRACT_MODULES and status == "предложено":
+                status = CONTRACT
             ml = maxlen.get((mod, r["table"], r["column"]))
             out.append([mod, r["table"], r["column"], fname, r["label"], r["uitype"], r["db_type"], custom,
                         r["nonempty_all"], r["live_rows"], count, entity if target not in (None, "—") else "—",
@@ -192,6 +199,8 @@ def field_rows(outdir):
                     status = "решено"
                 if fate == "не классифицировано":
                     status = "не проверено"
+            if tbl in M.FINANCE_CONTRACT_TABLES and status == "предложено":
+                status = CONTRACT
             out.append(["", tbl, col, "", "", "", r["db_type"], "нет", r["nonempty_all"], live_records,
                         eff if live_records != "" else "", entity, target, transform, verification, fate, status,
                         f"проверено SQL {AUDIT_DATE}", ""])
@@ -218,7 +227,7 @@ REL_TARGETS = {
     ("Quotes", "potentialid"): "Quote.opportunity",
     ("Quotes", "contactid"): "Quote.contact",
     ("Quotes", "accountid"): "Quote.account",
-    ("Quotes", "inventorymanager"): "Quote.cInventoryManager (User)",
+    ("Quotes", "inventorymanager"): "Quote.inventoryManager (User)",
     ("Quotes", "productid"): "QuoteItem.product",
     ("SalesOrder", "potentialid"): "SalesOrder.opportunity",
     ("SalesOrder", "quoteid"): "SalesOrder.quote",
@@ -239,7 +248,7 @@ REL_TARGETS = {
     ("ModComments", "smownerid"): "Note.vtigerData (у Note нет ответственного; автор — createdBy)",
     ("PBXManager", "user"): "Call.assignedUser",
     ("ServiceContracts", "sc_related_to"): "VtigerArchive.account",
-    ("SPPayments", "payer"): "Payment.payer (Account|Contact)",
+    ("SPPayments", "payer"): "Payment.payer (Account|Contact|Vendor)",
     ("SPPayments", "related_to"): "PaymentAllocation.invoice | PaymentAllocation.salesOrder",
     ("ProjectTask", "projectid"): "ProjectTask.project",
     ("Project", "linktoaccountscontacts"): "Project.account",
@@ -457,7 +466,7 @@ def relation_rows(outdir):
         p = dl.get(mod)
         if p:
             rows.append([f"lines:{mod}", "lines", "vtiger_inventoryproductrel.id", mod, "lines", f"1:N (max {p[4]} строк)", p[3], 0,
-                         f"документов {p[2]}", f"{item}.parent" if item != "lines" else "VtigerArchive.data (строки)",
+                         f"документов {p[2]}", f"{item}.{DOC_LINK[mod]}" if item != "lines" else "VtigerArchive.data (строки)",
                          "count+sum по документу", "перенос" if mod != "Consignment" else "архив (только чтение)", "предложено"])
     ppi = read_kind_rows(outdir / "32_cardinality.tsv", "payments_per_invoice")
     part = {p[1]: int(p[2]) for p in read_kind_rows(outdir / "33_allocation_check.tsv", "alloc_partition")}
@@ -471,7 +480,8 @@ def relation_rows(outdir):
                      "; ".join(f"{k}: {v}" for k, v in sorted(part.items())),
                      "PaymentAllocation(payment, invoice|salesOrder, amount)",
                      "count по категориям разбиения; сумма распределений = сумма платежа; конфликты — ручной разбор",
-                     "перенос: related_to — основной; связь — только при пустом related_to; конфликты не угадывать", "не проверено"])
+                     "перенос: related_to — основной; связь — только при пустом related_to; конфликты не угадывать; "
+                     "расходы со связью — Q-36", CONTRACT])
     ia = read_kind_rows(outdir / "27_payments.tsv", "invoice_act")
     awi = read_kind_rows(outdir / "27_payments.tsv", "act_without_invoice")
     if ia:
@@ -488,6 +498,9 @@ def relation_rows(outdir):
                      "—", "count", "исключено: история не переносится (Q-27)", "решено"])
     rows.append(["users2group", "acl", "vtiger_users2group", "Users", "Groups", "M:N", 4, 0, "", "User.teams", "count", "перенос", "предложено"])
     rows.append(["user2role", "acl", "vtiger_user2role", "Users", "Roles", "N:1", 7, 0, "", "User.roles", "count", "перенос (роли пересобираются)", "предложено"])
+    for r in rows:  # links of finance documents are fixed by the stage 04.1 contract
+        if r[12] == "предложено" and (r[3] in M.FINANCE_CONTRACT_MODULES or r[4] in M.FINANCE_CONTRACT_MODULES):
+            r[12] = CONTRACT
     return rows
 
 

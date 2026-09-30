@@ -1,0 +1,65 @@
+# rsync exclude list for scripts/audit/sync-vtiger-src.sh: the local copy holds CODE only (no data, secrets or closed extensions).
+# data, uploads, runtime
+/storage/
+/test/
+/cache/
+/logs/
+/backup*/
+/user_privileges/
+/packages/
+/kcfinder/upload/
+# secrets and security findings at the root
+/config.inc.php*
+/config.db.php
+/config.csrf-secret.php
+/config.security.php
+/config_override.php
+/config.php
+/connection.php
+/vtdm.php
+/req.php
+/uxo.txt
+.htpasswd*
+# dumps, exports, media, archives
+*.sql
+*.sql.gz
+*.gz
+*.zip
+*.tar*
+*.log
+*.csv
+*.xls
+*.xlsx
+*.pdf
+*.wav
+*.orig
+*.bak
+# closed / paid extensions (VTE, ITS4You and other ionCube-encoded modules)
+VTE*
+ITS4You*
+AdvancedCustomFields
+AutomatedBackup
+CalendarPopup
+ControlLayoutFields
+CustomFormsViews
+DragDropDocuments
+DuplicateCheckMerge
+DynamicBlocks
+FieldAutofill
+GoogleAddress
+HideFields
+KanbanView
+ListviewColors
+MaskedInput
+ModuleLinkCreator
+Notifications
+Quoter
+QuotingTool
+RealTimeFieldFormulas
+RelatedBlocksLists
+Rooms*
+SignedRecord
+SummaryReport
+Team
+TimeTracker
+UserLogin

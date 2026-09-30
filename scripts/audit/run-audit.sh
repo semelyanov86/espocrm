@@ -39,11 +39,12 @@ remote_sql < "$OUT/15_table_live_counts.sql" > "$OUT/15_table_live_counts.raw"
 
 echo "3. relations, ACL, workflows, finance, telephony"
 for n in 20_relations 21_acl 25_activity_workflows 26_finance 27_payments 28_pbx 31_misc 32_cardinality 33_allocation_check \
-         34_finance_config 36_rounding 37_timezone; do
+         34_finance_config 36_rounding 37_timezone 46_finance_contract; do
     run_sql "$n"
 done
 run_sql 40_cdr asteriskcdrdb
 run_sql 35_control_sums_private   # monetary aggregates: private only
+run_sql 47_finance_snapshot_private   # numeric rows for the finance core tests (stage 04.1): private only
 
 echo "4. host-side checks (only counts leave the host; scripts run inline, no files on the host)"
 remote_sql_py "$AUDIT_DB" template_tokens.py < "$HERE/sql/23_templates.sql" > "$OUT/23_templates.tsv"
@@ -87,4 +88,5 @@ echo "6. consolidate and build anonymised maps"
 python3 "$HERE/consolidate.py" "$OUT"
 python3 "$HERE/build_maps.py" "$OUT" "$REPO/docs/migration"
 date -Is > "$OUT/finished_at.txt"
+chmod 600 "$OUT"/*   # private outputs (row-level snapshot included): owner only
 echo "done: $OUT"

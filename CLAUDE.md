@@ -15,6 +15,7 @@
 
 ```bash
 scripts/audit/run-audit.sh                 # полный read-only аудит источника (~30 с) → приватный каталог + карты
+scripts/audit/sync-vtiger-src.sh           # обновить локальную копию кода Vtiger (без данных, секретов и закрытых модулей)
 AUDIT_TS=<метка> scripts/audit/run-audit.sh
 scripts/audit/build-pii-hashes.sh          # обновить приватные хеши ПДн для проверки Git
 scripts/check-secrets.sh --self-test       # самопроверка правил сканера
@@ -22,6 +23,7 @@ scripts/check-secrets.sh --history         # обязательная прове
 task stand:install | stand:health          # локальный стенд EspoCRM (docs/local-stand.md)
 task stand:backup | stand:restore -- latest --yes
 task espo -- rebuild                       # консоль EspoCRM; bin/command напрямую не запускать
+task test:finance                          # тесты расчётного ядра финансов (этап 04.1)
 ```
 
 - `docs/migration/field-map.csv` и `relations.csv` **не редактировать вручную**: правила — `scripts/audit/mapping.py`, генерация — `scripts/audit/build_maps.py` из приватного прогона.
@@ -30,6 +32,7 @@ task espo -- rebuild                       # консоль EspoCRM; bin/command
 ## Работа с production
 
 - Только чтение; SQL — через `scripts/audit/lib.sh` (`remote_sql`, `remote_sql_py`: `SET SESSION TRANSACTION READ ONLY`), скрипты на сервер — inline, без файлов.
+- **Код Vtiger/SalesPlatform смотреть в локальной копии**, а не на сервере: `/data/itvolga/espo-private/vtiger-src/vtiger7/` (7.1.0 SP01, снята 2026-09-30, дата и версия — `COPIED_AT.txt`; обновить — `scripts/audit/sync-vtiger-src.sh`). В копии только код: без `storage/`, `test/`, `cache/`, `logs/`, `user_privileges/`, `packages/`, `config*.php` с паролями и без закрытых модулей VTE/ITS4You (ionCube, их код не используется). Копия приватная: не в Git, фрагменты с захардкоженными ПДн (например, `modules/SPPayments/models/BankApi.php`) не выводить. Данные (БД, файлы вложений) — только read-only SQL и адресные проверки на сервере.
 - Не выполнять широкие `find`/`cat` по серверу и не печатать исходники с данными: только адресные пути и `grep` по ключевым словам с маскированием.
 - Поля доступа контактов (`Contacts.cf_1322`–`cf_1328`) и их история — только счётчики.
 

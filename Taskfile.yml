@@ -118,11 +118,27 @@ tasks:
     cmds:
       - python3 -m unittest discover -s tests/stage03 -v
 
+  # --- finance contract and calculation core (stage 04.1) --------------------------------------
+  test:finance:
+    desc: Finance core tests (synthetic structures; the private source snapshot when available, counts only)
+    cmds:
+      - php tests/finance/run.php {{.CLI_ARGS}}
+
+  finance:profile:
+    desc: Rebuild the anonymised source profile of the finance tests (-- <private audit dir>)
+    cmds:
+      - php tests/finance/build-source-profile.php {{.CLI_ARGS}}
+
   # --- source audit and repository checks (stage 01) ------------------------------------------
   audit:run:
     desc: Full read-only audit of the Vtiger source (results go to the private directory)
     cmds:
       - scripts/audit/run-audit.sh
+
+  audit:vtiger-src:
+    desc: Refresh the private local copy of the Vtiger/SalesPlatform code (no data, secrets or closed extensions)
+    cmds:
+      - scripts/audit/sync-vtiger-src.sh
 
   check:secrets:
     desc: Scan files that would be committed for secrets and personal data
