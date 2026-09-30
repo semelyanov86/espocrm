@@ -1,0 +1,58 @@
+[
+    {
+        "rows": [
+            [
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "parent"
+                }
+            ],
+            [
+                {
+                    "name": "status"
+                },
+                false
+            ],
+            [
+                {
+                    "name": "dateStart"
+                },
+                {
+                    "name": "dateEnd"
+                }
+            ],
+            [
+                {
+                    "name": "duration"
+                },
+                {
+                    "name": "reminders"
+                }
+            ],
+            [
+                {
+                    "name": "description"
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Vtiger",
+        "rows": [
+            [
+                {
+                    "name": "vtigerId"
+                },
+                false
+            ],
+            [
+                {
+                    "name": "vtigerData",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    }
+]

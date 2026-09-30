@@ -1,0 +1,95 @@
+{
+    "fields": {
+        "vtigerId": {
+            "type": "int",
+            "readOnly": true,
+            "disableFormatting": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "vtigerNo": {
+            "type": "varchar",
+            "maxLength": 100,
+            "readOnly": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "vtigerData": {
+            "type": "jsonObject",
+            "readOnly": true,
+            "tooltip": true,
+            "view": "itvolga:views/fields/vtiger-data",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "customizationDisabled": true
+        },
+        "stage": {
+            "options": [
+                "Qualification",
+                "Needs Analysis",
+                "Value Proposition",
+                "Id. Decision Makers",
+                "Perception Analysis",
+                "Proposal or Price Quote",
+                "Negotiation or Review",
+                "Переговоры",
+                "Closed Won",
+                "Closed Lost"
+            ],
+            "default": "Qualification",
+            "probabilityMap": {
+                "Qualification": 20,
+                "Needs Analysis": 25,
+                "Value Proposition": 30,
+                "Id. Decision Makers": 40,
+                "Perception Analysis": 50,
+                "Proposal or Price Quote": 65,
+                "Negotiation or Review": 80,
+                "Переговоры": 80,
+                "Closed Won": 100,
+                "Closed Lost": 0
+            }
+        },
+        "cOpportunityType": {
+            "type": "enum",
+            "options": [
+                "",
+                "Существующий бизнес",
+                "New Business"
+            ],
+            "default": ""
+        },
+        "cProducts": {
+            "type": "linkMultiple",
+            "layoutDetailDisabled": false,
+            "noLoad": true
+        },
+        "amount": {
+            "required": false
+        }
+    },
+    "links": {
+        "cProducts": {
+            "type": "hasMany",
+            "entity": "Product",
+            "foreign": "opportunities",
+            "relationName": "cOpportunityProduct"
+        },
+        "cProjects": {
+            "type": "hasMany",
+            "entity": "Project",
+            "foreign": "opportunity"
+        }
+    },
+    "indexes": {
+        "vtigerId": {
+            "type": "unique",
+            "columns": [
+                "vtigerId"
+            ]
+        }
+    }
+}

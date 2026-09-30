@@ -1,0 +1,54 @@
+[
+    {
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "userName"
+                },
+                false
+            ],
+            [
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "title"
+                }
+            ],
+            [
+                {
+                    "name": "emailAddress"
+                },
+                {
+                    "name": "phoneNumber"
+                }
+            ],
+            [
+                {
+                    "name": "cPhoneExtension"
+                },
+                {
+                    "name": "gender"
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Vtiger",
+        "rows": [
+            [
+                {
+                    "name": "vtigerId"
+                },
+                false
+            ],
+            [
+                {
+                    "name": "vtigerData",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    }
+]

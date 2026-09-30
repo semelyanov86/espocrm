@@ -1,0 +1,16 @@
+[
+    "assignedUser",
+    "teams",
+    "collaborators",
+    "status",
+    "priority",
+    "parent",
+    "account",
+    "dateStart",
+    "dateEnd",
+    "dateCompleted",
+    "createdAt",
+    "createdBy",
+    "modifiedAt",
+    "cTaskType"
+]

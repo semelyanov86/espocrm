@@ -1,0 +1,74 @@
+[
+    {
+        "rows": [
+            [
+                {
+                    "name": "name"
+                }
+            ],
+            [
+                {
+                    "name": "status"
+                },
+                {
+                    "name": "publishDate"
+                }
+            ],
+            [
+                {
+                    "name": "categories"
+                },
+                {
+                    "name": "expirationDate"
+                }
+            ],
+            [
+                {
+                    "name": "portals"
+                },
+                {
+                    "name": "language"
+                }
+            ],
+            [
+                {
+                    "name": "cTags"
+                },
+                false
+            ]
+        ]
+    },
+    {
+        "rows": [
+            [
+                {
+                    "name": "body"
+                }
+            ],
+            [
+                {
+                    "name": "attachments"
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Vtiger",
+        "rows": [
+            [
+                {
+                    "name": "vtigerNo"
+                },
+                {
+                    "name": "vtigerId"
+                }
+            ],
+            [
+                {
+                    "name": "vtigerData",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    }
+]

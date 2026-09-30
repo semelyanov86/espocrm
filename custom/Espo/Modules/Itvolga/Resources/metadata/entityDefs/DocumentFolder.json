@@ -1,0 +1,31 @@
+{
+    "fields": {
+        "vtigerId": {
+            "type": "int",
+            "readOnly": true,
+            "disableFormatting": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "vtigerData": {
+            "type": "jsonObject",
+            "readOnly": true,
+            "tooltip": true,
+            "view": "itvolga:views/fields/vtiger-data",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "customizationDisabled": true
+        }
+    },
+    "indexes": {
+        "vtigerId": {
+            "type": "unique",
+            "columns": [
+                "vtigerId"
+            ]
+        }
+    }
+}

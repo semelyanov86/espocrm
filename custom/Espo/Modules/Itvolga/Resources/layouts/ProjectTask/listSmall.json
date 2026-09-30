@@ -1,0 +1,14 @@
+[
+    {
+        "name": "name",
+        "link": true
+    },
+    {
+        "name": "project",
+        "width": 20
+    },
+    {
+        "name": "status",
+        "width": 12
+    }
+]

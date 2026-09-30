@@ -70,7 +70,20 @@ for f in 22_attachments_files.tsv 23_templates.tsv 24_access_usage.tsv 29_teleph
     echo "  $f: $(wc -l < "$OUT/$f") lines"
 done
 
-echo "5. consolidate and build anonymised maps"
+echo "5. stage 03 model inputs: configured picklists and their UI labels, max string lengths, admin flags"
+run_sql 41_picklist_config
+run_sql 45_stage03_checks
+python3 "$HERE/gen_sql.py" max-lengths "$OUT" > "$OUT/42_max_lengths.sql"
+remote_sql < "$OUT/42_max_lengths.sql" > "$OUT/42_max_lengths.raw"
+remote_sql_py "$AUDIT_DB" sp_labels.py /var/www/serv_itvolga/vtiger7 < "$HERE/sql/41_picklist_config.sql" > "$OUT/43_sp_labels.tsv"
+# Effective admin flag as Vtiger evaluates it ($is_admin in the generated privileges file); only ids and true/false leave the host.
+remote_sh 'sudo -n bash -c "grep -H -o \"^\\\$is_admin=[a-z]*\" /var/www/serv_itvolga/vtiger7/user_privileges/user_privileges_*.php"' \
+    | sed -E 's#^.*/user_privileges_([0-9]+)\.php:\$is_admin=([a-z]+)$#user\1\t\2#' | sed 's/^user/user#/' > "$OUT/44_user_admin_flags.tsv"
+for f in 42_max_lengths.raw 43_sp_labels.tsv 44_user_admin_flags.tsv; do
+    echo "  $f: $(wc -l < "$OUT/$f") lines"
+done
+
+echo "6. consolidate and build anonymised maps"
 python3 "$HERE/consolidate.py" "$OUT"
 python3 "$HERE/build_maps.py" "$OUT" "$REPO/docs/migration"
 date -Is > "$OUT/finished_at.txt"

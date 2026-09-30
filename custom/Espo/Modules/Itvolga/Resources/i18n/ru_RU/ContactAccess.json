@@ -1,0 +1,28 @@
+{
+    "fields": {
+        "name": "Название",
+        "vtigerId": "ID в Vtiger",
+        "contact": "Контакт",
+        "anydeskId": "AnyDesk ID",
+        "anydeskPassword": "Пароль AnyDesk",
+        "hasAnydeskPassword": "Пароль задан",
+        "hostname": "Имя компьютера",
+        "ipAddress": "IP-адрес"
+    },
+    "links": {
+        "contact": "Контакт"
+    },
+    "tooltips": {
+        "vtigerId": "crmid контакта Vtiger, из которого перенесены поля доступа.",
+        "name": "Нейтральное название без самих реквизитов; по умолчанию — «Доступ: контакт».",
+        "anydeskPassword": "Хранится зашифрованным. Показ — по кнопке, каждый показ записывается в журнал действий."
+    },
+    "labels": {
+        "Create ContactAccess": "Создать доступ",
+        "Show password": "Показать пароль",
+        "Hide password": "Скрыть",
+        "Copy password": "Копировать",
+        "Password is not set": "Пароль не задан",
+        "Change password": "Изменить пароль"
+    }
+}

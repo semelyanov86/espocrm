@@ -1,0 +1,16 @@
+[
+    "assignedUser",
+    "teams",
+    "status",
+    "type",
+    "priority",
+    "progress",
+    "account",
+    "opportunity",
+    "dateStart",
+    "dateEndPlanned",
+    "dateEnd",
+    "createdAt",
+    "modifiedAt",
+    "vtigerNo"
+]

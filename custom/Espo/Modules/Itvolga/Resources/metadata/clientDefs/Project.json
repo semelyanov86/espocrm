@@ -1,0 +1,20 @@
+{
+    "controller": "controllers/record",
+    "iconClass": "fas fa-project-diagram",
+    "boolFilterList": [
+        "onlyMy"
+    ],
+    "duplicateDisabled": true,
+    "relationshipPanels": {
+        "projectTasks": {
+            "createDisabled": true,
+            "selectDisabled": true,
+            "unlinkDisabled": true
+        },
+        "documents": {
+            "createDisabled": true,
+            "selectDisabled": true,
+            "unlinkDisabled": true
+        }
+    }
+}

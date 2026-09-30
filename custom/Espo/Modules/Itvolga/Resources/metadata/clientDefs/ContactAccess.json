@@ -1,0 +1,10 @@
+{
+    "controller": "controllers/record",
+    "iconClass": "fas fa-key",
+    "mergeDisabled": true,
+    "exportDisabled": true,
+    "massUpdateDisabled": true,
+    "massRemoveDisabled": true,
+    "massFollowDisabled": true,
+    "duplicateDisabled": true
+}

@@ -1,0 +1,53 @@
+[
+    {
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "type"
+                }
+            ],
+            [
+                {
+                    "name": "code"
+                },
+                {
+                    "name": "isActive"
+                }
+            ],
+            [
+                {
+                    "name": "unitPrice"
+                },
+                {
+                    "name": "unit"
+                }
+            ],
+            [
+                {
+                    "name": "qtyPerUnit"
+                },
+                {
+                    "name": "category"
+                }
+            ],
+            [
+                {
+                    "name": "vendor"
+                },
+                {
+                    "name": "isBillableTime"
+                }
+            ],
+            [
+                {
+                    "name": "description",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    }
+]

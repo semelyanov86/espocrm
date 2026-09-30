@@ -1,0 +1,18 @@
+{
+    "scopeNames": {
+        "Vendor": "Vendor",
+        "Product": "Product",
+        "Project": "Project",
+        "ProjectTask": "Project Task",
+        "VtigerArchive": "Vtiger Archive",
+        "ContactAccess": "Access"
+    },
+    "scopeNamesPlural": {
+        "Vendor": "Vendors",
+        "Product": "Products",
+        "Project": "Projects",
+        "ProjectTask": "Project Tasks",
+        "VtigerArchive": "Vtiger Archive",
+        "ContactAccess": "Accesses"
+    }
+}

@@ -1,0 +1,91 @@
+[
+    {
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "parent"
+                }
+            ],
+            [
+                {
+                    "name": "status"
+                },
+                {
+                    "name": "direction"
+                }
+            ],
+            [
+                {
+                    "name": "dateStart"
+                },
+                {
+                    "name": "dateEnd"
+                }
+            ],
+            [
+                {
+                    "name": "duration"
+                },
+                {
+                    "name": "reminders"
+                }
+            ],
+            [
+                {
+                    "name": "description",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Телефония (история Vtiger)",
+        "rows": [
+            [
+                {
+                    "name": "cPhoneNumber"
+                },
+                {
+                    "name": "cIncomingLine"
+                }
+            ],
+            [
+                {
+                    "name": "cCallStatusRaw"
+                },
+                {
+                    "name": "cBillDuration"
+                }
+            ],
+            [
+                {
+                    "name": "cConnectorCallId"
+                },
+                {
+                    "name": "cLegacyRecordingUrl"
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Vtiger",
+        "rows": [
+            [
+                {
+                    "name": "vtigerId"
+                },
+                false
+            ],
+            [
+                {
+                    "name": "vtigerData",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    }
+]

@@ -1,0 +1,15 @@
+{
+    "controller": "controllers/record",
+    "iconClass": "fas fa-tasks",
+    "boolFilterList": [
+        "onlyMy"
+    ],
+    "duplicateDisabled": true,
+    "relationshipPanels": {
+        "documents": {
+            "createDisabled": true,
+            "selectDisabled": true,
+            "unlinkDisabled": true
+        }
+    }
+}

@@ -1,0 +1,20 @@
+{
+    "fields": {
+        "vtigerId": "ID в Vtiger",
+        "vtigerNo": "Номер в Vtiger",
+        "vtigerData": "Исходные данные Vtiger",
+        "cExternalUrl": "Внешняя ссылка"
+    },
+    "links": {
+        "cCases": "Обращения",
+        "cKnowledgeBaseArticles": "Статьи базы знаний",
+        "cProjects": "Проекты (архив)",
+        "cProjectTasks": "Задачи проектов (архив)",
+        "cVtigerArchives": "Архив Vtiger"
+    },
+    "tooltips": {
+        "vtigerId": "Исходный crmid записи Vtiger — ключ повторного импорта.",
+        "vtigerNo": "Исходный номер записи Vtiger.",
+        "vtigerData": "Непустые исходные значения без рабочего поля (JSON). Только чтение, видно администраторам."
+    }
+}

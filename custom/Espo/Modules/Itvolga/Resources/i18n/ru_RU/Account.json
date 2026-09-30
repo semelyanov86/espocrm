@@ -1,0 +1,83 @@
+{
+    "options": {
+        "industry": {
+            "Apparel": "Легкая промышленность",
+            "Shipping": "Доставка",
+            "Healthcare": "Здравоохранение",
+            "Utilities": "Коммунальные услуги",
+            "Communications": "Коммуникации",
+            "Consulting": "Консалтинг",
+            "Media": "Масс Медиа",
+            "Machinery": "Машиностроение",
+            "Retail": "Недвижимость",
+            "Not For Profit": "Неприбыльные организации",
+            "Education": "Образование",
+            "Food & Beverage": "Пищевая промышленность",
+            "Government": "Правительство",
+            "Manufacturing": "Производство",
+            "Entertainment": "Развлечения",
+            "Construction": "Строительство",
+            "Technology": "Технологии",
+            "Finance": "Финансы",
+            "Electronics": "Электроника",
+            "Banking": "Банкинг",
+            "Biotechnology": "Биотехнологии",
+            "Chemicals": "Химическая промышленность",
+            "Energy": "Энергетика",
+            "Engineering": "Инженерия",
+            "Environmental": "Окружающая среда",
+            "Hospitality": "Скорая помощь",
+            "Insurance": "Страхование",
+            "Recreation": "Рекреация",
+            "Telecommunications": "Телекоммуникации",
+            "Transportation": "Перевозки",
+            "Other": "Другое"
+        },
+        "type": {
+            "Analyst": "Аналитик",
+            "Customer": "Клиент",
+            "Competitor": "Конкурент",
+            "Integrator": "Интегратор",
+            "Investor": "Инвестор",
+            "Partner": "Партнер",
+            "Press": "Пресса",
+            "Prospect": "Перспективный",
+            "Reseller": "Посредник",
+            "Other": "Другое"
+        },
+        "cRating": {
+            "Acquired": "Приобретенный",
+            "Active": "Активный",
+            "Shutdown": "Закрыт",
+            "Market Failed": "Неудачно",
+            "Project Cancelled": "Проект отменен"
+        }
+    },
+    "fields": {
+        "vtigerId": "ID в Vtiger",
+        "vtigerNo": "Номер в Vtiger",
+        "vtigerData": "Исходные данные Vtiger",
+        "cShortName": "Краткое название",
+        "cEmployees": "Сотрудников",
+        "cRating": "Рейтинг",
+        "cInn": "ИНН",
+        "cKpp": "КПП",
+        "cBankAccount": "Расчётный счёт",
+        "cBankName": "Банк",
+        "cCorrAccount": "Корр. счёт",
+        "cBic": "БИК",
+        "cVkUrl": "ВКонтакте"
+    },
+    "links": {
+        "cProjects": "Проекты (архив)",
+        "cVtigerArchives": "Архив Vtiger"
+    },
+    "labels": {
+        "Реквизиты": "Реквизиты"
+    },
+    "tooltips": {
+        "vtigerId": "Исходный crmid записи Vtiger — ключ повторного импорта.",
+        "vtigerNo": "Исходный номер записи Vtiger.",
+        "vtigerData": "Непустые исходные значения без рабочего поля (JSON). Только чтение, видно администраторам."
+    }
+}

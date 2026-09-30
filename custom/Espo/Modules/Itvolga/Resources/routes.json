@@ -1,0 +1,7 @@
+[
+    {
+        "route": "/ContactAccess/:id/password",
+        "method": "post",
+        "actionClassName": "Espo\\Modules\\Itvolga\\Tools\\ContactAccess\\Api\\PostPassword"
+    }
+]

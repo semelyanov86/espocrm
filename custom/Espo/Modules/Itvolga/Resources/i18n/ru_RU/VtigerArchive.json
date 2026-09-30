@@ -1,0 +1,40 @@
+{
+    "fields": {
+        "vtigerId": "ID в Vtiger",
+        "vtigerNo": "Номер в Vtiger",
+        "name": "Название",
+        "vtigerModule": "Модуль Vtiger",
+        "data": "Данные записи",
+        "recordDate": "Дата записи",
+        "account": "Контрагент",
+        "contact": "Контакт",
+        "lead": "Обращение",
+        "product": "Товар",
+        "parentArchive": "Родительская запись",
+        "childArchives": "Дочерние записи"
+    },
+    "links": {
+        "account": "Контрагент",
+        "contact": "Контакт",
+        "lead": "Обращение",
+        "product": "Товар",
+        "parentArchive": "Родительская запись",
+        "childArchives": "Дочерние записи",
+        "documents": "Документы"
+    },
+    "options": {
+        "vtigerModule": {
+            "Consignment": "Накладная",
+            "ServiceContracts": "Сервисный договор",
+            "Assets": "Актив",
+            "Jivosite": "Чат Jivosite",
+            "JVmes": "Сообщение чата"
+        }
+    },
+    "tooltips": {
+        "vtigerId": "Исходный crmid записи Vtiger — ключ повторного импорта.",
+        "vtigerNo": "Исходный номер записи Vtiger.",
+        "recordDate": "Время создания записи в Vtiger (UTC)."
+    },
+    "labels": {}
+}

@@ -1,0 +1,22 @@
+[
+    {
+        "name": "name",
+        "link": true
+    },
+    {
+        "name": "vtigerModule",
+        "width": 14
+    },
+    {
+        "name": "vtigerNo",
+        "width": 12
+    },
+    {
+        "name": "account",
+        "width": 20
+    },
+    {
+        "name": "recordDate",
+        "width": 14
+    }
+]

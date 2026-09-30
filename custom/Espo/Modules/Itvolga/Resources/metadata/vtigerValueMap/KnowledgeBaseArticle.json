@@ -1,0 +1,27 @@
+{
+    "fields": {
+        "status": {
+            "picklists": [
+                "faqstatus"
+            ],
+            "options": [
+                "Draft",
+                "In Review",
+                "Published",
+                "Archived"
+            ],
+            "map": {
+                "Faq.faqstatus": {
+                    "Published": "Published",
+                    "Reviewed": "In Review"
+                },
+                "(picklist)": {
+                    "Draft": "Draft",
+                    "Reviewed": "In Review",
+                    "Published": "Published",
+                    "Obsolete": "Archived"
+                }
+            }
+        }
+    }
+}

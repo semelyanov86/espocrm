@@ -1,0 +1,65 @@
+{
+    "fields": {
+        "vtigerId": {
+            "type": "int",
+            "readOnly": true,
+            "disableFormatting": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "vtigerNo": {
+            "type": "varchar",
+            "maxLength": 100,
+            "readOnly": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "vtigerData": {
+            "type": "jsonObject",
+            "readOnly": true,
+            "tooltip": true,
+            "view": "itvolga:views/fields/vtiger-data",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "customizationDisabled": true
+        },
+        "name": {
+            "maxLength": 500
+        },
+        "status": {
+            "options": [
+                "Draft",
+                "In Review",
+                "Published",
+                "Archived"
+            ],
+            "default": "Draft"
+        },
+        "cTags": {
+            "type": "multiEnum",
+            "options": [],
+            "allowCustomOptions": true,
+            "isSorted": true,
+            "displayAsLabel": true
+        }
+    },
+    "links": {
+        "cDocuments": {
+            "type": "hasMany",
+            "entity": "Document",
+            "foreign": "cKnowledgeBaseArticles",
+            "relationName": "cKnowledgeBaseArticleDocument"
+        }
+    },
+    "indexes": {
+        "vtigerId": {
+            "type": "unique",
+            "columns": [
+                "vtigerId"
+            ]
+        }
+    }
+}

@@ -1,7 +1,7 @@
 # TASKS — состояние миграции
 
-**Текущий этап:** 02 — воспроизводимый локальный стенд EspoCRM — **завершён** 2026-09-29.
-**Следующий этап:** 03 — базовые модели, поля и доступ (не начат).
+**Текущий этап:** 03 — базовые модели, поля и доступ — **завершён** 2026-09-30 (внешнее ревью — см. «Проверки этапа 03»).
+**Следующий этап:** 04.1 — контракт финансовых данных и расчётное ядро (не начат).
 **Production:** не менялся; сервер и `/data/server` только читались.
 **Стенд:** http://crm.itvolga.test — `admin`, пароль в `/data/itvolga/espo-private/stand/local.env`; `task stand:health`.
 
@@ -11,7 +11,7 @@
 |---|---|---|---|
 | 01 | Аудит источника и постоянная память проекта | ✅ завершён | 2026-09-29 |
 | 02 | Воспроизводимый локальный стенд EspoCRM | ✅ завершён | 2026-09-29 |
-| 03 | Базовые модели, поля и доступ | ⏳ | — |
+| 03 | Базовые модели, поля и доступ | ✅ завершён | 2026-09-30 |
 | 04.1 | Контракт финансовых данных и расчётное ядро | ⏳ | — |
 | 04.2 | Quotes и SalesOrders | ⏳ | — |
 | 04.3 | Invoices и Invoice Items | ⏳ | — |
@@ -31,6 +31,23 @@
 | 11 | Переключение (только по отдельному разрешению) | 🔒 | — |
 
 Промпты этапов: `git show 2052380:MIGRATION_PROMPTS.md` (файл удалён из рабочей копии пользователем; в коммит этапа 01 это удаление не включено).
+
+## Этап 03 — результат
+
+Сделано:
+- [x] Перепроверены факты (production, read-only, 2026-09-30): полный повтор аудита с новыми шагами — настроенные справочники и подписи SalesPlatform, максимальные длины строк, эффективный признак администратора, правило шаринга, права экспорта/импорта, числовые и пустые значения (`source-inventory.md` §11, `evidence.md` «Этап 03»). Уточнено: администратор Vtiger — только `user#1`; в поле обращения — посторонний текст у 8 записей; у всех ролей назначение «всем пользователям».
+- [x] Модуль EspoCRM `custom/Espo/Modules/Itvolga` + `client/custom/modules/itvolga` (D-40): поля и связи Account, Contact, Lead, Opportunity, Task, Call, Meeting, Email, Case, KnowledgeBaseArticle, Document, DocumentFolder, Note, User, Attachment; собственные `Vendor`, `Product`, `Project`, `ProjectTask`, `VtigerArchive`, `ContactAccess`; все кастомные поля Vtiger нефинансовых модулей (включая пустые `cf_1374`/`cf_1378`); служебные `vtigerId` (уникальный), `vtigerNo`, `vtigerData` (D-41). Описание — `docs/migration/model.md`.
+- [x] Справочники: опции enum и подписи из настроенных списков Vtiger, словарь «значение Vtiger → ключ EspoCRM» для импорта (`metadata/vtigerValueMap`, D-38) — **на утверждение владельцу (Q-32)**.
+- [x] Доступ (D-39): роли D-22 и «Доступы» командой `itvolga-setup-acl`, уровни по общему доступу Vtiger, иерархические команды и хук, группы Vtiger → команды, архивы и история PBXManager только для чтения.
+- [x] `ContactAccess` (D-06, D-42): шифрование пароля, показ только по запросу с журналом, запрет экспорта/массовых действий/поиска/потока.
+- [x] Обязательность полей приведена к источнику (D-43).
+- [x] Сверка модели с картой: `scripts/model/model_check.py`, колонки `max_len_live`, `espo_check` в `field-map.csv`, `espo_check` в `relations.csv`; 629 строк и 141 связь — `реализовано (этап 03)`, 0 ошибок. Правила — `scripts/audit/mapping.py`, генерация — `build_maps.py`.
+- [x] Тесты `tests/stage03/` (25, синтетические данные) и UI-сценарии в браузере (Playwriter); задачи `model:apply`, `model:check`, `model:value-maps`, `maps:build`, `test:stage03`.
+
+Не сделано / вне рамок этапа:
+- Импорт данных (06.x); финансовые сущности, `LegalEntity`, связи документов/архива/платежей с финансами (04.x, D-44); живая телефония и история звонков (07.x).
+- Вопросы владельцу Q-32…Q-35 (словарь значений, локаль D-37, видимость записей для заместителей, `user#8`) — не блокируют следующий этап.
+- Автоповтор `task model:apply` в `task stand:install` не добавлен: после установки с нуля выполнить `task model:apply` (`docs/local-stand.md`).
 
 ## Этап 02 — результат
 
@@ -65,7 +82,21 @@
 
 ## Блокеры
 
-Нет. На этапе 03 владельцу нужно утвердить словарь объединения синонимов справочников (D-19) и настройки локали стенда (D-37).
+Нет. Открыты вопросы владельцу Q-32…Q-35 (`open-questions.md`): ответы меняют только метаданные/словарь и правила импорта.
+
+## Проверки этапа 03 (2026-09-30)
+
+| Проверка | Результат |
+|---|---|
+| Повтор аудита `run-audit.sh` (срез `20260930T191729`, 30 с) | счётчики модулей этапа 03 совпали; +1 счёт, +1 акт |
+| `task model:apply`, повтор `itvolga-setup-acl` | 5 команд, 5 ролей; повтор — `no changes` |
+| `task model:check` | field-map: 629 ok / 0 ошибок; relations: 141 ok / 0 ошибок |
+| `build_value_maps.py --check`, `build_maps.py` | словарь и карты воспроизводятся без изменений |
+| `task test:stage03` | 25 тестов OK: модель ↔ карта, метаданные стенда, словарь, типы полей, ACL ролей и иерархии, ContactAccess, история PBX |
+| UI (Playwriter, синтетическая фикстура) | администратор/заместитель/«Доступы»: реквизиты, скрытие исходных данных, панель доступов, показ/скрытие пароля, журнал показов, подписи статусов |
+| `task stand:health` | 0 FAIL / 0 WARN |
+| `php -l`, `node --check`, `bash -n` | без ошибок |
+| `scripts/check-secrets.sh --self-test` / `--history` | самотест ok; 0 находок (сверка с 4853 хешами ПДн) |
 
 ## Проверки этапа 02 (2026-09-29)
 
@@ -101,22 +132,21 @@
 - `/data/itvolga/espo-private/audit/20260929T1840/` — основной прогон аудита (TSV/raw, `columns.tsv`, `35_control_sums_private.tsv` — денежные агрегаты).
 - `/data/itvolga/espo-private/audit/20260929T2000-rerun/` — контрольный повтор (до исправлений ревью).
 - `/data/itvolga/espo-private/audit/20260929T213301/` — прогон после исправлений ревью; контрольный повтор `…/20260929T2140-verify/` дал идентичные карты.
-- `/data/itvolga/espo-private/audit/20260929T221708/` — **актуальный** прогон (с проверками Q-03/Q-05/Q-20); из него сгенерированы текущие `field-map.csv`/`relations.csv`.
+- `/data/itvolga/espo-private/audit/20260929T221708/` — прогон с проверками Q-03/Q-05/Q-20 (основа карт этапов 01–02).
+- `/data/itvolga/espo-private/audit/20260930T191729/` — **актуальный** прогон этапа 03 (справочники, подписи, длины, флаги администратора, `45_stage03_checks`); из него сгенерированы текущие `field-map.csv`/`relations.csv` и словарь `vtigerValueMap`.
+- `/data/itvolga/espo-private/stand/evidence/stage03/` — снимки UI-сценариев этапа 03 (синтетические данные).
 - `/data/itvolga/espo-private/pii-hashes.txt` — sha256 реальных ПДн для `check-secrets.sh`.
 - `/data/itvolga/espo-private/stand/local.env` — секреты локального стенда (600).
 - `/data/itvolga/espo-private/stand/backups/` — backup проверок стенда (`…-restore-test`, `…-after-review`, страховочные `…-pre-restore` и др.).
 - `/data/itvolga/espo-private/stand/evidence/` — полные выводы health-check проверок этапа 02 и скриншот входа.
 
-## Стартовая команда следующей сессии (этап 03)
+## Стартовая команда следующей сессии (этап 04.1)
 
 ```
-Прочитай AGENTS.md, TASKS.md, docs/local-stand.md, docs/migration/field-map.csv, module-decisions.md, relations.csv,
-decisions.md; проверь стенд (task stand:health) и перепроверь факты, от которых зависит этап. Затем выполни этап 03
-из `git show 2052380:MIGRATION_PROMPTS.md`: реализуй в EspoCRM исходные поля и связи Leads, Contacts, Accounts,
-Opportunities, календаря, комментариев/истории, Documents, Cases, исторических Project/ProjectTask и других непустых
-модулей по принятому решению, не пропуская кастомные поля; владельцы, авторы, статусы, ACL (роли D-22), доступ к
-вложениям и защита полей доступа контактов (ContactAccess, D-06); словарь синонимов справочников (D-19) и настройки
-локали (D-37) — на утверждение владельцу. Метаданные, миграции и тесты — в Git (custom/, client/custom/, tests/);
-проверь на синтетических данных, сверь с field-map.csv, обнови карту и TASKS.md, запусти scripts/check-secrets.sh
---history, создай коммит и остановись до финансового модуля.
+Прочитай AGENTS.md, TASKS.md, docs/migration/finance-contract.md, field-map.csv, relations.csv, decisions.md,
+model.md; проверь стенд (task stand:health, task test:stage03) и перепроверь факты, от которых зависит этап. Затем
+выполни этап 04.1 из `git show 2052380:MIGRATION_PROMPTS.md`: контракт финансовых данных (Quote, SalesOrder, Invoice,
+Invoice Item, Payment, распределение, Act, Act Item, LegalEntity — D-04, D-44) и автономное расчётное ядро с десятичной
+арифметикой и тестами на структуры и обезличенные контрольные суммы источника; без UI и сущностей. Обнови TASKS.md,
+запусти scripts/check-secrets.sh --history, создай коммит и остановись.
 ```

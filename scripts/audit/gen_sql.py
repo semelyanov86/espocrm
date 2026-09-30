@@ -8,8 +8,9 @@ Usage:
   gen_sql.py reference-targets OUTDIR > reference_targets.sql
   gen_sql.py picklist-values OUTDIR > picklist_values.sql
   gen_sql.py table-live-counts OUTDIR > table_live_counts.sql
+  gen_sql.py max-lengths OUTDIR > max_lengths.sql
 
-The generated SQL returns only counts, never row values.
+The generated SQL returns only counts and lengths, never row values.
 """
 import csv
 import sys
@@ -227,13 +228,45 @@ def table_live_counts(outdir):
               f"JOIN vtiger_crmentity c ON c.crmid=t.{q(key)} AND c.deleted=0;")
 
 
+def max_lengths(outdir):
+    """Per module field of a string type: maximum CHAR_LENGTH among live records (Users: all rows).
+    Stage 03 compares it with maxLength of the EspoCRM target field, so no value is truncated."""
+    fields = read_tsv(outdir / "02_fields.tsv")
+    pks = {r["TABLE_NAME"]: r["pk"].split(",")[0] for r in read_tsv(outdir / "05_primary_keys.tsv")}
+    types = {(r["TABLE_NAME"], r["COLUMN_NAME"]): r["DATA_TYPE"] for r in read_tsv(outdir / "03_columns.tsv")}
+    counts = {r["tbl"]: int(r["n"]) for r in read_tsv(outdir / "10_table_counts.tsv")}
+    groups = {}
+    for f in fields:
+        if types.get((f["tablename"], f["columnname"])) in STRING_TYPES:
+            groups.setdefault((f["module"], f["tablename"]), []).append(f["columnname"])
+    for (module, tbl), columns in sorted(groups.items()):
+        if counts.get(tbl, 0) == 0:
+            continue
+        exprs = ", ".join(f"'{col}', MAX(CHAR_LENGTH(t.{q(col)}))" for col in dict.fromkeys(columns))
+        if module == "Users":
+            print(f"SELECT '{module}' module, '{tbl}' tbl, COUNT(*) n, JSON_OBJECT({exprs}) cols FROM {q(tbl)} t;")
+            continue
+        key = LINK_KEY_OVERRIDES.get(tbl, pks.get(tbl))
+        if not key:
+            continue
+        where = [f"c.setype='{setype_for(module, tbl)}'", "c.deleted=0"]
+        join_activity = ""
+        if activity_filtered(module, tbl):
+            join_activity = "JOIN vtiger_activity a ON a.activityid=c.crmid"
+            where.append(ACTIVITY_FILTER[module])
+        print(f"SELECT '{module}' module, '{tbl}' tbl, COUNT(*) n, JSON_OBJECT({exprs}) cols "
+              f"FROM {q(tbl)} t JOIN vtiger_crmentity c ON c.crmid=t.{q(key)} {join_activity} "
+              f"WHERE {' AND '.join(where)};")
+
+
 def main():
     if len(sys.argv) != 3:
         sys.exit(__doc__)
     cmd, outdir = sys.argv[1], Path(sys.argv[2])
     {"table-counts": table_counts, "column-counts": column_counts,
      "field-live-counts": field_live_counts, "reference-targets": reference_targets,
-     "picklist-values": picklist_values, "table-live-counts": table_live_counts}[cmd](outdir)
+     "picklist-values": picklist_values, "table-live-counts": table_live_counts,
+     "max-lengths": max_lengths}[cmd](outdir)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,54 @@
+[
+    {
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "website"
+                }
+            ],
+            [
+                {
+                    "name": "emailAddress"
+                },
+                {
+                    "name": "phoneNumber"
+                }
+            ],
+            [
+                {
+                    "name": "inn"
+                },
+                false
+            ],
+            [
+                {
+                    "name": "description",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Vtiger",
+        "rows": [
+            [
+                {
+                    "name": "vtigerNo"
+                },
+                {
+                    "name": "vtigerId"
+                }
+            ],
+            [
+                {
+                    "name": "vtigerData",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    }
+]

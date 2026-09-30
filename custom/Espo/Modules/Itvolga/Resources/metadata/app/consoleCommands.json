@@ -1,0 +1,9 @@
+{
+    "itvolgaSetupAcl": {
+        "className": "Espo\\Modules\\Itvolga\\Classes\\ConsoleCommands\\SetupAcl",
+        "listed": true,
+        "allowedFlags": [
+            "dryRun"
+        ]
+    }
+}

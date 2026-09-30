@@ -1,0 +1,11 @@
+{
+    "exportDisabled": false,
+    "massActions": {
+        "update": {
+            "disabled": true
+        },
+        "delete": {
+            "disabled": true
+        }
+    }
+}

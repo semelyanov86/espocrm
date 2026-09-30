@@ -1,0 +1,69 @@
+[
+    {
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "file"
+                },
+                {
+                    "name": "cExternalUrl"
+                }
+            ],
+            [
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "folder"
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Details",
+        "rows": [
+            [
+                {
+                    "name": "type"
+                },
+                {
+                    "name": "publishDate"
+                }
+            ],
+            [
+                {
+                    "name": "status"
+                },
+                {
+                    "name": "expirationDate"
+                }
+            ],
+            [
+                {
+                    "name": "description",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Vtiger",
+        "rows": [
+            [
+                {
+                    "name": "vtigerNo"
+                },
+                {
+                    "name": "vtigerId"
+                }
+            ],
+            [
+                {
+                    "name": "vtigerData",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    }
+]

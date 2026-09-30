@@ -1,0 +1,71 @@
+{
+    "fields": {
+        "vtigerId": {
+            "type": "int",
+            "readOnly": true,
+            "disableFormatting": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "vtigerData": {
+            "type": "jsonObject",
+            "readOnly": true,
+            "tooltip": true,
+            "view": "itvolga:views/fields/vtiger-data",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "customizationDisabled": true
+        },
+        "status": {
+            "options": [
+                "Planned",
+                "Held",
+                "Not Held"
+            ],
+            "default": "Planned"
+        },
+        "cPhoneNumber": {
+            "type": "varchar",
+            "maxLength": 100,
+            "readOnly": true
+        },
+        "cCallStatusRaw": {
+            "type": "varchar",
+            "maxLength": 50,
+            "readOnly": true
+        },
+        "cLegacyRecordingUrl": {
+            "type": "varchar",
+            "maxLength": 255,
+            "readOnly": true,
+            "tooltip": true
+        },
+        "cBillDuration": {
+            "type": "int",
+            "min": 0,
+            "readOnly": true,
+            "disableFormatting": true
+        },
+        "cConnectorCallId": {
+            "type": "varchar",
+            "maxLength": 100,
+            "readOnly": true
+        },
+        "cIncomingLine": {
+            "type": "varchar",
+            "maxLength": 100,
+            "readOnly": true
+        }
+    },
+    "indexes": {
+        "vtigerId": {
+            "type": "unique",
+            "columns": [
+                "vtigerId"
+            ]
+        }
+    }
+}

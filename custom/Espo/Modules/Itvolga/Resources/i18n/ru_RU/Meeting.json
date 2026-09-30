@@ -1,0 +1,19 @@
+{
+    "options": {
+        "status": {
+            "Planned": "Запланировано",
+            "Held": "Проведено",
+            "Not Held": "Не проведено"
+        }
+    },
+    "fields": {
+        "vtigerId": "ID в Vtiger",
+        "vtigerNo": "Номер в Vtiger",
+        "vtigerData": "Исходные данные Vtiger"
+    },
+    "tooltips": {
+        "vtigerId": "Исходный crmid записи Vtiger — ключ повторного импорта.",
+        "vtigerNo": "Исходный номер записи Vtiger.",
+        "vtigerData": "Непустые исходные значения без рабочего поля (JSON). Только чтение, видно администраторам."
+    }
+}

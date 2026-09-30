@@ -1,0 +1,82 @@
+[
+    {
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "number"
+                }
+            ],
+            [
+                {
+                    "name": "status"
+                },
+                {
+                    "name": "account"
+                }
+            ],
+            [
+                {
+                    "name": "priority"
+                },
+                {
+                    "name": "contacts"
+                }
+            ],
+            [
+                {
+                    "name": "type"
+                },
+                {
+                    "name": "cSeverity"
+                }
+            ],
+            [
+                {
+                    "name": "cTags"
+                },
+                false
+            ],
+            [
+                {
+                    "name": "description",
+                    "fullWidth": true
+                }
+            ],
+            [
+                {
+                    "name": "cSolution",
+                    "fullWidth": true
+                }
+            ],
+            [
+                {
+                    "name": "attachments",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Vtiger",
+        "rows": [
+            [
+                {
+                    "name": "vtigerNo"
+                },
+                {
+                    "name": "vtigerId"
+                }
+            ],
+            [
+                {
+                    "name": "vtigerData",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    }
+]

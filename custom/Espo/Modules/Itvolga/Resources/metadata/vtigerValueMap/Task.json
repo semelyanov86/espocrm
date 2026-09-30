@@ -1,0 +1,84 @@
+{
+    "fields": {
+        "status": {
+            "picklists": [
+                "taskstatus"
+            ],
+            "options": [
+                "Not Started",
+                "Started",
+                "Completed",
+                "Pending Input",
+                "Deferred",
+                "Planned",
+                "Canceled"
+            ],
+            "map": {
+                "Calendar.taskstatus": {
+                    "Completed": "Completed",
+                    "Not Started": "Not Started",
+                    "In Progress": "Started"
+                },
+                "(picklist)": {
+                    "Not Started": "Not Started",
+                    "In Progress": "Started",
+                    "Completed": "Completed",
+                    "Pending Input": "Pending Input",
+                    "Deferred": "Deferred",
+                    "Planned": "Planned"
+                },
+                "Events.eventstatus": {
+                    "Held": "Completed",
+                    "Planned": "Planned",
+                    "Not Held": "Canceled"
+                }
+            },
+            "notActualOptions": [
+                "Completed",
+                "Canceled",
+                "Deferred"
+            ]
+        },
+        "priority": {
+            "picklists": [
+                "taskpriority"
+            ],
+            "options": [
+                "",
+                "Low",
+                "Normal",
+                "High",
+                "Urgent"
+            ],
+            "map": {
+                "Calendar.taskpriority": {
+                    "": "",
+                    "High": "High",
+                    "Medium": "Normal"
+                },
+                "Events.taskpriority": {
+                    "": "",
+                    "High": "High"
+                },
+                "(picklist)": {
+                    "High": "High",
+                    "Medium": "Normal",
+                    "Low": "Low",
+                    "": ""
+                }
+            }
+        },
+        "cTaskType": {
+            "picklists": [],
+            "options": [
+                "",
+                "Письмо"
+            ],
+            "map": {
+                "Events.activitytype": {
+                    "Письмо": "Письмо"
+                }
+            }
+        }
+    }
+}

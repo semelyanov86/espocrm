@@ -1,0 +1,126 @@
+{
+    "fields": {
+        "vtigerId": {
+            "type": "int",
+            "readOnly": true,
+            "disableFormatting": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "vtigerNo": {
+            "type": "varchar",
+            "maxLength": 100,
+            "readOnly": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "vtigerData": {
+            "type": "jsonObject",
+            "readOnly": true,
+            "tooltip": true,
+            "view": "itvolga:views/fields/vtiger-data",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "customizationDisabled": true
+        },
+        "salutationName": {
+            "options": [
+                "",
+                "Mr.",
+                "Ms.",
+                "Mrs.",
+                "Dr.",
+                "Prof."
+            ],
+            "default": ""
+        },
+        "status": {
+            "options": [
+                "",
+                "Attempted to Contact",
+                "Cold",
+                "Contact in Future",
+                "Contacted",
+                "Hot",
+                "Junk Lead",
+                "Lost Lead",
+                "New",
+                "Pre Qualified",
+                "Qualified",
+                "Warm",
+                "Converted"
+            ],
+            "default": "New",
+            "notActualOptions": [
+                "Converted",
+                "Junk Lead",
+                "Lost Lead"
+            ]
+        },
+        "source": {
+            "options": [
+                "",
+                "Cold Call",
+                "Franshize",
+                "Резюме",
+                "Existing Customer",
+                "Self Generated",
+                "Employee",
+                "Partner",
+                "Public Relations",
+                "Direct Mail",
+                "Conference",
+                "Trade Show",
+                "Web Site",
+                "Word of mouth",
+                "Other",
+                "Jivosite"
+            ],
+            "default": ""
+        },
+        "cRating": {
+            "type": "enum",
+            "optionsReference": "Account.cRating",
+            "customizationOptionsDisabled": true
+        },
+        "cPriority": {
+            "type": "enum",
+            "options": [
+                "",
+                "Обычный",
+                "Отстой",
+                "Низкий",
+                "Высокий",
+                "VIP"
+            ],
+            "default": ""
+        },
+        "cJivositeId": {
+            "type": "int",
+            "disableFormatting": true,
+            "min": 0
+        },
+        "cVkUrl": {
+            "type": "url",
+            "maxLength": 155
+        }
+    },
+    "links": {
+        "cVtigerArchives": {
+            "type": "hasMany",
+            "entity": "VtigerArchive",
+            "foreign": "lead"
+        }
+    },
+    "indexes": {
+        "vtigerId": {
+            "type": "unique",
+            "columns": [
+                "vtigerId"
+            ]
+        }
+    }
+}

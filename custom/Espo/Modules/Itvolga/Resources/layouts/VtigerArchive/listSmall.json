@@ -1,0 +1,14 @@
+[
+    {
+        "name": "name",
+        "link": true
+    },
+    {
+        "name": "vtigerModule",
+        "width": 14
+    },
+    {
+        "name": "vtigerNo",
+        "width": 12
+    }
+]

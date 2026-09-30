@@ -1,0 +1,68 @@
+{
+    "fields": {
+        "stage": {
+            "picklists": [
+                "sales_stage"
+            ],
+            "options": [
+                "Qualification",
+                "Needs Analysis",
+                "Value Proposition",
+                "Id. Decision Makers",
+                "Perception Analysis",
+                "Proposal or Price Quote",
+                "Negotiation or Review",
+                "Переговоры",
+                "Closed Won",
+                "Closed Lost"
+            ],
+            "map": {
+                "Potentials.sales_stage": {
+                    "Closed Lost": "Closed Lost",
+                    "Closed Won": "Closed Won",
+                    "Id. Decision Makers": "Id. Decision Makers",
+                    "Needs Analysis": "Needs Analysis",
+                    "Negotiation or Review": "Negotiation or Review",
+                    "Perception Analysis": "Perception Analysis",
+                    "Proposal or Price Quote": "Proposal or Price Quote",
+                    "Qualification": "Qualification",
+                    "Value Proposition": "Value Proposition",
+                    "Переговоры": "Переговоры"
+                },
+                "(picklist)": {
+                    "Qualification": "Qualification",
+                    "Переговоры": "Переговоры",
+                    "Needs Analysis": "Needs Analysis",
+                    "Value Proposition": "Value Proposition",
+                    "Id. Decision Makers": "Id. Decision Makers",
+                    "Perception Analysis": "Perception Analysis",
+                    "Proposal or Price Quote": "Proposal or Price Quote",
+                    "Negotiation or Review": "Negotiation or Review",
+                    "Closed Won": "Closed Won",
+                    "Closed Lost": "Closed Lost"
+                }
+            }
+        },
+        "cOpportunityType": {
+            "picklists": [
+                "opportunity_type"
+            ],
+            "options": [
+                "",
+                "Существующий бизнес",
+                "New Business"
+            ],
+            "map": {
+                "Potentials.opportunity_type": {
+                    "": "",
+                    "Существующий бизнес": "Существующий бизнес"
+                },
+                "(picklist)": {
+                    "Существующий бизнес": "Существующий бизнес",
+                    "New Business": "New Business",
+                    "": ""
+                }
+            }
+        }
+    }
+}

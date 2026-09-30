@@ -1,0 +1,109 @@
+[
+    {
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "accounts"
+                }
+            ],
+            [
+                {
+                    "name": "emailAddress"
+                },
+                {
+                    "name": "phoneNumber"
+                }
+            ],
+            [
+                {
+                    "name": "title"
+                },
+                {
+                    "name": "cDepartment"
+                }
+            ],
+            [
+                {
+                    "name": "address"
+                },
+                {
+                    "name": "cOtherAddress"
+                }
+            ],
+            [
+                {
+                    "name": "cLeadSource"
+                },
+                {
+                    "name": "cBirthday"
+                }
+            ],
+            [
+                {
+                    "name": "cVkUrl"
+                },
+                {
+                    "name": "cPhoto"
+                }
+            ],
+            [
+                {
+                    "name": "description",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Поддержка и рассылки",
+        "rows": [
+            [
+                {
+                    "name": "cSupportStartDate"
+                },
+                {
+                    "name": "cSupportEndDate"
+                }
+            ],
+            [
+                {
+                    "name": "cNeedOriginalDocs"
+                },
+                {
+                    "name": "cPartnerAds"
+                }
+            ],
+            [
+                {
+                    "name": "cSendNews"
+                },
+                {
+                    "name": "cSendAlerts"
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Vtiger",
+        "rows": [
+            [
+                {
+                    "name": "vtigerNo"
+                },
+                {
+                    "name": "vtigerId"
+                }
+            ],
+            [
+                {
+                    "name": "vtigerData",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    }
+]

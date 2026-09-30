@@ -1,0 +1,27 @@
+{
+    "fields": {
+        "salutationName": {
+            "picklists": [
+                "salutationtype"
+            ],
+            "options": [
+                "",
+                "Mr.",
+                "Ms.",
+                "Mrs.",
+                "Dr.",
+                "Prof."
+            ],
+            "map": {
+                "(picklist)": {
+                    "Mr.": "Mr.",
+                    "Ms.": "Ms.",
+                    "Mrs.": "Mrs.",
+                    "Dr.": "Dr.",
+                    "Prof.": "Prof.",
+                    "": ""
+                }
+            }
+        }
+    }
+}

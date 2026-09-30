@@ -1,0 +1,119 @@
+{
+    "fields": {
+        "vtigerId": {
+            "type": "int",
+            "readOnly": true,
+            "disableFormatting": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "vtigerNo": {
+            "type": "varchar",
+            "maxLength": 100,
+            "readOnly": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "vtigerData": {
+            "type": "jsonObject",
+            "readOnly": true,
+            "tooltip": true,
+            "view": "itvolga:views/fields/vtiger-data",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "customizationDisabled": true
+        },
+        "salutationName": {
+            "options": [
+                "",
+                "Mr.",
+                "Ms.",
+                "Mrs.",
+                "Dr.",
+                "Prof."
+            ],
+            "default": ""
+        },
+        "cLeadSource": {
+            "type": "enum",
+            "optionsReference": "Lead.source",
+            "customizationOptionsDisabled": true
+        },
+        "cDepartment": {
+            "type": "varchar",
+            "maxLength": 30
+        },
+        "cBirthday": {
+            "type": "date"
+        },
+        "cVkUrl": {
+            "type": "url",
+            "maxLength": 155
+        },
+        "cSupportStartDate": {
+            "type": "date"
+        },
+        "cSupportEndDate": {
+            "type": "date"
+        },
+        "cNeedOriginalDocs": {
+            "type": "bool"
+        },
+        "cSendNews": {
+            "type": "bool"
+        },
+        "cPartnerAds": {
+            "type": "bool"
+        },
+        "cSendAlerts": {
+            "type": "bool"
+        },
+        "cOtherAddress": {
+            "type": "address"
+        },
+        "cOtherAddressStreet": {
+            "type": "text",
+            "maxLength": 255,
+            "dbType": "varchar"
+        },
+        "cOtherAddressCity": {
+            "type": "varchar"
+        },
+        "cOtherAddressState": {
+            "type": "varchar"
+        },
+        "cOtherAddressCountry": {
+            "type": "varchar"
+        },
+        "cOtherAddressPostalCode": {
+            "type": "varchar"
+        },
+        "cPhoto": {
+            "type": "image",
+            "previewSize": "small"
+        }
+    },
+    "links": {
+        "cContactAccesses": {
+            "type": "hasMany",
+            "entity": "ContactAccess",
+            "foreign": "contact"
+        },
+        "cVtigerArchives": {
+            "type": "hasMany",
+            "entity": "VtigerArchive",
+            "foreign": "contact"
+        }
+    },
+    "indexes": {
+        "vtigerId": {
+            "type": "unique",
+            "columns": [
+                "vtigerId"
+            ]
+        }
+    }
+}

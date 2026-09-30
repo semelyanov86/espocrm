@@ -1,0 +1,21 @@
+[
+    "assignedUser",
+    "teams",
+    "collaborators",
+    "status",
+    "priority",
+    "account",
+    "contact",
+    "number",
+    "name",
+    "description",
+    "isInternal",
+    "createdAt",
+    "createdBy",
+    "modifiedAt",
+    "streamUpdatedAt",
+    "type",
+    "cSeverity",
+    "cTags",
+    "vtigerNo"
+]

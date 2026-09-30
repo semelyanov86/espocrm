@@ -1,0 +1,53 @@
+[
+    {
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "vtigerModule"
+                }
+            ],
+            [
+                {
+                    "name": "vtigerNo"
+                },
+                {
+                    "name": "recordDate"
+                }
+            ],
+            [
+                {
+                    "name": "account"
+                },
+                {
+                    "name": "contact"
+                }
+            ],
+            [
+                {
+                    "name": "lead"
+                },
+                {
+                    "name": "product"
+                }
+            ],
+            [
+                {
+                    "name": "parentArchive"
+                },
+                {
+                    "name": "vtigerId"
+                }
+            ],
+            [
+                {
+                    "name": "data",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    }
+]

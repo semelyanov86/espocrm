@@ -1,0 +1,23 @@
+{
+    "controller": "controllers/record",
+    "iconClass": "fas fa-archive",
+    "createDisabled": true,
+    "duplicateDisabled": true,
+    "mergeDisabled": true,
+    "massUpdateDisabled": true,
+    "massRemoveDisabled": true,
+    "editDisabled": true,
+    "removeDisabled": true,
+    "relationshipPanels": {
+        "childArchives": {
+            "createDisabled": true,
+            "selectDisabled": true,
+            "unlinkDisabled": true
+        },
+        "documents": {
+            "createDisabled": true,
+            "selectDisabled": true,
+            "unlinkDisabled": true
+        }
+    }
+}

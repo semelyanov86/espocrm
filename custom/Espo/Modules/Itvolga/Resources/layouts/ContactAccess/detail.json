@@ -1,0 +1,38 @@
+[
+    {
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "contact"
+                }
+            ],
+            [
+                {
+                    "name": "anydeskId"
+                },
+                {
+                    "name": "anydeskPassword",
+                    "customLabel": "Пароль AnyDesk"
+                }
+            ],
+            [
+                {
+                    "name": "hostname"
+                },
+                {
+                    "name": "ipAddress"
+                }
+            ],
+            [
+                {
+                    "name": "description",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    }
+]

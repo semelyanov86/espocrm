@@ -1,0 +1,18 @@
+{
+    "fields": {
+        "contact": "Contact",
+        "anydeskId": "AnyDesk ID",
+        "anydeskPassword": "AnyDesk Password",
+        "hasAnydeskPassword": "Password Is Set",
+        "hostname": "Hostname",
+        "ipAddress": "IP Address",
+        "vtigerId": "Vtiger ID"
+    },
+    "labels": {
+        "Show password": "Show password",
+        "Hide password": "Hide",
+        "Copy password": "Copy",
+        "Password is not set": "Password is not set",
+        "Change password": "Change password"
+    }
+}

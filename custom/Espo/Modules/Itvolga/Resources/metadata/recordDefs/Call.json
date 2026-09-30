@@ -1,0 +1,10 @@
+{
+    "beforeUpdateHookClassNameList": [
+        "__APPEND__",
+        "Espo\\Modules\\Itvolga\\Classes\\RecordHooks\\Call\\ProtectTelephonyHistory"
+    ],
+    "beforeDeleteHookClassNameList": [
+        "__APPEND__",
+        "Espo\\Modules\\Itvolga\\Classes\\RecordHooks\\Call\\ProtectTelephonyHistory"
+    ]
+}

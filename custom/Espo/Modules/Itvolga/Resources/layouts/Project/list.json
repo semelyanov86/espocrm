@@ -1,0 +1,26 @@
+[
+    {
+        "name": "name",
+        "link": true
+    },
+    {
+        "name": "account",
+        "width": 20
+    },
+    {
+        "name": "status",
+        "width": 14
+    },
+    {
+        "name": "progress",
+        "width": 8
+    },
+    {
+        "name": "dateStart",
+        "width": 11
+    },
+    {
+        "name": "dateEnd",
+        "width": 11
+    }
+]

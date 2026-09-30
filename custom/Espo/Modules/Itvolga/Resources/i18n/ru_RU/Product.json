@@ -1,0 +1,64 @@
+{
+    "options": {
+        "unit": {
+            "Hours": "Часы",
+            "Days": "Дни",
+            "Incidents": "События",
+            "Box": "Ящик",
+            "Carton": "Коробка",
+            "Dozen": "Дюжина",
+            "Each": "шт.",
+            "Impressions": "Показ",
+            "Lb": "кг",
+            "Pack": "Пакет",
+            "Pages": "Страница",
+            "Pieces": "Единица",
+            "Quantity": "Кол-во",
+            "Reams": "Стопка",
+            "Sheet": "Лист",
+            "Spiral Binder": "Переплет",
+            "Sq Ft": "м2"
+        },
+        "category": {
+            "Support": "Поддержка",
+            "Migration": "Миграция",
+            "Customization": "Настройка",
+            "Installation": "Установка",
+            "Training": "Тренинг"
+        },
+        "type": {
+            "product": "Товар",
+            "service": "Услуга"
+        }
+    },
+    "fields": {
+        "vtigerId": "ID в Vtiger",
+        "vtigerNo": "Номер в Vtiger",
+        "vtigerData": "Исходные данные Vtiger",
+        "name": "Название",
+        "type": "Тип",
+        "isActive": "Активен",
+        "code": "Код",
+        "unitPrice": "Цена",
+        "unit": "Единица",
+        "qtyPerUnit": "Количество единиц",
+        "category": "Категория",
+        "isBillableTime": "Оплачиваемое время (TimeTracker)",
+        "vendor": "Поставщик",
+        "opportunities": "Сделки"
+    },
+    "links": {
+        "vendor": "Поставщик",
+        "opportunities": "Сделки",
+        "vtigerArchives": "Архив Vtiger"
+    },
+    "tooltips": {
+        "vtigerId": "Исходный crmid записи Vtiger — ключ повторного импорта.",
+        "vtigerNo": "Исходный номер записи Vtiger.",
+        "vtigerData": "Непустые исходные значения без рабочего поля (JSON). Только чтение, видно администраторам.",
+        "isBillableTime": "Флаг расширения TimeTracker Vtiger; логика не переносится."
+    },
+    "labels": {
+        "Create Product": "Создать товар или услугу"
+    }
+}

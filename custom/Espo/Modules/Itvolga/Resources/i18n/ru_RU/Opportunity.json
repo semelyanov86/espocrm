@@ -1,0 +1,34 @@
+{
+    "options": {
+        "stage": {
+            "Qualification": "Оценка",
+            "Needs Analysis": "Нуждается в анализе",
+            "Value Proposition": "Предложение",
+            "Id. Decision Makers": "Поиск принимающих решение",
+            "Perception Analysis": "Анализ ситуации",
+            "Proposal or Price Quote": "Ценовое предложение",
+            "Negotiation or Review": "Переговоры или отзыв",
+            "Closed Won": "Закрыта удачно",
+            "Closed Lost": "Закрыта неудачно"
+        },
+        "cOpportunityType": {
+            "New Business": "Новый бизнес"
+        }
+    },
+    "fields": {
+        "vtigerId": "ID в Vtiger",
+        "vtigerNo": "Номер в Vtiger",
+        "vtigerData": "Исходные данные Vtiger",
+        "cOpportunityType": "Тип сделки",
+        "cProducts": "Услуги и товары"
+    },
+    "links": {
+        "cProducts": "Услуги и товары",
+        "cProjects": "Проекты (архив)"
+    },
+    "tooltips": {
+        "vtigerId": "Исходный crmid записи Vtiger — ключ повторного импорта.",
+        "vtigerNo": "Исходный номер записи Vtiger.",
+        "vtigerData": "Непустые исходные значения без рабочего поля (JSON). Только чтение, видно администраторам."
+    }
+}

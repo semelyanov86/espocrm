@@ -1,0 +1,67 @@
+[
+    {
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "project"
+                }
+            ],
+            [
+                {
+                    "name": "status"
+                },
+                {
+                    "name": "priority"
+                }
+            ],
+            [
+                {
+                    "name": "type"
+                },
+                {
+                    "name": "progress"
+                }
+            ],
+            [
+                {
+                    "name": "dateStart"
+                },
+                {
+                    "name": "dateEnd"
+                }
+            ],
+            [
+                {
+                    "name": "hours"
+                },
+                {
+                    "name": "orderNumber"
+                }
+            ],
+            [
+                {
+                    "name": "showInStat"
+                },
+                {
+                    "name": "tags"
+                }
+            ],
+            [
+                {
+                    "name": "gitCommit",
+                    "fullWidth": true
+                }
+            ],
+            [
+                {
+                    "name": "description",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    }
+]

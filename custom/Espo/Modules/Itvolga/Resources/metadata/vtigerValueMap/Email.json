@@ -1,0 +1,13 @@
+{
+    "fields": {
+        "status": {
+            "picklists": [],
+            "map": {
+                "Emails.email_flag": {
+                    "SENT": "Sent",
+                    "MailManager": "Archived"
+                }
+            }
+        }
+    }
+}

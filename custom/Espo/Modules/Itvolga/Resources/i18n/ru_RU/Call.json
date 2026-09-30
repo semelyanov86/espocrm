@@ -1,0 +1,26 @@
+{
+    "options": {
+        "status": {
+            "Planned": "Запланировано",
+            "Held": "Проведено",
+            "Not Held": "Не проведено"
+        }
+    },
+    "fields": {
+        "vtigerId": "ID в Vtiger",
+        "vtigerNo": "Номер в Vtiger",
+        "vtigerData": "Исходные данные Vtiger",
+        "cPhoneNumber": "Номер клиента",
+        "cCallStatusRaw": "Исходный статус звонка",
+        "cLegacyRecordingUrl": "Ссылка на запись (архив, недоступна)",
+        "cBillDuration": "Оплачиваемая длительность, с",
+        "cConnectorCallId": "ID звонка в коннекторе",
+        "cIncomingLine": "Входящая линия"
+    },
+    "tooltips": {
+        "vtigerId": "Исходный crmid записи Vtiger — ключ повторного импорта.",
+        "vtigerNo": "Исходный номер записи Vtiger.",
+        "vtigerData": "Непустые исходные значения без рабочего поля (JSON). Только чтение, видно администраторам.",
+        "cLegacyRecordingUrl": "Ссылка Vtiger на выведенный из работы коннектор (127.0.0.1:5000). Аудио по ней недоступно (D-10)."
+    }
+}

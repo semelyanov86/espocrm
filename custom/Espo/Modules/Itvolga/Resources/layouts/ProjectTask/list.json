@@ -1,0 +1,26 @@
+[
+    {
+        "name": "name",
+        "link": true
+    },
+    {
+        "name": "project",
+        "width": 20
+    },
+    {
+        "name": "status",
+        "width": 12
+    },
+    {
+        "name": "progress",
+        "width": 8
+    },
+    {
+        "name": "hours",
+        "width": 8
+    },
+    {
+        "name": "dateEnd",
+        "width": 11
+    }
+]

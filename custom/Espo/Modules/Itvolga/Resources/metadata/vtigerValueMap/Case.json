@@ -1,0 +1,110 @@
+{
+    "fields": {
+        "status": {
+            "picklists": [
+                "ticketstatus"
+            ],
+            "options": [
+                "New",
+                "Assigned",
+                "Pending",
+                "Closed"
+            ],
+            "map": {
+                "HelpDesk.ticketstatus": {
+                    "Closed": "Closed",
+                    "In Progress": "Assigned",
+                    "Open": "New",
+                    "Wait For Response": "Pending"
+                },
+                "(picklist)": {
+                    "Open": "New",
+                    "In Progress": "Assigned",
+                    "Wait For Response": "Pending",
+                    "Closed": "Closed"
+                }
+            },
+            "notActualOptions": [
+                "Closed"
+            ]
+        },
+        "priority": {
+            "picklists": [
+                "ticketpriorities"
+            ],
+            "options": [
+                "Low",
+                "Normal",
+                "High",
+                "Urgent"
+            ],
+            "map": {
+                "HelpDesk.ticketpriorities": {
+                    "Normal": "Normal",
+                    "Высокий": "High",
+                    "Low": "Low"
+                },
+                "(picklist)": {
+                    "Low": "Low",
+                    "Normal": "Normal",
+                    "Высокий": "High",
+                    "Urgent": "Urgent"
+                }
+            }
+        },
+        "type": {
+            "picklists": [
+                "ticketcategories"
+            ],
+            "options": [
+                "",
+                "Big Problem",
+                "Small Problem",
+                "Другая проблема"
+            ],
+            "map": {
+                "HelpDesk.ticketcategories": {
+                    "": "",
+                    "Small Problem": "Small Problem",
+                    "Big Problem": "Big Problem",
+                    "Другая проблема": "Другая проблема"
+                },
+                "(picklist)": {
+                    "Big Problem": "Big Problem",
+                    "Small Problem": "Small Problem",
+                    "Другая проблема": "Другая проблема",
+                    "": ""
+                }
+            }
+        },
+        "cSeverity": {
+            "picklists": [
+                "ticketseverities"
+            ],
+            "options": [
+                "",
+                "Minor",
+                "Major",
+                "Особенная",
+                "Critical"
+            ],
+            "map": {
+                "HelpDesk.ticketseverities": {
+                    "Major": "Major",
+                    "Особенная": "Особенная",
+                    "": "",
+                    "Незначительная": "Minor",
+                    "Minor": "Minor"
+                },
+                "(picklist)": {
+                    "Minor": "Minor",
+                    "Major": "Major",
+                    "Незначительная": "Minor",
+                    "Особенная": "Особенная",
+                    "Critical": "Critical",
+                    "": ""
+                }
+            }
+        }
+    }
+}

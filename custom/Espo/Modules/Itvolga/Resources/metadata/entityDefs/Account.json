@@ -1,0 +1,166 @@
+{
+    "fields": {
+        "vtigerId": {
+            "type": "int",
+            "readOnly": true,
+            "disableFormatting": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "vtigerNo": {
+            "type": "varchar",
+            "maxLength": 100,
+            "readOnly": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "vtigerData": {
+            "type": "jsonObject",
+            "readOnly": true,
+            "tooltip": true,
+            "view": "itvolga:views/fields/vtiger-data",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "customizationDisabled": true
+        },
+        "type": {
+            "options": [
+                "",
+                "Analyst",
+                "Competitor",
+                "Customer",
+                "Integrator",
+                "Investor",
+                "Partner",
+                "Press",
+                "Prospect",
+                "Reseller",
+                "Other"
+            ],
+            "default": ""
+        },
+        "industry": {
+            "options": [
+                "",
+                "Apparel",
+                "Салоны красоты",
+                "Типографии",
+                "Торговля",
+                "Юридические агентства",
+                "Banking",
+                "Biotechnology",
+                "Chemicals",
+                "Communications",
+                "Construction",
+                "Consulting",
+                "Education",
+                "Electronics",
+                "Energy",
+                "Engineering",
+                "Entertainment",
+                "Environmental",
+                "Finance",
+                "Food & Beverage",
+                "Government",
+                "Healthcare",
+                "Hospitality",
+                "Insurance",
+                "Machinery",
+                "Manufacturing",
+                "Media",
+                "Not For Profit",
+                "Recreation",
+                "Retail",
+                "Shipping",
+                "Technology",
+                "Telecommunications",
+                "Transportation",
+                "Utilities",
+                "Other"
+            ],
+            "default": ""
+        },
+        "cShortName": {
+            "type": "varchar",
+            "maxLength": 30
+        },
+        "cEmployees": {
+            "type": "int",
+            "min": 0
+        },
+        "cRating": {
+            "type": "enum",
+            "options": [
+                "",
+                "Acquired",
+                "Active",
+                "Market Failed",
+                "Project Cancelled",
+                "Shutdown"
+            ],
+            "default": ""
+        },
+        "cInn": {
+            "type": "varchar",
+            "maxLength": 30,
+            "copyToClipboard": true
+        },
+        "cKpp": {
+            "type": "varchar",
+            "maxLength": 30,
+            "copyToClipboard": true
+        },
+        "cBankAccount": {
+            "type": "varchar",
+            "maxLength": 25,
+            "copyToClipboard": true
+        },
+        "cBankName": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "cCorrAccount": {
+            "type": "varchar",
+            "maxLength": 25,
+            "copyToClipboard": true
+        },
+        "cBic": {
+            "type": "varchar",
+            "maxLength": 10,
+            "copyToClipboard": true
+        },
+        "cVkUrl": {
+            "type": "url",
+            "maxLength": 155
+        }
+    },
+    "links": {
+        "cProjects": {
+            "type": "hasMany",
+            "entity": "Project",
+            "foreign": "account"
+        },
+        "cVtigerArchives": {
+            "type": "hasMany",
+            "entity": "VtigerArchive",
+            "foreign": "account"
+        }
+    },
+    "indexes": {
+        "vtigerId": {
+            "type": "unique",
+            "columns": [
+                "vtigerId"
+            ]
+        },
+        "cInn": {
+            "columns": [
+                "cInn",
+                "deleted"
+            ]
+        }
+    }
+}

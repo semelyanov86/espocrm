@@ -1,0 +1,41 @@
+{
+    "options": {
+        "status": {
+            "New": "Открыто",
+            "Assigned": "В прогрессе",
+            "Pending": "Ожидание ответа",
+            "Closed": "Закрыто"
+        },
+        "priority": {
+            "Low": "Низкий",
+            "Normal": "Нормальный",
+            "High": "Высокий",
+            "Urgent": "Чрезвычайный"
+        },
+        "type": {
+            "Big Problem": "Большая проблема",
+            "Small Problem": "Средняя проблема"
+        },
+        "cSeverity": {
+            "Minor": "Незначительная",
+            "Major": "Значительная",
+            "Critical": "Критичная"
+        }
+    },
+    "fields": {
+        "vtigerId": "ID в Vtiger",
+        "vtigerNo": "Номер в Vtiger",
+        "vtigerData": "Исходные данные Vtiger",
+        "cSeverity": "Важность",
+        "cSolution": "Решение",
+        "cTags": "Теги"
+    },
+    "links": {
+        "cDocuments": "Документы"
+    },
+    "tooltips": {
+        "vtigerId": "Исходный crmid записи Vtiger — ключ повторного импорта.",
+        "vtigerNo": "Исходный номер записи Vtiger.",
+        "vtigerData": "Непустые исходные значения без рабочего поля (JSON). Только чтение, видно администраторам."
+    }
+}

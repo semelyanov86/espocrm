@@ -1,0 +1,18 @@
+{
+    "scopeNames": {
+        "Vendor": "Поставщик",
+        "Product": "Товар / услуга",
+        "Project": "Проект",
+        "ProjectTask": "Задача проекта",
+        "VtigerArchive": "Архив Vtiger",
+        "ContactAccess": "Доступ"
+    },
+    "scopeNamesPlural": {
+        "Vendor": "Поставщики",
+        "Product": "Товары и услуги",
+        "Project": "Проекты (архив)",
+        "ProjectTask": "Задачи проектов (архив)",
+        "VtigerArchive": "Архив Vtiger",
+        "ContactAccess": "Доступы"
+    }
+}

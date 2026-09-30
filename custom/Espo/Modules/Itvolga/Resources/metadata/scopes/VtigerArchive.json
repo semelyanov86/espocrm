@@ -1,0 +1,23 @@
+{
+    "entity": true,
+    "layouts": true,
+    "tab": true,
+    "acl": true,
+    "aclPortal": false,
+    "module": "Itvolga",
+    "customizable": false,
+    "importable": false,
+    "notifications": false,
+    "object": true,
+    "type": "Base",
+    "stream": false,
+    "aclActionList": [
+        "read"
+    ],
+    "aclLevelList": [
+        "all",
+        "team",
+        "own",
+        "no"
+    ]
+}

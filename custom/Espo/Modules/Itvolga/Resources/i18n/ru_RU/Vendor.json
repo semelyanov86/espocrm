@@ -1,0 +1,24 @@
+{
+    "fields": {
+        "vtigerId": "ID в Vtiger",
+        "vtigerNo": "Номер в Vtiger",
+        "vtigerData": "Исходные данные Vtiger",
+        "name": "Название",
+        "website": "Сайт",
+        "emailAddress": "Email",
+        "phoneNumber": "Телефон",
+        "inn": "ИНН",
+        "products": "Товары и услуги"
+    },
+    "links": {
+        "products": "Товары и услуги"
+    },
+    "tooltips": {
+        "vtigerId": "Исходный crmid записи Vtiger — ключ повторного импорта.",
+        "vtigerNo": "Исходный номер записи Vtiger.",
+        "vtigerData": "Непустые исходные значения без рабочего поля (JSON). Только чтение, видно администраторам."
+    },
+    "labels": {
+        "Create Vendor": "Создать поставщика"
+    }
+}

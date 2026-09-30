@@ -1,0 +1,97 @@
+{
+    "fields": {
+        "vtigerId": {
+            "type": "int",
+            "readOnly": true,
+            "disableFormatting": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "vtigerNo": {
+            "type": "varchar",
+            "maxLength": 100,
+            "readOnly": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "vtigerData": {
+            "type": "jsonObject",
+            "readOnly": true,
+            "tooltip": true,
+            "view": "itvolga:views/fields/vtiger-data",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "customizationDisabled": true
+        },
+        "status": {
+            "options": [
+                "New",
+                "Assigned",
+                "Pending",
+                "Closed"
+            ],
+            "default": "New",
+            "notActualOptions": [
+                "Closed"
+            ]
+        },
+        "priority": {
+            "options": [
+                "Low",
+                "Normal",
+                "High",
+                "Urgent"
+            ],
+            "default": "Normal"
+        },
+        "type": {
+            "options": [
+                "",
+                "Big Problem",
+                "Small Problem",
+                "Другая проблема"
+            ],
+            "default": ""
+        },
+        "cSeverity": {
+            "type": "enum",
+            "options": [
+                "",
+                "Minor",
+                "Major",
+                "Особенная",
+                "Critical"
+            ],
+            "default": ""
+        },
+        "cSolution": {
+            "type": "text"
+        },
+        "cTags": {
+            "type": "multiEnum",
+            "options": [],
+            "allowCustomOptions": true,
+            "isSorted": true,
+            "displayAsLabel": true
+        }
+    },
+    "links": {
+        "cDocuments": {
+            "type": "hasMany",
+            "entity": "Document",
+            "foreign": "cCases",
+            "relationName": "cCaseDocument"
+        }
+    },
+    "indexes": {
+        "vtigerId": {
+            "type": "unique",
+            "columns": [
+                "vtigerId"
+            ]
+        }
+    }
+}

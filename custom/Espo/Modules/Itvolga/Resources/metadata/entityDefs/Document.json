@@ -1,0 +1,80 @@
+{
+    "fields": {
+        "vtigerId": {
+            "type": "int",
+            "readOnly": true,
+            "disableFormatting": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "vtigerNo": {
+            "type": "varchar",
+            "maxLength": 100,
+            "readOnly": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "vtigerData": {
+            "type": "jsonObject",
+            "readOnly": true,
+            "tooltip": true,
+            "view": "itvolga:views/fields/vtiger-data",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "customizationDisabled": true
+        },
+        "cExternalUrl": {
+            "type": "url",
+            "maxLength": 255
+        },
+        "file": {
+            "required": false
+        },
+        "publishDate": {
+            "required": false
+        }
+    },
+    "links": {
+        "cCases": {
+            "type": "hasMany",
+            "entity": "Case",
+            "foreign": "cDocuments",
+            "relationName": "cCaseDocument"
+        },
+        "cKnowledgeBaseArticles": {
+            "type": "hasMany",
+            "entity": "KnowledgeBaseArticle",
+            "foreign": "cDocuments",
+            "relationName": "cKnowledgeBaseArticleDocument"
+        },
+        "cProjects": {
+            "type": "hasMany",
+            "entity": "Project",
+            "foreign": "documents",
+            "relationName": "projectDocument"
+        },
+        "cProjectTasks": {
+            "type": "hasMany",
+            "entity": "ProjectTask",
+            "foreign": "documents",
+            "relationName": "projectTaskDocument"
+        },
+        "cVtigerArchives": {
+            "type": "hasMany",
+            "entity": "VtigerArchive",
+            "foreign": "documents",
+            "relationName": "vtigerArchiveDocument"
+        }
+    },
+    "indexes": {
+        "vtigerId": {
+            "type": "unique",
+            "columns": [
+                "vtigerId"
+            ]
+        }
+    }
+}

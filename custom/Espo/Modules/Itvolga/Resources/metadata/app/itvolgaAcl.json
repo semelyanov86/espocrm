@@ -1,0 +1,18 @@
+{
+    "comment": "Vtiger role hierarchy and sharing rules reproduced with EspoCRM teams (decision D-39). Private modules of Vtiger are visible to the owner, to users of superior roles and to members of the owning group; EspoCRM reproduces the superior-role part with hierarchy teams below.",
+    "groupTeams": ["Отдел Поддержки", "Отдел Маркетинга", "Отдел Продаж"],
+    "hierarchyTeams": [
+        {
+            "team": "Подчинённые заместителей",
+            "memberRoles": ["Заместитель директора"],
+            "assignedUserRoles": ["Менеджер по продажам", "Менеджер клиентов"],
+            "entityTypes": ["Account", "Contact", "Opportunity", "Task", "Call", "Meeting", "Document", "Email", "Case", "Project", "ProjectTask"]
+        },
+        {
+            "team": "Заместители директора",
+            "memberRoles": ["Заместитель директора"],
+            "assignedUserRoles": ["Заместитель директора"],
+            "entityTypes": ["Contact"]
+        }
+    ]
+}

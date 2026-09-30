@@ -1,0 +1,16 @@
+[
+    "assignedUser",
+    "teams",
+    "project",
+    "status",
+    "priority",
+    "type",
+    "progress",
+    "dateStart",
+    "dateEnd",
+    "showInStat",
+    "tags",
+    "createdAt",
+    "modifiedAt",
+    "vtigerNo"
+]

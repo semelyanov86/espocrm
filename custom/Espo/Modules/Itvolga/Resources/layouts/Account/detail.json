@@ -1,0 +1,120 @@
+[
+    {
+        "label": "Overview",
+        "rows": [
+            [
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "cShortName"
+                }
+            ],
+            [
+                {
+                    "name": "website"
+                },
+                {
+                    "name": "cVkUrl"
+                }
+            ],
+            [
+                {
+                    "name": "emailAddress"
+                },
+                {
+                    "name": "phoneNumber"
+                }
+            ],
+            [
+                {
+                    "name": "billingAddress"
+                },
+                {
+                    "name": "shippingAddress"
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Details",
+        "rows": [
+            [
+                {
+                    "name": "type"
+                },
+                {
+                    "name": "industry"
+                }
+            ],
+            [
+                {
+                    "name": "cRating"
+                },
+                {
+                    "name": "cEmployees"
+                }
+            ],
+            [
+                {
+                    "name": "sicCode"
+                },
+                false
+            ],
+            [
+                {
+                    "name": "description",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Реквизиты",
+        "rows": [
+            [
+                {
+                    "name": "cInn"
+                },
+                {
+                    "name": "cKpp"
+                }
+            ],
+            [
+                {
+                    "name": "cBankAccount"
+                },
+                {
+                    "name": "cBic"
+                }
+            ],
+            [
+                {
+                    "name": "cBankName"
+                },
+                {
+                    "name": "cCorrAccount"
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Vtiger",
+        "rows": [
+            [
+                {
+                    "name": "vtigerNo"
+                },
+                {
+                    "name": "vtigerId"
+                }
+            ],
+            [
+                {
+                    "name": "vtigerData",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    }
+]

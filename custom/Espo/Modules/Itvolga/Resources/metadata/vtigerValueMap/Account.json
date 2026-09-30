@@ -1,0 +1,229 @@
+{
+    "fields": {
+        "industry": {
+            "picklists": [
+                "industry"
+            ],
+            "options": [
+                "",
+                "Apparel",
+                "Салоны красоты",
+                "Типографии",
+                "Торговля",
+                "Юридические агентства",
+                "Banking",
+                "Biotechnology",
+                "Chemicals",
+                "Communications",
+                "Construction",
+                "Consulting",
+                "Education",
+                "Electronics",
+                "Energy",
+                "Engineering",
+                "Entertainment",
+                "Environmental",
+                "Finance",
+                "Food & Beverage",
+                "Government",
+                "Healthcare",
+                "Hospitality",
+                "Insurance",
+                "Machinery",
+                "Manufacturing",
+                "Media",
+                "Not For Profit",
+                "Recreation",
+                "Retail",
+                "Shipping",
+                "Technology",
+                "Telecommunications",
+                "Transportation",
+                "Utilities",
+                "Other"
+            ],
+            "map": {
+                "Accounts.industry": {
+                    "": "",
+                    "Консалтинг": "Consulting",
+                    "Типографии": "Типографии",
+                    "Развлечения": "Entertainment",
+                    "Легкая промышленность": "Apparel",
+                    "Недвижимость": "Retail",
+                    "Машиностроение": "Machinery",
+                    "Неприбыльные организации": "Not For Profit",
+                    "Доставка": "Shipping",
+                    "Производство": "Manufacturing",
+                    "Масс Медиа": "Media",
+                    "Финансы": "Finance",
+                    "Юридические агентства": "Юридические агентства",
+                    "Строительство": "Construction",
+                    "Торговля": "Торговля",
+                    "Пищевая промышленность": "Food & Beverage",
+                    "Образование": "Education",
+                    "Электроника": "Electronics",
+                    "Здравоохранение": "Healthcare",
+                    "Коммуникации": "Communications",
+                    "Технологии": "Technology",
+                    "Shipping": "Shipping",
+                    "Коммунальные услуги": "Utilities"
+                },
+                "Leads.industry": {
+                    "Недвижимость": "Retail",
+                    "": "",
+                    "Типографии": "Типографии",
+                    "Финансы": "Finance",
+                    "Консалтинг": "Consulting",
+                    "Торговля": "Торговля",
+                    "Строительство": "Construction",
+                    "Юридические агентства": "Юридические агентства",
+                    "Здравоохранение": "Healthcare",
+                    "Доставка": "Shipping",
+                    "Производство": "Manufacturing",
+                    "Развлечения": "Entertainment",
+                    "Масс Медиа": "Media",
+                    "Коммунальные услуги": "Utilities",
+                    "Легкая промышленность": "Apparel",
+                    "Коммуникации": "Communications",
+                    "Технологии": "Technology",
+                    "Правительство": "Government",
+                    "Салоны красоты": "Салоны красоты"
+                },
+                "(picklist)": {
+                    "Apparel": "Apparel",
+                    "Доставка": "Shipping",
+                    "Здравоохранение": "Healthcare",
+                    "Коммунальные услуги": "Utilities",
+                    "Коммуникации": "Communications",
+                    "Консалтинг": "Consulting",
+                    "Легкая промышленность": "Apparel",
+                    "Масс Медиа": "Media",
+                    "Машиностроение": "Machinery",
+                    "Недвижимость": "Retail",
+                    "Неприбыльные организации": "Not For Profit",
+                    "Образование": "Education",
+                    "Пищевая промышленность": "Food & Beverage",
+                    "Правительство": "Government",
+                    "Производство": "Manufacturing",
+                    "Развлечения": "Entertainment",
+                    "Салоны красоты": "Салоны красоты",
+                    "Строительство": "Construction",
+                    "Технологии": "Technology",
+                    "Типографии": "Типографии",
+                    "Торговля": "Торговля",
+                    "Финансы": "Finance",
+                    "Электроника": "Electronics",
+                    "Юридические агентства": "Юридические агентства",
+                    "Banking": "Banking",
+                    "Biotechnology": "Biotechnology",
+                    "Chemicals": "Chemicals",
+                    "Communications": "Communications",
+                    "Construction": "Construction",
+                    "Consulting": "Consulting",
+                    "Education": "Education",
+                    "Electronics": "Electronics",
+                    "Energy": "Energy",
+                    "Engineering": "Engineering",
+                    "Entertainment": "Entertainment",
+                    "Environmental": "Environmental",
+                    "Finance": "Finance",
+                    "Food & Beverage": "Food & Beverage",
+                    "Government": "Government",
+                    "Healthcare": "Healthcare",
+                    "Hospitality": "Hospitality",
+                    "Insurance": "Insurance",
+                    "Machinery": "Machinery",
+                    "Manufacturing": "Manufacturing",
+                    "Media": "Media",
+                    "Not For Profit": "Not For Profit",
+                    "Recreation": "Recreation",
+                    "Retail": "Retail",
+                    "Shipping": "Shipping",
+                    "Technology": "Technology",
+                    "Telecommunications": "Telecommunications",
+                    "Transportation": "Transportation",
+                    "Utilities": "Utilities",
+                    "Other": "Other",
+                    "": ""
+                }
+            }
+        },
+        "type": {
+            "picklists": [
+                "accounttype"
+            ],
+            "options": [
+                "",
+                "Analyst",
+                "Competitor",
+                "Customer",
+                "Integrator",
+                "Investor",
+                "Partner",
+                "Press",
+                "Prospect",
+                "Reseller",
+                "Other"
+            ],
+            "map": {
+                "Accounts.accounttype": {
+                    "": "",
+                    "Customer": "Customer",
+                    "Клиент": "Customer"
+                },
+                "(picklist)": {
+                    "Analyst": "Analyst",
+                    "Клиент": "Customer",
+                    "Competitor": "Competitor",
+                    "Customer": "Customer",
+                    "Integrator": "Integrator",
+                    "Investor": "Investor",
+                    "Partner": "Partner",
+                    "Press": "Press",
+                    "Prospect": "Prospect",
+                    "Reseller": "Reseller",
+                    "Other": "Other",
+                    "": ""
+                }
+            }
+        },
+        "cRating": {
+            "picklists": [
+                "rating"
+            ],
+            "options": [
+                "",
+                "Acquired",
+                "Active",
+                "Market Failed",
+                "Project Cancelled",
+                "Shutdown"
+            ],
+            "map": {
+                "Accounts.rating": {
+                    "": "",
+                    "Активный": "Active",
+                    "Закрыт": "Shutdown"
+                },
+                "Leads.rating": {
+                    "Активный": "Active",
+                    "": "",
+                    "Приобретенный": "Acquired",
+                    "Неудачно": "Market Failed"
+                },
+                "(picklist)": {
+                    "Acquired": "Acquired",
+                    "Активный": "Active",
+                    "Закрыт": "Shutdown",
+                    "Неудачно": "Market Failed",
+                    "Приобретенный": "Acquired",
+                    "Active": "Active",
+                    "Market Failed": "Market Failed",
+                    "Project Cancelled": "Project Cancelled",
+                    "Shutdown": "Shutdown",
+                    "": ""
+                }
+            }
+        }
+    }
+}

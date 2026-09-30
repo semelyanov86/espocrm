@@ -1,0 +1,101 @@
+[
+    {
+        "label": "Overview",
+        "rows": [
+            [
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "accountName"
+                }
+            ],
+            [
+                {
+                    "name": "emailAddress"
+                },
+                {
+                    "name": "phoneNumber"
+                }
+            ],
+            [
+                {
+                    "name": "title"
+                },
+                {
+                    "name": "website"
+                }
+            ],
+            [
+                {
+                    "name": "address"
+                },
+                {
+                    "name": "cVkUrl"
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Details",
+        "rows": [
+            [
+                {
+                    "name": "status"
+                },
+                {
+                    "name": "source"
+                }
+            ],
+            [
+                {
+                    "name": "cPriority"
+                },
+                {
+                    "name": "cRating"
+                }
+            ],
+            [
+                {
+                    "name": "opportunityAmount"
+                },
+                {
+                    "name": "campaign"
+                }
+            ],
+            [
+                {
+                    "name": "industry"
+                },
+                {
+                    "name": "cJivositeId"
+                }
+            ],
+            [
+                {
+                    "name": "description",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Vtiger",
+        "rows": [
+            [
+                {
+                    "name": "vtigerNo"
+                },
+                {
+                    "name": "vtigerId"
+                }
+            ],
+            [
+                {
+                    "name": "vtigerData",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    }
+]

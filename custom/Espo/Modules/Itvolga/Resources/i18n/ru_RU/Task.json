@@ -1,0 +1,28 @@
+{
+    "options": {
+        "status": {
+            "Not Started": "Не начато",
+            "Started": "В прогрессе",
+            "Completed": "Завершено",
+            "Pending Input": "В ожидании",
+            "Deferred": "Отсрочено",
+            "Planned": "Запланировано"
+        },
+        "priority": {
+            "High": "Высокий",
+            "Normal": "Средний",
+            "Low": "Низкий"
+        }
+    },
+    "fields": {
+        "vtigerId": "ID в Vtiger",
+        "vtigerNo": "Номер в Vtiger",
+        "vtigerData": "Исходные данные Vtiger",
+        "cTaskType": "Вид задачи"
+    },
+    "tooltips": {
+        "vtigerId": "Исходный crmid записи Vtiger — ключ повторного импорта.",
+        "vtigerNo": "Исходный номер записи Vtiger.",
+        "vtigerData": "Непустые исходные значения без рабочего поля (JSON). Только чтение, видно администраторам."
+    }
+}

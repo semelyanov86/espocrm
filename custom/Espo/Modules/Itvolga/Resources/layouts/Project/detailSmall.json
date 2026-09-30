@@ -1,0 +1,61 @@
+[
+    {
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "account"
+                }
+            ],
+            [
+                {
+                    "name": "status"
+                },
+                {
+                    "name": "opportunity"
+                }
+            ],
+            [
+                {
+                    "name": "type"
+                },
+                {
+                    "name": "priority"
+                }
+            ],
+            [
+                {
+                    "name": "progress"
+                },
+                {
+                    "name": "budget"
+                }
+            ],
+            [
+                {
+                    "name": "dateStart"
+                },
+                {
+                    "name": "dateEndPlanned"
+                }
+            ],
+            [
+                {
+                    "name": "dateEnd"
+                },
+                {
+                    "name": "url"
+                }
+            ],
+            [
+                {
+                    "name": "description",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    }
+]

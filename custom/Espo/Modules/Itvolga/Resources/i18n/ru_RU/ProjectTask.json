@@ -1,0 +1,51 @@
+{
+    "options": {
+        "status": {
+            "Open": "Открыт",
+            "In Progress": "В прогрессе",
+            "Completed": "Завершенный",
+            "Deferred": "Отложенный",
+            "Canceled": "Отменен"
+        },
+        "priority": {
+            "low": "Низкий",
+            "normal": "Нормальный",
+            "high": "Высокий"
+        },
+        "type": {
+            "administrative": "Административное",
+            "operative": "Оперативное",
+            "other": "Другое"
+        }
+    },
+    "fields": {
+        "vtigerId": "ID в Vtiger",
+        "vtigerNo": "Номер в Vtiger",
+        "vtigerData": "Исходные данные Vtiger",
+        "name": "Название",
+        "project": "Проект",
+        "status": "Статус",
+        "priority": "Приоритет",
+        "type": "Тип",
+        "progress": "Выполнено",
+        "orderNumber": "Порядковый номер",
+        "hours": "Отработано часов",
+        "dateStart": "Начало",
+        "dateEnd": "Окончание",
+        "showInStat": "Показывать в статистике",
+        "gitCommit": "Git-коммит",
+        "tags": "Теги"
+    },
+    "links": {
+        "project": "Проект",
+        "documents": "Документы"
+    },
+    "tooltips": {
+        "vtigerId": "Исходный crmid записи Vtiger — ключ повторного импорта.",
+        "vtigerNo": "Исходный номер записи Vtiger.",
+        "vtigerData": "Непустые исходные значения без рабочего поля (JSON). Только чтение, видно администраторам."
+    },
+    "labels": {
+        "Create ProjectTask": "Создать задачу проекта"
+    }
+}

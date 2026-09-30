@@ -17,6 +17,18 @@ grep ESPO_ADMIN /data/itvolga/espo-private/stand/local.env
 
 Сменить пароль: `task espo -- set-password admin` (спросит новый) и записать его в `ESPO_ADMIN_PASSWORD` — по нему health-check проверяет вход.
 
+## Модель CRM (этап 03)
+
+Код модели — модуль `custom/Espo/Modules/Itvolga` (+ `client/custom/modules/itvolga`), описание — `docs/migration/model.md`. После установки с нуля или изменения метаданных:
+
+```bash
+task model:apply          # clear-cache, rebuild, роли/команды/вкладки (itvolga-setup-acl), отметка времени клиента
+task test:stage03         # приёмочные тесты модели и доступа на синтетических данных
+task model:check          # сверка field-map.csv / relations.csv с метаданными
+```
+
+`model:apply` очищает кэш, поэтому до следующего запуска cron (≤ 1 мин) health-check сообщает `cron: last cron.php run … missing` — это ожидаемо.
+
 ## Что устанавливается и где
 
 | Компонент | Версия / значение | Где | Почему так |

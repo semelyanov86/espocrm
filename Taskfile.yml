@@ -89,6 +89,35 @@ tasks:
     cmds:
       - scripts/stand/ctl.sh db-shell
 
+  # --- model, access control and tests (stage 03) ---------------------------------------------
+  model:apply:
+    desc: Deploy the Itvolga module to the stand (rebuild, roles/teams/tabs, client cache timestamp)
+    cmds:
+      - scripts/stand/espo.sh clear-cache
+      - scripts/stand/espo.sh rebuild
+      - scripts/stand/espo.sh itvolga-setup-acl
+      - scripts/stand/espo.sh update-app-timestamp
+
+  model:check:
+    desc: Check field-map.csv / relations.csv targets against the merged EspoCRM metadata
+    cmds:
+      - python3 scripts/model/model_check.py
+
+  model:value-maps:
+    desc: Regenerate enum options, labels and the Vtiger value dictionary (-- <private audit dir> [--check])
+    cmds:
+      - python3 scripts/model/build_value_maps.py {{.CLI_ARGS}}
+
+  maps:build:
+    desc: Regenerate field-map.csv and relations.csv from a private audit run (-- <private audit dir>)
+    cmds:
+      - python3 scripts/audit/build_maps.py {{.CLI_ARGS}} docs/migration
+
+  test:stage03:
+    desc: Stage 03 acceptance tests on the stand (synthetic data, created and deleted by the run)
+    cmds:
+      - python3 -m unittest discover -s tests/stage03 -v
+
   # --- source audit and repository checks (stage 01) ------------------------------------------
   audit:run:
     desc: Full read-only audit of the Vtiger source (results go to the private directory)

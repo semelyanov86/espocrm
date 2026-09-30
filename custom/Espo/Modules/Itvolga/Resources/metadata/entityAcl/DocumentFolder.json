@@ -1,0 +1,11 @@
+{
+    "fields": {
+        "vtigerId": {
+            "readOnly": true
+        },
+        "vtigerData": {
+            "readOnly": true,
+            "onlyAdmin": true
+        }
+    }
+}

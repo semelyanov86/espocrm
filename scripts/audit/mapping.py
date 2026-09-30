@@ -1,7 +1,8 @@
 """Proposed Vtiger -> EspoCRM mapping rules used by build_maps.py.
 
-Every target here is a PROPOSAL from the stage-01 audit: it is not implemented or verified in
-EspoCRM yet. Stage 03/04 must confirm each row and flip `mapping_status` in field-map.csv.
+Targets started as PROPOSALS of the stage-01 audit. build_maps.py checks every target against the EspoCRM model
+(scripts/model/model_check.py, column `espo_check`); a row whose target exists with a compatible type and length
+gets `mapping_status=реализовано (этап 03)`. Rows of later stages stay `предложено`.
 
 Conventions (see docs/migration/decisions.md):
 - custom fields on standard EspoCRM entities use the `c` prefix (cInn);
@@ -48,6 +49,9 @@ MODULES = {
 }
 
 ARCHIVE_MODULES = {"Consignment", "ServiceContracts", "Assets", "Jivosite", "JVmes"}
+
+# Enum values go through the generated dictionary of stage 03 (scripts/model/build_value_maps.py).
+D = "словарь metadata/vtigerValueMap/{} (D-19, на утверждении — Q-32)"
 
 # Fields shared by most modules (vtiger_crmentity and common columns).
 COMMON = {
@@ -135,9 +139,9 @@ F["Accounts"] = {
     "email1": ("emailAddress (primary)", "email lower-case", "count+hash"),
     "email2": ("emailAddress (secondary)", "email lower-case", "count+hash"),
     "ownership": ("vtigerData.ownership", "string", "count+hash"),
-    "industry": ("industry", "enum: словарь синонимов (D-19), исходное значение → vtigerData", "count+distribution"),
-    "rating": ("cRating", "enum", "count+distribution"),
-    "accounttype": ("type", "enum: Клиент/Customer → Customer", "count+distribution"),
+    "industry": ("industry", "enum: " + D.format("Account.json") + "; исходное значение → vtigerData, если изменено", "count+distribution"),
+    "rating": ("cRating", "enum: " + D.format("Account.json"), "count+distribution"),
+    "accounttype": ("type", "enum: " + D.format("Account.json") + " (Клиент/Customer → Customer)", "count+distribution"),
     "siccode": ("sicCode", "string", "count+hash"),
     "annual_revenue": ("vtigerData.annual_revenue", "decimal (0 = пусто)", "count+sum"),
     "inn": ("cInn", "string (ключ поиска плательщика при банковском импорте)", "count+hash"),
@@ -153,17 +157,19 @@ F["Accounts"] = {
 
 F["Contacts"] = {
     "contact_no": ("vtigerNo", "string (КОНТАКТ_N)", "count+hash"),
-    "salutationtype": ("salutationName", "enum mapping", "count+distribution"),
+    "salutationtype": ("salutationName", "enum: только стандартные Mr./Ms./Mrs./Dr./Prof.; прочий текст (2 контакта — сдвиг "
+                                         "старого импорта, проверено 2026-09-30) → vtigerData.salutationtype", "count+distribution"),
     "firstname": ("firstName", "string", "count+hash"),
     "lastname": ("lastName", "string", "count+hash"),
     "account_id": ("account (accounts primary)", "fk", "fk"),
-    "leadsource": ("cLeadSource", "enum", "count+distribution"),
+    "leadsource": ("cLeadSource", "enum: " + D.format("Lead.json") + " (общий список источников)", "count+distribution"),
     "title": ("title", "string", "count+hash"),
     "department": ("cDepartment", "string", "count+hash"),
     "email": ("emailAddress (primary)", "email lower-case", "count+hash"),
     "secondaryemail": ("emailAddress (secondary)", "email lower-case", "count+hash"),
     "birthday": ("cBirthday", "date", "count+hash"),
-    "contact_id": ("cReportsTo", "fk (в источнике пусто)", "fk"),
+    "contact_id": (None, "исключено: во всех живых записях '0' — ссылки нет (relations.csv Contacts.reportsto = 0; "
+                         "проверено 2026-09-30)", "count"),
     "donotcall": ("doNotCall", "bool", "count"),
     "reference": (None, "исключено: истинных значений нет", "count"),
     "portal": ("vtigerData.portal", "bool; портал не используется (0 портальных пользователей)", "count"),
@@ -177,7 +183,7 @@ F["Contacts"] = {
     "cf_1324": ("ContactAccess.anydeskPassword", "SECURE: шифрование/отдельное хранилище; значения не логировать и не выводить", "count+hash (без вывода)"),
     "cf_1326": ("ContactAccess.hostname", "SECURE: отдельная сущность с ограниченным ACL", "count+hash (без вывода)"),
     "cf_1328": ("ContactAccess.ipAddress", "SECURE: отдельная сущность с ограниченным ACL", "count+hash (без вывода)"),
-    "imagename": ("avatar", "attachment (Contacts Image); имён больше, чем файлов — см. open-questions", "file-hash"),
+    "imagename": ("cPhoto", "image: вложение Contacts Image (1 файл); 5 имён без файла — принятая потеря (D-23)", "file-hash"),
     "vk_url": ("cVkUrl", "url", "count+hash"),
     "mailingstreet": ("addressStreet", "address", "count+hash"), "mailingcity": ("addressCity", "address", "count+hash"),
     "mailingstate": ("addressState", "address", "count+hash"), "mailingzip": ("addressPostalCode", "address", "count+hash"),
@@ -190,22 +196,23 @@ F["Contacts"] = {
 
 F["Leads"] = {
     "lead_no": ("vtigerNo", "string (ОБР_N)", "count+hash"),
-    "salutationtype": ("salutationName", "enum", "count+distribution"),
+    "salutationtype": ("salutationName", "enum: только стандартные Mr./Ms./Mrs./Dr./Prof.; прочий текст (6 обращений — сдвиг "
+                                         "старого импорта, проверено 2026-09-30) → vtigerData.salutationtype", "count+distribution"),
     "firstname": ("firstName", "string", "count+hash"),
     "lastname": ("lastName", "string", "count+hash"),
     "company": ("accountName", "string", "count+hash"),
     "designation": ("title", "string", "count+hash"),
-    "leadsource": ("source", "enum: словарь синонимов (D-19), исходное значение → vtigerData", "count+distribution"),
+    "leadsource": ("source", "enum: " + D.format("Lead.json") + "; исходное значение → vtigerData, если изменено", "count+distribution"),
     "email": ("emailAddress (primary)", "email", "count+hash"),
     "secondaryemail": ("emailAddress (secondary)", "email", "count+hash"),
-    "industry": ("industry", "enum", "count+distribution"),
+    "industry": ("industry", "enum: " + D.format("Account.json") + " (список общий с Account)", "count+distribution"),
     "website": ("website", "url", "count+hash"),
     "annualrevenue": ("vtigerData.annualrevenue", "decimal (0 = пусто)", "count+sum"),
-    "leadstatus": ("status", "enum mapping; converted=1 → Converted", "count+distribution"),
+    "leadstatus": ("status", "enum: " + D.format("Lead.json") + "; Not Contacted → New; converted=1 → Converted", "count+distribution"),
     "noofemployees": ("vtigerData.noofemployees", "int (0 = пусто)", "count+sum"),
-    "rating": ("cRating", "enum", "count+distribution"),
+    "rating": ("cRating", "enum: " + D.format("Account.json") + " (список общий с Account)", "count+distribution"),
     "vk_url": ("cVkUrl", "url", "count+hash"),
-    "cf_1107": ("cPriority", "enum Обычный/Высокий/VIP/Низкий", "count+distribution"),
+    "cf_1107": ("cPriority", "enum: " + D.format("Lead.json"), "count+distribution"),
     "cf_1165": ("cJivositeId", "int", "count+hash"),
     "lane": ("addressStreet", "address", "count+hash"), "city": ("addressCity", "address", "count+hash"),
     "state": ("addressState", "address", "count+hash"), "code": ("addressPostalCode", "address", "count+hash"),
@@ -219,11 +226,12 @@ F["Potentials"] = {
     "related_to": ("account", "fk", "fk"),
     "contact_id": ("contacts (primary)", "fk", "fk"),
     "amount": ("amount", "currency decimal", "count+sum"),
-    "opportunity_type": ("cOpportunityType", "enum", "count+distribution"),
+    "opportunity_type": ("cOpportunityType", "enum: " + D.format("Opportunity.json"), "count+distribution"),
     "closingdate": ("closeDate", "date", "count+hash"),
-    "leadsource": ("leadSource", "enum", "count+distribution"),
+    "leadsource": ("leadSource", "enum: " + D.format("Lead.json") + " (optionsReference Lead.source)", "count+distribution"),
     "nextstep": ("vtigerData.nextstep", "string", "count+hash"),
-    "sales_stage": ("stage", "enum mapping (англ. стадии + 'Переговоры')", "count+distribution"),
+    "sales_stage": ("stage", "enum: " + D.format("Opportunity.json") + "; английские стадии Vtiger — ключи, «Переговоры» — "
+                                   "отдельная опция до решения по Q-32", "count+distribution"),
     "campaignid": ("campaign", "fk (в источнике пусто)", "fk"),
     "probability": ("probability", "int %", "count+sum"),
     "forecast_amount": (None, "исключено: вычисляется workflow (amount×probability) — пересчитывается", "count+sum"),
@@ -236,9 +244,9 @@ F["Calendar"] = {
     "time_start": ("dateStart (время)", "склейка с date_start", "count+hash"),
     "due_date": ("dateEnd", "date (срок задачи)", "count+hash"),
     "parent_id": ("parent", "fk из vtiger_seactivityrel", "fk"),
-    "contact_id": ("parent/contact", "fk из vtiger_cntactivityrel", "fk"),
-    "taskstatus": ("status", "Not Started→Not Started; In Progress→Started; Completed→Completed", "count+distribution"),
-    "taskpriority": ("priority", "High/Medium/Low→High/Normal/Low", "count+distribution"),
+    "contact_id": ("contact", "fk из vtiger_cntactivityrel", "fk"),
+    "taskstatus": ("status", "enum: " + D.format("Task.json") + " (In Progress → Started)", "count+distribution"),
+    "taskpriority": ("priority", "enum: " + D.format("Task.json") + " (Medium → Normal; пусто остаётся пустым)", "count+distribution"),
     "sendnotification": (None, "исключено: флаг уведомления (все 0)", "count"),
     "activitytype": (None, "служебное: Task", "count"),
     "visibility": (None, "исключено: все Private (ACL задаётся владельцем)", "count"),
@@ -257,10 +265,12 @@ F["Events"] = {
     "time_start": ("dateStart (время)", "склейка", "count+hash"),
     "due_date": ("dateEnd", "date+time_end → datetime → UTC по эпохам D-30", "count+hash"),
     "time_end": ("dateEnd (время)", "склейка", "count+hash"),
-    "duration_hours": ("duration", "часы+минуты → секунды", "count+sum"),
-    "duration_minutes": ("duration", "часы+минуты → секунды", "count+sum"),
-    "eventstatus": ("status", "Held→Held; Planned→Planned", "count+distribution"),
-    "activitytype": ("(entityType)", "Call→Call; Meeting→Meeting; 'Письмо'→Task с видом «Письмо» (Q-10)", "count+distribution"),
+    "duration_hours": ("Call.duration|Meeting.duration", "часы+минуты → секунды; у Task («Письмо») длительность "
+                                                         "не хранится — определяется датами", "count+sum"),
+    "duration_minutes": ("Call.duration|Meeting.duration", "часы+минуты → секунды", "count+sum"),
+    "eventstatus": ("status", "enum: " + D.format("Call.json, Meeting.json, Task.json") + "; Call/Meeting как есть; "
+                              "Task «Письмо»: Held→Completed, Planned→Planned, Not Held→Canceled", "count+distribution"),
+    "activitytype": ("Task.cTaskType", "Call→Call; Meeting→Meeting; 'Письмо'→Task с cTaskType=«Письмо» (Q-10, D-24)", "count+distribution"),
     "taskpriority": ("vtigerData.taskpriority", "enum", "count"),
     "visibility": (None, "исключено: все Public", "count"),
     "sendnotification": (None, "исключено: все 0", "count"),
@@ -272,7 +282,7 @@ F["Events"] = {
     "salesorder_id": ("vtigerData.salesorder_id", "кастомная ссылка (пусто)", "fk"),
     "timesheet_id": ("vtigerData.timesheet_id", "кастомная ссылка (пусто)", "fk"),
     "duration_seconds": ("vtigerData.duration_seconds", "string", "count"),
-    "contact_id": ("contacts", "fk из vtiger_cntactivityrel", "fk"),
+    "contact_id": ("Call.contacts|Meeting.contacts|Task.contact", "fk из vtiger_cntactivityrel", "fk"),
     "parent_id": ("parent", "fk из vtiger_seactivityrel", "fk"),
     "taskstatus": (None, "не используется для событий", "count"),
 }
@@ -301,10 +311,11 @@ F["HelpDesk"] = {
     "parent_id": ("account", "fk", "fk"),
     "contact_id": ("contact", "fk", "fk"),
     "product_id": ("vtigerData.product_id", "fk (пусто)", "fk"),
-    "ticketpriorities": ("priority", "Normal→Normal; Высокий→High; Low→Low", "count+distribution"),
-    "ticketstatus": ("status", "Open→New; In Progress→Assigned; Wait For Response→Pending; Closed→Closed", "count+distribution"),
-    "ticketseverities": ("cSeverity", "enum", "count+distribution"),
-    "ticketcategories": ("type", "enum: словарь синонимов (D-19), исходное значение → vtigerData", "count+distribution"),
+    "ticketpriorities": ("priority", "enum: " + D.format("Case.json") + " (Высокий → High)", "count+distribution"),
+    "ticketstatus": ("status", "enum: " + D.format("Case.json") + " (Open→New, In Progress→Assigned, Wait For Response→Pending; "
+                               "подписи — как в Vtiger)", "count+distribution"),
+    "ticketseverities": ("cSeverity", "enum: " + D.format("Case.json") + " (Незначительная → Minor)", "count+distribution"),
+    "ticketcategories": ("type", "enum: " + D.format("Case.json"), "count+distribution"),
     "hours": ("vtigerData.hours", "decimal (0 = пусто)", "count+sum"),
     "days": ("vtigerData.days", "decimal (0 = пусто)", "count+sum"),
     "from_portal": (None, "исключено: все 0 (портал не используется)", "count"),
@@ -312,11 +323,11 @@ F["HelpDesk"] = {
 }
 
 F["Faq"] = {
-    "question": ("name", "text→string (обрезка не допускается: проверить длину)", "count+hash"),
+    "question": ("name", "text → varchar(500): максимум 375 символов в живых записях, без обрезки (проверено 2026-09-30)", "count+hash"),
     "faq_answer": ("body", "html", "count+hash"),
     "faq_no": ("vtigerNo", "string (БЗ_N)", "count+hash"),
-    "faqstatus": ("status", "Published→Published; Reviewed→In Review", "count+distribution"),
-    "faqcategories": ("categories", "KnowledgeBaseCategory 'General'", "count+distribution"),
+    "faqstatus": ("status", "enum: " + D.format("KnowledgeBaseArticle.json") + " (Reviewed→In Review, Obsolete→Archived)", "count+distribution"),
+    "faqcategories": ("categories", "запись KnowledgeBaseCategory «Общее» (General)", "count+distribution"),
     "product_id": ("vtigerData.product_id", "fk (пусто)", "fk"),
 }
 
@@ -340,10 +351,10 @@ F["Products"] = {
     "product_no": ("vtigerNo", "string (ТОВ_N)", "count+hash"),
     "discontinued": ("isActive", "в Vtiger discontinued=1 означает «активен»", "count"),
     "productcode": ("code", "string", "count+hash"),
-    "vendor_id": ("vendor (Vendor)", "fk (пусто)", "fk"),
+    "vendor_id": ("vendor", "fk Vendor (в источнике пусто)", "fk"),
     "unit_price": ("unitPrice", "decimal", "count+sum"),
     "purchase_cost": ("purchaseCost", "decimal", "count+sum"),
-    "usageunit": ("unit", "enum", "count+distribution"),
+    "usageunit": ("unit", "enum: " + D.format("Product.json") + " (единицы товаров и услуг — один список)", "count+distribution"),
     "commissionrate": ("vtigerData.commissionrate", "decimal", "count+sum"),
     "qtyinstock": ("vtigerData.qtyinstock", "decimal (складской учёт не ведётся)", "count+sum"),
     "qty_per_unit": ("vtigerData.qty_per_unit", "decimal", "count+sum"),
@@ -353,8 +364,8 @@ F["Services"] = {
     "servicename": ("name", "string", "count+hash"),
     "service_no": ("vtigerNo", "string (СЕР_N)", "count+hash"),
     "discontinued": ("isActive", "discontinued=1 → активна", "count"),
-    "service_usageunit": ("unit", "enum", "count+distribution"),
-    "servicecategory": ("category", "enum", "count+distribution"),
+    "service_usageunit": ("unit", "enum: " + D.format("Product.json") + " (Дни → Days, Часы → Hours)", "count+distribution"),
+    "servicecategory": ("category", "enum: " + D.format("Product.json"), "count+distribution"),
     "unit_price": ("unitPrice", "decimal", "count+sum"),
     "purchase_cost": ("purchaseCost", "decimal", "count+sum"),
     "website": ("vtigerData.website", "url", "count"),
@@ -362,7 +373,7 @@ F["Services"] = {
     "sales_end_date": ("vtigerData.sales_end_date", "date", "count"),
     "start_date": ("vtigerData.start_date", "date", "count"),
     "commissionrate": ("vtigerData.commissionrate", "decimal", "count+sum"),
-    "cf_billable_time_tracker": ("vtigerData.billable_time_tracker", "bool (расширение TimeTracker)", "count"),
+    "cf_billable_time_tracker": ("isBillableTime", "bool: флаг расширения TimeTracker (логика не переносится)", "count"),
     "qty_per_unit": ("qtyPerUnit", "decimal: количество единиц (подтверждено владельцем, Q-24)", "count+sum"),
 }
 
@@ -443,15 +454,18 @@ F["SPPayments"] = {
 }
 
 F["PBXManager"] = {
-    "direction": ("direction", "inbound→Inbound; outbound→Outbound", "count+distribution"),
-    "callstatus": ("status + cCallStatusRaw", "completed→Held; прочие→Not Held; исходный статус сохраняется", "count+distribution"),
+    "direction": ("direction", "enum: " + D.format("Call.json") + " (inbound→Inbound; outbound→Outbound)", "count+distribution"),
+    "callstatus": ("status + cCallStatusRaw", "completed→Held; прочие→Not Held; исходный статус — в cCallStatusRaw", "count+distribution"),
     "customer": ("parent", "fk Contacts/Leads/Accounts (23 ссылки на удалённые контакты)", "fk"),
     "user": ("assignedUser", "user-map", "fk"),
     "customernumber": ("cPhoneNumber", "phone (для сопоставления с клиентом)", "count+hash"),
     "customertype": (None, "производное от parent", "count"),
     "starttime": ("dateStart", "datetime → UTC: до 2020-10-22 Europe/Berlin (время коннектора), далее по эпохам D-30", "count+hash"),
-    "endtime": ("dateEnd", "datetime → UTC: до 2020-10-22 Europe/Berlin (время коннектора), далее по эпохам D-30", "count+hash"),
-    "recordingurl": ("cLegacyRecordingUrl", "архивная ссылка на коннектор 127.0.0.1:5000 — аудио недоступно, не выдавать за запись", "count"),
+    "endtime": ("dateEnd", "datetime → UTC: до 2020-10-22 Europe/Berlin (время коннектора), далее по эпохам D-30; "
+                           "3 звонка без endtime (длительность 0/пусто) → dateEnd = dateStart, исходное пустое значение — "
+                           "в vtigerData (проверено 2026-09-30)", "count+hash"),
+    "recordingurl": ("cLegacyRecordingUrl", "varchar (не url, не воспроизводится): архивная ссылка на коннектор 127.0.0.1:5000 — "
+                                            "аудио недоступно (D-10)", "count"),
     "totalduration": ("duration", "секунды", "count+sum"),
     "billduration": ("cBillDuration", "секунды", "count+sum"),
     "sourceuuid": ("cConnectorCallId", "id записи во внешнем коннекторе (не Asterisk uniqueid)", "count"),
@@ -474,6 +488,8 @@ F["SPCallPopup"] = {
 
 F["ModComments"] = {
     "commentcontent": ("post", "text", "count+hash"),
+    "assigned_user_id": ("vtigerData.assigned_user_id", "у Note нет ответственного: автор — createdBy (userid), владелец "
+                                                        "комментария сохраняется в vtigerData", "fk"),
     "related_to": ("parent", "fk на запись-родителя", "fk"),
     "customer": ("vtigerData.customer", "fk Contact", "fk"),
     "userid": ("createdBy", "vtiger_users.id (все значения — пользователи)", "fk"),
@@ -492,27 +508,28 @@ F["Project"] = {
     "startdate": ("dateStart", "date", "count+hash"),
     "targetenddate": ("dateEndPlanned", "date", "count+hash"),
     "actualenddate": ("dateEnd", "date", "count+hash"),
-    "projectstatus": ("status", "enum: словарь синонимов (D-19), исходное значение → vtigerData", "count+distribution"),
-    "projecttype": ("type", "enum", "count+distribution"),
+    "projectstatus": ("status", "enum: " + D.format("Project.json"), "count+distribution"),
+    "projecttype": ("type", "enum: " + D.format("Project.json"), "count+distribution"),
     "linktoaccountscontacts": ("account", "fk Accounts", "fk"),
     "potentialid": ("opportunity", "fk", "fk"),
-    "targetbudget": ("budget", "decimal", "count+sum"),
+    "targetbudget": ("budget", "varchar → currency(decimal): 50 из 51 значения числовые; нечисловое → vtigerData.targetbudget "
+                               "(проверено 2026-09-30)", "count+sum"),
     "projecturl": ("url", "url", "count"),
-    "projectpriority": ("priority", "enum", "count+distribution"),
-    "progress": ("progress", "enum %", "count+distribution"),
+    "projectpriority": ("priority", "enum: " + D.format("Project.json"), "count+distribution"),
+    "progress": ("progress", "enum: " + D.format("Project.json") + " (10%…100%)", "count+distribution"),
     "isconvertedfrompotential": ("vtigerData.isconvertedfrompotential", "bool", "count"),
 }
 
 F["ProjectTask"] = {
     "projecttaskname": ("name", "string", "count+hash"),
     "projecttask_no": ("vtigerNo", "string (PT N)", "count+hash"),
-    "projecttaskpriority": ("priority", "enum", "count+distribution"),
-    "projecttasktype": ("type", "enum", "count+distribution"),
+    "projecttaskpriority": ("priority", "enum: " + D.format("ProjectTask.json"), "count+distribution"),
+    "projecttasktype": ("type", "enum: " + D.format("ProjectTask.json"), "count+distribution"),
     "projecttasknumber": ("orderNumber", "int", "count+sum"),
     "projectid": ("project", "fk Project", "fk"),
-    "projecttaskstatus": ("status", "enum", "count+distribution"),
-    "projecttaskprogress": ("progress", "enum %", "count+distribution"),
-    "projecttaskhours": ("hours", "decimal", "count+sum"),
+    "projecttaskstatus": ("status", "enum: " + D.format("ProjectTask.json") + " («Canceled » без концевого пробела)", "count+distribution"),
+    "projecttaskprogress": ("progress", "enum: " + D.format("ProjectTask.json") + " (10%…100%)", "count+distribution"),
+    "projecttaskhours": ("hours", "int (0…1500 в живых записях)", "count+sum"),
     "startdate": ("dateStart", "date", "count+hash"),
     "enddate": ("dateEnd", "date", "count+hash"),
     "cf_1354": ("showInStat", "bool", "count"),
@@ -527,8 +544,10 @@ F["Users"] = {
     "user_password": (None, "исключено: секрет; пароли задаются заново", "count"),
     "confirm_password": (None, "исключено: секрет", "count"),
     "accesskey": (None, "исключено: секрет API", "count"),
-    "is_admin": ("type", "on/1 → admin; off → regular (разные форматы значения!)", "count+distribution"),
-    "roleid": ("roles", "роль Vtiger → Role EspoCRM (см. module-decisions ACL)", "count+distribution"),
+    "is_admin": ("type", "эффективный флаг Vtiger ($is_admin в user_privileges): 'on' → admin (1 пользователь); '1' у user#8 "
+                         "прав администратора не даёт → regular (проверено 2026-09-30, D-39)", "count+distribution"),
+    "roleid": ("roles", "H2→Директор, H3→Заместитель директора, H4→Менеджер по продажам, H10→Менеджер клиентов "
+                        "(роли EspoCRM: itvolga-setup-acl, D-22)", "count+distribution"),
     "status": ("isActive", "Active→true", "count+distribution"),
     "title": ("title", "string", "count+hash"),
     "department": ("vtigerData.department", "string", "count"),

@@ -1,0 +1,24 @@
+{
+    "options": {
+        "status": {
+            "Draft": "Черновик",
+            "In Review": "Просмотрено",
+            "Published": "Опубликовано",
+            "Archived": "Устарело"
+        }
+    },
+    "fields": {
+        "vtigerId": "ID в Vtiger",
+        "vtigerNo": "Номер в Vtiger",
+        "vtigerData": "Исходные данные Vtiger",
+        "cTags": "Теги"
+    },
+    "links": {
+        "cDocuments": "Документы"
+    },
+    "tooltips": {
+        "vtigerId": "Исходный crmid записи Vtiger — ключ повторного импорта.",
+        "vtigerNo": "Исходный номер записи Vtiger.",
+        "vtigerData": "Непустые исходные значения без рабочего поля (JSON). Только чтение, видно администраторам."
+    }
+}

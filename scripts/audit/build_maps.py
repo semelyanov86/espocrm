@@ -5,7 +5,9 @@ Usage: build_maps.py OUTDIR DOCSDIR
 
 Inputs (private, outside Git): OUTDIR/columns.tsv (consolidate.py), 14_picklist_values.tsv,
 13_reference_targets.tsv, 20_relations.tsv, 25_activity_workflows.tsv, 27_payments.tsv, 32_cardinality.tsv.
-Outputs contain only schema metadata, counts and proposed mapping — never row values.
+Outputs contain only schema metadata, counts, maximum string lengths and the mapping — never row values.
+Stage 03: every target is checked against the EspoCRM model (scripts/model/model_check.py): column `espo_check`,
+and `mapping_status=реализовано (этап 03)` for rows whose target exists with a compatible type and length.
 """
 import csv
 import re
@@ -14,7 +16,9 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "model"))
 import mapping as M  # noqa: E402
+import model_check  # noqa: E402
 
 AUDIT_DATE = "2026-09-29"
 NUMERIC = re.compile(r"^(int|tinyint|smallint|mediumint|bigint|decimal|float|double)")
@@ -69,8 +73,27 @@ def fate_for(target, transform, count):
     return "перенос"
 
 
+def max_lengths(outdir):
+    """(module, table, column) → maximum CHAR_LENGTH among live records (42_max_lengths.raw, stage 03)."""
+    import json
+    res = {}
+    path = outdir / "42_max_lengths.raw"
+    if not path.exists():
+        return res
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            p = line.rstrip("\n").split("\t")
+            if len(p) < 4 or p[0] == "module":
+                continue
+            for col, value in json.loads(p[3]).items():
+                if value is not None:
+                    res[(p[0], p[1], col)] = value
+    return res
+
+
 def field_rows(outdir):
     trues = true_counts(outdir)
+    maxlen = max_lengths(outdir)
     rows = read_tsv(outdir / "columns.tsv")
     module_tables = {r["table"] for r in rows if r["in_vtiger_field"] == "1"}
     out = []
@@ -118,9 +141,11 @@ def field_rows(outdir):
             fate = fate_for(None if target is None else target, transform, count)
             if target == "—":
                 fate = "пусто — данных нет"
+            ml = maxlen.get((mod, r["table"], r["column"]))
             out.append([mod, r["table"], r["column"], fname, r["label"], r["uitype"], r["db_type"], custom,
                         r["nonempty_all"], r["live_rows"], count, entity if target not in (None, "—") else "—",
-                        target or "—", transform, verification, fate, status, f"проверено SQL {AUDIT_DATE}"])
+                        target or "—", transform, verification, fate, status, f"проверено SQL {AUDIT_DATE}",
+                        "" if ml is None else ml])
         else:
             tbl, col = r["table"], r["column"]
             numeric = bool(NUMERIC.match(r["db_type"]))
@@ -169,7 +194,7 @@ def field_rows(outdir):
                     status = "не проверено"
             out.append(["", tbl, col, "", "", "", r["db_type"], "нет", r["nonempty_all"], live_records,
                         eff if live_records != "" else "", entity, target, transform, verification, fate, status,
-                        f"проверено SQL {AUDIT_DATE}"])
+                        f"проверено SQL {AUDIT_DATE}", ""])
     return out
 
 
@@ -185,7 +210,7 @@ REL_TARGETS = {
     ("Potentials", "contact_id"): "Opportunity.contacts (primary)",
     ("Potentials", "campaignid"): "Opportunity.campaign",
     ("Contacts", "accountid"): "Contact.account / accounts",
-    ("Contacts", "reportsto"): "Contact.cReportsTo",
+    ("Contacts", "reportsto"): "— (во всех записях '0')",
     ("Accounts", "parentid"): "Account.cParentAccount",
     ("HelpDesk", "parent_id"): "Case.account",
     ("HelpDesk", "contact_id"): "Case.contact",
@@ -211,37 +236,38 @@ REL_TARGETS = {
     ("Act", "contactid"): "Act.contact",
     ("Act", "productid"): "ActItem.product",
     ("PBXManager", "customer"): "Call.parent",
+    ("ModComments", "smownerid"): "Note.vtigerData (у Note нет ответственного; автор — createdBy)",
     ("PBXManager", "user"): "Call.assignedUser",
-    ("ServiceContracts", "sc_related_to"): "VtigerArchive.parent",
+    ("ServiceContracts", "sc_related_to"): "VtigerArchive.account",
     ("SPPayments", "payer"): "Payment.payer (Account|Contact)",
     ("SPPayments", "related_to"): "PaymentAllocation.invoice | PaymentAllocation.salesOrder",
     ("ProjectTask", "projectid"): "ProjectTask.project",
     ("Project", "linktoaccountscontacts"): "Project.account",
     ("Project", "potentialid"): "Project.opportunity",
-    ("Consignment", "invoiceid"): "VtigerArchive.links",
-    ("Consignment", "salesorderid"): "VtigerArchive.links",
-    ("Consignment", "accountid"): "VtigerArchive.links",
-    ("Consignment", "contactid"): "VtigerArchive.links",
-    ("Consignment", "productid"): "VtigerArchive.lines",
-    ("Assets", "product"): "VtigerArchive.links",
-    ("Assets", "invoiceid"): "VtigerArchive.links",
-    ("Assets", "account"): "VtigerArchive.links",
-    ("Assets", "contact"): "VtigerArchive.links",
-    ("ModComments", "customer"): "Note.vtigerData.customer",
+    ("Consignment", "invoiceid"): "VtigerArchive.data (vtigerId счёта; связь с Invoice — этап 04.3)",
+    ("Consignment", "salesorderid"): "VtigerArchive.data",
+    ("Consignment", "accountid"): "VtigerArchive.account",
+    ("Consignment", "contactid"): "VtigerArchive.contact",
+    ("Consignment", "productid"): "VtigerArchive.data (строки)",
+    ("Assets", "product"): "VtigerArchive.product",
+    ("Assets", "invoiceid"): "VtigerArchive.data",
+    ("Assets", "account"): "VtigerArchive.account",
+    ("Assets", "contact"): "VtigerArchive.contact",
+    ("ModComments", "customer"): "Note.vtigerData",
     ("ModComments", "userid"): "Note.createdBy (vtiger_users.id, не crmid)",
     ("ModComments", "related_to"): "Note.parent",
     ("ModComments", "parent_comments"): "—",
-    ("Jivosite", "relatedcontact"): "VtigerArchive.links",
-    ("Jivosite", "relatedleads"): "VtigerArchive.links → Lead",
+    ("Jivosite", "relatedcontact"): "VtigerArchive.contact",
+    ("Jivosite", "relatedleads"): "VtigerArchive.lead",
     ("JVmes", "relatedjivo"): "VtigerArchive.parentArchive (сообщение → чат)",
     ("Notifications", "related_to"): "—",
     ("VTEItems", "related_to"): "— (исключено вместе с VTEItems)",
     ("VTEItems", "productid"): "— (исключено вместе с VTEItems)",
     ("SPCallPopup", "callid"): "слияние в Call (1:1)",
     ("Calendar", "crmid"): "Task.parent",
-    ("Calendar", "contactid"): "Task.parent/contact",
-    ("Events", "crmid"): "Call|Meeting.parent",
-    ("Events", "contactid"): "Call|Meeting.contacts",
+    ("Calendar", "contactid"): "Task.contact",
+    ("Events", "crmid"): "Call|Meeting|Task.parent",
+    ("Events", "contactid"): "Call|Meeting.contacts / Task.contact",
     ("Events", "invoiceid"): "—", ("Events", "salesorder_id"): "—", ("Events", "timesheet_id"): "—",
     ("Faq", "product_id"): "—", ("Products", "vendor_id"): "Product.vendor",
 }
@@ -249,30 +275,30 @@ REL_TARGETS = {
 CRMREL_TARGETS = {
     ("Accounts", "Invoice"): "Invoice.account (дублирует поле accountid)",
     ("Accounts", "SPPayments"): "Payment.payer (дублирует поле payer)",
-    ("Accounts", "Calendar"): "Task/Meeting.parent",
+    ("Accounts", "Calendar"): "Task|Call|Meeting.parent",
     ("Accounts", "Contacts"): "Account.contacts (M:N accountContact)",
     ("Accounts", "Potentials"): "Opportunity.account (дублирует related_to)",
     ("Accounts", "HelpDesk"): "Case.account",
     ("Accounts", "Project"): "Project.account",
-    ("Contacts", "Calendar"): "activity.parent/contacts",
+    ("Contacts", "Calendar"): "Task|Call|Meeting.parent / Call|Meeting.contacts / Task.contact",
     ("Contacts", "Emails"): "Email.parent",
     ("Contacts", "HelpDesk"): "Case.contacts",
     ("Contacts", "Invoice"): "Invoice.contact",
-    ("Contacts", "Jivosite"): "VtigerArchive.links",
-    ("Contacts", "PBXManager"): "Call.parent/contacts",
+    ("Contacts", "Jivosite"): "VtigerArchive.contact",
+    ("Contacts", "PBXManager"): "Call.parent / Call.contacts",
     ("Contacts", "SPCallPopup"): "слияние в Call",
     ("Contacts", "SPPayments"): "Payment.payer",
     ("HelpDesk", "Emails"): "Email.parent (все письма удалены)",
-    ("Invoice", "Calendar"): "activity.parent",
-    ("Invoice", "Consignment"): "VtigerArchive.links",
+    ("Invoice", "Calendar"): "Task|Call|Meeting.parent (родитель Invoice — этап 04.3)",
+    ("Invoice", "Consignment"): "VtigerArchive.data (связь с Invoice — этап 04.3)",
     ("Invoice", "SPPayments"): "PaymentAllocation (объединение с related_to)",
-    ("Leads", "Calendar"): "activity.parent",
+    ("Leads", "Calendar"): "Task|Call|Meeting.parent",
     ("Leads", "Emails"): "Email.parent",
-    ("Leads", "Jivosite"): "VtigerArchive.links",
-    ("Leads", "PBXManager"): "Call.parent/leads",
+    ("Leads", "Jivosite"): "VtigerArchive.lead",
+    ("Leads", "PBXManager"): "Call.parent / Call.leads",
     ("Leads", "SPCallPopup"): "слияние в Call",
     ("PBXManager", "SPCallPopup"): "слияние в Call (1:1)",
-    ("Potentials", "Calendar"): "activity.parent",
+    ("Potentials", "Calendar"): "Task|Call|Meeting.parent",
     ("Potentials", "Emails"): "Email.parent",
     ("Potentials", "Invoice"): "Invoice.opportunity",
     ("Potentials", "Quotes"): "Quote.opportunity",
@@ -283,6 +309,15 @@ CRMREL_TARGETS = {
     ("SPCallPopup", "PBXManager"): "слияние в Call (1:1)",
     ("Vendors", "SPPayments"): "Payment.payer (Vendor)",
 }
+
+
+DOC_LINKS = {
+    "Accounts": "Account.documents", "Contacts": "Contact.documents", "Leads": "Lead.documents",
+    "Potentials": "Opportunity.documents", "HelpDesk": "Case.cDocuments", "Faq": "KnowledgeBaseArticle.cDocuments",
+    "Project": "Project.documents", "ProjectTask": "ProjectTask.documents", "Consignment": "VtigerArchive.documents",
+    "Invoice": "Invoice.documents", "Act": "Act.documents", "SPPayments": "Payment.documents",
+}
+TAG_FIELDS = {"Faq": "KnowledgeBaseArticle.cTags", "HelpDesk": "Case.cTags", "ProjectTask": "ProjectTask.tags"}
 
 
 def relation_rows(outdir):
@@ -375,21 +410,26 @@ def relation_rows(outdir):
         _, parent, pdel, atype, adel, n = p
         se[(parent, atype)][0 if pdel == "0" and adel == "0" else 1] += int(n)
     for (parent, atype), (live, dead) in sorted(se.items()):
-        target = "Email.parent" if atype == "Emails" else ("Task.parent" if atype == "Task" else "Call|Meeting.parent")
+        target = {"Emails": "Email.parent", "Task": "Task.parent", "Письмо": "Task.parent (вид «Письмо»)",
+                  "Call": "Call.parent", "Meeting": "Meeting.parent"}.get(atype, "(не определено)")
         rows.append([f"seactivityrel:{parent}->{atype}", "m2m", "vtiger_seactivityrel", parent, f"activity:{atype}",
                      "N:1 (max 1 родитель на активность)", live, dead, "", target, "count",
                      "перенос" if live else "исключено: только удалённые", "предложено"])
     for p in read_kind_rows(outdir / "20_relations.tsv", "cntactivityrel"):
         _, atype, adel, cdel, n = p
+        target = {"Call": "Call.contacts", "Meeting": "Meeting.contacts", "Письмо": "Task.contact (вид «Письмо»)",
+                  "Task": "Task.contact"}.get(atype, "(не определено)")
         rows.append([f"cntactivityrel:Contacts->{atype}", "m2m", "vtiger_cntactivityrel", "Contacts", f"activity:{atype}", "M:N", n, 0, "",
-                     "Call|Meeting.contacts / Task.contact", "count", "перенос", "предложено"])
+                     target, "count", "перенос", "предложено"])
     sa = defaultdict(lambda: [0, 0])
     for p in read_kind_rows(outdir / "20_relations.tsv", "salesmanactivityrel"):
         _, atype, adel, n = p
         sa[atype][0 if adel == "0" else 1] += int(n)
     for atype, (live, dead) in sorted(sa.items()):
+        target = {"Call": "Call.users (приглашённые)", "Meeting": "Meeting.users (приглашённые)",
+                  "Task": "Task.collaborators (участники)", "Письмо": "Task.collaborators (участники)"}.get(atype, "(не определено)")
         rows.append([f"salesmanactivityrel:Users->{atype}", "m2m", "vtiger_salesmanactivityrel", "Users", f"activity:{atype}", "M:N", live,
-                     dead, "", "Call|Meeting.users (приглашённые)", "count", "перенос" if live else "исключено: только удалённые", "предложено"])
+                     dead, "", target, "count", "перенос" if live else "исключено: только удалённые", "предложено"])
     scard = {p[1]: (p[3], p[4]) for p in read_kind_rows(outdir / "32_cardinality.tsv", "senotes_card")}
     sn = defaultdict(lambda: [0, 0])
     for p in read_kind_rows(outdir / "20_relations.tsv", "senotesrel"):
@@ -399,11 +439,12 @@ def relation_rows(outdir):
         mx = scard.get(parent)
         c = f"M:N (max {mx[0]} док. на запись, {mx[1]} записей на док.)" if mx and live else "M:N"
         rows.append([f"senotesrel:{parent}->Documents", "m2m", "vtiger_senotesrel", parent, "Documents", c, live, dead, "",
-                     "Document.parents / <Entity>.documents (M:N)", "count", "перенос" if live else "исключено: только удалённые", "предложено"])
+                     DOC_LINKS.get(parent, "(не определено)") + " (M:N с Document)", "count",
+                     "перенос" if live else "исключено: только удалённые", "предложено"])
     for p in read_kind_rows(outdir / "20_relations.tsv", "seattachmentsrel"):
         _, parent, pdel, atype, adel, n = p
         target = {"Documents Attachment": "Document.file", "Emails Attachment": "Email.attachments",
-                  "ModComments Attachment": "Note.attachments", "Contacts Image": "Contact.avatar"}.get(atype, "(не определено)")
+                  "ModComments Attachment": "Note.attachments", "Contacts Image": "Contact.cPhoto"}.get(atype, "(не определено)")
         rows.append([f"seattachmentsrel:{parent}->{atype}", "attachment", "vtiger_seattachmentsrel", parent, atype, "1:N", n, 0, "",
                      target, "file-hash: наличие + sha256 каждого файла", "перенос", "предложено"])
     for p in read_kind_rows(outdir / "20_relations.tsv", "contpotentialrel"):
@@ -416,7 +457,8 @@ def relation_rows(outdir):
         p = dl.get(mod)
         if p:
             rows.append([f"lines:{mod}", "lines", "vtiger_inventoryproductrel.id", mod, "lines", f"1:N (max {p[4]} строк)", p[3], 0,
-                         f"документов {p[2]}", f"{item}.{ 'parent' if item != 'lines' else 'data'}", "count+sum по документу", "перенос" if mod != "Consignment" else "архив (только чтение)", "предложено"])
+                         f"документов {p[2]}", f"{item}.parent" if item != "lines" else "VtigerArchive.data (строки)",
+                         "count+sum по документу", "перенос" if mod != "Consignment" else "архив (только чтение)", "предложено"])
     ppi = read_kind_rows(outdir / "32_cardinality.tsv", "payments_per_invoice")
     part = {p[1]: int(p[2]) for p in read_kind_rows(outdir / "33_allocation_check.tsv", "alloc_partition")}
     if part:
@@ -440,7 +482,7 @@ def relation_rows(outdir):
                  "—", "count", "исключено: персональные «звёздочки»", "решено"])
     for p in read_kind_rows(outdir / "25_activity_workflows.tsv", "tags"):
         rows.append([f"tags:{p[1]}", "m2m", "vtiger_freetagged_objects", p[1], "tags", "M:N", p[2], 0, f"тегов {p[3]}",
-                     f"{p[1]} → multiEnum tags", "count", "перенос", "предложено"])
+                     TAG_FIELDS.get(p[1], "(не определено)") + " (multiEnum)", "count", "перенос", "предложено"])
     for p in read_kind_rows(outdir / "25_activity_workflows.tsv", "modtracker_relations"):
         rows.append([f"history-link:{p[1]}->{p[2]}", "history", "vtiger_modtracker_relations", p[1], p[2], "журнал", p[3], 0, "",
                      "—", "count", "исключено: история не переносится (Q-27)", "решено"])
@@ -449,18 +491,46 @@ def relation_rows(outdir):
     return rows
 
 
+FIELD_HEADER = ["source_module", "source_table", "source_column", "source_field", "source_label", "uitype", "source_db_type",
+                "custom", "nonempty_all_rows", "live_records", "nonempty_live", "target_entity", "target_field", "transform",
+                "verification", "fate", "mapping_status", "count_status", "max_len_live", "espo_check"]
+REL_HEADER = ["relation_id", "kind", "source_object", "from_module", "to_module", "cardinality_observed", "live_count",
+              "deleted_or_dangling", "distribution", "target_link", "verification", "fate", "status", "espo_check"]
+IMPLEMENTED = "реализовано (этап 03)"
+
+
+def apply_model_check(rows, header, checker, status_col):
+    """Append `espo_check`; flip the status of rows whose target exists in the EspoCRM model."""
+    try:
+        model = model_check.Model()
+    except SystemExit as exc:  # no unpacked core: keep the maps, mark the check as not done
+        print(f"model check skipped: {exc}")
+        return [r + ["не проверено: нет ядра EspoCRM"] for r in rows], 0, 0
+    idx = header.index(status_col)
+    ok = failed = 0
+    out = []
+    for r in rows:
+        row = dict(zip(header, r))
+        res, text = checker(model, row) if checker is model_check.check_relation_row \
+            else checker(model, row, row.get("max_len_live") or None)
+        if res is True:
+            ok += 1
+            r = list(r)
+            r[idx] = IMPLEMENTED
+        elif res is False:
+            failed += 1
+        out.append(list(r) + [text])
+    return out, ok, failed
+
+
 def main():
     outdir, docs = Path(sys.argv[1]), Path(sys.argv[2])
-    fr = field_rows(outdir)
-    write_csv(docs / "field-map.csv",
-              ["source_module", "source_table", "source_column", "source_field", "source_label", "uitype", "source_db_type",
-               "custom", "nonempty_all_rows", "live_records", "nonempty_live", "target_entity", "target_field", "transform",
-               "verification", "fate", "mapping_status", "count_status"], fr)
-    rr = relation_rows(outdir)
-    write_csv(docs / "relations.csv",
-              ["relation_id", "kind", "source_object", "from_module", "to_module", "cardinality_observed", "live_count",
-               "deleted_or_dangling", "distribution", "target_link", "verification", "fate", "status"], rr)
-    print(f"field-map.csv: {len(fr)} rows; relations.csv: {len(rr)} rows")
+    fr, f_ok, f_bad = apply_model_check(field_rows(outdir), FIELD_HEADER[:-1], model_check.check_field_row, "mapping_status")
+    write_csv(docs / "field-map.csv", FIELD_HEADER, fr)
+    rr, r_ok, r_bad = apply_model_check(relation_rows(outdir), REL_HEADER[:-1], model_check.check_relation_row, "status")
+    write_csv(docs / "relations.csv", REL_HEADER, rr)
+    print(f"field-map.csv: {len(fr)} rows (model: {f_ok} ok, {f_bad} failed); "
+          f"relations.csv: {len(rr)} rows (model: {r_ok} ok, {r_bad} failed)")
 
 
 if __name__ == "__main__":

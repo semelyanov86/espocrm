@@ -1,0 +1,38 @@
+{
+    "fields": {
+        "status": {
+            "picklists": [
+                "eventstatus"
+            ],
+            "options": [
+                "Planned",
+                "Held",
+                "Not Held"
+            ],
+            "map": {
+                "Events.eventstatus": {
+                    "Held": "Held",
+                    "Planned": "Planned"
+                },
+                "(picklist)": {
+                    "Planned": "Planned",
+                    "Held": "Held",
+                    "Not Held": "Not Held"
+                },
+                "PBXManager.callstatus": {
+                    "completed": "Held",
+                    "*": "Not Held"
+                }
+            }
+        },
+        "direction": {
+            "picklists": [],
+            "map": {
+                "PBXManager.direction": {
+                    "inbound": "Inbound",
+                    "outbound": "Outbound"
+                }
+            }
+        }
+    }
+}

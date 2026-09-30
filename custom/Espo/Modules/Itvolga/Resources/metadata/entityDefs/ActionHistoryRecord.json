@@ -1,0 +1,13 @@
+{
+    "fields": {
+        "action": {
+            "options": [
+                "read",
+                "update",
+                "create",
+                "delete",
+                "reveal"
+            ]
+        }
+    }
+}

@@ -1,0 +1,29 @@
+{
+    "fields": {
+        "vtigerId": "Vtiger ID",
+        "vtigerNo": "Vtiger No",
+        "vtigerData": "Vtiger archive",
+        "cShortName": "Short Name",
+        "cEmployees": "Employees",
+        "cRating": "Rating",
+        "cInn": "INN",
+        "cKpp": "KPP",
+        "cBankAccount": "Bank Account",
+        "cBankName": "Bank",
+        "cCorrAccount": "Correspondent Account",
+        "cBic": "BIC",
+        "cVkUrl": "VK"
+    },
+    "links": {
+        "cProjects": "Projects (archive)",
+        "cVtigerArchives": "Vtiger archive"
+    },
+    "labels": {
+        "Реквизиты": "Requisites"
+    },
+    "tooltips": {
+        "vtigerId": "Source Vtiger crmid, the key of repeated imports.",
+        "vtigerNo": "Source Vtiger record number.",
+        "vtigerData": "Non-empty source values without a work field (JSON). Read-only, visible to administrators."
+    }
+}

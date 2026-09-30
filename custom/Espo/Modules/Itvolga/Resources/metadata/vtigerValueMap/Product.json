@@ -1,0 +1,119 @@
+{
+    "fields": {
+        "unit": {
+            "picklists": [
+                "service_usageunit",
+                "usageunit"
+            ],
+            "options": [
+                "",
+                "Hours",
+                "мес.",
+                "Days",
+                "Incidents",
+                "Box",
+                "Carton",
+                "Dozen",
+                "Each",
+                "Impressions",
+                "Lb",
+                "M",
+                "Pack",
+                "Pages",
+                "Pieces",
+                "Quantity",
+                "Reams",
+                "Sheet",
+                "Spiral Binder",
+                "Sq Ft"
+            ],
+            "map": {
+                "Services.service_usageunit": {
+                    "Дни": "Days",
+                    "Часы": "Hours",
+                    "": "",
+                    "мес.": "мес.",
+                    "Hours": "Hours"
+                },
+                "Products.usageunit": {
+                    "Each": "Each"
+                },
+                "(picklist)": {
+                    "Hours": "Hours",
+                    "Дни": "Days",
+                    "мес.": "мес.",
+                    "Часы": "Hours",
+                    "Days": "Days",
+                    "Incidents": "Incidents",
+                    "Box": "Box",
+                    "Carton": "Carton",
+                    "Dozen": "Dozen",
+                    "Each": "Each",
+                    "Impressions": "Impressions",
+                    "Lb": "Lb",
+                    "M": "M",
+                    "Pack": "Pack",
+                    "Pages": "Pages",
+                    "Pieces": "Pieces",
+                    "Quantity": "Quantity",
+                    "Reams": "Reams",
+                    "Sheet": "Sheet",
+                    "Spiral Binder": "Spiral Binder",
+                    "Sq Ft": "Sq Ft",
+                    "": ""
+                }
+            }
+        },
+        "category": {
+            "picklists": [
+                "servicecategory"
+            ],
+            "options": [
+                "",
+                "Support",
+                "Installation",
+                "Migration",
+                "Customization",
+                "Training",
+                "Time Logs"
+            ],
+            "map": {
+                "Services.servicecategory": {
+                    "": "",
+                    "Поддержка": "Support",
+                    "Миграция": "Migration",
+                    "Установка": "Installation",
+                    "Настройка": "Customization",
+                    "Time Logs": "Time Logs",
+                    "Support": "Support"
+                },
+                "(picklist)": {
+                    "Support": "Support",
+                    "Миграция": "Migration",
+                    "Настройка": "Customization",
+                    "Поддержка": "Support",
+                    "Установка": "Installation",
+                    "Installation": "Installation",
+                    "Migration": "Migration",
+                    "Customization": "Customization",
+                    "Training": "Training",
+                    "Time Logs": "Time Logs",
+                    "": ""
+                }
+            }
+        },
+        "type": {
+            "picklists": [],
+            "options": [
+                "product",
+                "service"
+            ],
+            "map": {
+                "(module)": {
+                    "Products": "product",
+                    "Services": "service"
+                }
+            }
+        }
+    }
+}

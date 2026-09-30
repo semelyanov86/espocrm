@@ -1,0 +1,102 @@
+{
+    "Account": {
+        "bottomPanelsDetail": {
+            "module": "Itvolga"
+        },
+        "detail": {
+            "module": "Itvolga"
+        },
+        "filters": {
+            "module": "Itvolga"
+        }
+    },
+    "Call": {
+        "detail": {
+            "module": "Itvolga"
+        },
+        "filters": {
+            "module": "Itvolga"
+        }
+    },
+    "Case": {
+        "detail": {
+            "module": "Itvolga"
+        },
+        "filters": {
+            "module": "Itvolga"
+        },
+        "relationships": {
+            "module": "Itvolga"
+        }
+    },
+    "Contact": {
+        "detail": {
+            "module": "Itvolga"
+        },
+        "filters": {
+            "module": "Itvolga"
+        },
+        "relationships": {
+            "module": "Itvolga"
+        }
+    },
+    "Document": {
+        "detail": {
+            "module": "Itvolga"
+        },
+        "filters": {
+            "module": "Itvolga"
+        },
+        "relationships": {
+            "module": "Itvolga"
+        }
+    },
+    "KnowledgeBaseArticle": {
+        "detail": {
+            "module": "Itvolga"
+        },
+        "relationships": {
+            "module": "Itvolga"
+        }
+    },
+    "Lead": {
+        "detail": {
+            "module": "Itvolga"
+        },
+        "filters": {
+            "module": "Itvolga"
+        },
+        "relationships": {
+            "module": "Itvolga"
+        }
+    },
+    "Meeting": {
+        "detail": {
+            "module": "Itvolga"
+        }
+    },
+    "Opportunity": {
+        "detail": {
+            "module": "Itvolga"
+        },
+        "filters": {
+            "module": "Itvolga"
+        },
+        "relationships": {
+            "module": "Itvolga"
+        }
+    },
+    "Task": {
+        "detail": {
+            "module": "Itvolga"
+        },
+        "filters": {
+            "module": "Itvolga"
+        }
+    },
+    "User": {
+        "detail": {
+            "module": "Itvolga"
+        }
+    }
+}

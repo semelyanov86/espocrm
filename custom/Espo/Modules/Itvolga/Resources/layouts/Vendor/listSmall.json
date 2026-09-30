@@ -1,0 +1,15 @@
+[
+    {
+        "name": "name",
+        "link": true
+    },
+    {
+        "name": "inn",
+        "width": 15
+    },
+    {
+        "name": "emailAddress",
+        "notSortable": true,
+        "width": 22
+    }
+]

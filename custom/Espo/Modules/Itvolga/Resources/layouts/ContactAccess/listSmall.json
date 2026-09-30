@@ -1,0 +1,14 @@
+[
+    {
+        "name": "name",
+        "link": true
+    },
+    {
+        "name": "anydeskId",
+        "width": 25
+    },
+    {
+        "name": "hostname",
+        "width": 25
+    }
+]

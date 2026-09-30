@@ -1,0 +1,42 @@
+{
+    "options": {
+        "salutationName": {
+            "Mr.": "Г-н.",
+            "Ms.": "Г-жа.",
+            "Mrs.": "Мис",
+            "Dr.": "Д-р.",
+            "Prof.": "Проф."
+        }
+    },
+    "fields": {
+        "vtigerId": "ID в Vtiger",
+        "vtigerNo": "Номер в Vtiger",
+        "vtigerData": "Исходные данные Vtiger",
+        "cLeadSource": "Источник",
+        "cDepartment": "Отдел",
+        "cBirthday": "Дата рождения",
+        "cVkUrl": "ВКонтакте",
+        "cSupportStartDate": "Начало поддержки",
+        "cSupportEndDate": "Окончание поддержки",
+        "cNeedOriginalDocs": "Нужны оригиналы закрывающих документов",
+        "cSendNews": "Отправлять новости по электронной почте",
+        "cPartnerAds": "Интересует рекламная информация от партнёров",
+        "cSendAlerts": "Отправлять оповещения по электронной почте",
+        "cOtherAddress": "Другой адрес",
+        "cOtherAddressStreet": "Другой адрес: улица",
+        "cOtherAddressCity": "Другой адрес: город",
+        "cOtherAddressState": "Другой адрес: регион",
+        "cOtherAddressCountry": "Другой адрес: страна",
+        "cOtherAddressPostalCode": "Другой адрес: индекс",
+        "cPhoto": "Фото"
+    },
+    "links": {
+        "cContactAccesses": "Доступы",
+        "cVtigerArchives": "Архив Vtiger"
+    },
+    "tooltips": {
+        "vtigerId": "Исходный crmid записи Vtiger — ключ повторного импорта.",
+        "vtigerNo": "Исходный номер записи Vtiger.",
+        "vtigerData": "Непустые исходные значения без рабочего поля (JSON). Только чтение, видно администраторам."
+    }
+}

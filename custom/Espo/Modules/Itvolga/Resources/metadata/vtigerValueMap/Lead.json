@@ -1,0 +1,215 @@
+{
+    "fields": {
+        "source": {
+            "picklists": [
+                "leadsource"
+            ],
+            "options": [
+                "",
+                "Cold Call",
+                "Franshize",
+                "Резюме",
+                "Existing Customer",
+                "Self Generated",
+                "Employee",
+                "Partner",
+                "Public Relations",
+                "Direct Mail",
+                "Conference",
+                "Trade Show",
+                "Web Site",
+                "Word of mouth",
+                "Other",
+                "Jivosite"
+            ],
+            "map": {
+                "Leads.leadsource": {
+                    "Холодный звонок": "Cold Call",
+                    "": "",
+                    "Публичные связи": "Public Relations",
+                    "Веб-сайт": "Web Site",
+                    "Franshize": "Franshize",
+                    "Выставка": "Trade Show",
+                    "Конференция": "Conference",
+                    "Самопроизвольный": "Self Generated",
+                    "Партнер": "Partner",
+                    "Существующий клиент": "Existing Customer",
+                    "Jivosite": "Jivosite"
+                },
+                "Contacts.leadsource": {
+                    "": "",
+                    "Самопроизвольный": "Self Generated",
+                    "Холодный звонок": "Cold Call",
+                    "Существующий клиент": "Existing Customer",
+                    "Конференция": "Conference",
+                    "Публичные связи": "Public Relations",
+                    "Партнер": "Partner",
+                    "Резюме": "Резюме",
+                    "Веб-сайт": "Web Site",
+                    "Other": "Other",
+                    "Сотрудник": "Employee"
+                },
+                "Potentials.leadsource": {
+                    "Существующий клиент": "Existing Customer",
+                    "Холодный звонок": "Cold Call",
+                    "": "",
+                    "Самопроизвольный": "Self Generated",
+                    "Публичные связи": "Public Relations",
+                    "Партнер": "Partner",
+                    "Веб-сайт": "Web Site",
+                    "Сотрудник": "Employee",
+                    "Резюме": "Резюме",
+                    "Конференция": "Conference",
+                    "Выставка": "Trade Show",
+                    "Web Site": "Web Site"
+                },
+                "(picklist)": {
+                    "Cold Call": "Cold Call",
+                    "Franshize": "Franshize",
+                    "Веб-сайт": "Web Site",
+                    "Выставка": "Trade Show",
+                    "Конференция": "Conference",
+                    "Партнер": "Partner",
+                    "Публичные связи": "Public Relations",
+                    "Резюме": "Резюме",
+                    "Самопроизвольный": "Self Generated",
+                    "Сотрудник": "Employee",
+                    "Существующий клиент": "Existing Customer",
+                    "Холодный звонок": "Cold Call",
+                    "Existing Customer": "Existing Customer",
+                    "Self Generated": "Self Generated",
+                    "Employee": "Employee",
+                    "Partner": "Partner",
+                    "Public Relations": "Public Relations",
+                    "Direct Mail": "Direct Mail",
+                    "Conference": "Conference",
+                    "Trade Show": "Trade Show",
+                    "Web Site": "Web Site",
+                    "Word of mouth": "Word of mouth",
+                    "Other": "Other",
+                    "Jivosite": "Jivosite",
+                    "": ""
+                }
+            }
+        },
+        "status": {
+            "picklists": [
+                "leadstatus"
+            ],
+            "options": [
+                "",
+                "Attempted to Contact",
+                "Cold",
+                "Contact in Future",
+                "Contacted",
+                "Hot",
+                "Junk Lead",
+                "Lost Lead",
+                "New",
+                "Pre Qualified",
+                "Qualified",
+                "Warm",
+                "Converted"
+            ],
+            "map": {
+                "Leads.leadstatus": {
+                    "": "",
+                    "Qualified": "Qualified",
+                    "Горячий": "Hot",
+                    "Есть Контакт": "Contacted",
+                    "Контакт в будущем": "Contact in Future",
+                    "Ненужное Обращение": "Junk Lead",
+                    "Попытка связаться": "Attempted to Contact",
+                    "Предв. классифицирован": "Pre Qualified",
+                    "Теплый": "Warm",
+                    "Утерянное Обращение": "Lost Lead",
+                    "Холодный": "Cold"
+                },
+                "(picklist)": {
+                    "Attempted to Contact": "Attempted to Contact",
+                    "Горячий": "Hot",
+                    "Есть Контакт": "Contacted",
+                    "Контакт в будущем": "Contact in Future",
+                    "Ненужное Обращение": "Junk Lead",
+                    "Попытка связаться": "Attempted to Contact",
+                    "Предв. классифицирован": "Pre Qualified",
+                    "Теплый": "Warm",
+                    "Утерянное Обращение": "Lost Lead",
+                    "Холодный": "Cold",
+                    "Cold": "Cold",
+                    "Contact in Future": "Contact in Future",
+                    "Contacted": "Contacted",
+                    "Hot": "Hot",
+                    "Junk Lead": "Junk Lead",
+                    "Lost Lead": "Lost Lead",
+                    "Not Contacted": "New",
+                    "Pre Qualified": "Pre Qualified",
+                    "Qualified": "Qualified",
+                    "Warm": "Warm",
+                    "": ""
+                },
+                "Leads.converted": {
+                    "1": "Converted"
+                }
+            },
+            "notActualOptions": [
+                "Converted",
+                "Junk Lead",
+                "Lost Lead"
+            ]
+        },
+        "cPriority": {
+            "picklists": [
+                "cf_1107"
+            ],
+            "options": [
+                "",
+                "Обычный",
+                "Отстой",
+                "Низкий",
+                "Высокий",
+                "VIP"
+            ],
+            "map": {
+                "Leads.cf_1107": {
+                    "Обычный": "Обычный",
+                    "Высокий": "Высокий",
+                    "VIP": "VIP",
+                    "Низкий": "Низкий",
+                    "": ""
+                },
+                "(picklist)": {
+                    "Обычный": "Обычный",
+                    "Отстой": "Отстой",
+                    "Низкий": "Низкий",
+                    "Высокий": "Высокий",
+                    "VIP": "VIP",
+                    "": ""
+                }
+            }
+        },
+        "salutationName": {
+            "picklists": [
+                "salutationtype"
+            ],
+            "options": [
+                "",
+                "Mr.",
+                "Ms.",
+                "Mrs.",
+                "Dr.",
+                "Prof."
+            ],
+            "map": {
+                "(picklist)": {
+                    "Mr.": "Mr.",
+                    "Ms.": "Ms.",
+                    "Mrs.": "Mrs.",
+                    "Dr.": "Dr.",
+                    "Prof.": "Prof.",
+                    "": ""
+                }
+            }
+        }
+    }
+}

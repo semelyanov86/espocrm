@@ -1,0 +1,22 @@
+[
+    {
+        "name": "name",
+        "link": true
+    },
+    {
+        "name": "contact",
+        "width": 22
+    },
+    {
+        "name": "anydeskId",
+        "width": 14
+    },
+    {
+        "name": "hostname",
+        "width": 18
+    },
+    {
+        "name": "hasAnydeskPassword",
+        "width": 10
+    }
+]

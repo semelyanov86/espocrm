@@ -1,0 +1,13 @@
+{
+    "fields": {
+        "status": {
+            "picklists": [],
+            "map": {
+                "Documents.filestatus": {
+                    "1": "Active",
+                    "0": "Draft"
+                }
+            }
+        }
+    }
+}

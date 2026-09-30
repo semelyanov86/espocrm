@@ -1,0 +1,26 @@
+[
+    {
+        "name": "name",
+        "link": true
+    },
+    {
+        "name": "type",
+        "width": 12
+    },
+    {
+        "name": "code",
+        "width": 12
+    },
+    {
+        "name": "unitPrice",
+        "width": 15
+    },
+    {
+        "name": "unit",
+        "width": 10
+    },
+    {
+        "name": "isActive",
+        "width": 8
+    }
+]

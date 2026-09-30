@@ -1,0 +1,55 @@
+{
+    "options": {
+        "source": {
+            "Cold Call": "Холодный звонок",
+            "Web Site": "Веб-сайт",
+            "Trade Show": "Выставка",
+            "Conference": "Конференция",
+            "Partner": "Партнер",
+            "Public Relations": "Публичные связи",
+            "Self Generated": "Самопроизвольный",
+            "Employee": "Сотрудник",
+            "Existing Customer": "Существующий клиент",
+            "Direct Mail": "Почтовая рассылка",
+            "Word of mouth": "По наслышке",
+            "Other": "Другое"
+        },
+        "status": {
+            "Attempted to Contact": "Попытка связаться",
+            "Hot": "Горячий",
+            "Contacted": "Есть Контакт",
+            "Contact in Future": "Контакт в будущем",
+            "Junk Lead": "Ненужное Обращение",
+            "Pre Qualified": "Предв. классифицирован",
+            "Warm": "Теплый",
+            "Lost Lead": "Утерянное Обращение",
+            "Cold": "Холодный",
+            "New": "Не связывался",
+            "Qualified": "Классифицирован"
+        },
+        "salutationName": {
+            "Mr.": "Г-н.",
+            "Ms.": "Г-жа.",
+            "Mrs.": "Мис",
+            "Dr.": "Д-р.",
+            "Prof.": "Проф."
+        }
+    },
+    "fields": {
+        "vtigerId": "ID в Vtiger",
+        "vtigerNo": "Номер в Vtiger",
+        "vtigerData": "Исходные данные Vtiger",
+        "cRating": "Рейтинг",
+        "cPriority": "Приоритет",
+        "cJivositeId": "Jivosite ID",
+        "cVkUrl": "ВКонтакте"
+    },
+    "links": {
+        "cVtigerArchives": "Архив Vtiger"
+    },
+    "tooltips": {
+        "vtigerId": "Исходный crmid записи Vtiger — ключ повторного импорта.",
+        "vtigerNo": "Исходный номер записи Vtiger.",
+        "vtigerData": "Непустые исходные значения без рабочего поля (JSON). Только чтение, видно администраторам."
+    }
+}
