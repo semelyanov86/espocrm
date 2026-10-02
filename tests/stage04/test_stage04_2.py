@@ -231,10 +231,12 @@ class CalculationTest(unittest.TestCase):
 
     def test_header_only_edit_keeps_totals_and_items(self):
         created = doc("Quote", [line(unitPrice="10")])
-        stamp = sql(f"SELECT modified_at FROM quote_item WHERE quote_id='{created['id']}'")
+        # Items are saved silently (no modified_at): every stored value is compared instead.
+        lines = f"SELECT * FROM quote_item WHERE quote_id='{created['id']}'"
+        stored = sql(lines)
         updated = ok(self, c("dir").put(f"Quote/{created['id']}", {"status": "Accepted", "description": "x"}))
         self.assertEqual((updated["status"], updated["grandTotal"]), ("Accepted", "10.00000000"))
-        self.assertEqual(sql(f"SELECT modified_at FROM quote_item WHERE quote_id='{created['id']}'"), stamp)
+        self.assertEqual(sql(lines), stored)
         discounted = ok(self, c("dir").put(f"Quote/{created['id']}", {"discountPercent": "10"}))
         self.assertEqual(discounted["grandTotal"], "9.00000000", "a header input recalculates the stored lines")
 

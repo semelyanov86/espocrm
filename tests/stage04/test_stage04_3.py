@@ -112,8 +112,11 @@ def totals(got):
     return got["subtotal"], got["preTaxTotal"], got["grandTotal"]
 
 
-def item_stamps(iid):
-    return sql(f"SELECT id, modified_at FROM invoice_item WHERE invoice_id='{iid}' ORDER BY `order`")
+def item_rows(iid):
+    """Every stored value of the invoice's lines (items are saved silently: modified_at would not show a rewrite)."""
+    return sql("SELECT id, `order`, deleted, product_id, name, description, quantity, unit_price, discount_amount, "
+               "discount_percent, tax_rate, amount, purchase_cost, margin FROM invoice_item "
+               f"WHERE invoice_id='{iid}' ORDER BY `order`")
 
 
 def imported(lines, stored, tax_rate="0", tax_mode="individual", data=None, prefix="СЧЕТ_", **columns):
@@ -235,7 +238,7 @@ class CalculationTest(unittest.TestCase):
         created = invoice([line(quantity="2.5", unitPrice="1333.33"), line(quantity="3", unitPrice="33.335")])
         iid = created["id"]
         first = get(iid, "dir")
-        stamps = item_stamps(iid)
+        stored = item_rows(iid)
         same = ok(self, c("dir").put(f"Invoice/{iid}", {"itemList": first["itemList"], "status": "Sent"}))
         respelled = [{**first["itemList"][0], "quantity": "2.500", "unitPrice": "1333.33000000"},
                      {**first["itemList"][1], "quantity": "3", "unitPrice": "33.33500"}]
@@ -243,7 +246,7 @@ class CalculationTest(unittest.TestCase):
         for saved in (same, again, get(iid, "dir")):
             self.assertEqual((totals(saved), saved["number"]), (totals(first), first["number"]))
         self.assertEqual(get(iid)["status"], "Sent")
-        self.assertEqual(item_stamps(iid), stamps, "equivalent values do not rewrite the items")
+        self.assertEqual(item_rows(iid), stored, "equivalent values change no stored line value")
 
     def test_preview_and_cascade(self):
         before = counts()
@@ -305,7 +308,7 @@ class ImportedInvoiceTest(unittest.TestCase):
         iid, vt, _ = imported([line(quantity="2", unitPrice="1000"), line(unitPrice="500")], stored, tax_rate="18",
                               tax_mode="group")
         first = get(iid, "dir")
-        stamps = item_stamps(iid)
+        stored_lines = item_rows(iid)
         ok(self, c("dir").put(f"Invoice/{iid}", {"itemList": first["itemList"], "description": "без изменения сумм"}))
         respelled = [{**first["itemList"][0], "quantity": "2", "unitPrice": "1000"},
                      {**first["itemList"][1], "quantity": "1.000", "unitPrice": "500.00000000", "taxRate": "18"}]
@@ -313,7 +316,7 @@ class ImportedInvoiceTest(unittest.TestCase):
         got = self.assert_kept(iid, stored, f"СЧЕТ_{vt}")
         self.assertEqual((got["sourceFormula"], got["totalsCheck"], got["expectedGrandTotal"]),
                          ("groupTaxAdded", "exact", "2950.00000000"))
-        self.assertEqual(item_stamps(iid), stamps, "equivalent values do not rewrite the lines")
+        self.assertEqual(item_rows(iid), stored_lines, "source line amounts, margins and rates stay as imported")
         self.assertEqual([i["taxRate"] for i in got["itemList"]], ["18.000", "18.000"])
 
     def test_recalculation_keeps_vtiger_totals_for_the_director(self):
