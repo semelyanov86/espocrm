@@ -8,8 +8,10 @@
         "ContactAccess": "Access",
         "Quote": "Quote",
         "SalesOrder": "Sales Order",
+        "Invoice": "Invoice",
         "QuoteItem": "Quote Item",
         "SalesOrderItem": "Sales Order Item",
+        "InvoiceItem": "Invoice Item",
         "LegalEntity": "Legal Entity"
     },
     "scopeNamesPlural": {
@@ -21,8 +23,10 @@
         "ContactAccess": "Accesses",
         "Quote": "Quotes",
         "SalesOrder": "Sales Orders",
+        "Invoice": "Invoices",
         "QuoteItem": "Quote Items",
         "SalesOrderItem": "Sales Order Items",
+        "InvoiceItem": "Invoice Items",
         "LegalEntity": "Legal Entities"
     },
     "labels": {

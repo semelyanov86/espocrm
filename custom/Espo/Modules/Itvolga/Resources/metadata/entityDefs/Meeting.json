@@ -32,6 +32,12 @@
         },
         "dateEnd": {
             "required": false
+        },
+        "parent": {
+            "entityList": [
+                "__APPEND__",
+                "Invoice"
+            ]
         }
     },
     "indexes": {

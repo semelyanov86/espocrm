@@ -15,8 +15,8 @@ use Espo\ORM\EntityManager;
 use stdClass;
 
 /**
- * `sourceFormula` and `totalsCheck` of an imported document (D-46): SourceVerifier classifies the stored totals by
- * the lines; the stored values are never changed (D-05). Needs the source `region_id` in vtigerData (NULL and 0 are
+ * Verification of an imported document (D-46): SourceVerifier classifies the stored totals by the lines and
+ * recomputes them (SourceMarks); the stored values are never changed (D-05). Needs the source `region_id` in vtigerData (NULL and 0 are
  * both meaningful): without the key the document is not classified rather than guessed.
  */
 class SourceVerification
@@ -72,11 +72,6 @@ class SourceVerification
         );
 
         return (new SourceVerifier())->verify($source);
-    }
-
-    public static function totalsCheck(Verification $verification): string
-    {
-        return $verification->worstCheck()?->value ?? 'unverified';
     }
 
     /**

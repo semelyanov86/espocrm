@@ -58,6 +58,12 @@
             "type": "varchar",
             "maxLength": 100,
             "readOnly": true
+        },
+        "parent": {
+            "entityList": [
+                "__APPEND__",
+                "Invoice"
+            ]
         }
     },
     "indexes": {

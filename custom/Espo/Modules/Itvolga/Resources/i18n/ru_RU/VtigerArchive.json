@@ -10,6 +10,7 @@
         "contact": "Контакт",
         "lead": "Обращение",
         "product": "Товар",
+        "invoice": "Счёт",
         "parentArchive": "Родительская запись",
         "childArchives": "Дочерние записи"
     },
@@ -18,6 +19,7 @@
         "contact": "Контакт",
         "lead": "Обращение",
         "product": "Товар",
+        "invoice": "Счёт",
         "parentArchive": "Родительская запись",
         "childArchives": "Дочерние записи",
         "documents": "Документы"

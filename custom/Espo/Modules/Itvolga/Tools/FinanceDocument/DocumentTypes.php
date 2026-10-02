@@ -7,8 +7,8 @@ namespace Espo\Modules\Itvolga\Tools\FinanceDocument;
 use Espo\Core\Utils\Metadata;
 
 /**
- * Registry of finance documents (metadata app.itvolgaFinance): Quote and SalesOrder now, Invoice and Act later
- * only add an entry there.
+ * Registry of finance documents (metadata app.itvolgaFinance): Quote, SalesOrder and Invoice now; Act later only adds
+ * an entry there.
  */
 class DocumentTypes
 {

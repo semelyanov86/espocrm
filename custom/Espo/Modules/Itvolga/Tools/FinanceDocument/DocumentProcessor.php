@@ -16,6 +16,7 @@ use Espo\Modules\Itvolga\Tools\Finance\Editing\LineInput;
 use Espo\Modules\Itvolga\Tools\Finance\Editing\StoredDocument;
 use Espo\Modules\Itvolga\Tools\Finance\Exceptions\InvalidValue;
 use Espo\Modules\Itvolga\Tools\Finance\Exceptions\RuleNotSupported;
+use Espo\Modules\Itvolga\Tools\Finance\Exceptions\UnknownLegalEntity;
 use Espo\Modules\Itvolga\Tools\Finance\Scale;
 use Espo\ORM\Entity;
 use Espo\ORM\EntityManager;
@@ -23,25 +24,35 @@ use Espo\ORM\Repository\Option\SaveOptions;
 use stdClass;
 
 /**
- * Save path of finance documents with line items (Quote, SalesOrder; registry app.itvolgaFinance).
+ * Save path of finance documents with line items (Quote, SalesOrder, Invoice; registry app.itvolgaFinance).
  *
  * The document and its items are saved by one request: `itemList` (a non-stored list of line objects) carries the
  * complete item table. prepare() runs in the document's beforeSave inside its transaction (entityDefs
  * transactionalSave): it validates the lines, applies the edit rule (DocumentEditor), sets the totals and the number;
  * persist() runs in afterSave of the same transaction and writes the items. Any refusal rolls back the header, the
  * items and the number counter together. Items are written only here (WRITE_OPTION; other writes are refused by
- * Hooks/Common/FinanceItemGuard) and by the importer (SaveOption::IMPORT, values as in the source).
+ * Hooks/Common/FinanceItemGuard) and by the importer (SaveOption::IMPORT, values as in the source; only the source
+ * legal entity is resolved, D-48).
  */
 class DocumentProcessor
 {
     public const WRITE_OPTION = 'itvolgaFinanceWrite';
     public const ITEM_LIST = 'itemList';
     public const SOURCE_TOTALS = 'sourceTotals';
+    /** Stored total → the attribute that shows it after a recalculation («Итоги Vtiger», Q-40). */
+    public const SOURCE_TOTAL_FIELDS = [
+        'subtotal' => 'sourceSubtotal',
+        'preTaxTotal' => 'sourcePreTaxTotal',
+        'grandTotal' => 'sourceGrandTotal',
+    ];
+    /** vtigerData key of the source spcompany value (the import input of legalEntity, D-48). */
+    public const SOURCE_LEGAL_ENTITY = 'spcompany';
 
     private const HEADER_INPUTS = ['taxMode', ...HeaderInputs::DECIMALS];
     private const TOTALS = ['subtotal', 'preTaxTotal', 'grandTotal'];
     private const HEADER_MONEY = ['discountAmount', 'shippingAmount', 'adjustment', 'subtotal', 'preTaxTotal',
-        'grandTotal'];
+        'grandTotal', 'expectedSubtotal', 'expectedPreTaxTotal', 'expectedGrandTotal', 'sourceSubtotal',
+        'sourcePreTaxTotal', 'sourceGrandTotal'];
     private const ITEM_MONEY = ['unitPrice', 'discountAmount', 'purchaseCost', 'amount', 'margin'];
     private const ITEM_OUTPUT = ['description', ...LineInput::DECIMALS, 'amount', 'margin'];
 
@@ -59,13 +70,14 @@ class DocumentProcessor
 
     /**
      * @throws BadRequest refused input (translated message with line and field)
-     * @throws Error configuration missing (legal entity, numbering)
+     * @throws Error configuration missing (legal entity, numbering); an imported document of an unknown legal entity
      */
     public function prepare(Entity $document, DocumentType $type, SaveOptions $options): ?SavePlan
     {
-        $this->setLegalEntity($document);
+        $import = (bool) $options->get(SaveOption::IMPORT);
+        $this->setLegalEntity($document, $type, $import);
 
-        if ($options->get(SaveOption::IMPORT)) {
+        if ($import) {
             // The importer keeps number, totals and items as in the source (D-05, D-17); SourceVerification classifies.
             return null;
         }
@@ -265,7 +277,10 @@ class DocumentProcessor
      */
     private function rebaseOnLockedRow(Entity $document, Entity $current): void
     {
-        foreach ([...self::HEADER_INPUTS, ...self::TOTALS, 'sourceFormula', 'totalsCheck'] as $attribute) {
+        $attributes = [...self::HEADER_INPUTS, ...self::TOTALS, ...SourceMarks::ATTRIBUTES,
+            ...array_values(self::SOURCE_TOTAL_FIELDS)];
+
+        foreach ($attributes as $attribute) {
             $value = $current->get($attribute);
 
             if (!$document->isAttributeChanged($attribute)) {
@@ -406,6 +421,11 @@ class DocumentProcessor
             if (!isset($data->{self::SOURCE_TOTALS})) {
                 $data->{self::SOURCE_TOTALS} = $this->sourceSnapshot($current, $items);
                 $document->set('vtigerData', $data);
+
+                // «Итоги Vtiger» for the director (vtigerData is for administrators only), written with the snapshot.
+                foreach (self::SOURCE_TOTAL_FIELDS as $total => $field) {
+                    $document->set($field, $current->get($total));
+                }
             }
         }
 
@@ -413,8 +433,7 @@ class DocumentProcessor
             'subtotal' => $totals->subtotal->toFixed(Scale::MONEY),
             'preTaxTotal' => $totals->preTaxTotal->toFixed(Scale::MONEY),
             'grandTotal' => $totals->grandTotal->toFixed(Scale::MONEY),
-            'sourceFormula' => '',
-            'totalsCheck' => '',
+            ...SourceMarks::cleared(),
         ]);
     }
 
@@ -426,7 +445,7 @@ class DocumentProcessor
     {
         $snapshot = [];
 
-        foreach ([...self::TOTALS, ...self::HEADER_INPUTS, 'sourceFormula', 'totalsCheck'] as $attribute) {
+        foreach ([...self::TOTALS, ...self::HEADER_INPUTS, ...SourceMarks::ATTRIBUTES] as $attribute) {
             $snapshot[$attribute] = $current->get($attribute);
         }
 
@@ -447,22 +466,47 @@ class DocumentProcessor
         return $snapshot;
     }
 
-    private function setLegalEntity(Entity $document): void
+    /**
+     * One legal entity (D-04, D-48): a document saved in EspoCRM belongs to it; an imported one only when its source
+     * spcompany is a known spelling of it — an unknown value stops the import instead of becoming a second legal
+     * entity.
+     */
+    private function setLegalEntity(Entity $document, DocumentType $type, bool $import): void
     {
-        if (
-            !$document->isNew() &&
-            $document->get('legalEntityId') &&
-            !$document->isAttributeChanged('legalEntityId')
-        ) {
+        $kept = !$document->isNew() && $document->get('legalEntityId') &&
+            !$document->isAttributeChanged('legalEntityId');
+
+        if (!$import && $kept) {
             return;
         }
 
-        $id = $this->legalEntityProvider->findDefaultId()
-            ?? throw new Error('The legal entity is not configured: run itvolga-setup-finance.');
+        $id = $import ? $this->sourceLegalEntityId($document, $type) : $this->legalEntityProvider->findDefaultId();
+
+        $id ??= throw new Error('The legal entity is not configured: run itvolga-setup-finance.');
 
         if ($document->get('legalEntityId') !== $id) {
-            // One legal entity (D-04, D-48): every document belongs to it.
             $document->set('legalEntityId', $id);
+        }
+    }
+
+    /**
+     * The importer keeps the source value in vtigerData.spcompany; no key (records without a source value) and empty
+     * values mean the default company, as in SalesPlatform. Messages never carry the value.
+     */
+    private function sourceLegalEntityId(Entity $document, DocumentType $type): ?string
+    {
+        $data = $document->get('vtigerData');
+        $value = $data instanceof stdClass ? ($data->{self::SOURCE_LEGAL_ENTITY} ?? null) : null;
+        $record = "{$type->entityType} vtigerId {$document->get('vtigerId')}";
+
+        if ($value !== null && !is_string($value)) {
+            throw new Error("$record: vtigerData.spcompany is not a string.");
+        }
+
+        try {
+            return $this->legalEntityProvider->findIdForSource($value);
+        } catch (UnknownLegalEntity $e) {
+            throw new Error("$record: {$e->getMessage()}");
         }
     }
 

@@ -62,6 +62,10 @@
             "type": "link",
             "readOnly": true
         },
+        "invoice": {
+            "type": "link",
+            "readOnly": true
+        },
         "parentArchive": {
             "type": "link",
             "readOnly": true
@@ -144,6 +148,11 @@
         "product": {
             "type": "belongsTo",
             "entity": "Product",
+            "foreign": "vtigerArchives"
+        },
+        "invoice": {
+            "type": "belongsTo",
+            "entity": "Invoice",
             "foreign": "vtigerArchives"
         },
         "parentArchive": {

@@ -8,8 +8,10 @@
         "ContactAccess": "Доступ",
         "Quote": "Предложение",
         "SalesOrder": "Заказ",
+        "Invoice": "Счёт",
         "QuoteItem": "Позиция предложения",
         "SalesOrderItem": "Позиция заказа",
+        "InvoiceItem": "Позиция счёта",
         "LegalEntity": "Юрлицо"
     },
     "scopeNamesPlural": {
@@ -21,8 +23,10 @@
         "ContactAccess": "Доступы",
         "Quote": "Предложения",
         "SalesOrder": "Заказы",
+        "Invoice": "Счета",
         "QuoteItem": "Позиции предложений",
         "SalesOrderItem": "Позиции заказов",
+        "InvoiceItem": "Позиции счетов",
         "LegalEntity": "Юрлица"
     },
     "labels": {
@@ -41,7 +45,7 @@
         "financeTotalsPending": "Итоги будут пересчитаны при сохранении.",
         "financeTotalsPreview": "Предварительный расчёт (сохраните документ).",
         "financeSourceTotals": "Итоги перенесены из Vtiger и не пересчитываются, пока не изменены суммы, количества, цены, скидки или налог.",
-        "financeReplacesSourceTotals": "При сохранении документ будет пересчитан; исходные итоги Vtiger сохранятся в исходных данных.",
+        "financeReplacesSourceTotals": "При сохранении документ будет пересчитан; исходные итоги Vtiger сохранятся и будут видны в разделе «Контроль итогов».",
         "financeNoLines": "Нет позиций.",
         "financeLineInvalid": "Строка {line}: неверное число.",
         "financeLineProduct": "Строка {line}: выберите товар или услугу.",

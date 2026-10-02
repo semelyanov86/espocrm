@@ -3,5 +3,6 @@
     "cProducts",
     "cProjects",
     "cQuotes",
-    "cSalesOrders"
+    "cSalesOrders",
+    "cInvoices"
 ]

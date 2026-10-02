@@ -34,6 +34,8 @@ UNION ALL SELECT 'picklist', 'servicecategory', IF(CHAR_LENGTH(servicecategory)>
 -- Stage 04.2: statuses of quotes and sales orders.
 UNION ALL SELECT 'picklist', 'quotestage', IF(CHAR_LENGTH(quotestage)>60, CONCAT('(long value ', CHAR_LENGTH(quotestage), ' chars)'), quotestage), IFNULL(sortorderid,0), presence FROM vtiger_quotestage
 UNION ALL SELECT 'picklist', 'sostatus', IF(CHAR_LENGTH(sostatus)>60, CONCAT('(long value ', CHAR_LENGTH(sostatus), ' chars)'), sostatus), IFNULL(sortorderid,0), presence FROM vtiger_sostatus
+-- Stage 04.3: statuses of invoices.
+UNION ALL SELECT 'picklist', 'invoicestatus', IF(CHAR_LENGTH(invoicestatus)>60, CONCAT('(long value ', CHAR_LENGTH(invoicestatus), ' chars)'), invoicestatus), IFNULL(sortorderid,0), presence FROM vtiger_invoicestatus
 ORDER BY 2, 4, 3;
 -- Salutation (uitype 55 is not covered by 14_picklist_values): distribution among live records. Only standard
 -- salutations are printed; anything else is counted as '(non-standard value)' so free text never leaves the host.

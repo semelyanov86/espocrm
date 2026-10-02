@@ -24,7 +24,7 @@ MODULES = {
     "progress": ["Project"], "projecttaskstatus": ["ProjectTask"], "projecttaskpriority": ["ProjectTask"],
     "projecttasktype": ["ProjectTask"], "projecttaskprogress": ["ProjectTask"], "usageunit": ["Products"],
     "service_usageunit": ["Services"], "servicecategory": ["Services"],
-    "quotestage": ["Quotes"], "sostatus": ["SalesOrder"],
+    "quotestage": ["Quotes"], "sostatus": ["SalesOrder"], "invoicestatus": ["Invoice"],
 }
 PAIR = re.compile(r"""(['"])((?:\\.|(?!\1).)*)\1\s*=>\s*(['"])((?:\\.|(?!\3).)*)\3""", re.S)
 

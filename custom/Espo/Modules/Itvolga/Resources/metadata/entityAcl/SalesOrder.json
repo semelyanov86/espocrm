@@ -24,6 +24,24 @@
         "grandTotal": {
             "readOnly": true
         },
+        "expectedSubtotal": {
+            "readOnly": true
+        },
+        "expectedPreTaxTotal": {
+            "readOnly": true
+        },
+        "expectedGrandTotal": {
+            "readOnly": true
+        },
+        "sourceSubtotal": {
+            "readOnly": true
+        },
+        "sourcePreTaxTotal": {
+            "readOnly": true
+        },
+        "sourceGrandTotal": {
+            "readOnly": true
+        },
         "shippingTaxPercent": {
             "readOnly": true
         },

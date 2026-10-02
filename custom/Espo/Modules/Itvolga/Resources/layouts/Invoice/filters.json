@@ -1,0 +1,18 @@
+[
+    "number",
+    "name",
+    "account",
+    "contact",
+    "opportunity",
+    "salesOrder",
+    "quote",
+    "status",
+    "dateInvoiced",
+    "dateDue",
+    "grandTotal",
+    "assignedUser",
+    "teams",
+    "createdAt",
+    "sourceFormula",
+    "totalsCheck"
+]

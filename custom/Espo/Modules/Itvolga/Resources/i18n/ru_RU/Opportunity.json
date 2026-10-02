@@ -26,7 +26,8 @@
         "cProducts": "Услуги и товары",
         "cProjects": "Проекты (архив)",
         "cQuotes": "Предложения",
-        "cSalesOrders": "Заказы"
+        "cSalesOrders": "Заказы",
+        "cInvoices": "Счета"
     },
     "tooltips": {
         "vtigerId": "Исходный crmid записи Vtiger — ключ повторного импорта.",

@@ -13,12 +13,12 @@ use Espo\ORM\Entity;
 use Espo\ORM\EntityManager;
 
 /**
- * Items of finance documents (QuoteItem, SalesOrderItem): an item is read with its document's access — the document's
- * scope level, ownership and checker (AclManager) — so an item level set wider than the document's in a role reveals
- * nothing; the item's own role entry only has to enable reading. Lists follow the document's level as well
- * (Classes/Select/FinanceItem/DocumentLevel with the core ForeignOnlyTeam/ForeignOnlyOwn filters). Nobody — admins
- * included — creates, edits or deletes an item directly: lines change only through the document, which recalculates
- * its totals in the same transaction.
+ * Items of finance documents (QuoteItem, SalesOrderItem, InvoiceItem): an item is read with its document's access —
+ * the document's scope level, ownership and checker (AclManager) — so an item level set wider than the document's in
+ * a role reveals nothing; the item's own role entry only has to enable reading. Lists follow the document's level as
+ * well (Classes/Select/FinanceItem/DocumentLevel with the core ForeignOnlyTeam/ForeignOnlyOwn filters). Nobody —
+ * admins included — creates, edits or deletes an item directly: lines change only through the document, which
+ * recalculates its totals in the same transaction.
  *
  * @implements AccessEntityCREDSChecker<Entity>
  */

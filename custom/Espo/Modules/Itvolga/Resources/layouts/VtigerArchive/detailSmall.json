@@ -39,8 +39,14 @@
                     "name": "parentArchive"
                 },
                 {
-                    "name": "vtigerId"
+                    "name": "invoice"
                 }
+            ],
+            [
+                {
+                    "name": "vtigerId"
+                },
+                false
             ],
             [
                 {

@@ -1,0 +1,37 @@
+[
+    {
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "number"
+                }
+            ],
+            [
+                {
+                    "name": "account"
+                },
+                {
+                    "name": "status"
+                }
+            ],
+            [
+                {
+                    "name": "dateInvoiced"
+                },
+                {
+                    "name": "dateDue"
+                }
+            ],
+            [
+                {
+                    "name": "grandTotal"
+                },
+                false
+            ]
+        ]
+    }
+]

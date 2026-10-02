@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Synthetic fixture for the stage-04.2 UI scenarios (checked in the browser with Playwriter, see evidence.md).
+"""Synthetic fixture for the stage-04.2 and 04.3 UI scenarios (checked in the browser with Playwriter, evidence.md).
 
   python3 tests/stage04/ui_fixture.py create   → users/records; passwords → <private>/ui-users.env (600)
   python3 tests/stage04/ui_fixture.py delete   → removes everything created by `create`
 
 Users: synth-ui-director (Директор), synth-ui-fdeputy (Заместитель директора: no finance). Records carry the prefix
-«SYNTH-UI»: an account, two products, a quote calculated in EspoCRM and an "imported" quote (source values written
-by SQL as the importer would, historical 18 % lines; classified by itvolga-finance-verify).
+«SYNTH-UI»: an account, a contact, two products, a quote calculated in EspoCRM and a sales order made from it, an
+"imported" quote, a new invoice and three "imported" invoices (source values written by SQL as the importer would;
+classified by itvolga-finance-verify): «По умолчанию» with historical 18 % lines and no due date, a rounded and a
+mismatching one. Documents created in the browser from the fixture quote and sales order are removed with them.
 """
 import json
 import os
@@ -17,7 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "stage03"))
 from espo import Client, admin_credentials, espo_console, sql  # noqa: E402
 
-PRIVATE = Path(os.environ.get("UI_FIXTURE_DIR", "/data/itvolga/espo-private/stand/evidence/stage04.2"))
+PRIVATE = Path(os.environ.get("UI_FIXTURE_DIR", "/data/itvolga/espo-private/stand/evidence/stage04.3"))
 STATE = PRIVATE / "ui-fixture.json"
 USERS_ENV = PRIVATE / "ui-users.env"
 
@@ -84,21 +86,54 @@ def _create():
         f"grand_total=2500, vtiger_data='{{\"region_id\":null}}' WHERE id='{imported}'")
     sql(f"UPDATE quote_item SET tax_rate=18, margin=0 WHERE quote_id='{imported}'")
     print(espo_console("itvolga-finance-verify", "--entity=Quote", f"--id={imported}").strip())
-    state.update({"account": acc, "service": svc, "product": prd, "quote": quote, "importedQuote": imported})
+
+    contact = rec("Contact", {"lastName": "SYNTH-UI Контакт", "accountId": acc})
+    order = rec("SalesOrder", {"name": "SYNTH-UI Заказ", "accountId": acc, "quoteId": quote, "itemList": [
+        {"productId": svc, "quantity": "4", "unitPrice": "1500.00"}]})
+    dates = {"dateInvoiced": "2026-10-02", "dateDue": "2026-10-16"}
+    invoice = rec("Invoice", {"name": "SYNTH-UI Счёт", "accountId": acc, "contactId": contact, **dates,
+                              "assignedUserId": state["users"]["director"], "itemList": [
+                                  {"productId": svc, "quantity": "2.5", "unitPrice": "1500.00", "description": "Часы"},
+                                  {"productId": prd, "quantity": "1", "unitPrice": "12345.67", "discountPercent": "10"},
+                                  {"productId": svc, "quantity": "1", "unitPrice": "0.005"}]})
+    invoices = {"invoice": invoice}
+    # (key, lines, stored subtotal = pre-tax = total, region_id, spcompany, line tax, number prefix, due date)
+    for key, lines, stored, region, company, tax, prefix, due in (
+            ("importedInvoice", [("2", "1000"), ("1", "500")], "2500", None, "По умолчанию", 18, "СЧЕТ_", None),
+            ("roundedInvoice", [("3", "33.335")], "100.01", 0, "Default", 0, "С-", "'2026-10-16'"),
+            ("mismatchInvoice", [("1", "5000")], "5000.01", 0, "Default", 0, "С-", "'2026-10-16'")):
+        iid = rec("Invoice", {"name": f"SYNTH-UI Импортированный счёт ({key})", "accountId": acc, **dates,
+                              "itemList": [{"productId": svc, "quantity": q, "unitPrice": p} for q, p in lines]})
+        vt = 970_000_000 + secrets.randbelow(9_000_000)
+        data = json.dumps({"region_id": region, "spcompany": company}, ensure_ascii=False)
+        sql(f"UPDATE invoice SET vtiger_id={vt}, number='{prefix}{vt}', status='Paid', subtotal={stored}, "
+            f"pre_tax_total={stored}, grand_total={stored}, balance_source=0, date_due={due or 'NULL'}, "
+            f"vtiger_data='{data}' WHERE id='{iid}'")
+        sql(f"UPDATE invoice_item SET tax_rate={tax}, margin=0 WHERE invoice_id='{iid}'")
+        print(espo_console("itvolga-finance-verify", "--entity=Invoice", f"--id={iid}").strip())
+        invoices[key] = iid
+    state.update({"account": acc, "contact": contact, "service": svc, "product": prd, "quote": quote,
+                  "importedQuote": imported, "salesOrder": order, **invoices})
     save_state(state)
     print(json.dumps({k: v for k, v in state.items() if k != "records"}, indent=2))
+
+
+# Documents the browser may create from a fixture document («Создать заказ», «Создать счёт»).
+CHILDREN = {"Quote": (("invoices", "Invoice"), ("salesOrders", "SalesOrder")), "SalesOrder": (("invoices", "Invoice"),)}
+
+
+def delete_with_children(admin, entity, rid):
+    for link, child in CHILDREN.get(entity, ()):
+        for record in (admin.get(f"{entity}/{rid}/{link}")[1] or {"list": []})["list"]:
+            delete_with_children(admin, child, record["id"])
+    admin.delete(f"{entity}/{rid}")
 
 
 def delete():
     admin = Client(*admin_credentials())
     state = json.loads(STATE.read_text(encoding="utf-8"))
-    # Sales orders created in the browser from the fixture quote go with it.
     for entity, rid in reversed(state["records"]):
-        if entity == "Quote":
-            orders = admin.get(f"Quote/{rid}/salesOrders")[1] or {"list": []}
-            for order in orders["list"]:
-                admin.delete(f"SalesOrder/{order['id']}")
-        admin.delete(f"{entity}/{rid}")
+        delete_with_children(admin, entity, rid)
     for rid in state["users"].values():
         admin.delete(f"User/{rid}")
     STATE.unlink()

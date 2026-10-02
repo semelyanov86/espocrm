@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Espo\Modules\Itvolga\Tools\FinanceDocument;
 
+use Espo\Modules\Itvolga\Tools\Finance\Exceptions\UnknownLegalEntity;
 use Espo\Modules\Itvolga\Tools\Finance\LegalEntityResolver;
 use Espo\ORM\EntityManager;
 
@@ -19,11 +20,17 @@ class LegalEntityProvider
 
     public function findDefaultId(): ?string
     {
-        return $this->entityManager
-            ->getRDBRepository(self::ENTITY_TYPE)
-            ->where(['vtigerCompanyKey' => LegalEntityResolver::KEY])
-            ->findOne()
-            ?->getId();
+        return $this->findIdByKey(LegalEntityResolver::KEY);
+    }
+
+    /**
+     * The legal entity of a source record by its spcompany value (D-48: exact spellings only).
+     *
+     * @throws UnknownLegalEntity a value that is not a spelling of the single legal entity
+     */
+    public function findIdForSource(?string $spcompany): ?string
+    {
+        return $this->findIdByKey((new LegalEntityResolver())->resolve($spcompany));
     }
 
     /**
@@ -41,5 +48,14 @@ class LegalEntityProvider
         ]);
 
         return true;
+    }
+
+    private function findIdByKey(string $key): ?string
+    {
+        return $this->entityManager
+            ->getRDBRepository(self::ENTITY_TYPE)
+            ->where(['vtigerCompanyKey' => $key])
+            ->findOne()
+            ?->getId();
     }
 }

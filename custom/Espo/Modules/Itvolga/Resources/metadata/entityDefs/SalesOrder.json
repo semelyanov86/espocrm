@@ -205,6 +205,78 @@
             "readOnly": true,
             "massUpdateDisabled": true
         },
+        "expectedSubtotal": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 25,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money",
+            "readOnly": true,
+            "massUpdateDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "tooltip": true
+        },
+        "expectedPreTaxTotal": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 25,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money",
+            "readOnly": true,
+            "massUpdateDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "tooltip": true
+        },
+        "expectedGrandTotal": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 25,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money",
+            "readOnly": true,
+            "massUpdateDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "tooltip": true
+        },
+        "sourceSubtotal": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 25,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money",
+            "readOnly": true,
+            "massUpdateDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "tooltip": true
+        },
+        "sourcePreTaxTotal": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 25,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money",
+            "readOnly": true,
+            "massUpdateDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "tooltip": true
+        },
+        "sourceGrandTotal": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 25,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money",
+            "readOnly": true,
+            "massUpdateDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "tooltip": true
+        },
         "billingAddress": {
             "type": "address"
         },
@@ -343,6 +415,11 @@
             "type": "belongsTo",
             "entity": "Quote",
             "foreign": "salesOrders"
+        },
+        "invoices": {
+            "type": "hasMany",
+            "entity": "Invoice",
+            "foreign": "salesOrder"
         }
     },
     "transactionalSave": true,

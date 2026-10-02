@@ -8,6 +8,9 @@
         },
         "data": {
             "readOnly": true
+        },
+        "invoice": {
+            "readOnly": true
         }
     }
 }

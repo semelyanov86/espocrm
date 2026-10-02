@@ -24,7 +24,7 @@ task stand:install | stand:health          # локальный стенд EspoC
 task stand:backup | stand:restore -- latest --yes
 task espo -- rebuild                       # консоль EspoCRM; bin/command напрямую не запускать
 task test:finance                          # тесты расчётного ядра финансов (этап 04.1)
-task test:stage04                          # приёмочные тесты Quote/SalesOrder на стенде (этап 04.2)
+task test:stage04                          # приёмочные тесты Quote/SalesOrder/Invoice на стенде (этапы 04.2–04.3)
 ```
 
 - `docs/migration/field-map.csv` и `relations.csv` **не редактировать вручную**: правила — `scripts/audit/mapping.py`, генерация — `scripts/audit/build_maps.py` из приватного прогона.
@@ -59,9 +59,10 @@ task test:stage04                          # приёмочные тесты Quo
 - Перед первой командой в сессии загрузить скилл и прочитать `playwriter skill` целиком; работать в своей сессии: `playwriter session new --tab-group test`, дальше `playwriter -s <id> -e '…'` / `-f файл.js`; свои вкладки закрывать, чужие не трогать.
 - Где можно: локальный стенд `crm.itvolga.test` — на синтетических данных (`tests/stage03/ui_fixture.py create|delete`); production Vtiger `serv.itvolga.com` — только просмотр по правилам ниже (раздел metaswarm, Visual review): без сохранения форм и действий, без карточек и списков с полями доступа контактов.
 - Снимки — только в `/data/itvolga/espo-private/stand/evidence/<этап>/` (права 600), не в Git и не в `/tmp`. Сессию Playwriter создавать из этого каталога: песочница пишет только в каталог сессии и `/tmp`.
-- Вход на стенд: `tests/stage03/ui_login.js` (`state.who = "admin" | "deputy" | "access"`; для фикстуры этапа 04.2 `tests/stage04/ui_fixture.py` — `state.who = "director" | "fdeputy"` и `state.usersEnv` = её `ui-users.env`); пароли читаются из приватных файлов через `await import('node:fs')` (песочный `require('node:fs')` не читает вне каталога сессии) и не печатаются.
+- Вход на стенд: `tests/stage03/ui_login.js` (`state.who = "admin" | "deputy" | "access"`; для фикстуры этапов 04.2–04.3 `tests/stage04/ui_fixture.py` — `state.who = "director" | "fdeputy"` и `state.usersEnv` = её `ui-users.env`, каталог по умолчанию — `…/evidence/stage04.3`); пароли читаются из приватных файлов через `await import('node:fs')` (песочный `require('node:fs')` не читает вне каталога сессии) и не печатаются.
 - Известные особенности (2026-09-30): фокус на полях входа провоцирует менеджер паролей браузера, вкладка отключается — значения полей входа задавать через DOM; `#logout` перезагружает приложение и отключает вкладку — выходить удалением cookies только домена стенда (`Network.deleteCookies`, никогда `clearBrowserCookies`); после `task model:apply` (новая отметка времени) EspoCRM показывает окно «Приложение было обновлено» — закрыть его перед кликами; `HeapProfiler` через расширение недоступен; поля выбора EspoCRM — не нативные `select`, варианты читать из выпадающего списка.
 - Особенности 2026-10-01: штатные числовые поля EspoCRM (decimal/currency) после `locator.fill()` не попадают в сохранение — вводить с клавиатуры (`click` → `Control+A` → `keyboard.type`); `page.screenshot` упирается в тайм-аут расширения, когда вкладка в фоне (на передний план не выводить — проверять снимком доступности).
+- Особенности 2026-10-02: клавиатурный ввод в фоновую вкладку ненадёжен (символы уходят в другое поле, дата искажается); `Escape` в форме открывает диалог «Покинуть форму?», который блокирует клики, — не нажимать, диалог закрывать кнопкой «Отменить». Даты — выбирать в календаре (клик по полю → день); ячейки редактора позиций — задавать через DOM с событием `change` (`el.value = …; el.dispatchEvent(new Event("change", {bubbles: true}))`). Поиск полей — по `input[data-name=…]` и `input[data-field=…]`, не по порядковому номеру textbox.
 - Пример проверки состояния модели клиента — `tests/stage03/ui_password_model_check.js`.
 
 ## metaswarm

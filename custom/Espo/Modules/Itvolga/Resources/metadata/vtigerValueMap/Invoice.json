@@ -1,0 +1,50 @@
+{
+    "fields": {
+        "status": {
+            "picklists": [
+                "invoicestatus"
+            ],
+            "options": [
+                "",
+                "AutoCreated",
+                "Cancel",
+                "Created",
+                "Approved",
+                "Sent",
+                "Credit Invoice",
+                "Paid"
+            ],
+            "map": {
+                "Invoice.invoicestatus": {
+                    "Created": "Created",
+                    "Sent": "Sent",
+                    "Paid": "Paid",
+                    "": "",
+                    "Cancel": "Cancel",
+                    "Credit Invoice": "Credit Invoice",
+                    "Approved": "Approved"
+                },
+                "(picklist)": {
+                    "AutoCreated": "AutoCreated",
+                    "Cancel": "Cancel",
+                    "Created": "Created",
+                    "Approved": "Approved",
+                    "Sent": "Sent",
+                    "Credit Invoice": "Credit Invoice",
+                    "Paid": "Paid",
+                    "": ""
+                }
+            }
+        },
+        "taxMode": {
+            "picklists": [],
+            "map": {
+                "Invoice.hdnTaxType": {
+                    "individual": "individual",
+                    "group": "group",
+                    "group_tax_inc": "group_tax_inc"
+                }
+            }
+        }
+    }
+}

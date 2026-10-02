@@ -51,5 +51,8 @@
     },
     "cSalesOrders": {
         "index": 13
+    },
+    "cInvoices": {
+        "index": 14
     }
 }

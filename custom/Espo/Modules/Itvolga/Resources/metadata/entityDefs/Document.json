@@ -80,6 +80,12 @@
             "entity": "SalesOrder",
             "foreign": "documents",
             "relationName": "salesOrderDocument"
+        },
+        "cInvoices": {
+            "type": "hasMany",
+            "entity": "Invoice",
+            "foreign": "documents",
+            "relationName": "invoiceDocument"
         }
     },
     "indexes": {

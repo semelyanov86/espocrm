@@ -11,6 +11,8 @@ and `mapping_status=реализовано (этап 03)` for rows whose target 
 Stage 04.1: rows of finance modules not yet in the model get `контракт (этап 04.1)` (finance-contract.md §11).
 Stage 04.2: rows of Quote, SalesOrder, their items and LegalEntity (requisites per column) get
 `реализовано (этап 04.2)`; generic line rows stay `контракт` until Invoice and Act items exist.
+Stage 04.3: rows of Invoice and its items get `реализовано (этап 04.3)`; links to Act and payments stay `контракт`
+(model_check.DEFERRED) and generic line rows stay partial until ActItem exists.
 """
 import csv
 import re
@@ -267,7 +269,7 @@ REL_TARGETS = {
     ("ProjectTask", "projectid"): "ProjectTask.project",
     ("Project", "linktoaccountscontacts"): "Project.account",
     ("Project", "potentialid"): "Project.opportunity",
-    ("Consignment", "invoiceid"): "VtigerArchive.data (vtigerId счёта; связь с Invoice — этап 04.3)",
+    ("Consignment", "invoiceid"): "VtigerArchive.invoice (+ vtigerId счёта в VtigerArchive.data)",
     ("Consignment", "salesorderid"): "VtigerArchive.data",
     ("Consignment", "accountid"): "VtigerArchive.account",
     ("Consignment", "contactid"): "VtigerArchive.contact",
@@ -312,8 +314,8 @@ CRMREL_TARGETS = {
     ("Contacts", "SPCallPopup"): "слияние в Call",
     ("Contacts", "SPPayments"): "Payment.payer",
     ("HelpDesk", "Emails"): "Email.parent (все письма удалены)",
-    ("Invoice", "Calendar"): "Task|Call|Meeting.parent (родитель Invoice — этап 04.3)",
-    ("Invoice", "Consignment"): "VtigerArchive.data (связь с Invoice — этап 04.3)",
+    ("Invoice", "Calendar"): "Task|Call|Meeting.parent (родитель Invoice)",
+    ("Invoice", "Consignment"): "VtigerArchive.invoice (дублирует поле invoiceid)",
     ("Invoice", "SPPayments"): "PaymentAllocation (объединение с related_to)",
     ("Leads", "Calendar"): "Task|Call|Meeting.parent",
     ("Leads", "Emails"): "Email.parent",

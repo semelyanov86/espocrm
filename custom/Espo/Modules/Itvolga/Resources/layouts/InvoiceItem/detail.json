@@ -1,0 +1,78 @@
+[
+    {
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "invoice"
+                },
+                {
+                    "name": "order"
+                }
+            ],
+            [
+                {
+                    "name": "product"
+                },
+                {
+                    "name": "name"
+                }
+            ],
+            [
+                {
+                    "name": "description",
+                    "fullWidth": true
+                }
+            ],
+            [
+                {
+                    "name": "quantity"
+                },
+                {
+                    "name": "unitPrice"
+                }
+            ],
+            [
+                {
+                    "name": "discountAmount"
+                },
+                {
+                    "name": "discountPercent"
+                }
+            ],
+            [
+                {
+                    "name": "taxRate"
+                },
+                {
+                    "name": "amount"
+                }
+            ],
+            [
+                {
+                    "name": "purchaseCost"
+                },
+                {
+                    "name": "margin"
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Vtiger",
+        "rows": [
+            [
+                {
+                    "name": "vtigerId"
+                },
+                false
+            ],
+            [
+                {
+                    "name": "vtigerData",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    }
+]

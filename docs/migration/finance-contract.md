@@ -2,6 +2,8 @@
 
 Документ фиксирует **фактическое** поведение данных Vtiger/SalesPlatform (§1–§10), контракт собственных сущностей EspoCRM (§11), расчётное ядро (§12) и правила, которых в данных нет (§13). Всё, что не подтверждено данными, помечено «не проверено» или вынесено в `open-questions.md`. Денежные агрегаты — **только в приватных отчётах** (`/data/itvolga/espo-private/audit/<срез>/35_control_sums_private.tsv`, `47_finance_snapshot_private.tsv`); в Git — счётчики, правила и HMAC-дайджесты контрольных сумм (`tests/finance/fixtures/source-profile.php`).
 
+Реализация этапа 04.3 (Invoice, InvoiceItem, контроль итогов) — §15, факты перепроверены 2026-10-02 (срез `20261002T162427`).
+
 Перепроверка этапа 04.1: срез `20260930T220947` (`run-audit.sh`, шаги `46_finance_contract.sql`, `47_finance_snapshot_private.sql`); код SalesPlatform — по локальной копии `/data/itvolga/espo-private/vtiger-src/vtiger7/` (7.1.0 SP01). Счётчики с 2026-09-29 выросли на 1 счёт и 1 акт; найдено одно расхождение с прежней версией документа — расходные платежи связаны со счетами (§8). Решения владельца по правилам, которых нет в данных (Q-36…Q-38, 2026-09-30), — D-47, D-49.
 
 ## 1. Документы и объёмы (живые записи, 2026-09-30)
@@ -62,7 +64,7 @@
 | Payment | 473 | 137 (2015-10 … 2018-07) | 188 (187 — банковский импорт 2018–2020, 1 — 2023) |
 
   История поля: 3 счёта и 1 акт вручную переведены `По умолчанию → Default` (2018); обратных переводов нет. Оба значения выбирались пользователями как одно и то же юрлицо.
-- **Вывод (принято, D-04; уточнено D-48):** `Default`, `По умолчанию` и пустое значение — одно юрлицо; второго юрлица в данных нет. В EspoCRM — одна запись `LegalEntity`; импорт сопоставляет значения только точным совпадением (`LegalEntityResolver`), любое другое значение останавливает импорт и не превращается во второе юрлицо. Печатные шаблоны имеют `spcompany='All'` (11 шаблонов).
+- **Вывод (принято, D-04; уточнено D-48):** `Default`, `По умолчанию` и пустое значение — одно юрлицо; второго юрлица в данных нет. В EspoCRM — одна запись `LegalEntity`; импорт сопоставляет значения только точным совпадением (`LegalEntityResolver`, при каждом сохранении с `SaveOption::IMPORT`, исходное значение — в `vtigerData.spcompany`, D-60), любое другое значение останавливает импорт и не превращается во второе юрлицо. Печатные шаблоны имеют `spcompany='All'` (11 шаблонов).
 - **Ограничение вывода:** Vtiger хранит только текущие реквизиты (одна строка без истории); реквизиты, напечатанные в исторических документах, по БД подтвердить нельзя (владелец: не менялись, Q-31).
 
 ## 4. Расчёт сумм (проверено пересчётом по строкам, 2026-09-30)
@@ -183,7 +185,7 @@
 
 ## 11. Контракт сущностей EspoCRM (этап 04.1)
 
-Сущности создаются на этапах 04.2–04.5 по этому контракту; в `field-map.csv`/`relations.csv` строки ещё не созданных сущностей имеют статус `контракт (этап 04.1)`, созданных — `реализовано (этап …)`. Quote, SalesOrder, их позиции и LegalEntity реализованы на этапе 04.2 (§14). Общие правила: деньги — поля `currency` с `decimal: true` (DECIMAL, без float, D-43), валюта только RUB; служебные поля импорта — D-41; даты «только дата» не пересчитываются (D-30); справочники — по словарю `vtigerValueMap` (D-38, генерируется на этапе сущности). Первая колонка таблиц — имена полей (их проверяет `tests/finance/ContractMapTest.php`).
+Сущности создаются на этапах 04.2–04.5 по этому контракту; в `field-map.csv`/`relations.csv` строки ещё не созданных сущностей имеют статус `контракт (этап 04.1)`, созданных — `реализовано (этап …)`. Quote, SalesOrder, их позиции и LegalEntity реализованы на этапе 04.2 (§14), Invoice и InvoiceItem — на этапе 04.3 (§15). Общие правила: деньги — поля `currency` с `decimal: true` (DECIMAL, без float, D-43), валюта только RUB; служебные поля импорта — D-41; даты «только дата» не пересчитываются (D-30); справочники — по словарю `vtigerValueMap` (D-38, генерируется на этапе сущности). Первая колонка таблиц — имена полей (их проверяет `tests/finance/ContractMapTest.php`).
 
 ### Document
 
@@ -198,7 +200,7 @@
 | `account` | link Account, обязательное | `accountid` | заполнено у всех живых документов |
 | `contact` | link Contact | `contactid` | |
 | `opportunity` | link Opportunity | `potential_id` / `potentialid` | у Act колонки нет |
-| `legalEntity` | link LegalEntity, обязательное | `spcompany` | `LegalEntityResolver` (§3, D-48) |
+| `legalEntity` | link LegalEntity, обязательное | `spcompany` | `LegalEntityResolver` (§3, D-48) при сохранении импорта; исходное значение → `vtigerData.spcompany` (D-60) |
 | `assignedUser`, `teams` | link User, linkMultiple Team | `vtiger_crmentity.smownerid` | пользователь → User, группа → Team |
 | `createdAt`, `modifiedAt`, `createdBy`, `modifiedBy` | datetime, link User | `vtiger_crmentity` | D-30 |
 | `currency` | валюта денежных полей (`…Currency`) | `currency_id`, `conversion_rate` | всегда RUB; курс 1.000 не переносится |
@@ -212,6 +214,8 @@
 | `preTaxTotal` | currency, decimal(25,8) | `pre_tax_total` | эталон; новые — `subtotal − скидка + shippingAmount` |
 | `grandTotal` | currency, decimal(25,8) | `total` | эталон; новые — `preTaxTotal + adjustment` (≥ 0) |
 | `totalsCheck` | enum `exact` / `rounded` / `mismatch` / `unverified`, только чтение | `SourceVerifier` | результат сверки хранимых итогов с пересчётом; исходные суммы не меняются (D-46) |
+| `expectedSubtotal`, `expectedPreTaxTotal`, `expectedGrandTotal` | currency, decimal(25,8), только чтение | `SourceVerifier` | «Пересчёт ядра»: точный пересчёт итогов импортированного документа, показывается при `rounded`/`mismatch`; очищается при пересчёте в EspoCRM (D-59) |
+| `sourceSubtotal`, `sourcePreTaxTotal`, `sourceGrandTotal` | currency, decimal(25,8), только чтение | исходные `subtotal`, `pre_tax_total`, `total` | «Итоги Vtiger»: записываются один раз при первом пересчёте импортированного документа (D-51, D-59) |
 | `billingAddressStreet`, `billingAddressCity`, `billingAddressState`, `billingAddressPostalCode`, `billingAddressCountry` | address | `bill_street`, `bill_city`, `bill_state`, `bill_code`, `bill_country` | копия адреса на дату документа |
 | `shippingAddressStreet`, `shippingAddressCity`, `shippingAddressState`, `shippingAddressPostalCode`, `shippingAddressCountry` | address | `ship_street`, `ship_city`, `ship_state`, `ship_code`, `ship_country` | то же |
 | `termsAndConditions` | text | `terms_conditions` | у Act колонки нет |
@@ -227,6 +231,7 @@
 | `dateValidUntil` | date | `validtill` | 15 из 24 |
 | `inventoryManager` | link User | `inventorymanager` | 23 из 24; собственная сущность — без префикса `c` (D-12) |
 | `salesOrders` | hasMany SalesOrder | `vtiger_salesorder.quoteid` | в источнике пусто |
+| `invoices` | hasMany Invoice (обратная `Invoice.quote`) | — | связь EspoCRM, в источнике нет (D-58) |
 
 В `vtigerData`: `carrier`, `shipping` (пусты).
 
@@ -245,10 +250,11 @@
 
 | Поле | Тип EspoCRM | Источник | Правило |
 |---|---|---|---|
-| `dateInvoiced` | date | `invoicedate` | 635 из 636 |
-| `dateDue` | date | `duedate` | 536 из 636 |
+| `dateInvoiced` | date, обязательное для формы и API | `invoicedate` | 635 из 636; у новых — сегодня по умолчанию (D-57) |
+| `dateDue` | date, обязательное для формы и API | `duedate` | 536 из 636 (D-57) |
 | `salesOrder` | link SalesOrder | `salesorderid` | 27 |
-| `act` | link Act (belongsTo) | `sp_act_id` | 392; фактически ≤ 1:1, ограничение 1:1 не вводится (§7) |
+| `quote` | link Quote | — | в источнике нет: «Создать счёт» из предложения или заказа (D-58) |
+| `act` | link Act (belongsTo) | `sp_act_id` | 392; фактически ≤ 1:1, ограничение 1:1 не вводится (§7); создаётся с Act на этапе 04.5 |
 | `balanceSource` | currency, только чтение | `balance` | контроль, не бизнес-значение (§8.4) |
 | `paymentAllocations` | hasMany PaymentAllocation | `sp_payments.related_to`, `vtiger_crmentityrel` | §8, D-11 |
 | `paidAmount`, `balanceAmount`, `settlementState` | вычисляемые: currency, currency, enum `unpaid` / `partial` / `paid` / `overpaid` | `AllocationCalculator::settle` | контроль оплаты; статус счёта из них не выводится (D-26); хранить или вычислять — решение этапа 04.4 |
@@ -447,3 +453,32 @@
 ### 14.4 Доступ (D-54)
 
 Директор — `Quote`, `SalesOrder` (полный), позиции и юрлицо — чтение; прочие роли — нет доступа (403, в меню нет вкладок). Позиции: чтение — по правам на документ (запись — `AclManager` документа, списки — по уровню чтения документа, фильтры `ForeignOnlyTeam/Own`), уровень позиции в роли доступ не расширяет; запись — никому. Справочник статусов — D-56 (подписи — Q-39).
+
+## 15. Реализация этапа 04.3 (Invoice, InvoiceItem, контроль итогов; 2026-10-02)
+
+Сущности и поля — по §11 и общему пути §14 (позиции через `itemList`, правило правки D-51, блокировка и номера), решения D-57…D-61. Проверено на стенде: колонки DECIMAL нужной точности, `date` для дат, `number` varchar(100), уникальный `vtigerId`, счётчик `Invoice` = 637.
+
+### 15.1 Счёт
+
+- Номер новых — `С-N` (кириллица), первый — 637; исходные `С-…`/`СЧЕТ_…` не меняются и не занимают счётчик (D-17, D-57).
+- Статусы — словарь `vtigerValueMap/Invoice.json` (D-38): `AutoCreated`, `Cancel`, `Created`, `Approved`, `Sent`, `Credit Invoice`, `Paid` + пусто; подписи SalesPlatform (Q-41). Статус из оплат не выводится (D-26).
+- Даты обязательны для формы и API (D-57); импорт их не проверяет.
+- `balanceSource` — исходный `balance` как контрольное значение, только чтение; оплата и остаток — этап 04.4.
+- Связи: контрагент, контакт, сделка, заказ, предложение (D-58), документы, архивная накладная (`VtigerArchive.invoice`), активности (D-61); обратные панели у Account, Contact, Opportunity, Document, Quote, SalesOrder.
+
+### 15.2 Контроль итогов (D-59)
+
+| Набор | Кто пишет | Когда очищается | Где виден |
+|---|---|---|---|
+| `sourceFormula`, `totalsCheck`, «Пересчёт ядра» (`expected*`) | `itvolga-finance-verify` (`SourceMarks`) | при пересчёте в EspoCRM; копия — в снимке `sourceTotals` | директору; «Пересчёт ядра» — при `rounded`/`mismatch` |
+| «Итоги Vtiger» (`source*`) | сохранение с первым пересчётом импортированного документа (вместе со снимком) | никогда | директору, после пересчёта |
+
+Хранимые итоги Vtiger не исправляются: расхождение показывается рядом (`totalsCheck` и «Пересчёт ядра»), а при правке расчётных данных исходные итоги остаются в «Итогах Vtiger» и снимке.
+
+### 15.3 Импорт и юрлицо (D-60)
+
+Импорт (06.3) пишет счёт и позиции через ORM с `SaveOption::IMPORT`: номер, даты (включая пустые), итоги, `balanceSource`, `vtigerData` (`region_id`, `spcompany` и прочие поля без рабочего поля) — как в источнике; затем `itvolga-finance-verify --entity=Invoice`. Каждое сохранение с этой опцией разрешает `vtigerData.spcompany` в единственную `LegalEntity`; неизвестное значение откатывает сохранение и останавливает команду без вывода значения.
+
+### 15.4 Доступ
+
+Как §14.4: директор — `Invoice` полностью, `InvoiceItem` — чтение по доступу к счёту; прочие роли — нет (403, вкладки нет); позиции напрямую не пишет никто.

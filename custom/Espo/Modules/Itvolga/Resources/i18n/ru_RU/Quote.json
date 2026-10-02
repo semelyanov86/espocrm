@@ -23,6 +23,12 @@
         "adjustment": "Корректировка",
         "preTaxTotal": "Сумма до налога",
         "grandTotal": "Итого",
+        "expectedSubtotal": "Пересчёт ядра: сумма позиций",
+        "expectedPreTaxTotal": "Пересчёт ядра: до налога",
+        "expectedGrandTotal": "Пересчёт ядра: итого",
+        "sourceSubtotal": "Итоги Vtiger: сумма позиций",
+        "sourcePreTaxTotal": "Итоги Vtiger: до налога",
+        "sourceGrandTotal": "Итоги Vtiger: итого",
         "billingAddress": "Адрес плательщика",
         "shippingAddress": "Адрес доставки",
         "termsAndConditions": "Условия",
@@ -44,7 +50,8 @@
         "legalEntity": "Юрлицо",
         "documents": "Документы",
         "salesOrders": "Заказы",
-        "inventoryManager": "Менеджер склада"
+        "inventoryManager": "Менеджер склада",
+        "invoices": "Счета"
     },
     "options": {
         "taxMode": {
@@ -84,7 +91,13 @@
         "shippingTaxPercent": "Доставка без налога (D-21).",
         "adjustment": "Корректировка итога: со знаком минус уменьшает итог.",
         "vtigerId": "Исходный crmid записи Vtiger — ключ повторного импорта.",
-        "vtigerData": "Непустые исходные значения без рабочего поля (JSON). Только чтение, видно администраторам. После пересчёта импортированного документа здесь же хранятся его исходные итоги (sourceTotals)."
+        "vtigerData": "Непустые исходные значения без рабочего поля (JSON). Только чтение, видно администраторам. После пересчёта импортированного документа здесь же хранятся его исходные итоги (sourceTotals).",
+        "expectedSubtotal": "Итог, пересчитанный ядром по строкам импортированного документа (itvolga-finance-verify). Показывается при расхождении с итогом Vtiger; итог Vtiger не исправляется (D-05).",
+        "expectedPreTaxTotal": "Итог, пересчитанный ядром по строкам импортированного документа (itvolga-finance-verify). Показывается при расхождении с итогом Vtiger; итог Vtiger не исправляется (D-05).",
+        "expectedGrandTotal": "Итог, пересчитанный ядром по строкам импортированного документа (itvolga-finance-verify). Показывается при расхождении с итогом Vtiger; итог Vtiger не исправляется (D-05).",
+        "sourceSubtotal": "Итог документа в Vtiger до первого пересчёта в EspoCRM. Записывается один раз и больше не меняется.",
+        "sourcePreTaxTotal": "Итог документа в Vtiger до первого пересчёта в EspoCRM. Записывается один раз и больше не меняется.",
+        "sourceGrandTotal": "Итог документа в Vtiger до первого пересчёта в EspoCRM. Записывается один раз и больше не меняется."
     },
     "labels": {
         "Items": "Позиции",
@@ -93,6 +106,8 @@
         "Terms": "Условия и описание",
         "Vtiger": "Vtiger",
         "Create Sales Order": "Создать заказ",
-        "Create Quote": "Создать предложение"
+        "Create Quote": "Создать предложение",
+        "Control": "Контроль итогов",
+        "Create Invoice": "Создать счёт"
     }
 }

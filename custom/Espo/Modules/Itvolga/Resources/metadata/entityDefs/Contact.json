@@ -116,6 +116,11 @@
             "type": "hasMany",
             "entity": "SalesOrder",
             "foreign": "contact"
+        },
+        "cInvoices": {
+            "type": "hasMany",
+            "entity": "Invoice",
+            "foreign": "contact"
         }
     },
     "indexes": {

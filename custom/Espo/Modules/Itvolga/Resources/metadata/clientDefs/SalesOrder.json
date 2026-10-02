@@ -6,8 +6,23 @@
     ],
     "mergeDisabled": true,
     "relationshipPanels": {
+        "invoices": {
+            "createDisabled": true,
+            "selectDisabled": true,
+            "unlinkDisabled": true
+        },
         "documents": {
             "createDisabled": false
         }
-    }
+    },
+    "detailActionList": [
+        {
+            "name": "createInvoice",
+            "label": "Create Invoice",
+            "handler": "itvolga:handlers/finance/convert-document",
+            "actionFunction": "createInvoice",
+            "acl": "create",
+            "aclScope": "Invoice"
+        }
+    ]
 }

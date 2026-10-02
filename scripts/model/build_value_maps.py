@@ -101,6 +101,9 @@ ENUMS = [
          default="Created"),
     dict(entity="SalesOrder", field="status", picklists=["sostatus"], used=["SalesOrder.sostatus"], empty=True,
          default="Created"),
+    # Stage 04.3: the configured list keeps AutoCreated (not used) and Cancel (presence=1, used).
+    dict(entity="Invoice", field="status", picklists=["invoicestatus"], used=["Invoice.invoicestatus"], empty=True,
+         default="Created"),
 ]
 # Fields whose dictionary is fixed by the source semantics (no picklist table).
 STATIC = {
@@ -114,6 +117,8 @@ STATIC = {
                                                   "group_tax_inc": "group_tax_inc"}},
     ("SalesOrder", "taxMode"): {"SalesOrder.hdnTaxType": {"individual": "individual", "group": "group",
                                                           "group_tax_inc": "group_tax_inc"}},
+    ("Invoice", "taxMode"): {"Invoice.hdnTaxType": {"individual": "individual", "group": "group",
+                                                    "group_tax_inc": "group_tax_inc"}},
 }
 STATIC_OPTIONS = {
     ("Task", "cTaskType"): (["", "Письмо"], {"Письмо": "Письмо"}, ""),

@@ -93,6 +93,11 @@
             "type": "hasMany",
             "entity": "SalesOrder",
             "foreign": "opportunity"
+        },
+        "cInvoices": {
+            "type": "hasMany",
+            "entity": "Invoice",
+            "foreign": "opportunity"
         }
     },
     "indexes": {

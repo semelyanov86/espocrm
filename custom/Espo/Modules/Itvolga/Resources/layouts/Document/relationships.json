@@ -6,5 +6,6 @@
     "cProjectTasks",
     "cVtigerArchives",
     "cQuotes",
-    "cSalesOrders"
+    "cSalesOrders",
+    "cInvoices"
 ]

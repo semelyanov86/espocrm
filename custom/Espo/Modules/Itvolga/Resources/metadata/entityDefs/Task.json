@@ -53,6 +53,12 @@
                 "Письмо"
             ],
             "default": ""
+        },
+        "parent": {
+            "entityList": [
+                "__APPEND__",
+                "Invoice"
+            ]
         }
     },
     "indexes": {

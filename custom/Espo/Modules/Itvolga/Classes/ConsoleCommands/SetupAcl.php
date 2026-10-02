@@ -28,7 +28,8 @@ use Espo\ORM\EntityManager;
  * → `no`. Historic Project/ProjectTask and VtigerArchive are read-only for every role (module-decisions.md).
  * EspoCRM 10 denies every scope that no role grants, so ContactAccess is closed to all users without
  * «Доступы» (administrators excepted: they bypass ACL, reveals are still logged).
- * Finance documents (Quotes and SalesOrder are Private in Vtiger and hidden in every profile but the director's):
+ * Finance documents (Quotes, SalesOrder and Invoice are Private in Vtiger and hidden in every profile but the
+ * director's):
  * the director gets them; their items are read with the document's level (FinanceItem access checker) and are never
  * written directly; the legal entity is read-only for the director (requisites are kept by the administrator).
  */
@@ -71,11 +72,12 @@ class SetupAcl implements Command
         'lockPermission' => 'no',
     ];
 
-    public const TABS = ['Vendor', 'Product', 'Quote', 'SalesOrder', 'Project', 'ProjectTask', 'VtigerArchive',
-        'ContactAccess'];
+    public const TABS = ['Vendor', 'Product', 'Quote', 'SalesOrder', 'Invoice', 'Project', 'ProjectTask',
+        'VtigerArchive', 'ContactAccess'];
 
-    /** Finance scopes of stage 04.2: closed to every role that does not list them. */
-    private const FINANCE = ['Quote', 'SalesOrder', 'QuoteItem', 'SalesOrderItem', 'LegalEntity'];
+    /** Finance scopes (stages 04.2, 04.3): closed to every role that does not list them. */
+    private const FINANCE = ['Quote', 'SalesOrder', 'Invoice', 'QuoteItem', 'SalesOrderItem', 'InvoiceItem',
+        'LegalEntity'];
 
     public function __construct(
         private EntityManager $entityManager,
@@ -98,8 +100,8 @@ class SetupAcl implements Command
             'Project' => self::READ_ALL, 'ProjectTask' => self::READ_ALL, 'VtigerArchive' => ['read' => 'all'],
             'DocumentFolder' => self::FULL, 'KnowledgeBaseCategory' => self::FULL,
             'GlobalStream' => true,
-            'Quote' => self::FULL, 'SalesOrder' => self::FULL,
-            'QuoteItem' => ['read' => 'all'], 'SalesOrderItem' => ['read' => 'all'],
+            'Quote' => self::FULL, 'SalesOrder' => self::FULL, 'Invoice' => self::FULL,
+            'QuoteItem' => ['read' => 'all'], 'SalesOrderItem' => ['read' => 'all'], 'InvoiceItem' => ['read' => 'all'],
             'LegalEntity' => ['read' => 'all', 'edit' => 'no'],
         ];
         // Vtiger profile «Заместитель директора+Профиль»: hidden Leads, Potentials, Vendors, Assets, Consignment,

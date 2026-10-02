@@ -12,7 +12,8 @@
         "cProjectTasks": "Задачи проектов (архив)",
         "cVtigerArchives": "Архив Vtiger",
         "cQuotes": "Предложения",
-        "cSalesOrders": "Заказы"
+        "cSalesOrders": "Заказы",
+        "cInvoices": "Счета"
     },
     "tooltips": {
         "vtigerId": "Исходный crmid записи Vtiger — ключ повторного импорта.",

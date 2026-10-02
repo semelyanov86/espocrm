@@ -78,8 +78,9 @@ COMMON = {
     "conversion_rate": (None, "исключено: всегда 1.000 (одна валюта)", "count"),
     "region_id": ("sourceFormula + vtigerData.region_id", "значимы и NULL, и 0: NULL — документ до 2018-07 (налог строк не входит в итоги), "
                   "0 — после; класс формулы ядра (FormulaClass, этап 04.1) → sourceFormula, исходное значение → vtigerData", "count"),
-    "spcompany": ("legalEntity", "'Default', 'По умолчанию' (русская подпись ключа 'Default') и пусто → одна запись LegalEntity "
-                  "(D-04, LegalEntityResolver); другое значение — остановка импорта, не второе юрлицо", "count"),
+    "spcompany": ("legalEntity + vtigerData.spcompany", "'Default', 'По умолчанию' (русская подпись ключа 'Default') и пусто → "
+                  "одна запись LegalEntity (D-04, LegalEntityResolver при сохранении импорта); исходное значение → "
+                  "vtigerData.spcompany; другое значение — остановка импорта, не второе юрлицо", "count"),
 }
 
 ADDRESS_INV = {
@@ -400,12 +401,13 @@ F["Invoice"] = dict(_INV_COMMON, **{
     "invoice_no": ("number", "string как есть (форматы С-N и СЧЕТ_N; 2 пустых)", "count+hash"),
     "invoicedate": ("dateInvoiced", "date", "count+hash"),
     "duedate": ("dateDue", "date", "count+hash"),
-    "invoicestatus": ("status", "enum: Created/Sent/Paid/Cancel/Credit Invoice/Approved + пусто", "count+distribution"),
+    "invoicestatus": ("status", "enum: словарь metadata/vtigerValueMap/Invoice.json (D-38); пусто остаётся пустым, новые — Created",
+                      "count+distribution"),
     "customerno": ("vtigerData.customerno", "string", "count"),
     "sp_act_id": ("act", "fk Act (0..1; ни один акт не связан с >1 счётом)", "fk"),
     "received": ("vtigerData.received", "decimal: во всех записях 0 — оплата считается по Payment", "count+sum"),
     "balance": ("balanceSource", "decimal: исходное значение как контроль (не поддерживается Vtiger)", "count+sum"),
-    "purchaseorder": ("vtigerData.purchaseorder", "string", "count"),
+    "vtiger_purchaseorder": ("vtigerData.purchaseorder", "string", "count"),
 })
 F["Quotes"] = dict(_INV_COMMON, **{
     "quote_no": ("number", "string (ПРЕД_N)", "count+hash"),

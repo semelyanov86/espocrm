@@ -1,7 +1,7 @@
 /**
- * Line items of a finance document (Quote, SalesOrder): the table is edited in the document form and saved with it
- * by one request (`itemList`, owner decision 2026-10-01). Values stay decimal strings; amounts and totals come from
- * the server only — saved values, or a preview of the same calculation while the form is edited
+ * Line items of a finance document (Quote, SalesOrder, Invoice): the table is edited in the document form and saved
+ * with it by one request (`itemList`, owner decision 2026-10-01). Values stay decimal strings; amounts and totals come
+ * from the server only — saved values, or a preview of the same calculation while the form is edited
  * (POST FinanceDocument/:entityType/calculate). The browser does no arithmetic with money.
  */
 define('itvolga:views/finance/fields/item-list', ['views/fields/base', 'itvolga:finance/decimal-text'],
@@ -318,10 +318,10 @@ define('itvolga:views/finance/fields/item-list', ['views/fields/base', 'itvolga:
             });
 
             if (JSON.stringify(this.rows) !== before) {
-                // Values found here (Ctrl+S without a change event) make the shown and any coming preview outdated.
-                this.previewSeq++;
-                this.preview = null;
-                this.renderPreview(true);
+                // Values found here (Ctrl+S without a change event, or the record view fetching a prefilled form,
+                // whose cells normalise the copied values) make the shown and any coming preview outdated: a new
+                // generation is calculated.
+                this.schedulePreview();
             }
         }
 
@@ -487,9 +487,7 @@ define('itvolga:views/finance/fields/item-list', ['views/fields/base', 'itvolga:
             }
 
             if (seq !== this.previewSeq) {
-                // The focused cell held newer values: calculate those instead.
-                this.schedulePreview();
-
+                // The focused cell held newer values: syncInputs() has scheduled their calculation.
                 return;
             }
 

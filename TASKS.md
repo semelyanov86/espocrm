@@ -1,8 +1,8 @@
 # TASKS — состояние миграции
 
-**Текущий этап:** 04.2 — Quotes и SalesOrders — **завершён** 2026-10-02 (ревью качества Codex `gpt-6.1-sol` до коммита: 8 замечаний исправлены; внешнее ревью коммита `eb8ca8f`: FAIL → 3 замечания подтверждены и исправлены; раунд 2 коммита `7bb6d62`: блокирующих нет, предупреждение о предпросмотре исправлено).
-**Следующий этап:** 04.3 — Invoices и Invoice Items (не начат).
-**Production:** не менялся; сервер и `/data/server` только читались (этап 04.2 — read-only SQL и полный аудит).
+**Текущий этап:** 04.3 — Invoices и Invoice Items — **завершён** 2026-10-02 (ревью качества Codex `gpt-6.1-sol` до коммита: 1 критичное замечание исправлено, 1 оставлено решением владельца; внешнее ревью коммита — см. «Проверки этапа 04.3»).
+**Следующий этап:** 04.4 — Payments и распределение (не начат).
+**Production:** не менялся; сервер и `/data/server` только читались (этап 04.3 — read-only SQL и полный аудит).
 **Стенд:** http://crm.itvolga.test — `admin`, пароль в `/data/itvolga/espo-private/stand/local.env`; `task stand:health`.
 
 ## Этапы
@@ -14,7 +14,7 @@
 | 03 | Базовые модели, поля и доступ | ✅ завершён | 2026-09-30 |
 | 04.1 | Контракт финансовых данных и расчётное ядро | ✅ завершён | 2026-09-30 |
 | 04.2 | Quotes и SalesOrders | ✅ завершён | 2026-10-02 |
-| 04.3 | Invoices и Invoice Items | ⏳ | — |
+| 04.3 | Invoices и Invoice Items | ✅ завершён | 2026-10-02 |
 | 04.4 | Payments и распределение | ⏳ | — |
 | 04.5 | Acts и позиции актов | ⏳ | — |
 | 04.6 | Сквозной финансовый сценарий | ⏳ | — |
@@ -31,6 +31,25 @@
 | 11 | Переключение (только по отдельному разрешению) | 🔒 | — |
 
 Промпты этапов: `git show 2052380:MIGRATION_PROMPTS.md` (файл удалён из рабочей копии пользователем; в коммит этапа 01 это удаление не включено).
+
+## Этап 04.3 — результат
+
+Сделано:
+- [x] Перепроверены факты (production, read-only, 2026-10-02): 636 счетов (до 6 строк), статусы, `spcompany` `Default` 548 / `По умолчанию` 88, счётчик `С-` 637, пустые даты 1/100, связи; полный аудит — срез `20261002T162427` (шаг 41 и подписи дополнены `invoicestatus`).
+- [x] `Invoice`, `InvoiceItem` по контракту §11 (`finance-contract.md` §15, D-57…D-61): номера источника как есть и новые `С-N` с 637, даты (обязательны для формы и API, как в Vtiger), валюта RUB, статусы — словарь D-38 (`vtigerValueMap/Invoice.json`), юрлицо, контрагент, контакт, сделка, позиции, скидки, налог, точные суммы, `balanceSource`, `vtigerId`/`vtigerData`; связи `Invoice.quote` ↔ `Quote.invoices` (новая, решение владельца), `Invoice.salesOrder` ↔ `SalesOrder.invoices`, документы, архивная накладная, активности; обратные панели у Account/Contact/Opportunity/Document.
+- [x] Контроль итогов для всех финансовых документов (D-59, закрыт Q-40): «Пересчёт ядра» (`expected*`, `SourceMarks`, пишет `itvolga-finance-verify`, виден при `rounded`/`mismatch`) и «Итоги Vtiger» (`source*`, один раз при первом пересчёте); исходные итоги не исправляются.
+- [x] Юрлицо на пути импорта (D-60): `vtigerData.spcompany` разрешается `LegalEntityResolver` при каждом сохранении с `SaveOption::IMPORT`; неизвестное — откат без вывода значения.
+- [x] «Создать счёт» на предложении и заказе (D-58), общий обработчик `convert-document.js`; исправлен предпросмотр заполненной формы (дефект 04.2: итоги не появлялись до первой правки).
+- [x] Доступ: директор — счета, позиции — по правам на счёт, прямая запись позиций запрещена всем; прочие роли — нет.
+- [x] Покрытие в `field-map.csv`/`relations.csv` (генераторы): 65 полей и 17 связей — `реализовано (этап 04.3)`; `act` — «этап 04.5», платежи — «этап 04.4», общие строки позиций — «частично»; исправлено правило `vtiger_purchaseorder`; проверка родителя активности сверяет `parent.entityList`.
+- [x] Тесты `tests/stage04/test_stage04_3.py` (19, синтетические данные, сами удаляют записи), негативные контроли; UI — Playwriter (`tests/stage04/ui_fixture.py`, директор и заместитель).
+- [x] Ревью качества Codex `gpt-6.1-sol` (3 рецензента): лишняя связь `Invoice.invoices` — исправлено; имя счёта в «Родителе» активности — оставлено как в Vtiger (решение владельца).
+
+Не сделано / вне рамок этапа:
+- `Invoice.act` (Act — 04.5); распределения оплат, оплачено/остаток счёта — 04.4; импорт счетов — 06.3 (путь записи: ORM с `SaveOption::IMPORT` и `vtigerData.spcompany`, затем `itvolga-finance-verify --entity=Invoice`).
+- Открыты Q-39 (подписи статусов предложений/заказов) и Q-41 (подпись «Просрочен» у `Credit Invoice`) — не блокируют.
+- `build_maps.py` пишет дату проверки константой `2026-09-29` (`count_status`); исправление меняет все строки карт — отложено, чтобы не смешивать с этапом.
+- Счётчики номеров стенда сдвинуты тестами; при переключении — `itvolga-setup-finance --next=Invoice:<cur_id>`.
 
 ## Этап 04.2 — результат
 
@@ -116,7 +135,24 @@
 
 ## Блокеры
 
-Нет. Открыты Q-39 и Q-40 (`open-questions.md`) — не блокируют этапы 04.3+.
+Нет. Открыты Q-39 и Q-41 (`open-questions.md`) — не блокируют этапы 04.4+.
+
+## Проверки этапа 04.3 (2026-10-02)
+
+| Проверка | Результат |
+|---|---|
+| Факты источника (read-only SQL, `run-audit.sh` срез `20261002T162427`) | совпали с контрактом; карты до изменений модели воспроизвелись без изменений |
+| `task model:apply` / `itvolga-setup-finance` | вкладка «Счета» директору, счётчик `Invoice: 637`; повтор — `no changes` |
+| `task model:check` | field-map 846 ok / 0 ошибок (630 этапа 03, 151 — 04.2, 65 — 04.3); relations 176 / 0 |
+| `task model:value-maps --check`, повтор `maps:build` | без изменений |
+| `task test:finance` | 47 OK |
+| `task test:stage03` | 37 OK |
+| `task test:stage04` | 39 OK (20 этапа 04.2 + 19 этапа 04.3) |
+| Негативные контроли (юрлицо при импорте, «Итоги Vtiger», «Пересчёт ядра», очистка пересчёта) | каждый роняет свой тест |
+| UI (Playwriter, синтетическая фикстура) | директор: новый счёт, «Контроль итогов» (округление, итоги Vtiger после пересчёта), обязательный срок, отказ по НДС и живой предпросмотр, «Создать счёт» из предложения и заказа, панели; заместитель — без вкладки, API 403 |
+| `php -l`, `node --check`, `py_compile`, JSON | без ошибок |
+| `task stand:health` | 0 FAIL / 0 WARN |
+| Ревью качества Codex `gpt-6.1-sol` (до коммита, 3 рецензента) | 1 критичное (лишняя связь `Invoice.invoices`) — исправлено с проверкой в тесте; 1 важное (имя счёта в «Родителе» активности) — оставлено как в Vtiger по решению владельца (`evidence.md`) |
 
 ## Проверки этапа 04.2 (2026-10-01…02)
 
@@ -199,7 +235,9 @@
 - `/data/itvolga/espo-private/audit/20260929T2000-rerun/` — контрольный повтор (до исправлений ревью).
 - `/data/itvolga/espo-private/audit/20260929T213301/` — прогон после исправлений ревью; контрольный повтор `…/20260929T2140-verify/` дал идентичные карты.
 - `/data/itvolga/espo-private/audit/20260929T221708/` — прогон с проверками Q-03/Q-05/Q-20 (основа карт этапов 01–02).
-- `/data/itvolga/espo-private/audit/20261001T221118/` — **актуальный** прогон этапа 04.2 (шаг 41 с `quotestage`/`sostatus`); из него сгенерированы текущие `field-map.csv`/`relations.csv` и словари статусов `vtigerValueMap/{Quote,SalesOrder}.json`.
+- `/data/itvolga/espo-private/audit/20261002T162427/` — **актуальный** прогон этапа 04.3 (шаг 41 с `invoicestatus`); из него сгенерированы текущие `field-map.csv`/`relations.csv` и словарь `vtigerValueMap/Invoice.json`.
+- `/data/itvolga/espo-private/stand/evidence/stage04.3/` — состояние UI-фикстуры этапа 04.3 и пароли синтетических пользователей (600).
+- `/data/itvolga/espo-private/audit/20261001T221118/` — прогон этапа 04.2 (шаг 41 с `quotestage`/`sostatus`); из него сгенерированы текущие `field-map.csv`/`relations.csv` и словари статусов `vtigerValueMap/{Quote,SalesOrder}.json`.
 - `/data/itvolga/espo-private/stand/evidence/stage04.2/` — снимки UI-сценариев этапа 04.2, состояние фикстуры и пароли синтетических пользователей (600).
 - `/data/itvolga/espo-private/audit/20260930T220947/` — прогон этапа 04.1 (с `46_finance_contract.tsv`, приватным числовым срезом `47_finance_snapshot_private.tsv`, `35_control_sums_private.tsv`); из него сгенерирован профиль тестов `tests/finance/fixtures/source-profile.php`. Промежуточные прогоны этапа — `…/20260930T210425/`, `…/20260930T213216/`, `…/20260930T214422/`.
 - `/data/itvolga/espo-private/finance/control-digest.key` — ключ HMAC дайджестов денежных контрольных сумм (600).
@@ -211,14 +249,16 @@
 - `/data/itvolga/espo-private/stand/backups/` — backup проверок стенда (`…-restore-test`, `…-after-review`, страховочные `…-pre-restore` и др.).
 - `/data/itvolga/espo-private/stand/evidence/` — полные выводы health-check проверок этапа 02 и скриншот входа.
 
-## Стартовая команда следующей сессии (этап 04.3)
+## Стартовая команда следующей сессии (этап 04.4)
 
 ```
-Прочитай AGENTS.md, TASKS.md, docs/migration/finance-contract.md (§11 Invoice/Item, §12 ядро, §14 реализация 04.2),
-field-map.csv, relations.csv, decisions.md (D-45…D-56), model.md; проверь стенд (task stand:health, task test:stage03,
-task test:stage04, task test:finance) и перепроверь факты, от которых зависит этап. Затем выполни этап 04.3 из
-`git show 2052380:MIGRATION_PROMPTS.md`: Invoice и InvoiceItem по контракту §11 — запись в реестр
-metadata/app/itvolgaFinance.json (префикс С-, первый номер — cur_id), связи SalesOrder.invoices, Invoice.act (Act — 04.5),
-статусы по D-38, доступ по D-54, тесты на синтетических данных, покрытие полей в field-map.csv. Обнови TASKS.md,
-запусти scripts/check-secrets.sh --history, создай коммит, отдай на ревью Codex gpt-6.1-sol и остановись.
+Прочитай AGENTS.md, TASKS.md, docs/migration/finance-contract.md (§8 платежи, §11 Payment/PaymentAllocation/Invoice,
+§12.4 AllocationCalculator, §14–§15 реализация документов), field-map.csv, relations.csv, decisions.md (D-11, D-26,
+D-49…D-61), model.md; проверь стенд (task stand:health, task test:stage03, task test:stage04, task test:finance) и
+перепроверь факты, от которых зависит этап. Затем выполни этап 04.4 из `git show 2052380:MIGRATION_PROMPTS.md`:
+Payment и PaymentAllocation по контракту §11 (номер — счётчик без префикса, первый — cur_id), распределение на
+Invoice/SalesOrder по D-11 (расходы не распределяются, Q-36), оплачено/остаток/состояние счёта по D-49 (статус счёта не
+выводится из оплат, D-26), плательщик Account/Contact/Vendor, юрлицо импорта через vtigerData.spcompany (D-60), доступ
+как D-54, тесты на синтетических данных, покрытие полей в field-map.csv. Обнови TASKS.md, запусти
+scripts/check-secrets.sh --history, создай коммит, отдай на ревью Codex gpt-6.1-sol и остановись.
 ```

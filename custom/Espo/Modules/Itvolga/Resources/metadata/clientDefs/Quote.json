@@ -11,6 +11,11 @@
             "selectDisabled": true,
             "unlinkDisabled": true
         },
+        "invoices": {
+            "createDisabled": true,
+            "selectDisabled": true,
+            "unlinkDisabled": true
+        },
         "documents": {
             "createDisabled": false
         }
@@ -19,10 +24,18 @@
         {
             "name": "createSalesOrder",
             "label": "Create Sales Order",
-            "handler": "itvolga:handlers/finance/create-sales-order",
-            "actionFunction": "process",
+            "handler": "itvolga:handlers/finance/convert-document",
+            "actionFunction": "createSalesOrder",
             "acl": "create",
             "aclScope": "SalesOrder"
+        },
+        {
+            "name": "createInvoice",
+            "label": "Create Invoice",
+            "handler": "itvolga:handlers/finance/convert-document",
+            "actionFunction": "createInvoice",
+            "acl": "create",
+            "aclScope": "Invoice"
         }
     ]
 }

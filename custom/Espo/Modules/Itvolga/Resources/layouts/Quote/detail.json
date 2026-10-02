@@ -92,6 +92,56 @@
         ]
     },
     {
+        "label": "Control",
+        "dynamicLogicVisible": {
+            "conditionGroup": [
+                {
+                    "type": "or",
+                    "value": [
+                        {
+                            "type": "in",
+                            "attribute": "totalsCheck",
+                            "value": [
+                                "rounded",
+                                "mismatch"
+                            ]
+                        },
+                        {
+                            "type": "isNotEmpty",
+                            "attribute": "sourceGrandTotal"
+                        }
+                    ]
+                }
+            ]
+        },
+        "rows": [
+            [
+                {
+                    "name": "expectedSubtotal"
+                },
+                {
+                    "name": "sourceSubtotal"
+                }
+            ],
+            [
+                {
+                    "name": "expectedPreTaxTotal"
+                },
+                {
+                    "name": "sourcePreTaxTotal"
+                }
+            ],
+            [
+                {
+                    "name": "expectedGrandTotal"
+                },
+                {
+                    "name": "sourceGrandTotal"
+                }
+            ]
+        ]
+    },
+    {
         "label": "Addresses",
         "rows": [
             [

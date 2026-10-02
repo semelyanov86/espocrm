@@ -1,0 +1,76 @@
+{
+    "fields": {
+        "expectedSubtotal": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "in",
+                        "attribute": "totalsCheck",
+                        "value": [
+                            "rounded",
+                            "mismatch"
+                        ]
+                    }
+                ]
+            }
+        },
+        "expectedPreTaxTotal": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "in",
+                        "attribute": "totalsCheck",
+                        "value": [
+                            "rounded",
+                            "mismatch"
+                        ]
+                    }
+                ]
+            }
+        },
+        "expectedGrandTotal": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "in",
+                        "attribute": "totalsCheck",
+                        "value": [
+                            "rounded",
+                            "mismatch"
+                        ]
+                    }
+                ]
+            }
+        },
+        "sourceSubtotal": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "isNotEmpty",
+                        "attribute": "sourceSubtotal"
+                    }
+                ]
+            }
+        },
+        "sourcePreTaxTotal": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "isNotEmpty",
+                        "attribute": "sourcePreTaxTotal"
+                    }
+                ]
+            }
+        },
+        "sourceGrandTotal": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "isNotEmpty",
+                        "attribute": "sourceGrandTotal"
+                    }
+                ]
+            }
+        }
+    }
+}

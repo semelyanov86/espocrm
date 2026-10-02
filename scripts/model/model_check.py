@@ -32,17 +32,20 @@ STAGE03 = {"Account", "Contact", "Lead", "Opportunity", "Task", "Call", "Meeting
            "KnowledgeBaseArticle", "KnowledgeBaseCategory", "Document", "DocumentFolder", "Note", "User", "Preferences",
            "Attachment", "Vendor", "Product", "Project", "ProjectTask", "VtigerArchive", "ContactAccess", "Team", "Role"}
 STAGE042 = {"Quote", "QuoteItem", "SalesOrder", "SalesOrderItem", "LegalEntity"}
+STAGE043 = {"Invoice", "InvoiceItem"}
 LATER = {
-    "Invoice": "04.3", "InvoiceItem": "04.3", "Payment": "04.4", "PaymentAllocation": "04.4", "Act": "04.5",
-    "ActItem": "04.5", "Template": "05",
+    "Payment": "04.4", "PaymentAllocation": "04.4", "Act": "04.5", "ActItem": "04.5", "Template": "05",
 }
+# Links of implemented entities to entities of later stages: the row stays at its later stage until both ends exist.
+DEFERRED = {("Invoice", "act"): "04.5", ("Invoice", "paymentAllocations"): "04.4",
+            ("SalesOrder", "paymentAllocations"): "04.4"}
 # Item entity of each document and its link to the document (generic rows of vtiger_inventoryproductrel).
 ITEM_PARENT = {"QuoteItem": "quote", "SalesOrderItem": "salesOrder", "InvoiceItem": "invoice", "ActItem": "act"}
 # Entities that receive imported Vtiger records (vtigerId, unique).
 IMPORTED = ["Account", "Contact", "Lead", "Opportunity", "Task", "Call", "Meeting", "Email", "Case",
             "KnowledgeBaseArticle", "Document", "DocumentFolder", "Note", "User", "Attachment", "Vendor", "Product",
             "Project", "ProjectTask", "VtigerArchive", "ContactAccess", "Quote", "QuoteItem", "SalesOrder",
-            "SalesOrderItem"]
+            "SalesOrderItem", "Invoice", "InvoiceItem"]
 # target_entity column of field-map → entities (Events rows are split by activitytype).
 ENTITY_ALIASES = {
     "Call/Meeting/Task (вид «Письмо») по activitytype": ["Call", "Meeting", "Task"],
@@ -206,12 +209,12 @@ def target_entities(target):
 
 
 def is_empty_contract_row(fate, entities):
-    """A row without source data whose target is a working field of a stage-04.2 entity (checked, D-47)."""
-    return fate.startswith("пусто") and bool(set(entities) & STAGE042)
+    """A row without source data whose target is a working field of a finance entity (checked, D-47)."""
+    return fate.startswith("пусто") and bool(set(entities) & (STAGE042 | STAGE043))
 
 
 def implemented_stage(model, row):
-    """Stage of an implemented row: 04.2 for rows of the stage-04.2 entities, otherwise 03."""
+    """Stage of an implemented row: the latest stage among its entities (04.3, 04.2), otherwise 03."""
     target = row.get("target_field") or row.get("target_link") or ""
     entities = set(entities_for(row)) | set(target_entities(target))
     if row.get("from_module"):
@@ -220,7 +223,7 @@ def implemented_stage(model, row):
         pl = row.get("source_table", "")[len("vtiger_"):]
         entities |= {e for e, data in model.value_maps.items() for spec in data.get("fields", {}).values()
                      if pl in spec.get("picklists", [])}
-    return "04.2" if entities & STAGE042 else "03"
+    return "04.3" if entities & STAGE043 else "04.2" if entities & STAGE042 else "03"
 
 
 def check_generic_item(model, target):
@@ -298,6 +301,9 @@ def _check_field_row(model, row, target, max_len):
     parsed = parse_target(target, entities)
     if not parsed:
         return None, "—"
+    deferred = [DEFERRED[(ent, name)] for ent, name, _ in parsed if (ent, name) in DEFERRED]
+    if deferred:
+        return None, f"этап {deferred[0]}"
     problems, notes = [], []
     for ent, name, extra in parsed:
         if ent in LATER:
@@ -374,6 +380,9 @@ def _check_relation_row(model, row, target, ent, fate):
     if ent in LATER or any(target.startswith(e + ".") or target.startswith(e + " ") for e in LATER):
         stage = LATER.get(ent) or next(LATER[e] for e in LATER if target.startswith(e))
         return None, f"этап {stage}"
+    to = MODULE_ENTITY.get(row.get("to_module", ""))
+    if to in LATER:
+        return None, f"этап {LATER[to]}"
     if row.get("kind") == "acl":
         return None, "роли/команды: itvolga-setup-acl"
     if row.get("kind") == "attachment":
@@ -398,6 +407,13 @@ def _check_relation_row(model, row, target, ent, fate):
             if e in LATER:
                 notes.append(f"{e}: этап {LATER[e]}")
                 continue
+            if (e, name) in DEFERRED:
+                return None, f"этап {DEFERRED[(e, name)]}"
+            if name == "parent":
+                missing = [p for p in parent_candidates(row, ent) if p not in parent_entities(model, e)]
+                if missing:
+                    problems.append(f"{', '.join(missing)} не родитель {e}.parent")
+                    continue
             if model.link(e, name) or (model.field(e, name) and model.field(e, name).get("type") in (
                     "link", "linkMultiple", "linkParent", "file", "image", "attachmentMultiple", "jsonObject",
                     "multiEnum")):
@@ -409,6 +425,23 @@ def _check_relation_row(model, row, target, ent, fate):
     if not notes:
         return None, "—"
     return True, "ok: " + "; ".join(dict.fromkeys(notes))
+
+
+ACTIVITIES = {"Call", "Meeting", "Task"}
+
+
+def parent_candidates(row, ent):
+    """Parents a relation row puts into an activity's parent: the source module's entity, or — when an activity
+    (Events/Calendar/PBXManager) is the source — the target modules."""
+    if ent and ent not in ACTIVITIES:
+        return [ent]
+    return [e for e in (MODULE_ENTITY.get(m) for m in row.get("to_module", "").split("|")) if e and e not in ACTIVITIES]
+
+
+def parent_entities(model, entity):
+    """Entities allowed as the parent of an activity (linkParent entityList); all when the list is not limited."""
+    f = model.field(entity, "parent") or {}
+    return f.get("entityList") or model.entity_defs.keys()
 
 
 def main():

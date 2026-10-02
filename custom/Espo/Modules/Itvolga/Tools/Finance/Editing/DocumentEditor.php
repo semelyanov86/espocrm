@@ -8,7 +8,7 @@ use Espo\Modules\Itvolga\Tools\Finance\DocumentCalculator;
 use Espo\Modules\Itvolga\Tools\Finance\Exceptions\InvalidValue;
 
 /**
- * Decides what a document save does with its lines and totals (Quote, SalesOrder; later Invoice, Act).
+ * Decides what a document save does with its lines and totals (Quote, SalesOrder, Invoice; later Act).
  *
  * A new document is always calculated by DocumentCalculator (D-47). A saved one is recalculated only when a
  * calculation input changes: a header input (tax mode, discount, shipping, adjustment), a line added or removed, or a
