@@ -8,6 +8,7 @@ use Espo\Core\Console\IO;
 use Espo\Core\Exceptions\Error;
 use Espo\Core\ORM\Repository\Option\SaveOption;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\DocumentProcessor;
+use Espo\Modules\Itvolga\Tools\FinanceDocument\DocumentType;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\DocumentTypes;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\SourceVerification;
 use Espo\ORM\EntityManager;
@@ -52,30 +53,10 @@ class FinanceVerify implements Command
 
             $documents = $this->entityManager->getRDBRepository($type->entityType)->where($where)->find();
 
-            foreach ($documents as $document) {
-                if (!$this->processor->hasSourceTotals($document)) {
-                    $count('recalculated in EspoCRM (skipped)');
-
-                    continue;
-                }
-
-                $result = $this->verification->verify($document, $type);
-
-                if (!$result) {
-                    $count('no region_id in vtigerData (skipped)');
-
-                    continue;
-                }
-
-                $check = SourceVerification::totalsCheck($result);
-                $count("{$result->formulaClass->value} / $check");
-
-                if (!$dryRun) {
-                    $document->set(['sourceFormula' => $result->formulaClass->value, 'totalsCheck' => $check]);
-                    // Import option: the stored totals and items stay as they are (no recalculation, no number).
-                    $this->entityManager->saveEntity($document,
-                        [SaveOption::IMPORT => true, SaveOption::SILENT => true]);
-                }
+            foreach ($documents as $listed) {
+                // Locked and re-read: a concurrent recalculation (D-51) is never followed by stale source marks.
+                $this->entityManager->getTransactionManager()->run(
+                    fn () => $count($this->verifyOne($type, (string) $listed->getId(), $dryRun)));
             }
 
             ksort($counts);
@@ -83,5 +64,41 @@ class FinanceVerify implements Command
                 : implode(', ', array_map(fn ($key, $n) => "$key — $n", array_keys($counts), $counts));
             $io->writeLine(($dryRun ? '[dry-run] ' : '') . "{$type->entityType}: $summary");
         }
+    }
+
+    /**
+     * @return string the count key of the outcome
+     */
+    private function verifyOne(DocumentType $type, string $id, bool $dryRun): string
+    {
+        $document = $this->entityManager
+            ->getRDBRepository($type->entityType)
+            ->where(['id' => $id])
+            ->forUpdate()
+            ->findOne();
+
+        if (!$document) {
+            return 'removed meanwhile (skipped)';
+        }
+
+        if (!$this->processor->hasSourceTotals($document)) {
+            return 'recalculated in EspoCRM (skipped)';
+        }
+
+        $result = $this->verification->verify($document, $type);
+
+        if (!$result) {
+            return 'no region_id in vtigerData (skipped)';
+        }
+
+        $check = SourceVerification::totalsCheck($result);
+
+        if (!$dryRun) {
+            $document->set(['sourceFormula' => $result->formulaClass->value, 'totalsCheck' => $check]);
+            // Import option: the stored totals and items stay as they are (no recalculation, no number).
+            $this->entityManager->saveEntity($document, [SaveOption::IMPORT => true, SaveOption::SILENT => true]);
+        }
+
+        return "{$result->formulaClass->value} / $check";
     }
 }

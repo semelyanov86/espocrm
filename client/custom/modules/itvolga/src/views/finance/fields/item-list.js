@@ -437,16 +437,21 @@ define('itvolga:views/finance/fields/item-list', ['views/fields/base', 'itvolga:
         schedulePreview() {
             clearTimeout(this.previewTimer);
             this.preview = null;
+            // Every change starts a new generation: a request already on its way is answered for older data.
+            const seq = ++this.previewSeq;
             this.renderPreview(true);
-            this.previewTimer = setTimeout(() => this.requestPreview(), PREVIEW_DELAY);
+            this.previewTimer = setTimeout(() => this.requestPreview(seq), PREVIEW_DELAY);
         }
 
-        async requestPreview() {
-            if (!this.isEditMode() || this.rows.some(row => row._invalid && Object.keys(row._invalid).length)) {
+        async requestPreview(seq) {
+            if (
+                seq !== this.previewSeq ||
+                !this.isEditMode() ||
+                this.rows.some(row => row._invalid && Object.keys(row._invalid).length)
+            ) {
                 return;
             }
 
-            const seq = ++this.previewSeq;
             const attributes = {
                 // The preview does not look products up: a line without one yet is still calculated.
                 itemList: this.fetch()[this.name].map(line => ({...line, productId: line.productId || '-'})),

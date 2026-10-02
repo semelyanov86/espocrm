@@ -285,7 +285,9 @@ class CalculationTest(unittest.TestCase):
                 holder.wait(5)
             for stream in (holder.stdin, holder.stdout, holder.stderr):
                 stream.close()
-        ok(self, result["r"])
+        saved = ok(self, result["r"])
+        self.assertEqual((saved["shippingAmount"], saved["grandTotal"]), ("5.00000000", "100.00000000"),
+                         "the response shows the stored header")
         got = ok(self, c("dir").get(f"Quote/{qid}"))
         # 100 + 5 − 5 = 100: equal to the total the waiting save loaded, still written over the committed 105.
         self.assertEqual((got["shippingAmount"], got["adjustment"], got["preTaxTotal"], got["grandTotal"]),
@@ -372,6 +374,12 @@ class ImportedDocumentTest(unittest.TestCase):
         again = ok(self, c("dir").put(f"Quote/{self.id}", {"discountAmount": "100"}))
         self.assertEqual(again["grandTotal"], "3400.00000000")
         self.assertEqual(self.get()["vtigerData"]["sourceTotals"], snapshot, "originals are written once")
+        # Source marks written late (a verification that read the quote before the recalculation) change nothing:
+        # a document with kept originals is calculated in EspoCRM for good.
+        sql(f"UPDATE quote SET source_formula='lineTaxNotApplied', totals_check='exact' WHERE id='{self.id}'")
+        late = ok(self, c("dir").put(f"Quote/{self.id}", {"discountAmount": "200"}))
+        self.assertEqual((late["grandTotal"], late["sourceFormula"]), ("3300.00000000", ""))
+        self.assertEqual(self.get()["vtigerData"]["sourceTotals"], snapshot, "originals are never replaced")
         self.assertIn("Quote: recalculated in EspoCRM (skipped) — 1",
                       espo_console("itvolga-finance-verify", "--entity=Quote", f"--id={self.id}"))
 

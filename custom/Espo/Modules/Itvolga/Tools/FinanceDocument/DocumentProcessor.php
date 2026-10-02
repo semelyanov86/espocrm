@@ -95,11 +95,11 @@ class DocumentProcessor
             if ($current) {
                 $stored = new StoredDocument($this->header($current), $this->storedLines($items),
                     $this->hasSourceTotals($current));
+                $this->rebaseOnLockedRow($document, $current);
             }
 
             $lines = $itemListGiven ? $this->parseItemList($document->get(self::ITEM_LIST)) : null;
-            $header = $current ? $this->rebasedHeader($document, $current) : $this->header($document);
-            $plan = $this->editor->plan($stored, $header, $lines);
+            $plan = $this->editor->plan($stored, $this->header($document), $lines);
             $productNames = $this->productNames($plan, $items);
         } catch (InvalidValue|RuleNotSupported $e) {
             throw $this->errorMapper->toBadRequest($e, $type);
@@ -242,37 +242,38 @@ class DocumentProcessor
     }
 
     /**
-     * The stored totals are still the source system's: imported (sourceFormula set by SourceVerification, or an
-     * imported record not verified yet) and never recalculated in EspoCRM (no vtigerData.sourceTotals).
+     * The stored totals are still the source system's: never recalculated in EspoCRM (no vtigerData.sourceTotals —
+     * once there, the document stays calculated whatever marks are written later) and imported (sourceFormula set by
+     * SourceVerification, or an imported record not verified yet).
      */
     public function hasSourceTotals(Entity $document): bool
     {
-        if ((string) $document->get('sourceFormula') !== '') {
-            return true;
-        }
-
         $data = $document->get('vtigerData');
 
-        return $document->get('vtigerId') !== null &&
-            !($data instanceof stdClass && isset($data->{self::SOURCE_TOTALS}));
+        if ($data instanceof stdClass && isset($data->{self::SOURCE_TOTALS})) {
+            return false;
+        }
+
+        return (string) $document->get('sourceFormula') !== '' || $document->get('vtigerId') !== null;
     }
 
     /**
-     * Calculation inputs as the row will hold them after this save: the locked row with the attributes this save
-     * changes. The entity was loaded before the lock and the ORM writes only changed attributes, so a value another
-     * save committed in between stays in the row — the totals are computed with it, not with the stale one.
+     * The entity was loaded before the lock, and the ORM writes only attributes that differ from the fetched values.
+     * Calculation inputs, totals and source marks are brought to the locked row: unchanged ones take the row's values
+     * (calculation and the response see what another save committed in between), changed ones keep this save's
+     * values and are compared with the row, so exactly the differences from what is stored are written.
      */
-    private function rebasedHeader(Entity $document, Entity $current): HeaderInputs
+    private function rebaseOnLockedRow(Entity $document, Entity $current): void
     {
-        $values = $this->headerValues($current);
+        foreach ([...self::HEADER_INPUTS, ...self::TOTALS, 'sourceFormula', 'totalsCheck'] as $attribute) {
+            $value = $current->get($attribute);
 
-        foreach (self::HEADER_INPUTS as $attribute) {
-            if ($document->isAttributeChanged($attribute)) {
-                $values[$attribute] = $document->get($attribute);
+            if (!$document->isAttributeChanged($attribute)) {
+                $document->set($attribute, $value);
             }
-        }
 
-        return HeaderInputs::fromArray($values);
+            $document->setFetched($attribute, $value);
+        }
     }
 
     private function headerChanged(Entity $document): bool
@@ -395,22 +396,17 @@ class DocumentProcessor
             return;
         }
 
-        if ($current) {
-            // The ORM writes an attribute only if it differs from the fetched value, and the entity was fetched
-            // before the lock: compare what this save sets with the row as locked, or an unchanged-looking total
-            // would be skipped while the row holds another save's total.
-            foreach ([...self::TOTALS, 'sourceFormula', 'totalsCheck'] as $attribute) {
-                $document->setFetched($attribute, $current->get($attribute));
-            }
-        }
-
         if ($plan->replacesSourceTotals && $current) {
-            // Owner decision 2026-10-01: the source totals are kept once, then the document is calculated in EspoCRM.
+            // Owner decision 2026-10-01: the source totals are kept once — never replaced — then the document is
+            // calculated in EspoCRM. Compared with the locked row, so a stale loaded copy is never written.
             $data = $current->get('vtigerData');
             $document->setFetched('vtigerData', $data);
             $data = $data instanceof stdClass ? clone $data : (object) [];
-            $data->{self::SOURCE_TOTALS} = $this->sourceSnapshot($current, $items);
-            $document->set('vtigerData', $data);
+
+            if (!isset($data->{self::SOURCE_TOTALS})) {
+                $data->{self::SOURCE_TOTALS} = $this->sourceSnapshot($current, $items);
+                $document->set('vtigerData', $data);
+            }
         }
 
         $document->set([
