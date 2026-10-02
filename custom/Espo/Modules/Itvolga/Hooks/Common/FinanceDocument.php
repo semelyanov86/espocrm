@@ -1,0 +1,66 @@
+<?php
+
+namespace Espo\Modules\Itvolga\Hooks\Common;
+
+use Espo\Core\Hook\Hook\AfterSave;
+use Espo\Core\Hook\Hook\BeforeSave;
+use Espo\Modules\Itvolga\Tools\FinanceDocument\DocumentProcessor;
+use Espo\Modules\Itvolga\Tools\FinanceDocument\DocumentTypes;
+use Espo\Modules\Itvolga\Tools\FinanceDocument\SavePlan;
+use Espo\ORM\Entity;
+use Espo\ORM\Repository\Option\SaveOptions;
+use WeakMap;
+
+/**
+ * Finance documents of the registry (app.itvolgaFinance): totals, number and items on every write path (API, mass
+ * update, console). beforeSave computes everything that can fail before the row is written; afterSave writes the
+ * items; both run in the document's transaction (entityDefs transactionalSave). Order 50: after formula (11) and the
+ * hierarchy teams (20), before the core currency default (200).
+ *
+ * @implements BeforeSave<Entity>
+ * @implements AfterSave<Entity>
+ */
+class FinanceDocument implements BeforeSave, AfterSave
+{
+    public static int $order = 50;
+
+    /** @var WeakMap<Entity, SavePlan> */
+    private WeakMap $plans;
+
+    public function __construct(
+        private DocumentTypes $types,
+        private DocumentProcessor $processor,
+    ) {
+        $this->plans = new WeakMap();
+    }
+
+    public function beforeSave(Entity $entity, SaveOptions $options): void
+    {
+        $type = $this->types->find($entity->getEntityType());
+
+        if (!$type) {
+            return;
+        }
+
+        $plan = $this->processor->prepare($entity, $type, $options);
+
+        if ($plan) {
+            $this->plans[$entity] = $plan;
+        }
+    }
+
+    public function afterSave(Entity $entity, SaveOptions $options): void
+    {
+        $plan = $this->plans[$entity] ?? null;
+
+        if (!$plan) {
+            return;
+        }
+
+        unset($this->plans[$entity]);
+
+        /** @var \Espo\Modules\Itvolga\Tools\FinanceDocument\DocumentType $type */
+        $type = $this->types->find($entity->getEntityType());
+        $this->processor->persist($entity, $type, $plan);
+    }
+}

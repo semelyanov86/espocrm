@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build EspoCRM enum options, Russian labels and the Vtiger value dictionary (D-19) for stage 03.
+"""Build EspoCRM enum options, Russian labels and the Vtiger value dictionary (D-19) for stages 03 and 04.2.
 
 Usage: build_value_maps.py OUTDIR [--check]
 
@@ -96,6 +96,11 @@ ENUMS = [
          used=["Services.service_usageunit", "Products.usageunit"], empty=True),
     dict(entity="Product", field="category", picklists=["servicecategory"], used=["Services.servicecategory"],
          empty=True),
+    # Stage 04.2: an empty source status stays empty; new documents start as Created.
+    dict(entity="Quote", field="status", picklists=["quotestage"], used=["Quotes.quotestage"], empty=True,
+         default="Created"),
+    dict(entity="SalesOrder", field="status", picklists=["sostatus"], used=["SalesOrder.sostatus"], empty=True,
+         default="Created"),
 ]
 # Fields whose dictionary is fixed by the source semantics (no picklist table).
 STATIC = {
@@ -105,6 +110,10 @@ STATIC = {
     ("Call", "direction"): {"PBXManager.direction": {"inbound": "Inbound", "outbound": "Outbound"}},
     ("Task", "cTaskType"): {"Events.activitytype": {"Письмо": "Письмо"}},
     ("Product", "type"): {"(module)": {"Products": "product", "Services": "service"}},
+    ("Quote", "taxMode"): {"Quotes.hdnTaxType": {"individual": "individual", "group": "group",
+                                                  "group_tax_inc": "group_tax_inc"}},
+    ("SalesOrder", "taxMode"): {"SalesOrder.hdnTaxType": {"individual": "individual", "group": "group",
+                                                          "group_tax_inc": "group_tax_inc"}},
 }
 STATIC_OPTIONS = {
     ("Task", "cTaskType"): (["", "Письмо"], {"Письмо": "Письмо"}, ""),

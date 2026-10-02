@@ -1,0 +1,42 @@
+{
+    "fields": {
+        "status": {
+            "picklists": [
+                "sostatus"
+            ],
+            "options": [
+                "",
+                "Created",
+                "Approved",
+                "Delivered",
+                "Cancelled"
+            ],
+            "map": {
+                "SalesOrder.sostatus": {
+                    "Одобрено": "Approved",
+                    "Создано": "Created",
+                    "Created": "Created"
+                },
+                "(picklist)": {
+                    "Created": "Created",
+                    "Approved": "Approved",
+                    "Одобрено": "Approved",
+                    "Создано": "Created",
+                    "Delivered": "Delivered",
+                    "Cancelled": "Cancelled",
+                    "": ""
+                }
+            }
+        },
+        "taxMode": {
+            "picklists": [],
+            "map": {
+                "SalesOrder.hdnTaxType": {
+                    "individual": "individual",
+                    "group": "group",
+                    "group_tax_inc": "group_tax_inc"
+                }
+            }
+        }
+    }
+}

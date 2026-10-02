@@ -1,0 +1,26 @@
+[
+    {
+        "name": "salesOrder",
+        "width": 16
+    },
+    {
+        "name": "order",
+        "width": 6
+    },
+    {
+        "name": "product",
+        "link": true
+    },
+    {
+        "name": "quantity",
+        "width": 10
+    },
+    {
+        "name": "unitPrice",
+        "width": 13
+    },
+    {
+        "name": "amount",
+        "width": 13
+    }
+]

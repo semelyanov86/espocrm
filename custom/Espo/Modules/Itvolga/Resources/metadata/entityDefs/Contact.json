@@ -106,6 +106,16 @@
             "type": "hasMany",
             "entity": "VtigerArchive",
             "foreign": "contact"
+        },
+        "cQuotes": {
+            "type": "hasMany",
+            "entity": "Quote",
+            "foreign": "contact"
+        },
+        "cSalesOrders": {
+            "type": "hasMany",
+            "entity": "SalesOrder",
+            "foreign": "contact"
         }
     },
     "indexes": {

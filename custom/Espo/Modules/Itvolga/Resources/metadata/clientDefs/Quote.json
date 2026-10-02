@@ -1,0 +1,28 @@
+{
+    "controller": "controllers/record",
+    "iconClass": "fas fa-file-signature",
+    "boolFilterList": [
+        "onlyMy"
+    ],
+    "mergeDisabled": true,
+    "relationshipPanels": {
+        "salesOrders": {
+            "createDisabled": true,
+            "selectDisabled": true,
+            "unlinkDisabled": true
+        },
+        "documents": {
+            "createDisabled": false
+        }
+    },
+    "detailActionList": [
+        {
+            "name": "createSalesOrder",
+            "label": "Create Sales Order",
+            "handler": "itvolga:handlers/finance/create-sales-order",
+            "actionFunction": "process",
+            "acl": "create",
+            "aclScope": "SalesOrder"
+        }
+    ]
+}

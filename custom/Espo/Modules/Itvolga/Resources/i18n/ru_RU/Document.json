@@ -10,7 +10,9 @@
         "cKnowledgeBaseArticles": "Статьи базы знаний",
         "cProjects": "Проекты (архив)",
         "cProjectTasks": "Задачи проектов (архив)",
-        "cVtigerArchives": "Архив Vtiger"
+        "cVtigerArchives": "Архив Vtiger",
+        "cQuotes": "Предложения",
+        "cSalesOrders": "Заказы"
     },
     "tooltips": {
         "vtigerId": "Исходный crmid записи Vtiger — ключ повторного импорта.",

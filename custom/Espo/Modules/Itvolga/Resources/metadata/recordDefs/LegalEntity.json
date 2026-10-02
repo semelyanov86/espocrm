@@ -1,0 +1,8 @@
+{
+    "massActionsDisabled": true,
+    "actions": {
+        "merge": {
+            "disabled": true
+        }
+    }
+}

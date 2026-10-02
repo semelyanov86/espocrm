@@ -1,0 +1,4 @@
+{
+    "accessCheckerClassName": "Espo\\Modules\\Itvolga\\Classes\\Acl\\FinanceItem\\AccessChecker",
+    "link": "salesOrder"
+}

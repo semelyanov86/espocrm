@@ -68,6 +68,18 @@
             "entity": "VtigerArchive",
             "foreign": "documents",
             "relationName": "vtigerArchiveDocument"
+        },
+        "cQuotes": {
+            "type": "hasMany",
+            "entity": "Quote",
+            "foreign": "documents",
+            "relationName": "quoteDocument"
+        },
+        "cSalesOrders": {
+            "type": "hasMany",
+            "entity": "SalesOrder",
+            "foreign": "documents",
+            "relationName": "salesOrderDocument"
         }
     },
     "indexes": {

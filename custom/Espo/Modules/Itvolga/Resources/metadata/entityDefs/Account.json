@@ -148,6 +148,16 @@
             "type": "hasMany",
             "entity": "VtigerArchive",
             "foreign": "account"
+        },
+        "cQuotes": {
+            "type": "hasMany",
+            "entity": "Quote",
+            "foreign": "account"
+        },
+        "cSalesOrders": {
+            "type": "hasMany",
+            "entity": "SalesOrder",
+            "foreign": "account"
         }
     },
     "indexes": {

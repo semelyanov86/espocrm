@@ -1,0 +1,48 @@
+{
+    "fields": {
+        "status": {
+            "picklists": [
+                "quotestage"
+            ],
+            "options": [
+                "",
+                "Created",
+                "Delivered",
+                "Reviewed",
+                "Accepted",
+                "Rejected"
+            ],
+            "map": {
+                "Quotes.quotestage": {
+                    "Delivered": "Delivered",
+                    "Доставка": "Delivered",
+                    "Принято": "Accepted",
+                    "Просмотрено": "Reviewed",
+                    "Создано": "Created"
+                },
+                "(picklist)": {
+                    "Created": "Created",
+                    "Delivered": "Delivered",
+                    "Доставка": "Delivered",
+                    "Принято": "Accepted",
+                    "Просмотрено": "Reviewed",
+                    "Создано": "Created",
+                    "Reviewed": "Reviewed",
+                    "Accepted": "Accepted",
+                    "Rejected": "Rejected",
+                    "": ""
+                }
+            }
+        },
+        "taxMode": {
+            "picklists": [],
+            "map": {
+                "Quotes.hdnTaxType": {
+                    "individual": "individual",
+                    "group": "group",
+                    "group_tax_inc": "group_tax_inc"
+                }
+            }
+        }
+    }
+}

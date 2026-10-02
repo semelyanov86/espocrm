@@ -1,0 +1,402 @@
+{
+    "fields": {
+        "name": {
+            "type": "varchar",
+            "maxLength": 255,
+            "required": true
+        },
+        "number": {
+            "type": "varchar",
+            "maxLength": 100,
+            "readOnly": true,
+            "copyToClipboard": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "vtigerId": {
+            "type": "int",
+            "readOnly": true,
+            "disableFormatting": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "vtigerData": {
+            "type": "jsonObject",
+            "readOnly": true,
+            "tooltip": true,
+            "view": "itvolga:views/fields/vtiger-data",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "customizationDisabled": true
+        },
+        "status": {
+            "type": "enum",
+            "options": [
+                "",
+                "Created",
+                "Delivered",
+                "Reviewed",
+                "Accepted",
+                "Rejected"
+            ],
+            "default": "Created"
+        },
+        "account": {
+            "type": "link",
+            "required": true
+        },
+        "contact": {
+            "type": "link"
+        },
+        "opportunity": {
+            "type": "link"
+        },
+        "legalEntity": {
+            "type": "link",
+            "readOnly": true,
+            "tooltip": true
+        },
+        "assignedUser": {
+            "type": "link",
+            "required": false,
+            "view": "views/fields/assigned-user"
+        },
+        "teams": {
+            "type": "linkMultiple",
+            "view": "views/fields/teams"
+        },
+        "taxMode": {
+            "type": "enum",
+            "options": [
+                "individual",
+                "group",
+                "group_tax_inc"
+            ],
+            "default": "individual",
+            "tooltip": true,
+            "massUpdateDisabled": true
+        },
+        "sourceFormula": {
+            "type": "enum",
+            "options": [
+                "",
+                "noLineTax",
+                "lineTaxNotApplied",
+                "taxIncludedInPrice",
+                "groupTaxAdded",
+                "unverified"
+            ],
+            "default": "",
+            "tooltip": true,
+            "readOnly": true,
+            "massUpdateDisabled": true
+        },
+        "totalsCheck": {
+            "type": "enum",
+            "options": [
+                "",
+                "exact",
+                "rounded",
+                "mismatch",
+                "unverified"
+            ],
+            "default": "",
+            "tooltip": true,
+            "readOnly": true,
+            "massUpdateDisabled": true,
+            "style": {
+                "exact": "success",
+                "rounded": "info",
+                "mismatch": "danger",
+                "unverified": "warning"
+            }
+        },
+        "itemList": {
+            "type": "jsonArray",
+            "notStorable": true,
+            "view": "itvolga:views/finance/fields/item-list",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "massUpdateDisabled": true,
+            "inlineEditDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "orderDisabled": true,
+            "filtersDisabled": true,
+            "customizationDisabled": true
+        },
+        "subtotal": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 25,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money",
+            "readOnly": true,
+            "massUpdateDisabled": true
+        },
+        "discountAmount": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 25,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money",
+            "min": 0,
+            "massUpdateDisabled": true
+        },
+        "discountPercent": {
+            "type": "decimal",
+            "precision": 25,
+            "scale": 3,
+            "min": 0,
+            "max": 100,
+            "massUpdateDisabled": true
+        },
+        "shippingAmount": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 25,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money",
+            "min": 0,
+            "massUpdateDisabled": true
+        },
+        "shippingTaxPercent": {
+            "type": "decimal",
+            "precision": 25,
+            "scale": 3,
+            "tooltip": true,
+            "readOnly": true,
+            "massUpdateDisabled": true
+        },
+        "adjustment": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 25,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money",
+            "tooltip": true,
+            "massUpdateDisabled": true
+        },
+        "preTaxTotal": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 25,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money",
+            "readOnly": true,
+            "massUpdateDisabled": true
+        },
+        "grandTotal": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 25,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money",
+            "readOnly": true,
+            "massUpdateDisabled": true
+        },
+        "billingAddress": {
+            "type": "address"
+        },
+        "billingAddressStreet": {
+            "type": "text",
+            "maxLength": 255,
+            "dbType": "varchar"
+        },
+        "billingAddressCity": {
+            "type": "varchar"
+        },
+        "billingAddressState": {
+            "type": "varchar"
+        },
+        "billingAddressCountry": {
+            "type": "varchar"
+        },
+        "billingAddressPostalCode": {
+            "type": "varchar"
+        },
+        "shippingAddress": {
+            "type": "address"
+        },
+        "shippingAddressStreet": {
+            "type": "text",
+            "maxLength": 255,
+            "dbType": "varchar"
+        },
+        "shippingAddressCity": {
+            "type": "varchar"
+        },
+        "shippingAddressState": {
+            "type": "varchar"
+        },
+        "shippingAddressCountry": {
+            "type": "varchar"
+        },
+        "shippingAddressPostalCode": {
+            "type": "varchar"
+        },
+        "termsAndConditions": {
+            "type": "text"
+        },
+        "description": {
+            "type": "text"
+        },
+        "documents": {
+            "type": "linkMultiple",
+            "layoutDetailDisabled": true,
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "noLoad": true,
+            "importDisabled": true,
+            "exportDisabled": true
+        },
+        "createdAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "modifiedAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "createdBy": {
+            "type": "link",
+            "readOnly": true,
+            "view": "views/fields/user"
+        },
+        "modifiedBy": {
+            "type": "link",
+            "readOnly": true,
+            "view": "views/fields/user"
+        },
+        "dateValidUntil": {
+            "type": "date"
+        },
+        "inventoryManager": {
+            "type": "link",
+            "view": "views/fields/user"
+        }
+    },
+    "links": {
+        "items": {
+            "type": "hasMany",
+            "entity": "QuoteItem",
+            "foreign": "quote",
+            "readOnly": true,
+            "cascadeRemoval": true,
+            "orderBy": "order",
+            "order": "asc",
+            "layoutRelationshipsDisabled": true
+        },
+        "account": {
+            "type": "belongsTo",
+            "entity": "Account",
+            "foreign": "cQuotes"
+        },
+        "contact": {
+            "type": "belongsTo",
+            "entity": "Contact",
+            "foreign": "cQuotes"
+        },
+        "opportunity": {
+            "type": "belongsTo",
+            "entity": "Opportunity",
+            "foreign": "cQuotes"
+        },
+        "legalEntity": {
+            "type": "belongsTo",
+            "entity": "LegalEntity"
+        },
+        "assignedUser": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "teams": {
+            "type": "hasMany",
+            "entity": "Team",
+            "relationName": "entityTeam",
+            "layoutRelationshipsDisabled": true
+        },
+        "documents": {
+            "type": "hasMany",
+            "entity": "Document",
+            "foreign": "cQuotes",
+            "relationName": "quoteDocument"
+        },
+        "createdBy": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "modifiedBy": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "inventoryManager": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "salesOrders": {
+            "type": "hasMany",
+            "entity": "SalesOrder",
+            "foreign": "quote"
+        }
+    },
+    "transactionalSave": true,
+    "optimisticConcurrencyControl": true,
+    "collection": {
+        "orderBy": "createdAt",
+        "order": "desc",
+        "textFilterFields": [
+            "name",
+            "number"
+        ]
+    },
+    "indexes": {
+        "vtigerId": {
+            "type": "unique",
+            "columns": [
+                "vtigerId"
+            ]
+        },
+        "number": {
+            "columns": [
+                "number",
+                "deleted"
+            ]
+        },
+        "name": {
+            "columns": [
+                "name",
+                "deleted"
+            ]
+        },
+        "assignedUser": {
+            "columns": [
+                "assignedUserId",
+                "deleted"
+            ]
+        },
+        "createdAt": {
+            "columns": [
+                "createdAt"
+            ]
+        },
+        "createdAtId": {
+            "unique": true,
+            "columns": [
+                "createdAt",
+                "id"
+            ]
+        }
+    }
+}

@@ -3,5 +3,15 @@
         "route": "/ContactAccess/:id/password",
         "method": "post",
         "actionClassName": "Espo\\Modules\\Itvolga\\Tools\\ContactAccess\\Api\\PostPassword"
+    },
+    {
+        "route": "/FinanceDocument/:entityType/calculate",
+        "method": "post",
+        "actionClassName": "Espo\\Modules\\Itvolga\\Tools\\FinanceDocument\\Api\\PostCalculate"
+    },
+    {
+        "route": "/FinanceDocument/:entityType/:id/convertTo/:targetEntityType",
+        "method": "get",
+        "actionClassName": "Espo\\Modules\\Itvolga\\Tools\\FinanceDocument\\Api\\GetConvert"
     }
 ]

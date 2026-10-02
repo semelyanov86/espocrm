@@ -1,0 +1,14 @@
+{
+    "entity": true,
+    "layouts": true,
+    "tab": true,
+    "acl": true,
+    "aclPortal": false,
+    "module": "Itvolga",
+    "customizable": true,
+    "importable": false,
+    "notifications": false,
+    "object": true,
+    "type": "Base",
+    "stream": false
+}

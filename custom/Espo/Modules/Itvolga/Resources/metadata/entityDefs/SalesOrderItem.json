@@ -1,0 +1,164 @@
+{
+    "fields": {
+        "name": {
+            "type": "varchar",
+            "maxLength": 255,
+            "readOnly": true,
+            "tooltip": true
+        },
+        "vtigerId": {
+            "type": "int",
+            "readOnly": true,
+            "disableFormatting": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "vtigerData": {
+            "type": "jsonObject",
+            "readOnly": true,
+            "tooltip": true,
+            "view": "itvolga:views/fields/vtiger-data",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "customizationDisabled": true
+        },
+        "salesOrder": {
+            "type": "link",
+            "required": true,
+            "readOnly": true
+        },
+        "order": {
+            "type": "int",
+            "readOnly": true,
+            "min": 1
+        },
+        "product": {
+            "type": "link",
+            "required": true
+        },
+        "description": {
+            "type": "text"
+        },
+        "quantity": {
+            "type": "decimal",
+            "precision": 25,
+            "scale": 3
+        },
+        "unitPrice": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 27,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money"
+        },
+        "discountAmount": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 27,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money",
+            "min": 0
+        },
+        "discountPercent": {
+            "type": "decimal",
+            "precision": 7,
+            "scale": 3,
+            "min": 0,
+            "max": 100
+        },
+        "taxRate": {
+            "type": "decimal",
+            "precision": 7,
+            "scale": 3,
+            "tooltip": true
+        },
+        "amount": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 25,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money",
+            "readOnly": true
+        },
+        "purchaseCost": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 27,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money",
+            "min": 0
+        },
+        "margin": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 27,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money",
+            "readOnly": true
+        },
+        "createdAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "modifiedAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "createdBy": {
+            "type": "link",
+            "readOnly": true,
+            "view": "views/fields/user"
+        },
+        "modifiedBy": {
+            "type": "link",
+            "readOnly": true,
+            "view": "views/fields/user"
+        }
+    },
+    "links": {
+        "salesOrder": {
+            "type": "belongsTo",
+            "entity": "SalesOrder",
+            "foreign": "items"
+        },
+        "product": {
+            "type": "belongsTo",
+            "entity": "Product"
+        },
+        "createdBy": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "modifiedBy": {
+            "type": "belongsTo",
+            "entity": "User"
+        }
+    },
+    "collection": {
+        "orderBy": "order",
+        "order": "asc"
+    },
+    "indexes": {
+        "vtigerId": {
+            "type": "unique",
+            "columns": [
+                "vtigerId"
+            ]
+        },
+        "parentOrder": {
+            "columns": [
+                "salesOrderId",
+                "deleted",
+                "order"
+            ]
+        }
+    }
+}

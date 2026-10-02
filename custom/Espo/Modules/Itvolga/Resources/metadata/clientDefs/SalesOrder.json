@@ -1,0 +1,13 @@
+{
+    "controller": "controllers/record",
+    "iconClass": "fas fa-file-invoice",
+    "boolFilterList": [
+        "onlyMy"
+    ],
+    "mergeDisabled": true,
+    "relationshipPanels": {
+        "documents": {
+            "createDisabled": false
+        }
+    }
+}

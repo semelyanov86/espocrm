@@ -40,5 +40,16 @@
     },
     "cVtigerArchives": {
         "index": 10
+    },
+    "_tabBreak_4": {
+        "index": 11,
+        "tabBreak": true,
+        "tabLabel": "$Finance"
+    },
+    "cQuotes": {
+        "index": 12
+    },
+    "cSalesOrders": {
+        "index": 13
     }
 }

@@ -1,0 +1,26 @@
+{
+    "fields": {
+        "vtigerId": {
+            "readOnly": true
+        },
+        "quote": {
+            "readOnly": true
+        },
+        "order": {
+            "readOnly": true
+        },
+        "name": {
+            "readOnly": true
+        },
+        "amount": {
+            "readOnly": true
+        },
+        "margin": {
+            "readOnly": true
+        },
+        "vtigerData": {
+            "readOnly": true,
+            "onlyAdmin": true
+        }
+    }
+}

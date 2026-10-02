@@ -1,0 +1,11 @@
+{
+    "controller": "controllers/record",
+    "iconClass": "fas fa-list-ol",
+    "createDisabled": true,
+    "duplicateDisabled": true,
+    "mergeDisabled": true,
+    "massUpdateDisabled": true,
+    "massRemoveDisabled": true,
+    "editDisabled": true,
+    "removeDisabled": true
+}

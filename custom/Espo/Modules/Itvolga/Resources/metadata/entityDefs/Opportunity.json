@@ -83,6 +83,16 @@
             "type": "hasMany",
             "entity": "Project",
             "foreign": "opportunity"
+        },
+        "cQuotes": {
+            "type": "hasMany",
+            "entity": "Quote",
+            "foreign": "opportunity"
+        },
+        "cSalesOrders": {
+            "type": "hasMany",
+            "entity": "SalesOrder",
+            "foreign": "opportunity"
         }
     },
     "indexes": {

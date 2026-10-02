@@ -1,0 +1,7 @@
+{
+    "accessControlFilterClassNameMap": {
+        "onlyTeam": "Espo\\Core\\Select\\AccessControl\\Filters\\ForeignOnlyTeam",
+        "onlyOwn": "Espo\\Core\\Select\\AccessControl\\Filters\\ForeignOnlyOwn"
+    },
+    "accessControlFilterResolverClassName": "Espo\\Modules\\Itvolga\\Classes\\Select\\FinanceItem\\DocumentLevel"
+}

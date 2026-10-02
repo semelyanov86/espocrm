@@ -1,0 +1,10 @@
+{
+    "controller": "controllers/record",
+    "iconClass": "fas fa-landmark",
+    "createDisabled": true,
+    "duplicateDisabled": true,
+    "mergeDisabled": true,
+    "massUpdateDisabled": true,
+    "massRemoveDisabled": true,
+    "removeDisabled": true
+}

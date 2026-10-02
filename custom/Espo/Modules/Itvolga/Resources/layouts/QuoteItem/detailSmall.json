@@ -1,0 +1,31 @@
+[
+    {
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "quote"
+                },
+                {
+                    "name": "order"
+                }
+            ],
+            [
+                {
+                    "name": "product"
+                },
+                {
+                    "name": "quantity"
+                }
+            ],
+            [
+                {
+                    "name": "unitPrice"
+                },
+                {
+                    "name": "amount"
+                }
+            ]
+        ]
+    }
+]

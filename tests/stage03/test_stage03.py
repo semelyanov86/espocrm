@@ -10,6 +10,7 @@ read-only archive fields and the read-only PBX history. Every record and user is
 import base64
 import csv
 import json
+import re
 import secrets
 import sys
 import unittest
@@ -140,10 +141,8 @@ class ModelTest(unittest.TestCase):
                         self.assertEqual(live_fields[name].get(key), defs[key], f"{entity}.{name}.{key}")
 
     def test_imported_entities_have_unique_vtiger_id(self):
-        tables = {"Case": "case", "KnowledgeBaseArticle": "knowledge_base_article", "DocumentFolder": "document_folder",
-                  "ProjectTask": "project_task", "VtigerArchive": "vtiger_archive", "ContactAccess": "contact_access"}
         for entity in model_check.IMPORTED:
-            table = tables.get(entity, entity.lower())
+            table = re.sub(r"(?<!^)(?=[A-Z])", "_", entity).lower()  # KnowledgeBaseArticle → knowledge_base_article
             rows = sql(f"SELECT non_unique FROM information_schema.statistics WHERE table_schema=DATABASE() "
                        f"AND table_name='{table}' AND column_name='vtiger_id'")
             self.assertEqual(rows, [["0"]], f"{entity}: unique index on vtiger_id")

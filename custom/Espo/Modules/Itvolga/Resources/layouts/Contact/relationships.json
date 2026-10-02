@@ -3,5 +3,7 @@
     "cases",
     "targetLists",
     "cContactAccesses",
-    "cVtigerArchives"
+    "cVtigerArchives",
+    "cQuotes",
+    "cSalesOrders"
 ]

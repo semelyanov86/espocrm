@@ -1,0 +1,135 @@
+{
+    "fields": {
+        "name": {
+            "type": "varchar",
+            "maxLength": 255,
+            "required": true
+        },
+        "vtigerCompanyKey": {
+            "type": "varchar",
+            "maxLength": 255,
+            "readOnly": true,
+            "tooltip": true
+        },
+        "address": {
+            "type": "address"
+        },
+        "addressStreet": {
+            "type": "text",
+            "maxLength": 255,
+            "dbType": "varchar"
+        },
+        "addressCity": {
+            "type": "varchar"
+        },
+        "addressState": {
+            "type": "varchar"
+        },
+        "addressCountry": {
+            "type": "varchar"
+        },
+        "addressPostalCode": {
+            "type": "varchar"
+        },
+        "phoneNumber": {
+            "type": "varchar",
+            "maxLength": 100
+        },
+        "fax": {
+            "type": "varchar",
+            "maxLength": 100
+        },
+        "website": {
+            "type": "url"
+        },
+        "logo": {
+            "type": "image",
+            "previewSize": "small",
+            "tooltip": true
+        },
+        "inn": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "kpp": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "okpo": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "bankAccount": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "bankName": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "bic": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "corrAccount": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "director": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "bookkeeper": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "entrepreneur": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "entrepreneurRegistration": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "createdAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "modifiedAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "createdBy": {
+            "type": "link",
+            "readOnly": true,
+            "view": "views/fields/user"
+        },
+        "modifiedBy": {
+            "type": "link",
+            "readOnly": true,
+            "view": "views/fields/user"
+        }
+    },
+    "links": {
+        "createdBy": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "modifiedBy": {
+            "type": "belongsTo",
+            "entity": "User"
+        }
+    },
+    "collection": {
+        "orderBy": "name",
+        "order": "asc"
+    },
+    "indexes": {
+        "vtigerCompanyKey": {
+            "type": "unique",
+            "columns": [
+                "vtigerCompanyKey"
+            ]
+        }
+    }
+}

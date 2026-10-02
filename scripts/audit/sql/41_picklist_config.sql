@@ -1,4 +1,4 @@
--- Stage 03: configured picklists (all values, order, presence) of the modules that get EspoCRM enums,
+-- Stage 03 and 04.2: configured picklists (all values, order, presence) of the modules that get EspoCRM enums,
 -- plus sharing rules and salutation usage. Picklist values are vocabulary, not row data; still, Vtiger adds
 -- imported values to picklist tables, so salutations print only standard values and long values print as length.
 SELECT 'picklist' k, 'industry' pl, IF(CHAR_LENGTH(industry)>60, CONCAT('(long value ', CHAR_LENGTH(industry), ' chars)'), industry) value, IFNULL(sortorderid,0) sortorderid, presence FROM vtiger_industry
@@ -31,6 +31,9 @@ UNION ALL SELECT 'picklist', 'projecttaskprogress', IF(CHAR_LENGTH(projecttaskpr
 UNION ALL SELECT 'picklist', 'usageunit', IF(CHAR_LENGTH(usageunit)>60, CONCAT('(long value ', CHAR_LENGTH(usageunit), ' chars)'), usageunit), IFNULL(sortorderid,0), presence FROM vtiger_usageunit
 UNION ALL SELECT 'picklist', 'service_usageunit', IF(CHAR_LENGTH(service_usageunit)>60, CONCAT('(long value ', CHAR_LENGTH(service_usageunit), ' chars)'), service_usageunit), IFNULL(sortorderid,0), presence FROM vtiger_service_usageunit
 UNION ALL SELECT 'picklist', 'servicecategory', IF(CHAR_LENGTH(servicecategory)>60, CONCAT('(long value ', CHAR_LENGTH(servicecategory), ' chars)'), servicecategory), IFNULL(sortorderid,0), presence FROM vtiger_servicecategory
+-- Stage 04.2: statuses of quotes and sales orders.
+UNION ALL SELECT 'picklist', 'quotestage', IF(CHAR_LENGTH(quotestage)>60, CONCAT('(long value ', CHAR_LENGTH(quotestage), ' chars)'), quotestage), IFNULL(sortorderid,0), presence FROM vtiger_quotestage
+UNION ALL SELECT 'picklist', 'sostatus', IF(CHAR_LENGTH(sostatus)>60, CONCAT('(long value ', CHAR_LENGTH(sostatus), ' chars)'), sostatus), IFNULL(sortorderid,0), presence FROM vtiger_sostatus
 ORDER BY 2, 4, 3;
 -- Salutation (uitype 55 is not covered by 14_picklist_values): distribution among live records. Only standard
 -- salutations are printed; anything else is counted as '(non-standard value)' so free text never leaves the host.

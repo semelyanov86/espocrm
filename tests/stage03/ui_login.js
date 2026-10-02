@@ -1,4 +1,5 @@
-// Playwriter helper for the stage-03 UI scenarios: `state.who = "admin"|"deputy"|"access"`, then
+// Playwriter helper for the UI scenarios: `state.who = "admin"|"deputy"|"access"` (stage 03) or another user of a
+// fixture with `state.usersEnv = <its ui-users.env>` (stage 04.2: "director", "fdeputy"), then
 // `playwriter -s <id> -f tests/stage03/ui_login.js`. Reads passwords from the private stand files (never printed).
 // Logs into the local stand; credentials are read from private files and never printed.
 const fs = await import('node:fs');
@@ -16,7 +17,7 @@ if (who === 'admin') {
   const e = readEnv('/data/itvolga/espo-private/stand/local.env');
   user = e.ESPO_ADMIN_USERNAME; pw = e.ESPO_ADMIN_PASSWORD;
 } else {
-  const e = readEnv('/data/itvolga/espo-private/stand/evidence/stage03/ui-users.env');
+  const e = readEnv(state.usersEnv || '/data/itvolga/espo-private/stand/evidence/stage03/ui-users.env');
   user = e[`UI_${who.toUpperCase()}_USERNAME`]; pw = e[`UI_${who.toUpperCase()}_PASSWORD`];
 }
 if (!state.page || state.page.isClosed()) {

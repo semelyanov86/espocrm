@@ -5,7 +5,12 @@
         "Project": "Project",
         "ProjectTask": "Project Task",
         "VtigerArchive": "Vtiger Archive",
-        "ContactAccess": "Access"
+        "ContactAccess": "Access",
+        "Quote": "Quote",
+        "SalesOrder": "Sales Order",
+        "QuoteItem": "Quote Item",
+        "SalesOrderItem": "Sales Order Item",
+        "LegalEntity": "Legal Entity"
     },
     "scopeNamesPlural": {
         "Vendor": "Vendors",
@@ -13,6 +18,24 @@
         "Project": "Projects",
         "ProjectTask": "Project Tasks",
         "VtigerArchive": "Vtiger Archive",
-        "ContactAccess": "Accesses"
+        "ContactAccess": "Accesses",
+        "Quote": "Quotes",
+        "SalesOrder": "Sales Orders",
+        "QuoteItem": "Quote Items",
+        "SalesOrderItem": "Sales Order Items",
+        "LegalEntity": "Legal Entities"
+    },
+    "labels": {
+        "Finance": "Finance",
+        "financePlaceLine": "Line {line}",
+        "financePlaceLineField": "Line {line}, “{field}”",
+        "financePlaceField": "“{field}”",
+        "financePlaceDocument": "Document"
+    },
+    "messages": {
+        "financeRejected": "{place}: value not accepted.",
+        "financeVat": "{place}: documents are issued without VAT ({reference}) — set the rate to 0.",
+        "financeFloat": "{place}: pass numbers as strings (floats are not accepted).",
+        "financeNoLines": "A document needs at least one line."
     }
 }

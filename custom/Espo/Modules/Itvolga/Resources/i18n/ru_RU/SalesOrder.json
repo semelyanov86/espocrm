@@ -1,0 +1,95 @@
+{
+    "fields": {
+        "name": "Название",
+        "number": "Номер",
+        "vtigerId": "ID в Vtiger",
+        "vtigerData": "Исходные данные Vtiger",
+        "status": "Статус",
+        "account": "Контрагент",
+        "contact": "Контакт",
+        "opportunity": "Сделка",
+        "legalEntity": "Юрлицо",
+        "assignedUser": "Ответственный",
+        "teams": "Команды",
+        "taxMode": "Режим налога",
+        "sourceFormula": "Формула Vtiger",
+        "totalsCheck": "Сверка итогов",
+        "itemList": "Позиции",
+        "subtotal": "Сумма позиций",
+        "discountAmount": "Скидка, сумма",
+        "discountPercent": "Скидка, %",
+        "shippingAmount": "Доставка",
+        "shippingTaxPercent": "Налог доставки, %",
+        "adjustment": "Корректировка",
+        "preTaxTotal": "Сумма до налога",
+        "grandTotal": "Итого",
+        "billingAddress": "Адрес плательщика",
+        "shippingAddress": "Адрес доставки",
+        "termsAndConditions": "Условия",
+        "description": "Описание",
+        "documents": "Документы",
+        "createdAt": "Создано",
+        "modifiedAt": "Изменено",
+        "createdBy": "Создал",
+        "modifiedBy": "Изменил",
+        "dateDue": "Срок",
+        "quote": "Предложение"
+    },
+    "links": {
+        "items": "Позиции",
+        "account": "Контрагент",
+        "contact": "Контакт",
+        "opportunity": "Сделка",
+        "legalEntity": "Юрлицо",
+        "documents": "Документы",
+        "quote": "Предложение"
+    },
+    "options": {
+        "taxMode": {
+            "individual": "По позициям",
+            "group": "Общий на документ",
+            "group_tax_inc": "Налог включён в цену"
+        },
+        "sourceFormula": {
+            "": "—",
+            "noLineTax": "Без налога в строках",
+            "lineTaxNotApplied": "Налог строк не в итогах (до 2018-07)",
+            "taxIncludedInPrice": "Налог включён в цену (до 2018-07)",
+            "groupTaxAdded": "Групповой налог сверху (до 2018-07)",
+            "unverified": "Не подтверждена данными"
+        },
+        "totalsCheck": {
+            "": "—",
+            "exact": "Совпадают",
+            "rounded": "Совпадают с округлением",
+            "mismatch": "Расхождение",
+            "unverified": "Не проверено"
+        },
+        "status": {
+            "Created": "Создано",
+            "Approved": "Одобрено",
+            "Delivered": "Доставка",
+            "Cancelled": "Отменено"
+        }
+    },
+    "tooltips": {
+        "number": "Номер документа: импортированные — как в Vtiger, новые — префикс и счётчик (ПРЕД_25, ЗАКАЗ_15).",
+        "legalEntity": "Юрлицо одно (D-04), подставляется автоматически.",
+        "taxMode": "Режим налога Vtiger. Документы выставляются без НДС (УСН, D-21): налог всегда 0.",
+        "sourceFormula": "Как Vtiger сформировал итоги импортированного документа. Пусто — итоги считает EspoCRM.",
+        "totalsCheck": "Сверка хранимых итогов Vtiger с пересчётом по строкам. Итоги не исправляются (D-05).",
+        "shippingTaxPercent": "Доставка без налога (D-21).",
+        "adjustment": "Корректировка итога: со знаком минус уменьшает итог.",
+        "vtigerId": "Исходный crmid записи Vtiger — ключ повторного импорта.",
+        "vtigerData": "Непустые исходные значения без рабочего поля (JSON). Только чтение, видно администраторам. После пересчёта импортированного документа здесь же хранятся его исходные итоги (sourceTotals)."
+    },
+    "labels": {
+        "Items": "Позиции",
+        "Totals": "Итоги",
+        "Addresses": "Адреса",
+        "Terms": "Условия и описание",
+        "Vtiger": "Vtiger",
+        "Create Sales Order": "Создать заказ",
+        "Create SalesOrder": "Создать заказ"
+    }
+}

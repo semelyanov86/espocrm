@@ -644,6 +644,26 @@ UNDECLARED = {
     ("vtiger_campaignrelstatus", "presence"): (None, "справочник пикл-листа", "count"),
 }
 
+# Requisites of the single legal entity (vtiger_organizationdetails, one row) → LegalEntity fields
+# (finance-contract.md §11; stage 04.2). Values come only from the import and never reach Git.
+ORGANIZATION = {
+    "organizationname": "name", "address": "addressStreet", "city": "addressCity", "state": "addressState",
+    "country": "addressCountry", "code": "addressPostalCode", "phone": "phoneNumber", "fax": "fax",
+    "website": "website", "logoname": "logo", "inn": "inn", "kpp": "kpp", "okpo": "okpo",
+    "bankaccount": "bankAccount", "bankname": "bankName", "bankid": "bic", "corraccount": "corrAccount",
+    "director": "director", "bookkeeper": "bookkeeper", "entrepreneur": "entrepreneur",
+    "entrepreneurreg": "entrepreneurRegistration", "company": "vtigerCompanyKey",
+}
+ORGANIZATION_NOTES = {
+    "logoname": "имя файла логотипа; файл переносится при импорте (этап 06)",
+    "company": "ключ юрлица SalesPlatform ('Default', D-04)",
+}
+ORGANIZATION_EXCLUDED = {
+    "organization_id": "служебный ключ единственной строки",
+    "vatid": "пусто; поле не создаётся (finance-contract.md §11)",
+    "logo": "пусто: логотип хранится файлом (logoname)",
+}
+
 # Non-module tables: (regex, category, fate, target)
 TABLE_RULES = [
     (r"_seq$", "последовательность", "не переносится: счётчики EspoCRM свои; следующий номер документов задаётся настройкой нумерации", "—"),

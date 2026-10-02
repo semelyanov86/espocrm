@@ -91,11 +91,12 @@ tasks:
 
   # --- model, access control and tests (stage 03) ---------------------------------------------
   model:apply:
-    desc: Deploy the Itvolga module to the stand (rebuild, roles/teams/tabs, client cache timestamp)
+    desc: Deploy the Itvolga module to the stand (rebuild, roles/teams/tabs, legal entity and counters, client timestamp)
     cmds:
       - scripts/stand/espo.sh clear-cache
       - scripts/stand/espo.sh rebuild
       - scripts/stand/espo.sh itvolga-setup-acl
+      - scripts/stand/espo.sh itvolga-setup-finance
       - scripts/stand/espo.sh update-app-timestamp
 
   model:check:
@@ -117,6 +118,11 @@ tasks:
     desc: Stage 03 acceptance tests on the stand (synthetic data, created and deleted by the run)
     cmds:
       - python3 -m unittest discover -s tests/stage03 -v
+
+  test:stage04:
+    desc: Stage 04.2 acceptance tests on the stand (Quote, SalesOrder, items, legal entity; synthetic data)
+    cmds:
+      - python3 -m unittest discover -s tests/stage04 -v
 
   # --- finance contract and calculation core (stage 04.1) --------------------------------------
   test:finance:

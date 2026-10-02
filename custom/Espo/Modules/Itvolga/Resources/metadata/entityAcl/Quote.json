@@ -1,0 +1,43 @@
+{
+    "fields": {
+        "vtigerId": {
+            "readOnly": true
+        },
+        "number": {
+            "readOnly": true
+        },
+        "legalEntity": {
+            "readOnly": true
+        },
+        "sourceFormula": {
+            "readOnly": true
+        },
+        "totalsCheck": {
+            "readOnly": true
+        },
+        "subtotal": {
+            "readOnly": true
+        },
+        "preTaxTotal": {
+            "readOnly": true
+        },
+        "grandTotal": {
+            "readOnly": true
+        },
+        "shippingTaxPercent": {
+            "readOnly": true
+        },
+        "vtigerData": {
+            "readOnly": true,
+            "onlyAdmin": true
+        }
+    },
+    "links": {
+        "items": {
+            "readOnly": true
+        },
+        "teams": {
+            "nonAdminReadOnly": true
+        }
+    }
+}

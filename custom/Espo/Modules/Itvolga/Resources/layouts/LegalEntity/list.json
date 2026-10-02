@@ -1,0 +1,14 @@
+[
+    {
+        "name": "name",
+        "link": true
+    },
+    {
+        "name": "inn",
+        "width": 20
+    },
+    {
+        "name": "vtigerCompanyKey",
+        "width": 20
+    }
+]

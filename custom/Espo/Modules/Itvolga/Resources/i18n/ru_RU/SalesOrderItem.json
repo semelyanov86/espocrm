@@ -1,0 +1,36 @@
+{
+    "fields": {
+        "salesOrder": "Заказ",
+        "name": "Название",
+        "vtigerId": "ID в Vtiger",
+        "vtigerData": "Исходные данные Vtiger",
+        "order": "№",
+        "product": "Товар / услуга",
+        "description": "Описание",
+        "quantity": "Количество",
+        "unitPrice": "Цена",
+        "discountAmount": "Скидка, сумма",
+        "discountPercent": "Скидка, %",
+        "taxRate": "НДС, %",
+        "amount": "Сумма",
+        "purchaseCost": "Себестоимость",
+        "margin": "Маржа",
+        "createdAt": "Создано",
+        "modifiedAt": "Изменено",
+        "createdBy": "Создал",
+        "modifiedBy": "Изменил"
+    },
+    "links": {
+        "salesOrder": "Заказ",
+        "product": "Товар / услуга"
+    },
+    "tooltips": {
+        "name": "Название товара на момент сохранения строки.",
+        "taxRate": "Ставка НДС строки. Документы без НДС (D-21): 18 % — только в исторических документах Vtiger; при пересчёте такого документа укажите 0.",
+        "vtigerId": "Исходный lineitem_id строки Vtiger.",
+        "vtigerData": "Непустые исходные значения строки без рабочего поля (JSON)."
+    },
+    "labels": {
+        "Discount": "Скидка"
+    }
+}

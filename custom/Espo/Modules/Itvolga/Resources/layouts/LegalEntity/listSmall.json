@@ -1,0 +1,10 @@
+[
+    {
+        "name": "name",
+        "link": true
+    },
+    {
+        "name": "inn",
+        "width": 30
+    }
+]

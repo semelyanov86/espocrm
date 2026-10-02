@@ -1,6 +1,6 @@
-# Модель EspoCRM (этап 03)
+# Модель EspoCRM (этапы 03, 04.2)
 
-Проверено на стенде 2026-09-30 (EspoCRM 10.0.9). Источник истины — метаданные модуля; этот файл их описывает. Сверка с картой: колонки `espo_check` в `field-map.csv` (629 строк реализовано) и `relations.csv` (141 связь), `task model:check`. Решения — D-38…D-44.
+Проверено на стенде 2026-09-30 (EspoCRM 10.0.9), финансовые документы — 2026-10-01. Источник истины — метаданные модуля; этот файл их описывает. Сверка с картой: колонки `espo_check` в `field-map.csv` (781 строка — ok: 630 этапа 03, 151 этапа 04.2) и `relations.csv` (160 связей), `task model:check`. Решения — D-38…D-44, D-50…D-56.
 
 ## Где код
 
@@ -18,10 +18,16 @@
 | `…/Classes/Acl/Call/AccessChecker.php`, `…/metadata/aclDefs/Call.json` | история PBXManager только для чтения (ACL) |
 | `…/Classes/ConsoleCommands/SetupAcl.php` | роли, команды, вкладки: `task espo -- itvolga-setup-acl [--dry-run]` |
 | `client/custom/modules/itvolga/src/views/` | поле JSON-архива, поле пароля с кнопкой «Показать» |
+| `…/Tools/Finance/` (`Editing/` — правило правки документа), `…/Tools/FinanceDocument/` | расчётное ядро (04.1) и сохранение финансовых документов: позиции, итоги, номера, юрлицо, сверка импорта, предпросмотр, «Создать заказ» (04.2) |
+| `…/Hooks/Common/FinanceDocument.php`, `…/Hooks/Common/FinanceItemGuard.php`, `…/Hooks/LegalEntity/Singleton.php` | сохранение документа с позициями в одной транзакции; запрет прямой записи позиций; одно юрлицо |
+| `…/Classes/Record/Finance/DecimalInput.php`, `…/Classes/FieldProcessing/Finance/ItemListLoader.php`, `…/Classes/Acl/FinanceItem/AccessChecker.php`, `…/Classes/Select/FinanceItem/DocumentLevel.php` | отказ от float на входе API; поле `itemList` при чтении; доступ к позициям — по правам на документ (запись и списки) |
+| `…/metadata/app/itvolgaFinance.json` | реестр финансовых документов: сущность позиций, префикс и первый номер, поля «Создать заказ» |
+| `…/Classes/ConsoleCommands/{SetupFinance,FinanceVerify}.php` | `itvolga-setup-finance` (юрлицо, счётчики), `itvolga-finance-verify` (`sourceFormula`/`totalsCheck` импорта) |
+| `client/custom/modules/itvolga/src/views/finance/`, `…/views/fields/money.js`, `…/finance/decimal-text.js`, `…/handlers/finance/` | редактор позиций, показ денег без float, «Создать заказ» |
 | `scripts/model/` | сверка модели с картой, генератор словаря значений |
-| `tests/stage03/` | приёмочные тесты API и помощники UI-сценариев |
+| `tests/stage03/`, `tests/stage04/` | приёмочные тесты API и помощники UI-сценариев |
 
-Развёртывание на стенд: `task model:apply` (clear-cache, rebuild, роли, отметка времени клиента). Тесты: `task test:stage03`.
+Развёртывание на стенд: `task model:apply` (clear-cache, rebuild, роли, юрлицо и счётчики номеров, отметка времени клиента). Тесты: `task test:stage03`, `task test:stage04`, `task test:finance`.
 
 ## Служебные поля (D-41)
 
@@ -55,6 +61,9 @@
 | ProjectTask | исторический архив, только чтение | `project`, `status`, `priority`, `type`, `progress`, `orderNumber`, `hours`, `dateStart`, `dateEnd`, `showInStat`, `gitCommit`, `tags` | `documents` |
 | VtigerArchive | архив Consignment, ServiceContracts, Assets, Jivosite, JVmes; только чтение, создаётся только импортом | `vtigerModule`, `vtigerNo`, `data` (JSON записи и строк), `recordDate`, `account`, `contact`, `lead`, `product`, `parentArchive` (сообщение → чат) | `childArchives`, `documents` |
 | ContactAccess | поля доступа контактов (D-06, D-42) | `contact`, `anydeskId`, `anydeskPassword` (шифр, не читается через API), `hasAnydeskPassword`, `hostname`, `ipAddress` | `contact` |
+| Quote, SalesOrder | рабочие финансовые документы (D-50…D-53) | поля «Document» `finance-contract.md` §11 (`number`, `status`, `account`, `legalEntity`, `taxMode`, деньги decimal, `sourceFormula`, `totalsCheck`, адреса, `vtigerId`, `vtigerData`) + `itemList` (нехранимая таблица позиций); Quote: `dateValidUntil`, `inventoryManager`; SalesOrder: `dateDue`, `quote` | `items` (каскад), `salesOrders` / `quote`, `documents`; обратные `cQuotes`, `cSalesOrders` у Account, Contact, Opportunity, Document |
+| QuoteItem, SalesOrderItem | позиции (пишутся только через документ) | поля «Item» §11 (`order`, `product`, `quantity`, `unitPrice`, скидки, `taxRate`, `amount`, `purchaseCost`, `margin`) + `name` (название товара на момент сохранения) | `quote` / `salesOrder`, `product` |
+| LegalEntity | одно юрлицо (D-55) | реквизиты §11, `vtigerCompanyKey` = `Default` | — |
 
 ## Справочники (D-38, утверждены — Q-32)
 
@@ -74,9 +83,11 @@
 | Project, ProjectTask | чтение all | чтение all | — | чтение team |
 | VtigerArchive | чтение all | — | — | — |
 | ContactAccess | только с ролью «Доступы» (создание, чтение, правка, удаление: all) |||||
+| Quote, SalesOrder | all | — | — | — |
+| QuoteItem, SalesOrderItem, LegalEntity | чтение all (позиции — по доступу к документу; запись позиций — никому) | — | — | — |
 
 `team` = свои записи + записи команд пользователя: групп Vtiger и иерархических команд («Подчинённые заместителей» — записи менеджеров, «Заместители директора» — контакты заместителей). Иерархические команды записи восстанавливаются при любом сохранении, связь `teams` не меняется через API link/unlink не-администраторами; членство следует ролям сразу при их изменении. Назначение — всем пользователям; экспорт, импорт и массовое обновление разрешены (кроме ContactAccess). Звонки из истории PBXManager не редактируются и не удаляются не-администраторами. Пользователь без ролей не имеет доступа ни к чему.
 
 ## Отложено
 
-`LegalEntity`, финансовые сущности и их связи с Document/VtigerArchive/Vendor — этапы 04.2–04.5 по контракту `finance-contract.md` §11 (D-44); расчётное ядро (без сущностей и UI) — `Tools/Finance/`, этап 04.1 (D-45); живая телефония и импорт истории звонков — 07.x; импорт данных — 06.x.
+Invoice, Act, Payment и их связи с Document/VtigerArchive/Vendor — этапы 04.3–04.5 по контракту `finance-contract.md` §11 (D-44); Quote, SalesOrder, позиции и LegalEntity — этап 04.2 (§14); расчётное ядро — `Tools/Finance/`, этап 04.1 (D-45); живая телефония и импорт истории звонков — 07.x; импорт данных — 06.x.

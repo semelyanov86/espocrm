@@ -1,0 +1,88 @@
+[
+    {
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "vtigerCompanyKey"
+                }
+            ],
+            [
+                {
+                    "name": "address"
+                },
+                {
+                    "name": "logo"
+                }
+            ],
+            [
+                {
+                    "name": "phoneNumber"
+                },
+                {
+                    "name": "fax"
+                }
+            ],
+            [
+                {
+                    "name": "website"
+                },
+                false
+            ]
+        ]
+    },
+    {
+        "label": "Requisites",
+        "rows": [
+            [
+                {
+                    "name": "inn"
+                },
+                {
+                    "name": "kpp"
+                }
+            ],
+            [
+                {
+                    "name": "okpo"
+                },
+                false
+            ],
+            [
+                {
+                    "name": "bankAccount"
+                },
+                {
+                    "name": "bankName"
+                }
+            ],
+            [
+                {
+                    "name": "bic"
+                },
+                {
+                    "name": "corrAccount"
+                }
+            ],
+            [
+                {
+                    "name": "director"
+                },
+                {
+                    "name": "bookkeeper"
+                }
+            ],
+            [
+                {
+                    "name": "entrepreneur"
+                },
+                {
+                    "name": "entrepreneurRegistration"
+                }
+            ]
+        ]
+    }
+]

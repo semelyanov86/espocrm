@@ -9,6 +9,8 @@ Outputs contain only schema metadata, counts, maximum string lengths and the map
 Stage 03: every target is checked against the EspoCRM model (scripts/model/model_check.py): column `espo_check`,
 and `mapping_status=реализовано (этап 03)` for rows whose target exists with a compatible type and length.
 Stage 04.1: rows of finance modules not yet in the model get `контракт (этап 04.1)` (finance-contract.md §11).
+Stage 04.2: rows of Quote, SalesOrder, their items and LegalEntity (requisites per column) get
+`реализовано (этап 04.2)`; generic line rows stay `контракт` until Invoice and Act items exist.
 """
 import csv
 import re
@@ -187,6 +189,18 @@ def field_rows(outdir):
                 else:
                     fate = "перенос" if eff else "пусто — данных нет"
                 entity = "—"
+            elif tbl == "vtiger_organizationdetails":
+                # One row: requisites of the single LegalEntity (stage 04.2); values stay out of Git.
+                entity = "LegalEntity (собственная)"
+                if col in M.ORGANIZATION_EXCLUDED:
+                    target, transform = "—", M.ORGANIZATION_EXCLUDED[col]
+                    fate = "пусто — данных нет" if eff == 0 else "исключено: " + transform
+                else:
+                    target = M.ORGANIZATION.get(col, f"vtigerData.{col}")
+                    transform = M.ORGANIZATION_NOTES.get(col, "реквизит юрлица (значение вне Git)")
+                    fate = "перенос (значения вне Git)" if eff else "пусто — данных нет"
+                    if col not in M.ORGANIZATION:
+                        status = "не проверено"
             else:
                 category, fate, target = "?", "не классифицировано", "—"
                 for rx, cat, tfate, ttarget in M.TABLE_RULES:
@@ -509,11 +523,9 @@ FIELD_HEADER = ["source_module", "source_table", "source_column", "source_field"
                 "verification", "fate", "mapping_status", "count_status", "max_len_live", "espo_check"]
 REL_HEADER = ["relation_id", "kind", "source_object", "from_module", "to_module", "cardinality_observed", "live_count",
               "deleted_or_dangling", "distribution", "target_link", "verification", "fate", "status", "espo_check"]
-IMPLEMENTED = "реализовано (этап 03)"
-
-
 def apply_model_check(rows, header, checker, status_col):
-    """Append `espo_check`; flip the status of rows whose target exists in the EspoCRM model."""
+    """Append `espo_check`; flip the status of rows whose target exists in the EspoCRM model to
+    `реализовано (этап 03|04.2)` (the stage of the row's entities)."""
     try:
         model = model_check.Model()
     except SystemExit as exc:  # no unpacked core: keep the maps, mark the check as not done
@@ -529,7 +541,7 @@ def apply_model_check(rows, header, checker, status_col):
         if res is True:
             ok += 1
             r = list(r)
-            r[idx] = IMPLEMENTED
+            r[idx] = f"реализовано (этап {model_check.implemented_stage(model, row)})"
         elif res is False:
             failed += 1
         out.append(list(r) + [text])

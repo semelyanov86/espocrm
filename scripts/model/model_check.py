@@ -6,6 +6,10 @@ module custom/Espo/Modules/Itvolga and custom/Espo/Custom — the same merge ord
 scripts/audit/build_maps.py (column `espo_check`) and by tests/stage03 (the live stand metadata must agree).
 
 Usage: model_check.py [REPO]   — prints a summary of field-map/relations checks, exit 1 on failures.
+
+Stage 04.2: Quote, SalesOrder, their items and LegalEntity are checked like stage-03 entities; for them rows without
+source data are checked too (the contract creates working fields for new documents, D-47). Generic rows of the
+document lines (<Doc>Item.*) stay «частично» until every item entity exists (Invoice 04.3, Act 04.5).
 """
 import csv
 import json
@@ -14,7 +18,6 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-CHECK_DATE = "2026-09-30"
 
 METADATA_DIRS = [
     "application/Espo/Resources/metadata",
@@ -28,15 +31,18 @@ FIELD_TYPE_DIR = "application/Espo/Resources/metadata/fields"
 STAGE03 = {"Account", "Contact", "Lead", "Opportunity", "Task", "Call", "Meeting", "Email", "Case",
            "KnowledgeBaseArticle", "KnowledgeBaseCategory", "Document", "DocumentFolder", "Note", "User", "Preferences",
            "Attachment", "Vendor", "Product", "Project", "ProjectTask", "VtigerArchive", "ContactAccess", "Team", "Role"}
+STAGE042 = {"Quote", "QuoteItem", "SalesOrder", "SalesOrderItem", "LegalEntity"}
 LATER = {
-    "Quote": "04.2", "QuoteItem": "04.2", "SalesOrder": "04.2", "SalesOrderItem": "04.2", "Invoice": "04.3",
-    "InvoiceItem": "04.3", "Payment": "04.4", "PaymentAllocation": "04.4", "Act": "04.5", "ActItem": "04.5",
-    "LegalEntity": "04.1", "Template": "05",
+    "Invoice": "04.3", "InvoiceItem": "04.3", "Payment": "04.4", "PaymentAllocation": "04.4", "Act": "04.5",
+    "ActItem": "04.5", "Template": "05",
 }
+# Item entity of each document and its link to the document (generic rows of vtiger_inventoryproductrel).
+ITEM_PARENT = {"QuoteItem": "quote", "SalesOrderItem": "salesOrder", "InvoiceItem": "invoice", "ActItem": "act"}
 # Entities that receive imported Vtiger records (vtigerId, unique).
 IMPORTED = ["Account", "Contact", "Lead", "Opportunity", "Task", "Call", "Meeting", "Email", "Case",
             "KnowledgeBaseArticle", "Document", "DocumentFolder", "Note", "User", "Attachment", "Vendor", "Product",
-            "Project", "ProjectTask", "VtigerArchive", "ContactAccess"]
+            "Project", "ProjectTask", "VtigerArchive", "ContactAccess", "Quote", "QuoteItem", "SalesOrder",
+            "SalesOrderItem"]
 # target_entity column of field-map → entities (Events rows are split by activitytype).
 ENTITY_ALIASES = {
     "Call/Meeting/Task (вид «Письмо») по activitytype": ["Call", "Meeting", "Task"],
@@ -163,8 +169,10 @@ def parse_target(target, default_entities):
 # Picklist tables (rows «entityDefs options») that do not become an EspoCRM enum of stage 03.
 PICKLIST_FATE = {
     **{pl: "этап 04.x: справочник финансового модуля" for pl in (
-        "carrier", "invoicestatus", "pay_type", "payment_duration", "postatus", "quotestage", "recurring_frequency",
-        "sostatus", "sp_actstatus", "spcompany", "spstatus", "type_payment")},
+        "invoicestatus", "pay_type", "postatus", "sp_actstatus", "spstatus", "type_payment")},
+    **{pl: "архив: исходные значения в vtigerData (enum не создаётся; периодичность заказов закончилась в 2016, D-15)"
+       for pl in ("carrier", "recurring_frequency", "payment_duration")},
+    "spcompany": "одна запись LegalEntity (D-04, D-48): значения — не опции, а ссылка legalEntity",
     **{pl: "архив: исходные значения в VtigerArchive.data (enum не создаётся)" for pl in (
         "assetstatus", "contract_priority", "contract_status", "contract_type", "tracking_unit",
         "sp_consignmentstatus", "type", "msg_type")},
@@ -192,12 +200,81 @@ def address_max_length(model, entity, name):
     return None
 
 
+def target_entities(target):
+    """Entities named as a prefix in a target ("QuoteItem.product", "SalesOrder.quote")."""
+    return re.findall(r"\b([A-Z][A-Za-z]+)\.", target or "")
+
+
+def is_empty_contract_row(fate, entities):
+    """A row without source data whose target is a working field of a stage-04.2 entity (checked, D-47)."""
+    return fate.startswith("пусто") and bool(set(entities) & STAGE042)
+
+
+def implemented_stage(model, row):
+    """Stage of an implemented row: 04.2 for rows of the stage-04.2 entities, otherwise 03."""
+    target = row.get("target_field") or row.get("target_link") or ""
+    entities = set(entities_for(row)) | set(target_entities(target))
+    if row.get("from_module"):
+        entities |= {MODULE_ENTITY.get(row.get("from_module")), MODULE_ENTITY.get(row.get("to_module"))}
+    if target.strip() == "entityDefs options":
+        pl = row.get("source_table", "")[len("vtiger_"):]
+        entities |= {e for e, data in model.value_maps.items() for spec in data.get("fields", {}).values()
+                     if pl in spec.get("picklists", [])}
+    return "04.2" if entities & STAGE042 else "03"
+
+
+def check_generic_item(model, target):
+    """<Doc>Item.<field> / <Doc>Item.<документ>: every item entity; partial while some are of later stages."""
+    field = target.split(".", 1)[1]
+    done, later, problems = [], [], []
+    for item, parent in ITEM_PARENT.items():
+        name = parent if field == "<документ>" else field
+        if item in LATER:
+            later.append(f"{item} — этап {LATER[item]}")
+            continue
+        f = model.field(item, name)
+        if f is None and not model.link(item, name):
+            problems.append(f"нет поля {item}.{name}")
+            continue
+        done.append(f"{item}.{name} {f.get('type') if f else 'link'}")
+    if problems:
+        return False, "ОШИБКА: " + "; ".join(problems)
+    if later:
+        return None, "частично: " + "; ".join(done + later)
+    return True, "ok: " + "; ".join(done)
+
+
+def check_currency(model, entities):
+    """Target `currency` (currency_id, always RUB): every money field of the entity has the one currency."""
+    notes, problems = [], []
+    for ent in entities:
+        money = {n: f for n, f in model.entity_defs.get(ent, {}).get("fields", {}).items() if f.get("type") == "currency"}
+        if not money:
+            problems.append(f"нет денежных полей у {ent}")
+            continue
+        bad = sorted(n for n, f in money.items() if not f.get("onlyDefaultCurrency") or not f.get("decimal"))
+        if bad:
+            problems.append(f"{ent}: не decimal или не одна валюта: " + ", ".join(bad))
+        notes.append(f"{ent}: валюта RUB ({len(money)} денежных полей decimal, onlyDefaultCurrency)")
+    if problems:
+        return False, "ОШИБКА: " + "; ".join(problems)
+    return True, "ok: " + "; ".join(notes)
+
+
 def check_field_row(model, row, max_len=None):
     """→ (ok: bool|None, text). None = not applicable (excluded/empty/later stage)."""
     fate = row.get("fate", "")
-    if not (fate.startswith("перенос") or fate.startswith("архив")):
-        return None, "—"
     target = row.get("target_field", "")
+    empty = is_empty_contract_row(fate, entities_for(row) + target_entities(target))
+    if not (fate.startswith("перенос") or fate.startswith("архив") or empty):
+        return None, "—"
+    res, text = _check_field_row(model, row, target, max_len)
+    if empty and res is True:
+        text = "пусто в источнике; " + text
+    return res, text
+
+
+def _check_field_row(model, row, target, max_len):
     if target.strip() == "entityDefs options":
         return picklist_check(model, row.get("source_table", ""))
     if target.strip() in NON_FIELD:
@@ -211,9 +288,13 @@ def check_field_row(model, row, max_len=None):
     for ent in entities:
         if ent in LATER:
             return None, f"этап {LATER[ent]}"
-    if target.startswith("<Doc>Item") or "Item." in target:
-        stage = next((LATER[e] for e in LATER if target.startswith(e)), None)
-        return None, f"этап {stage or '04.x'} (строки документов)"
+    if target.startswith("<Doc>Item"):
+        return check_generic_item(model, target)
+    later = [LATER[e] for e in target_entities(target) if e in LATER]
+    if later:
+        return None, f"этап {later[0]} (строки документов)"
+    if target.strip() == "currency":
+        return check_currency(model, entities)
     parsed = parse_target(target, entities)
     if not parsed:
         return None, "—"
@@ -276,10 +357,18 @@ MODULE_ENTITY = {
 
 def check_relation_row(model, row):
     fate = row.get("fate", "")
-    if not (fate.startswith("перенос") or fate.startswith("архив") or fate == "слияние"):
-        return None, "—"
     target = row.get("target_link", "")
     ent = MODULE_ENTITY.get(row.get("from_module", ""))
+    empty = is_empty_contract_row(fate, [ent] + target_entities(target))
+    if not (fate.startswith("перенос") or fate.startswith("архив") or fate == "слияние" or empty):
+        return None, "—"
+    res, text = _check_relation_row(model, row, target, ent, fate)
+    if empty and res is True:
+        text = "пусто в источнике; " + text
+    return res, text
+
+
+def _check_relation_row(model, row, target, ent, fate):
     if fate == "слияние" or target.startswith("слияние"):
         return None, "слияние SPCallPopup → Call (поля Call.description / vtigerData)"
     if ent in LATER or any(target.startswith(e + ".") or target.startswith(e + " ") for e in LATER):

@@ -1,0 +1,151 @@
+[
+    {
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "number"
+                }
+            ],
+            [
+                {
+                    "name": "account"
+                },
+                {
+                    "name": "status"
+                }
+            ],
+            [
+                {
+                    "name": "contact"
+                },
+                {
+                    "name": "dateValidUntil"
+                }
+            ],
+            [
+                {
+                    "name": "opportunity"
+                },
+                {
+                    "name": "inventoryManager"
+                }
+            ],
+            [
+                {
+                    "name": "legalEntity"
+                },
+                false
+            ]
+        ]
+    },
+    {
+        "label": "Items",
+        "rows": [
+            [
+                {
+                    "name": "itemList",
+                    "fullWidth": true,
+                    "noLabel": true
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Totals",
+        "rows": [
+            [
+                {
+                    "name": "taxMode"
+                },
+                {
+                    "name": "subtotal"
+                }
+            ],
+            [
+                {
+                    "name": "discountAmount"
+                },
+                {
+                    "name": "discountPercent"
+                }
+            ],
+            [
+                {
+                    "name": "shippingAmount"
+                },
+                {
+                    "name": "preTaxTotal"
+                }
+            ],
+            [
+                {
+                    "name": "adjustment"
+                },
+                {
+                    "name": "grandTotal"
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Addresses",
+        "rows": [
+            [
+                {
+                    "name": "billingAddress"
+                },
+                {
+                    "name": "shippingAddress"
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Terms",
+        "rows": [
+            [
+                {
+                    "name": "termsAndConditions",
+                    "fullWidth": true
+                }
+            ],
+            [
+                {
+                    "name": "description",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Vtiger",
+        "rows": [
+            [
+                {
+                    "name": "sourceFormula"
+                },
+                {
+                    "name": "totalsCheck"
+                }
+            ],
+            [
+                {
+                    "name": "vtigerId"
+                },
+                {
+                    "name": "shippingTaxPercent"
+                }
+            ],
+            [
+                {
+                    "name": "vtigerData",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    }
+]

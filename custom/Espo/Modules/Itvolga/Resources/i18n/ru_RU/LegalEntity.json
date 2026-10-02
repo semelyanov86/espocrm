@@ -1,0 +1,33 @@
+{
+    "fields": {
+        "name": "Наименование",
+        "vtigerCompanyKey": "Ключ Vtiger",
+        "address": "Адрес",
+        "phoneNumber": "Телефон",
+        "fax": "Факс",
+        "website": "Сайт",
+        "logo": "Логотип",
+        "inn": "ИНН",
+        "kpp": "КПП",
+        "okpo": "ОКПО",
+        "bankAccount": "Расчётный счёт",
+        "bankName": "Банк",
+        "bic": "БИК",
+        "corrAccount": "Корр. счёт",
+        "director": "Директор",
+        "bookkeeper": "Бухгалтер",
+        "entrepreneur": "Индивидуальный предприниматель",
+        "entrepreneurRegistration": "Регистрация ИП",
+        "createdAt": "Создано",
+        "modifiedAt": "Изменено",
+        "createdBy": "Создал",
+        "modifiedBy": "Изменил"
+    },
+    "labels": {
+        "Requisites": "Реквизиты"
+    },
+    "tooltips": {
+        "vtigerCompanyKey": "Ключ юрлица SalesPlatform (spcompany): Default. «По умолчанию» и пустое значение — то же юрлицо (D-04).",
+        "logo": "Файл логотипа переносится при импорте (этап 06)."
+    }
+}

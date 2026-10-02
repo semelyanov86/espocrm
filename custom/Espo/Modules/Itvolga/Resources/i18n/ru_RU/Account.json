@@ -70,7 +70,9 @@
     },
     "links": {
         "cProjects": "Проекты (архив)",
-        "cVtigerArchives": "Архив Vtiger"
+        "cVtigerArchives": "Архив Vtiger",
+        "cQuotes": "Предложения",
+        "cSalesOrders": "Заказы"
     },
     "labels": {
         "Реквизиты": "Реквизиты"

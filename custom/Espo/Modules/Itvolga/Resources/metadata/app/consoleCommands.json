@@ -5,5 +5,26 @@
         "allowedFlags": [
             "dryRun"
         ]
+    },
+    "itvolgaSetupFinance": {
+        "className": "Espo\\Modules\\Itvolga\\Classes\\ConsoleCommands\\SetupFinance",
+        "listed": true,
+        "allowedFlags": [
+            "dryRun"
+        ],
+        "allowedOptions": [
+            "next"
+        ]
+    },
+    "itvolgaFinanceVerify": {
+        "className": "Espo\\Modules\\Itvolga\\Classes\\ConsoleCommands\\FinanceVerify",
+        "listed": true,
+        "allowedFlags": [
+            "dryRun"
+        ],
+        "allowedOptions": [
+            "entity",
+            "id"
+        ]
     }
 }

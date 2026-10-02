@@ -1,0 +1,41 @@
+{
+    "comment": "Finance documents with line items (stage 04.2; Invoice and Act join in 04.3/04.5). number: prefix + counter without padding; firstNumber = vtiger_modentity_num.cur_id at the audit snapshot (finance-contract.md §6), seeded by itvolga-setup-finance and raised, never lowered, at switchover.",
+    "documents": {
+        "Quote": {
+            "itemEntityType": "QuoteItem",
+            "parentLink": "quote",
+            "numberPrefix": "ПРЕД_",
+            "firstNumber": 25
+        },
+        "SalesOrder": {
+            "itemEntityType": "SalesOrderItem",
+            "parentLink": "salesOrder",
+            "numberPrefix": "ЗАКАЗ_",
+            "firstNumber": 15
+        }
+    },
+    "conversions": {
+        "Quote": {
+            "SalesOrder": {
+                "link": "quote",
+                "fieldList": [
+                    "name",
+                    "account",
+                    "contact",
+                    "opportunity",
+                    "assignedUser",
+                    "teams",
+                    "taxMode",
+                    "discountAmount",
+                    "discountPercent",
+                    "shippingAmount",
+                    "adjustment",
+                    "billingAddress",
+                    "shippingAddress",
+                    "termsAndConditions",
+                    "description"
+                ]
+            }
+        }
+    }
+}

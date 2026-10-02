@@ -1,0 +1,23 @@
+[
+    {
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "inn"
+                }
+            ],
+            [
+                {
+                    "name": "kpp"
+                },
+                {
+                    "name": "bic"
+                }
+            ]
+        ]
+    }
+]
