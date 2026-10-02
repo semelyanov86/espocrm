@@ -25,7 +25,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "model"))
 import mapping as M  # noqa: E402
 import model_check  # noqa: E402
 
-AUDIT_DATE = "2026-09-29"
 CONTRACT = "контракт (этап 04.1)"  # finance rows fixed by docs/migration/finance-contract.md §11
 DOC_LINK = {"Invoice": "invoice", "Act": "act", "Quotes": "quote", "SalesOrder": "salesOrder", "Consignment": "data"}
 NUMERIC = re.compile(r"^(int|tinyint|smallint|mediumint|bigint|decimal|float|double)")
@@ -98,7 +97,22 @@ def max_lengths(outdir):
     return res
 
 
+def audit_date(outdir):
+    """Date of the audit slice the counts come from: its started_at.txt (run-audit.sh), else the slice name
+    (YYYYMMDDT…). No date — no maps: a wrong «проверено SQL» date is worse than a stop."""
+    started = outdir / "started_at.txt"
+    if started.is_file():
+        m = re.match(r"(\d{4}-\d{2}-\d{2})T", started.read_text(encoding="utf-8").strip())
+        if m:
+            return m.group(1)
+    m = re.match(r"(\d{4})(\d{2})(\d{2})T", outdir.resolve().name)
+    if m:
+        return "-".join(m.groups())
+    raise SystemExit(f"audit date unknown: no started_at.txt and no YYYYMMDDT… name in {outdir}")
+
+
 def field_rows(outdir):
+    checked = f"проверено SQL {audit_date(outdir)}"
     trues = true_counts(outdir)
     maxlen = max_lengths(outdir)
     rows = read_tsv(outdir / "columns.tsv")
@@ -155,7 +169,7 @@ def field_rows(outdir):
             ml = maxlen.get((mod, r["table"], r["column"]))
             out.append([mod, r["table"], r["column"], fname, r["label"], r["uitype"], r["db_type"], custom,
                         r["nonempty_all"], r["live_rows"], count, entity if target not in (None, "—") else "—",
-                        target or "—", transform, verification, fate, status, f"проверено SQL {AUDIT_DATE}",
+                        target or "—", transform, verification, fate, status, checked,
                         "" if ml is None else ml])
         else:
             tbl, col = r["table"], r["column"]
@@ -219,7 +233,7 @@ def field_rows(outdir):
                 status = CONTRACT
             out.append(["", tbl, col, "", "", "", r["db_type"], "нет", r["nonempty_all"], live_records,
                         eff if live_records != "" else "", entity, target, transform, verification, fate, status,
-                        f"проверено SQL {AUDIT_DATE}", ""])
+                        checked, ""])
     return out
 
 
