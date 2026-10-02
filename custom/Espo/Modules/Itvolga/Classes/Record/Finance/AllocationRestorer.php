@@ -22,9 +22,11 @@ class AllocationRestorer implements Restorer
         throw self::denied();
     }
 
-    public static function denied(): Conflict
+    /**
+     * @param string $label financeRestoreDenied (a row) or financeRestoreOwnerDenied (its payment or document)
+     */
+    public static function denied(string $label = 'financeRestoreDenied'): Conflict
     {
-        return Conflict::createWithBody('financeRestoreDenied',
-            Body::create()->withMessageTranslation('financeRestoreDenied', 'Global'));
+        return Conflict::createWithBody($label, Body::create()->withMessageTranslation($label, 'Global'));
     }
 }

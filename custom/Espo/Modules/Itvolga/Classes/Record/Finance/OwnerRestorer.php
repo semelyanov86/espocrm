@@ -47,7 +47,7 @@ class OwnerRestorer implements Restorer
                 ->build();
 
             if ($this->entityManager->getRDBRepository($type->allocationEntityType)->clone($query)->findOne()) {
-                throw AllocationRestorer::denied();
+                throw AllocationRestorer::denied('financeRestoreOwnerDenied');
             }
         }
 

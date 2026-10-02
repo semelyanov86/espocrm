@@ -128,6 +128,13 @@ def notes(pid):
     return int(sql(f"SELECT COUNT(*) FROM note WHERE parent_type='Payment' AND parent_id='{pid}' AND deleted=0")[0][0])
 
 
+def notifications(pid):
+    """Notifications about a payment: an assignment one points at it (related), a stream one at its note and has the
+    payment as the related parent."""
+    return int(sql("SELECT COUNT(*) FROM notification WHERE (related_type='Payment' AND related_id="
+                   f"'{pid}') OR (related_parent_type='Payment' AND related_parent_id='{pid}')")[0][0])
+
+
 def counter():
     return int(sql("SELECT value FROM next_number WHERE entity_type='Payment' AND field_name='number'")[0][0])
 
@@ -411,7 +418,7 @@ class RemovalTest(unittest.TestCase):
                          [[f"Payment:{pay['id']}"]])
         sql(f"UPDATE payment_allocation SET modified_at = modified_at - INTERVAL 5 SECOND WHERE payment_id='{pay['id']}'")
         restore = S["admin"].request("POST", "Payment/action/restoreDeleted", {"id": pay["id"]})
-        self.assertEqual((restore[0], label(restore)), (409, "financeRestoreDenied"))
+        self.assertEqual((restore[0], label(restore)), (409, "financeRestoreOwnerDenied"))
         self.assertEqual(sql(f"SELECT deleted FROM payment WHERE id='{pay['id']}'"), [["1"]], "nothing restored")
         # A row cancelled by an earlier save of the table does not hold the restore of its payment.
         kept = payment("50", [row(inv, "50")])
@@ -442,7 +449,7 @@ class RemovalTest(unittest.TestCase):
                          [[f"Invoice:{inv['id']}"]])
         sql(f"UPDATE payment_allocation SET modified_at = modified_at - INTERVAL 5 SECOND WHERE invoice_id='{inv['id']}'")
         restore = S["admin"].request("POST", "Invoice/action/restoreDeleted", {"id": inv["id"]})
-        self.assertEqual((restore[0], label(restore)), (409, "financeRestoreDenied"))
+        self.assertEqual((restore[0], label(restore)), (409, "financeRestoreOwnerDenied"))
         self.assertEqual(sql(f"SELECT deleted FROM invoice WHERE id='{inv['id']}'"), [["1"]], "nothing restored")
         # A document removed without allocations restores as before.
         plain = must(c("dir").post("Invoice", {"name": f"{TAG} plain", "accountId": S["account"], **DATES,
@@ -747,8 +754,9 @@ class ImportPathTest(unittest.TestCase):
         S["created"].append(("Payment", pay["id"]))
         quiet = f"SELECT COUNT(*) FROM note WHERE parent_id IN ('{pay['id']}','{inv['id']}') AND deleted=0"
         self.assertEqual(sql(quiet), [["0"]], "an import writes no stream or audit notes")
-        self.assertEqual(sql(f"SELECT COUNT(*) FROM notification WHERE related_id='{pay['id']}'"), [["0"]],
-                         "nor assignment notifications")
+        self.assertEqual(notifications(pay["id"]), 0, "nor notifications")
+        # The same check sees the notifications of an ordinary save (a payment given to the director by another user).
+        self.assertGreater(notifications(create("Payment", payment_data("1"), S["admin"])["id"]), 0)
         stored = sql(f"SELECT number, status, legal_entity_id IS NOT NULL FROM payment WHERE id='{pay['id']}'")
         self.assertEqual(stored, [[str(vt), "", "1"]], "the source number and the empty status are kept")
         alloc = import_save("PaymentAllocation", {"paymentId": pay["id"], "invoiceId": inv["id"], "amount": "1000",
