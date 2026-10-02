@@ -118,6 +118,11 @@
             "type": "hasMany",
             "entity": "Product",
             "foreign": "vendor"
+        },
+        "payments": {
+            "type": "hasChildren",
+            "entity": "Payment",
+            "foreign": "payer"
         }
     },
     "collection": {

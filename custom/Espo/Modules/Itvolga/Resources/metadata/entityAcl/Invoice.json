@@ -51,6 +51,15 @@
         },
         "balanceSource": {
             "readOnly": true
+        },
+        "paidAmount": {
+            "readOnly": true
+        },
+        "balanceAmount": {
+            "readOnly": true
+        },
+        "settlementState": {
+            "readOnly": true
         }
     },
     "links": {
@@ -61,6 +70,9 @@
             "nonAdminReadOnly": true
         },
         "vtigerArchives": {
+            "readOnly": true
+        },
+        "paymentAllocations": {
             "readOnly": true
         }
     }

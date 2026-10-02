@@ -16,8 +16,8 @@ use Espo\Modules\Itvolga\Tools\Finance\Editing\LineInput;
 use Espo\Modules\Itvolga\Tools\Finance\Editing\StoredDocument;
 use Espo\Modules\Itvolga\Tools\Finance\Exceptions\InvalidValue;
 use Espo\Modules\Itvolga\Tools\Finance\Exceptions\RuleNotSupported;
-use Espo\Modules\Itvolga\Tools\Finance\Exceptions\UnknownLegalEntity;
 use Espo\Modules\Itvolga\Tools\Finance\Scale;
+use Espo\Modules\Itvolga\Tools\FinancePayment\SettlementUpdater;
 use Espo\ORM\Entity;
 use Espo\ORM\EntityManager;
 use Espo\ORM\Repository\Option\SaveOptions;
@@ -32,7 +32,9 @@ use stdClass;
  * persist() runs in afterSave of the same transaction and writes the items. Any refusal rolls back the header, the
  * items and the number counter together. Items are written only here (WRITE_OPTION; other writes are refused by
  * Hooks/Common/FinanceItemGuard) and by the importer (SaveOption::IMPORT, values as in the source; only the source
- * legal entity is resolved, D-48).
+ * legal entity is resolved, D-48). Documents that payments are allocated to (Invoice, SalesOrder) keep their stored
+ * settlement in step with the total: a new document is unpaid, a changed total keeps the paid sum of the locked row
+ * (SettlementUpdater::applyTotal); a document save never reads payments (stage 04.4).
  */
 class DocumentProcessor
 {
@@ -46,7 +48,7 @@ class DocumentProcessor
         'grandTotal' => 'sourceGrandTotal',
     ];
     /** vtigerData key of the source spcompany value (the import input of legalEntity, D-48). */
-    public const SOURCE_LEGAL_ENTITY = 'spcompany';
+    public const SOURCE_LEGAL_ENTITY = LegalEntityProvider::SOURCE_KEY;
 
     private const HEADER_INPUTS = ['taxMode', ...HeaderInputs::DECIMALS];
     private const TOTALS = ['subtotal', 'preTaxTotal', 'grandTotal'];
@@ -64,6 +66,7 @@ class DocumentProcessor
         private NumberAllocator $numberAllocator,
         private LegalEntityProvider $legalEntityProvider,
         private ErrorMapper $errorMapper,
+        private SettlementUpdater $settlement,
     ) {
         $this->editor = new DocumentEditor();
     }
@@ -75,10 +78,16 @@ class DocumentProcessor
     public function prepare(Entity $document, DocumentType $type, SaveOptions $options): ?SavePlan
     {
         $import = (bool) $options->get(SaveOption::IMPORT);
-        $this->setLegalEntity($document, $type, $import);
+        $this->legalEntityProvider->assign($document, $import);
 
         if ($import) {
             // The importer keeps number, totals and items as in the source (D-05, D-17); SourceVerification classifies.
+            // A new document is unpaid until its allocations are imported; a re-import with another total keeps the
+            // paid sum of the locked row (a payment may have changed it since the document was loaded).
+            if ($this->settles($type) && ($document->isNew() || $this->totalChanged($document))) {
+                $this->applyImportedTotal($document, $type);
+            }
+
             return null;
         }
 
@@ -121,10 +130,14 @@ class DocumentProcessor
             $this->applyTotals($document, $plan, $current, $items);
         }
 
+        if ($this->settles($type) && ($isNew || $this->totalChanged($document))) {
+            $this->settlement->applyTotal($document, $current?->get('paidAmount'));
+        }
+
         $this->setCurrency($document, self::HEADER_MONEY);
 
         if ($isNew) {
-            $document->set('number', $this->numberAllocator->allocate($type));
+            $document->set('number', $this->numberAllocator->allocate($type->series()));
         }
 
         return new SavePlan($plan, $items, $productNames);
@@ -278,7 +291,8 @@ class DocumentProcessor
     private function rebaseOnLockedRow(Entity $document, Entity $current): void
     {
         $attributes = [...self::HEADER_INPUTS, ...self::TOTALS, ...SourceMarks::ATTRIBUTES,
-            ...array_values(self::SOURCE_TOTAL_FIELDS)];
+            ...array_values(self::SOURCE_TOTAL_FIELDS),
+            ...($this->settles($document->getEntityType()) ? SettlementUpdater::FIELDS : [])];
 
         foreach ($attributes as $attribute) {
             $value = $current->get($attribute);
@@ -289,6 +303,45 @@ class DocumentProcessor
 
             $document->setFetched($attribute, $value);
         }
+    }
+
+    private function applyImportedTotal(Entity $document, DocumentType $type): void
+    {
+        if ($document->isNew()) {
+            $this->settlement->applyTotal($document, null);
+
+            return;
+        }
+
+        $current = $this->entityManager
+            ->getRDBRepository($type->entityType)
+            ->where(['id' => $document->getId()])
+            ->forUpdate()
+            ->findOne() ?? throw new Error("{$type->entityType} {$document->getId()} not found.");
+
+        foreach (SettlementUpdater::FIELDS as $attribute) {
+            $document->set($attribute, $current->get($attribute));
+            $document->setFetched($attribute, $current->get($attribute));
+        }
+
+        $this->settlement->applyTotal($document, $current->get('paidAmount'));
+    }
+
+    private function settles(DocumentType|string $type): bool
+    {
+        return $this->settlement->paymentTypeOf($type instanceof DocumentType ? $type->entityType : $type) !== null;
+    }
+
+    /**
+     * The total as a number (100.00 and 100.00000000 are the same total).
+     */
+    private function totalChanged(Entity $document): bool
+    {
+        $fetched = $document->getFetched('grandTotal');
+        $total = $document->get('grandTotal');
+
+        return $fetched === null || $total === null ||
+            !Decimal::of($fetched)->equals(Decimal::of($total));
     }
 
     private function headerChanged(Entity $document): bool
@@ -464,50 +517,6 @@ class DocumentProcessor
         $snapshot['recalculatedAt'] = gmdate('Y-m-d H:i:s');
 
         return $snapshot;
-    }
-
-    /**
-     * One legal entity (D-04, D-48): a document saved in EspoCRM belongs to it; an imported one only when its source
-     * spcompany is a known spelling of it — an unknown value stops the import instead of becoming a second legal
-     * entity.
-     */
-    private function setLegalEntity(Entity $document, DocumentType $type, bool $import): void
-    {
-        $kept = !$document->isNew() && $document->get('legalEntityId') &&
-            !$document->isAttributeChanged('legalEntityId');
-
-        if (!$import && $kept) {
-            return;
-        }
-
-        $id = $import ? $this->sourceLegalEntityId($document, $type) : $this->legalEntityProvider->findDefaultId();
-
-        $id ??= throw new Error('The legal entity is not configured: run itvolga-setup-finance.');
-
-        if ($document->get('legalEntityId') !== $id) {
-            $document->set('legalEntityId', $id);
-        }
-    }
-
-    /**
-     * The importer keeps the source value in vtigerData.spcompany; no key (records without a source value) and empty
-     * values mean the default company, as in SalesPlatform. Messages never carry the value.
-     */
-    private function sourceLegalEntityId(Entity $document, DocumentType $type): ?string
-    {
-        $data = $document->get('vtigerData');
-        $value = $data instanceof stdClass ? ($data->{self::SOURCE_LEGAL_ENTITY} ?? null) : null;
-        $record = "{$type->entityType} vtigerId {$document->get('vtigerId')}";
-
-        if ($value !== null && !is_string($value)) {
-            throw new Error("$record: vtigerData.spcompany is not a string.");
-        }
-
-        try {
-            return $this->legalEntityProvider->findIdForSource($value);
-        } catch (UnknownLegalEntity $e) {
-            throw new Error("$record: {$e->getMessage()}");
-        }
     }
 
     /**

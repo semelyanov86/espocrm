@@ -9,6 +9,7 @@ use Espo\Core\Acl\Table;
 use Espo\Core\Exceptions\Forbidden;
 use Espo\Core\Exceptions\NotFound;
 use Espo\Core\Utils\FieldUtil;
+use Espo\Modules\Itvolga\Tools\FinancePayment\PaymentPrefill;
 use Espo\ORM\EntityManager;
 use stdClass;
 
@@ -16,7 +17,8 @@ use stdClass;
  * Attributes of a new document prefilled from another one («Создать заказ» from a quote; owner decision
  * 2026-10-01): the header fields of the registry's fieldList, the line inputs and the link to the source. Nothing is
  * created and no number is taken: the user reviews the form (historical tax rates stay visible to be set to 0, D-21)
- * and saves it as a new document, calculated by the core.
+ * and saves it as a new document, calculated by the core. «Добавить платёж» on an invoice or a sales order goes the
+ * same way (PaymentPrefill, stage 04.4).
  */
 class DocumentConverter
 {
@@ -29,6 +31,7 @@ class DocumentConverter
         private FieldUtil $fieldUtil,
         private DocumentTypes $types,
         private DocumentProcessor $processor,
+        private PaymentPrefill $paymentPrefill,
     ) {}
 
     /**
@@ -37,6 +40,10 @@ class DocumentConverter
      */
     public function attributes(string $from, string $id, string $to): stdClass
     {
+        if ($paymentType = $this->types->findPayment($to)) {
+            return $this->paymentPrefill->attributes($from, $id, $paymentType);
+        }
+
         $conversion = $this->types->conversion($from, $to) ?? throw new NotFound();
         $sourceType = $this->types->find($from) ?? throw new NotFound();
         $source = $this->entityManager->getEntityById($from, $id) ?? throw new NotFound();

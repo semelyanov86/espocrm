@@ -330,7 +330,7 @@ CRMREL_TARGETS = {
     ("HelpDesk", "Emails"): "Email.parent (все письма удалены)",
     ("Invoice", "Calendar"): "Task|Call|Meeting.parent (родитель Invoice)",
     ("Invoice", "Consignment"): "VtigerArchive.invoice (дублирует поле invoiceid)",
-    ("Invoice", "SPPayments"): "PaymentAllocation (объединение с related_to)",
+    ("Invoice", "SPPayments"): "PaymentAllocation.invoice (объединение с related_to)",
     ("Leads", "Calendar"): "Task|Call|Meeting.parent",
     ("Leads", "Emails"): "Email.parent",
     ("Leads", "Jivosite"): "VtigerArchive.lead",
@@ -508,7 +508,7 @@ def relation_rows(outdir):
                      f"конфликтов {part.get('conflict_rel_other_invoice', 0)}",
                      allocated, part.get("conflict_rel_other_invoice", 0),
                      "; ".join(f"{k}: {v}" for k, v in sorted(part.items())),
-                     "PaymentAllocation(payment, invoice|salesOrder, amount)",
+                     "PaymentAllocation.payment / PaymentAllocation.invoice / PaymentAllocation.salesOrder (сумма = сумма платежа)",
                      "count по категориям разбиения; сумма распределений = сумма платежа; конфликты — ручной разбор",
                      "перенос: related_to — основной; связь — только при пустом related_to; конфликты не угадывать; "
                      "расходы со связью — Q-36", CONTRACT])

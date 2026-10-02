@@ -23,7 +23,7 @@
                     "name": "grandTotal"
                 },
                 {
-                    "name": "dateDue"
+                    "name": "settlementState"
                 }
             ]
         ]

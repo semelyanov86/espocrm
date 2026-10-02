@@ -1,0 +1,34 @@
+[
+    {
+        "name": "number",
+        "width": 8,
+        "link": true
+    },
+    {
+        "name": "datePaid",
+        "width": 10
+    },
+    {
+        "name": "direction",
+        "width": 9
+    },
+    {
+        "name": "status",
+        "width": 11
+    },
+    {
+        "name": "payer"
+    },
+    {
+        "name": "amount",
+        "width": 13
+    },
+    {
+        "name": "method",
+        "width": 12
+    },
+    {
+        "name": "assignedUser",
+        "width": 12
+    }
+]

@@ -1,7 +1,7 @@
 /**
- * «Создать заказ» on a quote and «Создать счёт» on a quote or a sales order (clientDefs detailActionList): opens a new
- * document prefilled by the server (header, lines, link to the source document). Nothing is saved until the user
- * saves the form; the server calculates it.
+ * «Создать заказ» on a quote, «Создать счёт» on a quote or a sales order and «Добавить платёж» on an invoice or a sales
+ * order (clientDefs detailActionList): opens a new record prefilled by the server (header, lines or the allocation to
+ * the source document). Nothing is saved until the user saves the form; the server calculates it.
  */
 define('itvolga:handlers/finance/convert-document', [], () => {
 
@@ -20,6 +20,10 @@ define('itvolga:handlers/finance/convert-document', [], () => {
 
         createInvoice() {
             return this.convert('Invoice');
+        }
+
+        createPayment() {
+            return this.convert('Payment');
         }
 
         /**

@@ -163,6 +163,11 @@
             "type": "hasMany",
             "entity": "Invoice",
             "foreign": "account"
+        },
+        "cPayments": {
+            "type": "hasChildren",
+            "entity": "Payment",
+            "foreign": "payer"
         }
     },
     "indexes": {

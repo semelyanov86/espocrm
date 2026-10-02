@@ -1,0 +1,37 @@
+[
+    {
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "number"
+                },
+                {
+                    "name": "datePaid"
+                }
+            ],
+            [
+                {
+                    "name": "direction"
+                },
+                {
+                    "name": "status"
+                }
+            ],
+            [
+                {
+                    "name": "payer"
+                },
+                {
+                    "name": "amount"
+                }
+            ],
+            [
+                {
+                    "name": "allocationList",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    }
+]

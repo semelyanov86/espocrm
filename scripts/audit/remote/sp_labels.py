@@ -25,6 +25,7 @@ MODULES = {
     "projecttasktype": ["ProjectTask"], "projecttaskprogress": ["ProjectTask"], "usageunit": ["Products"],
     "service_usageunit": ["Services"], "servicecategory": ["Services"],
     "quotestage": ["Quotes"], "sostatus": ["SalesOrder"], "invoicestatus": ["Invoice"],
+    "pay_type": ["SPPayments"], "type_payment": ["SPPayments"], "spstatus": ["SPPayments"],
 }
 PAIR = re.compile(r"""(['"])((?:\\.|(?!\1).)*)\1\s*=>\s*(['"])((?:\\.|(?!\3).)*)\3""", re.S)
 

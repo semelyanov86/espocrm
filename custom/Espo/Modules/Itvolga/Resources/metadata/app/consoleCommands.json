@@ -26,5 +26,17 @@
             "entity",
             "id"
         ]
+    },
+    "itvolgaFinanceSettle": {
+        "className": "Espo\\Modules\\Itvolga\\Classes\\ConsoleCommands\\FinanceSettle",
+        "listed": true,
+        "allowedFlags": [
+            "dryRun",
+            "silent"
+        ],
+        "allowedOptions": [
+            "entity",
+            "id"
+        ]
     }
 }

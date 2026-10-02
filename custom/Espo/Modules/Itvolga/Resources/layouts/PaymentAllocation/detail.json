@@ -1,0 +1,50 @@
+[
+    {
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "payment"
+                },
+                {
+                    "name": "order"
+                }
+            ],
+            [
+                {
+                    "name": "invoice"
+                },
+                {
+                    "name": "salesOrder"
+                }
+            ],
+            [
+                {
+                    "name": "amount"
+                },
+                {
+                    "name": "paymentStatus"
+                }
+            ],
+            [
+                {
+                    "name": "source"
+                },
+                {
+                    "name": "sourceConflict"
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Vtiger",
+        "rows": [
+            [
+                {
+                    "name": "vtigerData",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    }
+]

@@ -12,14 +12,14 @@ use Espo\Modules\Itvolga\Tools\FinanceDocument\NumberAllocator;
 use Espo\ORM\EntityManager;
 
 /**
- * Idempotent setup of finance documents (stage 04.2): the single legal entity (D-04; a placeholder until the import
- * fills the requisites) and the number counters of the registry (app.itvolgaFinance). Counters are created at
- * firstNumber and only raised, never lowered: at switchover the importer (or an operator) passes the re-read Vtiger
- * cur_id values.
+ * Idempotent setup of finance records (stages 04.2–04.4): the single legal entity (D-04; a placeholder until the import
+ * fills the requisites) and the number counters of the registry (app.itvolgaFinance: documents and payments).
+ * Counters are created at firstNumber and only raised, never lowered: at switchover the importer (or an operator)
+ * passes the re-read Vtiger cur_id values.
  *
  *   task espo -- itvolga-setup-finance                               apply
  *   task espo -- itvolga-setup-finance --dry-run                     show what would change
- *   task espo -- itvolga-setup-finance --next=Quote:31,SalesOrder:18 raise counters
+ *   task espo -- itvolga-setup-finance --next=Quote:31,Payment:995   raise counters
  */
 class SetupFinance implements Command
 {
@@ -41,12 +41,12 @@ class SetupFinance implements Command
                 $changes[] = 'legal entity + Default';
             }
 
-            foreach ($this->types->all() as $type) {
-                $current = $this->numberAllocator->current($type);
-                $target = max($type->firstNumber, $next[$type->entityType] ?? 0);
+            foreach ($this->types->numberSeries() as $series) {
+                $current = $this->numberAllocator->current($series);
+                $target = max($series->firstNumber, $next[$series->entityType] ?? 0);
 
-                if ($current === null || (isset($next[$type->entityType]) && $next[$type->entityType] > $current)) {
-                    $changes[] = "counter " . ($current === null ? '+' : '~') . " {$type->entityType}: $target";
+                if ($current === null || (isset($next[$series->entityType]) && $next[$series->entityType] > $current)) {
+                    $changes[] = "counter " . ($current === null ? '+' : '~') . " {$series->entityType}: $target";
                 }
             }
 
@@ -60,8 +60,8 @@ class SetupFinance implements Command
                 $changes[] = 'legal entity + Default';
             }
 
-            foreach ($this->types->all() as $type) {
-                $change = $this->numberAllocator->ensure($type, $next[$type->entityType] ?? null);
+            foreach ($this->types->numberSeries() as $series) {
+                $change = $this->numberAllocator->ensure($series, $next[$series->entityType] ?? null);
 
                 if ($change !== null) {
                     $changes[] = $change;
@@ -79,10 +79,12 @@ class SetupFinance implements Command
     {
         $result = [];
 
+        $known = array_map(static fn ($series) => $series->entityType, $this->types->numberSeries());
+
         foreach (array_filter(explode(',', (string) $option)) as $pair) {
             [$entityType, $value] = array_pad(explode(':', $pair, 2), 2, '');
 
-            if (!$this->types->find($entityType) || !ctype_digit($value) || (int) $value < 1) {
+            if (!in_array($entityType, $known, true) || !ctype_digit($value) || (int) $value < 1) {
                 throw new Error("Bad --next value '$pair': expected EntityType:number, for example Quote:25.");
             }
 

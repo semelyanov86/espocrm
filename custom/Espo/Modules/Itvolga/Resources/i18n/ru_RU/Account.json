@@ -73,7 +73,8 @@
         "cVtigerArchives": "Архив Vtiger",
         "cQuotes": "Предложения",
         "cSalesOrders": "Заказы",
-        "cInvoices": "Счета"
+        "cInvoices": "Счета",
+        "cPayments": "Платежи"
     },
     "labels": {
         "Реквизиты": "Реквизиты"

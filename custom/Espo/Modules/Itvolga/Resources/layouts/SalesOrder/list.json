@@ -20,6 +20,10 @@
         "width": 13
     },
     {
+        "name": "settlementState",
+        "width": 11
+    },
+    {
         "name": "dateDue",
         "width": 11
     },

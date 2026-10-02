@@ -389,6 +389,54 @@
             "importDisabled": true,
             "exportDisabled": true,
             "readOnly": true
+        },
+        "paidAmount": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 25,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money",
+            "readOnly": true,
+            "audited": true,
+            "tooltip": true,
+            "massUpdateDisabled": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "balanceAmount": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 25,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money",
+            "readOnly": true,
+            "audited": true,
+            "tooltip": true,
+            "massUpdateDisabled": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "settlementState": {
+            "type": "enum",
+            "options": [
+                "",
+                "unpaid",
+                "partial",
+                "paid",
+                "overpaid"
+            ],
+            "default": "",
+            "readOnly": true,
+            "audited": true,
+            "tooltip": true,
+            "massUpdateDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "style": {
+                "unpaid": "default",
+                "partial": "warning",
+                "paid": "success",
+                "overpaid": "info"
+            }
         }
     },
     "links": {
@@ -480,6 +528,15 @@
             "entity": "Email",
             "foreign": "parent",
             "layoutRelationshipsDisabled": true
+        },
+        "paymentAllocations": {
+            "type": "hasMany",
+            "entity": "PaymentAllocation",
+            "foreign": "invoice",
+            "readOnly": true,
+            "cascadeRemoval": true,
+            "orderBy": "createdAt",
+            "order": "asc"
         }
     },
     "transactionalSave": true,
@@ -527,6 +584,12 @@
             "columns": [
                 "createdAt",
                 "id"
+            ]
+        },
+        "settlementState": {
+            "columns": [
+                "settlementState",
+                "deleted"
             ]
         }
     }

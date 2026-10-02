@@ -19,8 +19,9 @@ final class Settlement
         /** total − paid; negative when overpaid. */
         public readonly Decimal $balance,
         public readonly SettlementState $state,
-        public readonly int $countedPayments,
-        /** Allocations that never count: outgoing, planned, cancelled, delayed. */
-        public readonly Decimal $excludedAmount,
+        /** Counted allocations; null when built from a stored paid sum (AllocationCalculator::fromPaid). */
+        public readonly ?int $countedPayments,
+        /** Allocations that never count: outgoing, planned, cancelled, delayed; null from a stored paid sum. */
+        public readonly ?Decimal $excludedAmount,
     ) {}
 }

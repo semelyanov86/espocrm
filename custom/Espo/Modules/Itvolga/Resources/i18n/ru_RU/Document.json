@@ -13,7 +13,8 @@
         "cVtigerArchives": "Архив Vtiger",
         "cQuotes": "Предложения",
         "cSalesOrders": "Заказы",
-        "cInvoices": "Счета"
+        "cInvoices": "Счета",
+        "cPayments": "Платежи"
     },
     "tooltips": {
         "vtigerId": "Исходный crmid записи Vtiger — ключ повторного импорта.",

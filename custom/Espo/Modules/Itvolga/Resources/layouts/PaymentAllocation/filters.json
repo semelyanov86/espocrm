@@ -1,0 +1,8 @@
+[
+    "payment",
+    "invoice",
+    "salesOrder",
+    "source",
+    "sourceConflict",
+    "createdAt"
+]

@@ -67,14 +67,32 @@ final class AllocationCalculator
             }
         }
 
-        $state = match (true) {
-            $counted === 0 || $paid->isZero() => SettlementState::Unpaid,
+        return new Settlement($total, $paid, $total->sub($paid), $this->state($total, $paid), $counted, $excluded);
+    }
+
+    /**
+     * Settlement of a document from its stored paid sum (computed by settle() from the allocations): when only the
+     * total changes (an item edit), the paid sum stays and the balance and state follow the new total.
+     */
+    public function fromPaid(Decimal $total, Decimal $paid): Settlement
+    {
+        $this->requireMoney($paid, 'Paid sum');
+
+        if ($paid->isNegative()) {
+            throw new InvalidValue('Paid sum is never negative.');
+        }
+
+        return new Settlement($total, $paid, $total->sub($paid), $this->state($total, $paid), null, null);
+    }
+
+    private function state(Decimal $total, Decimal $paid): SettlementState
+    {
+        return match (true) {
+            $paid->isZero() => SettlementState::Unpaid,
             $paid->compare($total) < 0 => SettlementState::Partial,
             $paid->compare($total) === 0 => SettlementState::Paid,
             default => SettlementState::Overpaid,
         };
-
-        return new Settlement($total, $paid, $total->sub($paid), $state, $counted, $excluded);
     }
 
     /**

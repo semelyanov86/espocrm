@@ -33,19 +33,19 @@ STAGE03 = {"Account", "Contact", "Lead", "Opportunity", "Task", "Call", "Meeting
            "Attachment", "Vendor", "Product", "Project", "ProjectTask", "VtigerArchive", "ContactAccess", "Team", "Role"}
 STAGE042 = {"Quote", "QuoteItem", "SalesOrder", "SalesOrderItem", "LegalEntity"}
 STAGE043 = {"Invoice", "InvoiceItem"}
+STAGE044 = {"Payment", "PaymentAllocation"}
 LATER = {
-    "Payment": "04.4", "PaymentAllocation": "04.4", "Act": "04.5", "ActItem": "04.5", "Template": "05",
+    "Act": "04.5", "ActItem": "04.5", "Template": "05",
 }
 # Links of implemented entities to entities of later stages: the row stays at its later stage until both ends exist.
-DEFERRED = {("Invoice", "act"): "04.5", ("Invoice", "paymentAllocations"): "04.4",
-            ("SalesOrder", "paymentAllocations"): "04.4"}
+DEFERRED = {("Invoice", "act"): "04.5"}
 # Item entity of each document and its link to the document (generic rows of vtiger_inventoryproductrel).
 ITEM_PARENT = {"QuoteItem": "quote", "SalesOrderItem": "salesOrder", "InvoiceItem": "invoice", "ActItem": "act"}
 # Entities that receive imported Vtiger records (vtigerId, unique).
 IMPORTED = ["Account", "Contact", "Lead", "Opportunity", "Task", "Call", "Meeting", "Email", "Case",
             "KnowledgeBaseArticle", "Document", "DocumentFolder", "Note", "User", "Attachment", "Vendor", "Product",
             "Project", "ProjectTask", "VtigerArchive", "ContactAccess", "Quote", "QuoteItem", "SalesOrder",
-            "SalesOrderItem", "Invoice", "InvoiceItem"]
+            "SalesOrderItem", "Invoice", "InvoiceItem", "Payment"]
 # target_entity column of field-map → entities (Events rows are split by activitytype).
 ENTITY_ALIASES = {
     "Call/Meeting/Task (вид «Письмо») по activitytype": ["Call", "Meeting", "Task"],
@@ -149,6 +149,9 @@ def parse_target(target, default_entities):
     if not t.startswith("("):
         t = re.sub(r"\([^)]*\)", "", t)  # comments in parentheses
     t = t.strip("() ")
+    # "PaymentAllocation.invoice|salesOrder": the entity prefix holds for every alternative of the list.
+    t = re.sub(r"\b([A-Z][A-Za-z]*)\.(\w+)((?:\s*\|\s*[a-z]\w*)+)",
+               lambda m: "|".join(f"{m.group(1)}.{n.strip()}" for n in [m.group(2), *m.group(3).split("|")[1:]]), t)
     result = []
     for token in re.split(r"\s*(?:/|\||\+|,)\s*", t):
         token = token.strip()
@@ -172,7 +175,7 @@ def parse_target(target, default_entities):
 # Picklist tables (rows «entityDefs options») that do not become an EspoCRM enum of stage 03.
 PICKLIST_FATE = {
     **{pl: "этап 04.x: справочник финансового модуля" for pl in (
-        "invoicestatus", "pay_type", "postatus", "sp_actstatus", "spstatus", "type_payment")},
+        "invoicestatus", "postatus", "sp_actstatus")},
     **{pl: "архив: исходные значения в vtigerData (enum не создаётся; периодичность заказов закончилась в 2016, D-15)"
        for pl in ("carrier", "recurring_frequency", "payment_duration")},
     "spcompany": "одна запись LegalEntity (D-04, D-48): значения — не опции, а ссылка legalEntity",
@@ -210,11 +213,11 @@ def target_entities(target):
 
 def is_empty_contract_row(fate, entities):
     """A row without source data whose target is a working field of a finance entity (checked, D-47)."""
-    return fate.startswith("пусто") and bool(set(entities) & (STAGE042 | STAGE043))
+    return fate.startswith("пусто") and bool(set(entities) & (STAGE042 | STAGE043 | STAGE044))
 
 
 def implemented_stage(model, row):
-    """Stage of an implemented row: the latest stage among its entities (04.3, 04.2), otherwise 03."""
+    """Stage of an implemented row: the latest stage among its entities (04.4, 04.3, 04.2), otherwise 03."""
     target = row.get("target_field") or row.get("target_link") or ""
     entities = set(entities_for(row)) | set(target_entities(target))
     if row.get("from_module"):
@@ -223,7 +226,8 @@ def implemented_stage(model, row):
         pl = row.get("source_table", "")[len("vtiger_"):]
         entities |= {e for e, data in model.value_maps.items() for spec in data.get("fields", {}).values()
                      if pl in spec.get("picklists", [])}
-    return "04.3" if entities & STAGE043 else "04.2" if entities & STAGE042 else "03"
+    return ("04.4" if entities & STAGE044 else "04.3" if entities & STAGE043 else "04.2" if entities & STAGE042
+            else "03")
 
 
 def check_generic_item(model, target):
@@ -413,6 +417,16 @@ def _check_relation_row(model, row, target, ent, fate):
                 missing = [p for p in parent_candidates(row, ent) if p not in parent_entities(model, e)]
                 if missing:
                     problems.append(f"{', '.join(missing)} не родитель {e}.parent")
+                    continue
+            elif (model.field(e, name) or {}).get("type") == "linkParent":
+                # Another linkParent (Payment.payer): the modules on the other side of the row are its parents (the
+                # targets of the field row, the source of a related list such as Accounts → SPPayments).
+                allowed = model.field(e, name).get("entityList") or model.entity_defs.keys()
+                side = "to_module" if MODULE_ENTITY.get(row.get("from_module", "")) == e else "from_module"
+                missing = [p for p in (MODULE_ENTITY.get(m) for m in row.get(side, "").split("|"))
+                           if p and p not in allowed]
+                if missing:
+                    problems.append(f"{', '.join(missing)} не в {e}.{name}.entityList")
                     continue
             if model.link(e, name) or (model.field(e, name) and model.field(e, name).get("type") in (
                     "link", "linkMultiple", "linkParent", "file", "image", "attachmentMultiple", "jsonObject",

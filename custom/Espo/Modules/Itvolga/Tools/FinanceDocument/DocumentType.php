@@ -18,4 +18,9 @@ final class DocumentType
         /** First number of documents created in EspoCRM (Vtiger cur_id at the audit snapshot). */
         public readonly int $firstNumber,
     ) {}
+
+    public function series(): NumberSeries
+    {
+        return new NumberSeries($this->entityType, $this->numberPrefix, $this->firstNumber);
+    }
 }

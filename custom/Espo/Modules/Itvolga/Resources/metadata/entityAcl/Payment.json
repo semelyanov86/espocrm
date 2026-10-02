@@ -1,0 +1,34 @@
+{
+    "fields": {
+        "vtigerId": {
+            "readOnly": true
+        },
+        "number": {
+            "readOnly": true
+        },
+        "name": {
+            "readOnly": true
+        },
+        "legalEntity": {
+            "readOnly": true
+        },
+        "allocatedAmount": {
+            "readOnly": true
+        },
+        "unallocatedAmount": {
+            "readOnly": true
+        },
+        "vtigerData": {
+            "readOnly": true,
+            "onlyAdmin": true
+        }
+    },
+    "links": {
+        "paymentAllocations": {
+            "readOnly": true
+        },
+        "teams": {
+            "nonAdminReadOnly": true
+        }
+    }
+}

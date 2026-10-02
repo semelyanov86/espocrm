@@ -13,6 +13,12 @@
         },
         "documents": {
             "createDisabled": false
+        },
+        "paymentAllocations": {
+            "createDisabled": true,
+            "selectDisabled": true,
+            "unlinkDisabled": true,
+            "rowActionsView": "views/record/row-actions/relationship-view-only"
         }
     },
     "detailActionList": [
@@ -23,6 +29,14 @@
             "actionFunction": "createInvoice",
             "acl": "create",
             "aclScope": "Invoice"
+        },
+        {
+            "name": "createPayment",
+            "label": "Add Payment",
+            "handler": "itvolga:handlers/finance/convert-document",
+            "actionFunction": "createPayment",
+            "acl": "create",
+            "aclScope": "Payment"
         }
     ]
 }

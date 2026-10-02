@@ -12,7 +12,9 @@
         "QuoteItem": "Quote Item",
         "SalesOrderItem": "Sales Order Item",
         "InvoiceItem": "Invoice Item",
-        "LegalEntity": "Legal Entity"
+        "LegalEntity": "Legal Entity",
+        "Payment": "Payment",
+        "PaymentAllocation": "Payment Allocation"
     },
     "scopeNamesPlural": {
         "Vendor": "Vendors",
@@ -27,7 +29,9 @@
         "QuoteItem": "Quote Items",
         "SalesOrderItem": "Sales Order Items",
         "InvoiceItem": "Invoice Items",
-        "LegalEntity": "Legal Entities"
+        "LegalEntity": "Legal Entities",
+        "Payment": "Payments",
+        "PaymentAllocation": "Payment Allocations"
     },
     "labels": {
         "Finance": "Finance",

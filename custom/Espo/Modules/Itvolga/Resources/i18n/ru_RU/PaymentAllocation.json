@@ -1,0 +1,37 @@
+{
+    "fields": {
+        "name": "Название",
+        "payment": "Платёж",
+        "invoice": "Счёт",
+        "salesOrder": "Заказ",
+        "amount": "Сумма",
+        "order": "№",
+        "source": "Происхождение",
+        "sourceConflict": "Конфликт источника",
+        "paymentDatePaid": "Дата платежа",
+        "paymentStatus": "Статус платежа",
+        "vtigerData": "Исходные данные Vtiger",
+        "createdAt": "Создано",
+        "modifiedAt": "Изменено",
+        "createdBy": "Создал",
+        "modifiedBy": "Изменил"
+    },
+    "links": {
+        "payment": "Платёж",
+        "invoice": "Счёт",
+        "salesOrder": "Заказ",
+        "createdBy": "Создал",
+        "modifiedBy": "Изменил"
+    },
+    "options": {
+        "source": {
+            "manual": "В EspoCRM",
+            "relatedTo": "Vtiger: поле «Связан с»",
+            "relationLink": "Vtiger: связанный список"
+        }
+    },
+    "tooltips": {
+        "source": "Откуда распределение: создано в EspoCRM или перенесено из Vtiger (поле related_to или связанный список, D-11).",
+        "sourceConflict": "В Vtiger связанный список указывал другой счёт, чем поле «Связан с»: распределено по полю, нужна ручная проверка (D-11)."
+    }
+}

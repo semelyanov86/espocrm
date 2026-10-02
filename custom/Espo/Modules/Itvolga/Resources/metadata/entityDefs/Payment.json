@@ -1,0 +1,343 @@
+{
+    "fields": {
+        "name": {
+            "type": "varchar",
+            "maxLength": 100,
+            "readOnly": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "number": {
+            "type": "varchar",
+            "maxLength": 100,
+            "readOnly": true,
+            "copyToClipboard": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "vtigerId": {
+            "type": "int",
+            "readOnly": true,
+            "disableFormatting": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "vtigerData": {
+            "type": "jsonObject",
+            "readOnly": true,
+            "tooltip": true,
+            "view": "itvolga:views/fields/vtiger-data",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "customizationDisabled": true
+        },
+        "datePaid": {
+            "type": "date",
+            "required": true,
+            "default": "javascript: return this.dateTime.getToday();",
+            "audited": true
+        },
+        "direction": {
+            "type": "enum",
+            "options": [
+                "incoming",
+                "outgoing"
+            ],
+            "default": "incoming",
+            "required": true,
+            "audited": true,
+            "tooltip": true,
+            "massUpdateDisabled": true,
+            "style": {
+                "outgoing": "warning"
+            }
+        },
+        "method": {
+            "type": "enum",
+            "options": [
+                "",
+                "cash",
+                "bank"
+            ],
+            "default": "bank",
+            "audited": true
+        },
+        "amount": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 25,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money",
+            "required": true,
+            "min": 0,
+            "audited": true,
+            "tooltip": true,
+            "massUpdateDisabled": true
+        },
+        "status": {
+            "type": "enum",
+            "options": [
+                "",
+                "Executed",
+                "Запланирован",
+                "Canceled",
+                "Delayed"
+            ],
+            "default": "Executed",
+            "audited": true,
+            "tooltip": true,
+            "style": {
+                "Executed": "success",
+                "Запланирован": "info",
+                "Canceled": "danger",
+                "Delayed": "warning"
+            }
+        },
+        "payer": {
+            "type": "linkParent",
+            "entityList": [
+                "Account",
+                "Contact",
+                "Vendor"
+            ],
+            "audited": true
+        },
+        "legalEntity": {
+            "type": "link",
+            "readOnly": true,
+            "tooltip": true
+        },
+        "documentNumber": {
+            "type": "varchar",
+            "maxLength": 100,
+            "audited": true
+        },
+        "purpose": {
+            "type": "varchar",
+            "maxLength": 255,
+            "audited": true
+        },
+        "counterpartyAccount": {
+            "type": "varchar",
+            "maxLength": 50,
+            "audited": true
+        },
+        "counterpartyBic": {
+            "type": "varchar",
+            "maxLength": 9,
+            "audited": true
+        },
+        "counterpartyBankName": {
+            "type": "varchar",
+            "maxLength": 50,
+            "audited": true
+        },
+        "bankTransactionId": {
+            "type": "varchar",
+            "maxLength": 100,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "isForeignCurrencyAccount": {
+            "type": "bool",
+            "audited": true
+        },
+        "allocationList": {
+            "type": "jsonArray",
+            "notStorable": true,
+            "audited": true,
+            "view": "itvolga:views/finance/fields/allocation-list",
+            "auditView": "itvolga:views/finance/fields/allocation-list",
+            "tooltip": true,
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "massUpdateDisabled": true,
+            "inlineEditDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "orderDisabled": true,
+            "filtersDisabled": true,
+            "customizationDisabled": true
+        },
+        "allocatedAmount": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 25,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money",
+            "notStorable": true,
+            "readOnly": true,
+            "tooltip": true,
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "massUpdateDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "orderDisabled": true,
+            "filtersDisabled": true
+        },
+        "unallocatedAmount": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 25,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money",
+            "notStorable": true,
+            "readOnly": true,
+            "tooltip": true,
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "massUpdateDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "orderDisabled": true,
+            "filtersDisabled": true
+        },
+        "assignedUser": {
+            "type": "link",
+            "required": true,
+            "view": "views/fields/assigned-user"
+        },
+        "teams": {
+            "type": "linkMultiple",
+            "view": "views/fields/teams"
+        },
+        "description": {
+            "type": "text"
+        },
+        "documents": {
+            "type": "linkMultiple",
+            "layoutDetailDisabled": true,
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "noLoad": true,
+            "importDisabled": true,
+            "exportDisabled": true
+        },
+        "createdAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "modifiedAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "createdBy": {
+            "type": "link",
+            "readOnly": true,
+            "view": "views/fields/user"
+        },
+        "modifiedBy": {
+            "type": "link",
+            "readOnly": true,
+            "view": "views/fields/user"
+        }
+    },
+    "links": {
+        "paymentAllocations": {
+            "type": "hasMany",
+            "entity": "PaymentAllocation",
+            "foreign": "payment",
+            "readOnly": true,
+            "cascadeRemoval": true,
+            "orderBy": "order",
+            "order": "asc",
+            "layoutRelationshipsDisabled": true
+        },
+        "payer": {
+            "type": "belongsToParent",
+            "entityList": [
+                "Account",
+                "Contact",
+                "Vendor"
+            ]
+        },
+        "legalEntity": {
+            "type": "belongsTo",
+            "entity": "LegalEntity"
+        },
+        "assignedUser": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "teams": {
+            "type": "hasMany",
+            "entity": "Team",
+            "relationName": "entityTeam",
+            "layoutRelationshipsDisabled": true
+        },
+        "documents": {
+            "type": "hasMany",
+            "entity": "Document",
+            "foreign": "cPayments",
+            "relationName": "paymentDocument"
+        },
+        "createdBy": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "modifiedBy": {
+            "type": "belongsTo",
+            "entity": "User"
+        }
+    },
+    "transactionalSave": true,
+    "optimisticConcurrencyControl": true,
+    "collection": {
+        "orderBy": "datePaid",
+        "order": "desc",
+        "textFilterFields": [
+            "number",
+            "documentNumber",
+            "purpose"
+        ]
+    },
+    "indexes": {
+        "vtigerId": {
+            "type": "unique",
+            "columns": [
+                "vtigerId"
+            ]
+        },
+        "number": {
+            "columns": [
+                "number",
+                "deleted"
+            ]
+        },
+        "datePaid": {
+            "columns": [
+                "datePaid",
+                "deleted"
+            ]
+        },
+        "assignedUser": {
+            "columns": [
+                "assignedUserId",
+                "deleted"
+            ]
+        },
+        "createdAt": {
+            "columns": [
+                "createdAt"
+            ]
+        },
+        "createdAtId": {
+            "unique": true,
+            "columns": [
+                "createdAt",
+                "id"
+            ]
+        }
+    }
+}

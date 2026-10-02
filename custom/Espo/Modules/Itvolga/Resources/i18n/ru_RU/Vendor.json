@@ -11,7 +11,8 @@
         "products": "Товары и услуги"
     },
     "links": {
-        "products": "Товары и услуги"
+        "products": "Товары и услуги",
+        "payments": "Платежи"
     },
     "tooltips": {
         "vtigerId": "Исходный crmid записи Vtiger — ключ повторного импорта.",

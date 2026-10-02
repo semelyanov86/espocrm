@@ -3,5 +3,11 @@
     "iconClass": "fas fa-truck",
     "boolFilterList": [
         "onlyMy"
-    ]
+    ],
+    "relationshipPanels": {
+        "payments": {
+            "selectDisabled": true,
+            "unlinkDisabled": true
+        }
+    }
 }

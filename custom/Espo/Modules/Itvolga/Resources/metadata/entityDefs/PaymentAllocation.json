@@ -1,0 +1,147 @@
+{
+    "fields": {
+        "name": {
+            "type": "varchar",
+            "maxLength": 255,
+            "readOnly": true
+        },
+        "payment": {
+            "type": "link",
+            "required": true,
+            "readOnly": true
+        },
+        "invoice": {
+            "type": "link",
+            "readOnly": true
+        },
+        "salesOrder": {
+            "type": "link",
+            "readOnly": true
+        },
+        "amount": {
+            "type": "currency",
+            "decimal": true,
+            "precision": 25,
+            "scale": 8,
+            "onlyDefaultCurrency": true,
+            "view": "itvolga:views/fields/money",
+            "readOnly": true
+        },
+        "order": {
+            "type": "int",
+            "readOnly": true,
+            "min": 1
+        },
+        "source": {
+            "type": "enum",
+            "options": [
+                "manual",
+                "relatedTo",
+                "relationLink"
+            ],
+            "default": "manual",
+            "readOnly": true,
+            "tooltip": true
+        },
+        "sourceConflict": {
+            "type": "bool",
+            "readOnly": true,
+            "tooltip": true
+        },
+        "paymentDatePaid": {
+            "type": "foreign",
+            "link": "payment",
+            "field": "datePaid",
+            "view": "views/fields/foreign-date",
+            "readOnly": true
+        },
+        "paymentStatus": {
+            "type": "foreign",
+            "link": "payment",
+            "field": "status",
+            "view": "views/fields/foreign-enum",
+            "readOnly": true
+        },
+        "vtigerData": {
+            "type": "jsonObject",
+            "readOnly": true,
+            "tooltip": true,
+            "view": "itvolga:views/fields/vtiger-data",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "customizationDisabled": true
+        },
+        "createdAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "modifiedAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "createdBy": {
+            "type": "link",
+            "readOnly": true,
+            "view": "views/fields/user"
+        },
+        "modifiedBy": {
+            "type": "link",
+            "readOnly": true,
+            "view": "views/fields/user"
+        }
+    },
+    "links": {
+        "payment": {
+            "type": "belongsTo",
+            "entity": "Payment",
+            "foreign": "paymentAllocations"
+        },
+        "invoice": {
+            "type": "belongsTo",
+            "entity": "Invoice",
+            "foreign": "paymentAllocations"
+        },
+        "salesOrder": {
+            "type": "belongsTo",
+            "entity": "SalesOrder",
+            "foreign": "paymentAllocations"
+        },
+        "createdBy": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "modifiedBy": {
+            "type": "belongsTo",
+            "entity": "User"
+        }
+    },
+    "transactionalSave": true,
+    "collection": {
+        "orderBy": "order",
+        "order": "asc"
+    },
+    "indexes": {
+        "paymentOrder": {
+            "columns": [
+                "paymentId",
+                "deleted",
+                "order"
+            ]
+        },
+        "invoice": {
+            "columns": [
+                "invoiceId",
+                "deleted"
+            ]
+        },
+        "salesOrder": {
+            "columns": [
+                "salesOrderId",
+                "deleted"
+            ]
+        }
+    }
+}

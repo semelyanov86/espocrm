@@ -32,6 +32,8 @@ use Espo\ORM\EntityManager;
  * director's):
  * the director gets them; their items are read with the document's level (FinanceItem access checker) and are never
  * written directly; the legal entity is read-only for the director (requisites are kept by the administrator).
+ * Payments (SPPayments: Public in Vtiger, hidden in every profile but the director's, stage 04.4) likewise: the
+ * director gets them; their allocations are read with the payment's level and written only through the payment.
  */
 class SetupAcl implements Command
 {
@@ -72,12 +74,12 @@ class SetupAcl implements Command
         'lockPermission' => 'no',
     ];
 
-    public const TABS = ['Vendor', 'Product', 'Quote', 'SalesOrder', 'Invoice', 'Project', 'ProjectTask',
+    public const TABS = ['Vendor', 'Product', 'Quote', 'SalesOrder', 'Invoice', 'Payment', 'Project', 'ProjectTask',
         'VtigerArchive', 'ContactAccess'];
 
-    /** Finance scopes (stages 04.2, 04.3): closed to every role that does not list them. */
+    /** Finance scopes (stages 04.2–04.4): closed to every role that does not list them. */
     private const FINANCE = ['Quote', 'SalesOrder', 'Invoice', 'QuoteItem', 'SalesOrderItem', 'InvoiceItem',
-        'LegalEntity'];
+        'LegalEntity', 'Payment', 'PaymentAllocation'];
 
     public function __construct(
         private EntityManager $entityManager,
@@ -103,6 +105,7 @@ class SetupAcl implements Command
             'Quote' => self::FULL, 'SalesOrder' => self::FULL, 'Invoice' => self::FULL,
             'QuoteItem' => ['read' => 'all'], 'SalesOrderItem' => ['read' => 'all'], 'InvoiceItem' => ['read' => 'all'],
             'LegalEntity' => ['read' => 'all', 'edit' => 'no'],
+            'Payment' => self::FULL, 'PaymentAllocation' => ['read' => 'all'],
         ];
         // Vtiger profile «Заместитель директора+Профиль»: hidden Leads, Potentials, Vendors, Assets, Consignment,
         // ServiceContracts and all finance; Faq delete denied; PBXManager edit/delete denied (Call access checker).

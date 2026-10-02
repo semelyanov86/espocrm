@@ -12,7 +12,9 @@
         "QuoteItem": "Позиция предложения",
         "SalesOrderItem": "Позиция заказа",
         "InvoiceItem": "Позиция счёта",
-        "LegalEntity": "Юрлицо"
+        "LegalEntity": "Юрлицо",
+        "Payment": "Платёж",
+        "PaymentAllocation": "Распределение платежа"
     },
     "scopeNamesPlural": {
         "Vendor": "Поставщики",
@@ -27,7 +29,9 @@
         "QuoteItem": "Позиции предложений",
         "SalesOrderItem": "Позиции заказов",
         "InvoiceItem": "Позиции счетов",
-        "LegalEntity": "Юрлица"
+        "LegalEntity": "Юрлица",
+        "Payment": "Платежи",
+        "PaymentAllocation": "Распределения платежей"
     },
     "labels": {
         "Finance": "Финансы",
@@ -49,7 +53,21 @@
         "financeNoLines": "Нет позиций.",
         "financeLineInvalid": "Строка {line}: неверное число.",
         "financeLineProduct": "Строка {line}: выберите товар или услугу.",
-        "financeLineRequired": "Строка {line}: укажите количество и цену."
+        "financeLineRequired": "Строка {line}: укажите количество и цену.",
+        "financeAddInvoice": "Добавить счёт",
+        "financeAddSalesOrder": "Добавить заказ",
+        "financeSelectDocument": "Выбрать документ",
+        "financeRemoveAllocation": "Отменить распределение",
+        "financeAllocated": "Распределено",
+        "financeUnallocated": "Не распределено",
+        "financeNoAllocations": "Не распределён.",
+        "financeOutgoingNoAllocations": "Расход не распределяется на документы.",
+        "financeAllocationsPending": "Остаток будет пересчитан при сохранении.",
+        "financeAllocationDocument": "Документ",
+        "financeAllocationAmount": "Сумма",
+        "financeAllocationRequired": "Строка {line}: выберите документ и укажите сумму.",
+        "financeAllocationInvalid": "Строка {line}: неверная сумма.",
+        "financeAllocationDuplicate": "Строка {line}: этот документ уже есть в распределении."
     },
     "messages": {
         "financeFloat": "{place}: число нужно передать строкой (числа с плавающей точкой не принимаются).",
@@ -71,6 +89,24 @@
         "financeNegativeTotal": "{place}: итог документа не может быть отрицательным.",
         "financeNonPositiveQuantity": "{place}: количество должно быть больше нуля.",
         "financeNegativeValue": "{place}: отрицательное значение недопустимо.",
-        "financeRejected": "{place}: значение не принято."
+        "financeRejected": "{place}: значение не принято.",
+        "financeBadAllocationList": "Неверный список распределений.",
+        "financeBadAllocation": "{place}: неверные данные распределения.",
+        "financeAllocationTargetRequired": "{place}: выберите счёт или заказ.",
+        "financeAllocationTargetExclusive": "{place}: строка относится к одному документу — счёту или заказу.",
+        "financeAllocationUnknownTarget": "{place}: документ не найден или недоступен.",
+        "financeAllocationDuplicateTarget": "{place}: этот документ уже есть в распределении платежа — измените сумму в его строке.",
+        "financeUnknownAllocation": "{place}: строка не относится к этому платежу — обновите страницу.",
+        "financeAllocationNotPositive": "{place}: сумма распределения должна быть больше нуля.",
+        "financeOverAllocation": "{place}: сумма распределений больше суммы платежа.",
+        "financeAmountBelowAllocated": "{place}: сумма платежа меньше распределённой — сначала измените распределение.",
+        "financeOutgoingAllocation": "Расходный платёж не распределяется на документы ({reference}): уберите строки распределения.",
+        "financeNotInOptions": "{place}: недопустимое значение.",
+        "financeRestoreDenied": "Удалённые распределения платежей не восстанавливаются: создайте распределение заново в платеже.",
+        "financeSettlementTooLarge": "Оплата документа не помещается в сумму (слишком большие значения): сохранение отменено.",
+        "financeAllocationChanged": "Распределение платежа изменилось, пока документ удалялся: обновите страницу и повторите удаление."
+    },
+    "tabs": {
+        "Finance": "Финансы"
     }
 }

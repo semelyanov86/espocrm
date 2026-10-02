@@ -117,6 +117,26 @@ final class AllocationTest extends TestCase
         }
     }
 
+    public function testSettlementFromAStoredPaidSum(): void
+    {
+        $calculator = new AllocationCalculator();
+        $in = Direction::Incoming;
+
+        // An item edit changes the total, the paid sum stays: the same state as a settlement of the allocations.
+        foreach (['0', '4000', '10000', '12000'] as $paid) {
+            foreach (['10000.00000000', '9000.5', '0'] as $total) {
+                $shares = $paid === '0' ? [] : [AllocationShare::of($paid, $in, 'Executed')];
+                $full = $calculator->settle(Decimal::of($total), $shares);
+                $stored = $calculator->fromPaid(Decimal::of($total), Decimal::of($paid));
+                $this->assertSame($full->state, $stored->state, "$paid of $total: state");
+                $this->assertDecimal($full->balance->toString(), $stored->balance, "$paid of $total: balance");
+            }
+        }
+
+        $this->assertThrows(InvalidValue::class, fn () => $calculator->fromPaid(Decimal::of('1'), Decimal::of('-1')), 'negative');
+        $this->assertThrows(InvalidValue::class, fn () => $calculator->fromPaid(Decimal::of('1'), Decimal::of('0.001')), 'kopeck');
+    }
+
     /**
      * @param list<int> $links
      */

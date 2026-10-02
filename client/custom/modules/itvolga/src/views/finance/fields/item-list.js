@@ -273,6 +273,9 @@ define('itvolga:views/finance/fields/item-list', ['views/fields/base', 'itvolga:
                 this.source = source;
                 this.rows = (Array.isArray(source) ? source : []).map(row => ({...row}));
                 this.preview = null;
+                // A preview on its way was asked for the replaced table (cancel, reload): its generation is dropped.
+                this.previewSeq++;
+                clearTimeout(this.previewTimer);
             }
 
             return this.rows;

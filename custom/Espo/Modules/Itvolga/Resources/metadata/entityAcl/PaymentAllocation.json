@@ -1,0 +1,43 @@
+{
+    "fields": {
+        "name": {
+            "readOnly": true
+        },
+        "payment": {
+            "readOnly": true
+        },
+        "invoice": {
+            "readOnly": true
+        },
+        "salesOrder": {
+            "readOnly": true
+        },
+        "amount": {
+            "readOnly": true
+        },
+        "order": {
+            "readOnly": true
+        },
+        "source": {
+            "readOnly": true
+        },
+        "sourceConflict": {
+            "readOnly": true
+        },
+        "vtigerData": {
+            "readOnly": true,
+            "onlyAdmin": true
+        }
+    },
+    "links": {
+        "payment": {
+            "readOnly": true
+        },
+        "invoice": {
+            "readOnly": true
+        },
+        "salesOrder": {
+            "readOnly": true
+        }
+    }
+}

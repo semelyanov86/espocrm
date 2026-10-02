@@ -20,6 +20,10 @@
         "width": 12
     },
     {
+        "name": "settlementState",
+        "width": 11
+    },
+    {
         "name": "dateInvoiced",
         "width": 10
     },

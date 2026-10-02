@@ -1,0 +1,19 @@
+[
+    {
+        "name": "payment",
+        "width": 16,
+        "link": true
+    },
+    {
+        "name": "paymentDatePaid",
+        "width": 16
+    },
+    {
+        "name": "paymentStatus",
+        "width": 16
+    },
+    {
+        "name": "amount",
+        "width": 18
+    }
+]

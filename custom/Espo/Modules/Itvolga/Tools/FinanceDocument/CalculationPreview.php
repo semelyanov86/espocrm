@@ -13,12 +13,14 @@ use Espo\Modules\Itvolga\Tools\Finance\Editing\HeaderInputs;
 use Espo\Modules\Itvolga\Tools\Finance\Exceptions\InvalidValue;
 use Espo\Modules\Itvolga\Tools\Finance\Exceptions\RuleNotSupported;
 use Espo\Modules\Itvolga\Tools\Finance\Scale;
+use Espo\Modules\Itvolga\Tools\FinancePayment\PaymentPreview;
 use Espo\ORM\EntityManager;
 use stdClass;
 
 /**
  * Totals of the form as the server would save them (live totals of the item editor): the same edit rule and
- * calculation as a save, nothing is written. The browser does no arithmetic with money.
+ * calculation as a save, nothing is written. The browser does no arithmetic with money. For a payment: the allocated
+ * sum and the rest of its table (PaymentPreview, stage 04.4).
  */
 class CalculationPreview
 {
@@ -31,6 +33,7 @@ class CalculationPreview
         private DocumentTypes $types,
         private DocumentProcessor $processor,
         private ErrorMapper $errorMapper,
+        private PaymentPreview $paymentPreview,
     ) {}
 
     /**
@@ -39,6 +42,10 @@ class CalculationPreview
      */
     public function preview(string $entityType, ?string $id, stdClass $attributes): stdClass
     {
+        if ($paymentType = $this->types->findPayment($entityType)) {
+            return $this->paymentPreview->preview($paymentType, $id, $attributes);
+        }
+
         $type = $this->types->find($entityType) ?? throw new NotFound();
         $stored = null;
 

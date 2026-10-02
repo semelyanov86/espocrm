@@ -92,6 +92,25 @@
         ]
     },
     {
+        "label": "Payment",
+        "rows": [
+            [
+                {
+                    "name": "settlementState"
+                },
+                {
+                    "name": "paidAmount"
+                }
+            ],
+            [
+                false,
+                {
+                    "name": "balanceAmount"
+                }
+            ]
+        ]
+    },
+    {
         "label": "Control",
         "dynamicLogicVisible": {
             "conditionGroup": [

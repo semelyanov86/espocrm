@@ -1,0 +1,15 @@
+[
+    "number",
+    "datePaid",
+    "direction",
+    "status",
+    "method",
+    "payer",
+    "amount",
+    "documentNumber",
+    "purpose",
+    "bankTransactionId",
+    "assignedUser",
+    "teams",
+    "createdAt"
+]

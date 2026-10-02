@@ -104,6 +104,16 @@ ENUMS = [
     # Stage 04.3: the configured list keeps AutoCreated (not used) and Cancel (presence=1, used).
     dict(entity="Invoice", field="status", picklists=["invoicestatus"], used=["Invoice.invoicestatus"], empty=True,
          default="Created"),
+    # Stage 04.4: direction and method get the keys of the contract (finance-contract.md §11: Приход → incoming,
+    # Expense → outgoing; Наличные → cash, Cashless Transfer → bank); defaults are the Vtiger field defaults
+    # (vtiger_field.defaultvalue: Приход, Cashless Transfer, Executed). An empty status stays empty and counts as paid
+    # (Q-37, D-49); «Запланирован» is a stored value of its own (no English key of the list has that label).
+    dict(entity="Payment", field="direction", picklists=["pay_type"], used=["SPPayments.pay_type"], empty=False,
+         core={"Приход": "incoming", "Expense": "outgoing"}, default="incoming"),
+    dict(entity="Payment", field="method", picklists=["type_payment"], used=["SPPayments.type_payment"], empty=True,
+         core={"Наличные": "cash", "Cashless Transfer": "bank"}, default="bank"),
+    dict(entity="Payment", field="status", picklists=["spstatus"], used=["SPPayments.spstatus"], empty=True,
+         default="Executed"),
 ]
 # Fields whose dictionary is fixed by the source semantics (no picklist table).
 STATIC = {

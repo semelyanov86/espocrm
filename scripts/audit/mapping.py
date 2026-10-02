@@ -444,13 +444,14 @@ F["Consignment"] = {}
 F["SPPayments"] = {
     "pay_no": ("number", "string (цифры, уникальны)", "count+hash"),
     "pay_date": ("datePaid", "date", "count+hash"),
-    "pay_type": ("direction", "Приход→incoming; Expense→outgoing", "count+distribution"),
+    "pay_type": ("direction", "enum: " + D.format("Payment.json") + " (Приход→incoming; Expense→outgoing)", "count+distribution"),
     "payer": ("payer (Account|Contact|Vendor)", "fk (link-parent); Vendors→Vendor", "fk"),
     "related_to": ("PaymentAllocation.invoice|salesOrder", "D-11 (SourceAllocationResolver): related_to — основной, связь vtiger_crmentityrel — "
                    "только при пустом related_to; сумма = сумма платежа; расходы со связью со счётом — Q-36", "fk"),
-    "type_payment": ("method", "Наличные→cash; Cashless Transfer→bank", "count+distribution"),
-    "amount": ("amount", "decimal(25,8), всегда ≥0; знак задаётся direction", "count+sum"),
-    "spstatus": ("status", "Executed/Запланирован/Canceled/пусто (оплатой считается только Executed; пусто — Q-37)", "count+distribution"),
+    "type_payment": ("method", "enum: " + D.format("Payment.json") + " (Наличные→cash; Cashless Transfer→bank; пусто)", "count+distribution"),
+    "amount": ("amount", "decimal(25,8), всегда ≥0, в копейках; знак задаётся direction", "count+sum"),
+    "spstatus": ("status", "enum: " + D.format("Payment.json") + " (Executed/Запланирован/Canceled/Delayed/пусто; в оплату "
+                 "документа входят приходы Executed и без статуса — Q-37, D-49)", "count+distribution"),
     "doc_no": ("documentNumber", "int→string (номер платёжного документа)", "count+hash"),
     "pay_details": ("purpose", "string (назначение платежа)", "count+hash"),
     "analytics_code": ("vtigerData.analytics_code", "string", "count"),

@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Espo\Modules\Itvolga\Tools\FinanceDocument;
 
+use Espo\Core\Exceptions\Error;
 use Espo\Modules\Itvolga\Tools\Finance\Exceptions\UnknownLegalEntity;
 use Espo\Modules\Itvolga\Tools\Finance\LegalEntityResolver;
+use Espo\ORM\Entity;
 use Espo\ORM\EntityManager;
+use stdClass;
 
 /**
  * The single legal entity of the company (D-04, D-48), key `Default`. Its requisites come only from the import
@@ -15,6 +18,8 @@ use Espo\ORM\EntityManager;
 class LegalEntityProvider
 {
     public const ENTITY_TYPE = 'LegalEntity';
+    /** vtigerData key of the source spcompany value (the import input of legalEntity, D-48, D-60). */
+    public const SOURCE_KEY = 'spcompany';
 
     public function __construct(private EntityManager $entityManager) {}
 
@@ -34,6 +39,30 @@ class LegalEntityProvider
     }
 
     /**
+     * One legal entity (D-04, D-48): a finance record (document, payment) saved in EspoCRM belongs to it; an imported
+     * one only when its source spcompany is a known spelling of it — an unknown value stops the import instead of
+     * becoming a second legal entity.
+     *
+     * @throws Error the legal entity is not configured; an imported record of an unknown legal entity
+     */
+    public function assign(Entity $record, bool $import): void
+    {
+        $kept = !$record->isNew() && $record->get('legalEntityId') && !$record->isAttributeChanged('legalEntityId');
+
+        if (!$import && $kept) {
+            return;
+        }
+
+        $id = $import ? $this->sourceIdOf($record) : $this->findDefaultId();
+
+        $id ??= throw new Error('The legal entity is not configured: run itvolga-setup-finance.');
+
+        if ($record->get('legalEntityId') !== $id) {
+            $record->set('legalEntityId', $id);
+        }
+    }
+
+    /**
      * @return bool whether the placeholder was created
      */
     public function ensure(): bool
@@ -48,6 +77,27 @@ class LegalEntityProvider
         ]);
 
         return true;
+    }
+
+    /**
+     * The importer keeps the source value in vtigerData.spcompany; no key (records without a source value) and empty
+     * values mean the default company, as in SalesPlatform. Messages never carry the value.
+     */
+    private function sourceIdOf(Entity $record): ?string
+    {
+        $data = $record->get('vtigerData');
+        $value = $data instanceof stdClass ? ($data->{self::SOURCE_KEY} ?? null) : null;
+        $name = "{$record->getEntityType()} vtigerId {$record->get('vtigerId')}";
+
+        if ($value !== null && !is_string($value)) {
+            throw new Error("$name: vtigerData.spcompany is not a string.");
+        }
+
+        try {
+            return $this->findIdForSource($value);
+        } catch (UnknownLegalEntity $e) {
+            throw new Error("$name: {$e->getMessage()}");
+        }
     }
 
     private function findIdByKey(string $key): ?string

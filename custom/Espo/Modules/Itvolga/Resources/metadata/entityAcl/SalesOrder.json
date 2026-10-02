@@ -48,6 +48,15 @@
         "vtigerData": {
             "readOnly": true,
             "onlyAdmin": true
+        },
+        "paidAmount": {
+            "readOnly": true
+        },
+        "balanceAmount": {
+            "readOnly": true
+        },
+        "settlementState": {
+            "readOnly": true
         }
     },
     "links": {
@@ -56,6 +65,9 @@
         },
         "teams": {
             "nonAdminReadOnly": true
+        },
+        "paymentAllocations": {
+            "readOnly": true
         }
     }
 }

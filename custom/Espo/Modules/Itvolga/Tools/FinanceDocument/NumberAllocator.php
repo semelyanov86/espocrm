@@ -9,11 +9,11 @@ use Espo\Entities\NextNumber;
 use Espo\ORM\EntityManager;
 
 /**
- * Numbers of documents created in EspoCRM: prefix + counter without padding (ПРЕД_25, ЗАКАЗ_15; owner decision
- * 2026-10-01). The counter is the core NextNumber row (entityType, fieldName "number"), locked inside the document's
- * transaction, so concurrent saves never share a number and a failed save leaves no gap. A number already taken
- * (an imported one, D-17) is skipped. The core `number` field type is not used: it forces varchar(36), the contract
- * keeps varchar(100) for original numbers.
+ * Numbers of records created in EspoCRM: prefix + counter without padding (ПРЕД_25, ЗАКАЗ_15, payments without a
+ * prefix; owner decisions 2026-10-01, 2026-10-02). The counter is the core NextNumber row (entityType, fieldName
+ * "number"), locked inside the record's transaction, so concurrent saves never share a number and a failed save leaves
+ * no gap. A number already taken (an imported one, D-17) is skipped. The core `number` field type is not used: it
+ * forces varchar(36), the contract keeps varchar(100) for original numbers.
  */
 class NumberAllocator
 {
@@ -23,29 +23,22 @@ class NumberAllocator
     public function __construct(private EntityManager $entityManager) {}
 
     /**
-     * Must run inside the document's transaction (entityDefs transactionalSave).
+     * Must run inside the record's transaction (entityDefs transactionalSave).
      *
      * @throws Error when the counter is not configured (itvolga-setup-finance) — never created on the fly, so two
      *   concurrent first saves cannot create two counters
      */
-    public function allocate(DocumentType $type): string
+    public function allocate(NumberSeries $series): string
     {
-        $counter = $this->entityManager
-            ->getRDBRepositoryByClass(NextNumber::class)
-            ->where(['entityType' => $type->entityType, 'fieldName' => self::FIELD])
-            ->forUpdate()
-            ->findOne();
-
-        if (!$counter) {
-            throw new Error("Numbering of {$type->entityType} is not configured: run itvolga-setup-finance.");
-        }
+        $counter = $this->lockCounter($series)
+            ?? throw new Error("Numbering of {$series->entityType} is not configured: run itvolga-setup-finance.");
 
         $value = max((int) $counter->getNumberValue(), 1);
 
         for ($i = 0; $i < self::MAX_SKIP; $i++, $value++) {
-            $number = $type->numberPrefix . $value;
+            $number = $series->prefix . $value;
 
-            if (!$this->isTaken($type->entityType, $number)) {
+            if (!$this->isTaken($series->entityType, $number)) {
                 $counter->setNumberValue($value + 1);
                 $this->entityManager->saveEntity($counter);
 
@@ -53,7 +46,18 @@ class NumberAllocator
             }
         }
 
-        throw new Error("No free number for {$type->entityType} near the counter value.");
+        throw new Error("No free number for {$series->entityType} near the counter value.");
+    }
+
+    /**
+     * Locks the counter row for the rest of the transaction without taking a number. Payments use it as their ledger
+     * lock: every write that changes allocations or settlement takes it first (Tools/FinancePayment).
+     *
+     * @return bool false when the counter is not configured
+     */
+    public function lock(NumberSeries $series): bool
+    {
+        return $this->lockCounter($series) !== null;
     }
 
     /**
@@ -62,50 +66,59 @@ class NumberAllocator
      *
      * @return ?string what changed, null when nothing did
      */
-    public function ensure(DocumentType $type, ?int $next = null): ?string
+    public function ensure(NumberSeries $series, ?int $next = null): ?string
     {
         $repository = $this->entityManager->getRDBRepositoryByClass(NextNumber::class);
         $counters = [...$repository
-            ->where(['entityType' => $type->entityType, 'fieldName' => self::FIELD])
+            ->where(['entityType' => $series->entityType, 'fieldName' => self::FIELD])
             ->forUpdate()
             ->find()];
 
         if (count($counters) > 1) {
-            throw new Error("Several NextNumber rows for {$type->entityType}.number: fix them before numbering.");
+            throw new Error("Several NextNumber rows for {$series->entityType}.number: fix them before numbering.");
         }
 
-        $target = max($type->firstNumber, $next ?? 0);
+        $target = max($series->firstNumber, $next ?? 0);
         $counter = $counters[0] ?? null;
 
         if (!$counter) {
             $counter = $repository->getNew();
             $counter
-                ->setTargetEntityType($type->entityType)
+                ->setTargetEntityType($series->entityType)
                 ->setTargetFieldName(self::FIELD)
                 ->setNumberValue($target);
             $this->entityManager->saveEntity($counter);
 
-            return "counter + {$type->entityType}: $target";
+            return "counter + {$series->entityType}: $target";
         }
 
         if ($next !== null && $next > (int) $counter->getNumberValue()) {
             $counter->setNumberValue($next);
             $this->entityManager->saveEntity($counter);
 
-            return "counter ~ {$type->entityType}: $next";
+            return "counter ~ {$series->entityType}: $next";
         }
 
         return null;
     }
 
-    public function current(DocumentType $type): ?int
+    public function current(NumberSeries $series): ?int
     {
         $counter = $this->entityManager
             ->getRDBRepositoryByClass(NextNumber::class)
-            ->where(['entityType' => $type->entityType, 'fieldName' => self::FIELD])
+            ->where(['entityType' => $series->entityType, 'fieldName' => self::FIELD])
             ->findOne();
 
         return $counter?->getNumberValue();
+    }
+
+    private function lockCounter(NumberSeries $series): ?NextNumber
+    {
+        return $this->entityManager
+            ->getRDBRepositoryByClass(NextNumber::class)
+            ->where(['entityType' => $series->entityType, 'fieldName' => self::FIELD])
+            ->forUpdate()
+            ->findOne();
     }
 
     private function isTaken(string $entityType, string $number): bool

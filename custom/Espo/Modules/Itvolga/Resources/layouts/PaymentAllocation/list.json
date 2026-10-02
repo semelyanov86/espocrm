@@ -1,0 +1,25 @@
+[
+    {
+        "name": "payment",
+        "width": 14,
+        "link": true
+    },
+    {
+        "name": "invoice"
+    },
+    {
+        "name": "salesOrder"
+    },
+    {
+        "name": "paymentDatePaid",
+        "width": 12
+    },
+    {
+        "name": "paymentStatus",
+        "width": 12
+    },
+    {
+        "name": "amount",
+        "width": 13
+    }
+]

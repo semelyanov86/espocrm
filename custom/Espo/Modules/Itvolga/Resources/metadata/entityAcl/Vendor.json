@@ -10,5 +10,10 @@
             "readOnly": true,
             "onlyAdmin": true
         }
+    },
+    "links": {
+        "payments": {
+            "readOnly": true
+        }
     }
 }

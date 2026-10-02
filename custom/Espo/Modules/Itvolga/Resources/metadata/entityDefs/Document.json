@@ -86,6 +86,12 @@
             "entity": "Invoice",
             "foreign": "documents",
             "relationName": "invoiceDocument"
+        },
+        "cPayments": {
+            "type": "hasMany",
+            "entity": "Payment",
+            "foreign": "documents",
+            "relationName": "paymentDocument"
         }
     },
     "indexes": {

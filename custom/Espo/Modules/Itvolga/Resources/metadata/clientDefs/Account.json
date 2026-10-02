@@ -1,0 +1,8 @@
+{
+    "relationshipPanels": {
+        "cPayments": {
+            "selectDisabled": true,
+            "unlinkDisabled": true
+        }
+    }
+}

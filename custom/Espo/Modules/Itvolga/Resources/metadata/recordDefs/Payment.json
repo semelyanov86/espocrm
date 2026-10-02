@@ -1,0 +1,25 @@
+{
+    "createInputFilterClassNameList": [
+        "Espo\\Modules\\Itvolga\\Classes\\Record\\Finance\\DecimalInput"
+    ],
+    "updateInputFilterClassNameList": [
+        "Espo\\Modules\\Itvolga\\Classes\\Record\\Finance\\DecimalInput"
+    ],
+    "readLoaderClassNameList": [
+        "Espo\\Modules\\Itvolga\\Classes\\FieldProcessing\\Finance\\AllocationListLoader"
+    ],
+    "loadAdditionalFieldsAfterUpdate": true,
+    "actions": {
+        "merge": {
+            "disabled": true
+        },
+        "convertCurrency": {
+            "disabled": true
+        }
+    },
+    "massActions": {
+        "convertCurrency": {
+            "disabled": true
+        }
+    }
+}

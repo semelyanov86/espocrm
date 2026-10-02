@@ -2,7 +2,7 @@
 
 Документ фиксирует **фактическое** поведение данных Vtiger/SalesPlatform (§1–§10), контракт собственных сущностей EspoCRM (§11), расчётное ядро (§12) и правила, которых в данных нет (§13). Всё, что не подтверждено данными, помечено «не проверено» или вынесено в `open-questions.md`. Денежные агрегаты — **только в приватных отчётах** (`/data/itvolga/espo-private/audit/<срез>/35_control_sums_private.tsv`, `47_finance_snapshot_private.tsv`); в Git — счётчики, правила и HMAC-дайджесты контрольных сумм (`tests/finance/fixtures/source-profile.php`).
 
-Реализация этапа 04.3 (Invoice, InvoiceItem, контроль итогов) — §15, факты перепроверены 2026-10-02 (срез `20261002T162427`).
+Реализация этапа 04.3 (Invoice, InvoiceItem, контроль итогов) — §15, факты перепроверены 2026-10-02 (срез `20261002T162427`); этапа 04.4 (Payment, PaymentAllocation, оплата документов) — §16, срез `20261002T185652`.
 
 Перепроверка этапа 04.1: срез `20260930T220947` (`run-audit.sh`, шаги `46_finance_contract.sql`, `47_finance_snapshot_private.sql`); код SalesPlatform — по локальной копии `/data/itvolga/espo-private/vtiger-src/vtiger7/` (7.1.0 SP01). Счётчики с 2026-09-29 выросли на 1 счёт и 1 акт; найдено одно расхождение с прежней версией документа — расходные платежи связаны со счетами (§8). Решения владельца по правилам, которых нет в данных (Q-36…Q-38, 2026-09-30), — D-47, D-49.
 
@@ -185,7 +185,7 @@
 
 ## 11. Контракт сущностей EspoCRM (этап 04.1)
 
-Сущности создаются на этапах 04.2–04.5 по этому контракту; в `field-map.csv`/`relations.csv` строки ещё не созданных сущностей имеют статус `контракт (этап 04.1)`, созданных — `реализовано (этап …)`. Quote, SalesOrder, их позиции и LegalEntity реализованы на этапе 04.2 (§14), Invoice и InvoiceItem — на этапе 04.3 (§15). Общие правила: деньги — поля `currency` с `decimal: true` (DECIMAL, без float, D-43), валюта только RUB; служебные поля импорта — D-41; даты «только дата» не пересчитываются (D-30); справочники — по словарю `vtigerValueMap` (D-38, генерируется на этапе сущности). Первая колонка таблиц — имена полей (их проверяет `tests/finance/ContractMapTest.php`).
+Сущности создаются на этапах 04.2–04.5 по этому контракту; в `field-map.csv`/`relations.csv` строки ещё не созданных сущностей имеют статус `контракт (этап 04.1)`, созданных — `реализовано (этап …)`. Quote, SalesOrder, их позиции и LegalEntity реализованы на этапе 04.2 (§14), Invoice и InvoiceItem — на этапе 04.3 (§15), Payment, PaymentAllocation и оплата счетов и заказов — на этапе 04.4 (§16). Общие правила: деньги — поля `currency` с `decimal: true` (DECIMAL, без float, D-43), валюта только RUB; служебные поля импорта — D-41; даты «только дата» не пересчитываются (D-30); справочники — по словарю `vtigerValueMap` (D-38, генерируется на этапе сущности). Первая колонка таблиц — имена полей (их проверяет `tests/finance/ContractMapTest.php`).
 
 ### Document
 
@@ -243,6 +243,7 @@
 | `quote` | link Quote | `quoteid` | в источнике пусто у всех 14 |
 | `invoices` | hasMany Invoice | `vtiger_invoice.salesorderid` | 27 счетов |
 | `paymentAllocations` | hasMany PaymentAllocation | `sp_payments.related_to` | 7 платежей |
+| `paidAmount`, `balanceAmount`, `settlementState` | currency, currency, enum `unpaid` / `partial` / `paid` / `overpaid`; хранимые, только чтение, audited | `AllocationCalculator::settle` | как у Invoice (D-64) |
 
 В `vtigerData`: `carrier`, `pending`, `fromsite`, `vendor_id`, `exciseduty`, `salescommission`, периодичность (`enable_recurring`, `recurring_frequency`, `start_period`, `end_period`, `payment_duration`, `recurring_invoice_status`; закончилась в 2016, D-15).
 
@@ -257,7 +258,7 @@
 | `act` | link Act (belongsTo) | `sp_act_id` | 392; фактически ≤ 1:1, ограничение 1:1 не вводится (§7); создаётся с Act на этапе 04.5 |
 | `balanceSource` | currency, только чтение | `balance` | контроль, не бизнес-значение (§8.4) |
 | `paymentAllocations` | hasMany PaymentAllocation | `sp_payments.related_to`, `vtiger_crmentityrel` | §8, D-11 |
-| `paidAmount`, `balanceAmount`, `settlementState` | вычисляемые: currency, currency, enum `unpaid` / `partial` / `paid` / `overpaid` | `AllocationCalculator::settle` | контроль оплаты; статус счёта из них не выводится (D-26); хранить или вычислять — решение этапа 04.4 |
+| `paidAmount`, `balanceAmount`, `settlementState` | currency, currency, enum `unpaid` / `partial` / `paid` / `overpaid`; хранимые, только чтение, audited | `AllocationCalculator::settle` | контроль оплаты, пересчитывается при каждом изменении платежей и итога (D-64); статус счёта из них не выводится (D-26) |
 
 В `vtigerData`: `customerno`, `received`, `exciseduty`, `salescommission`, `purchaseorder`.
 
@@ -296,12 +297,13 @@
 | Поле | Тип EspoCRM | Источник | Правило |
 |---|---|---|---|
 | `vtigerId` | int, уникальный, только чтение | `payid` | D-41 |
-| `number` | varchar(100) | `pay_no` | как есть; уникальны; новые — счётчик (§6) |
-| `datePaid` | date | `pay_date` | |
-| `direction` | enum `incoming` / `outgoing`, обязательное | `pay_type` | Приход → incoming, Expense → outgoing |
-| `method` | enum `cash` / `bank` | `type_payment` | Наличные → cash, Cashless Transfer → bank; 2 пусто |
+| `number` | varchar(100) | `pay_no` | как есть; уникальны; новые — счётчик без префикса (§6, с 991) |
+| `name` | varchar(100), только чтение | — | равно `number` (название записи в ссылках) |
+| `datePaid` | date, обязательное | `pay_date` | `D~M` в Vtiger; у новых — сегодня |
+| `direction` | enum `incoming` / `outgoing`, обязательное | `pay_type` | Приход → incoming, Expense → outgoing; у новых — incoming (умолчание Vtiger) |
+| `method` | enum `cash` / `bank` | `type_payment` | Наличные → cash, Cashless Transfer → bank; 2 пусто; у новых — bank (умолчание Vtiger) |
 | `amount` | currency, decimal(25,8), ≥ 0, обязательное | `amount` | знак задаёт `direction`; новые — в копейках |
-| `status` | enum | `spstatus` | Executed / Запланирован / Canceled / Delayed + пусто (остаётся пустым; в оплату входит как Executed — Q-37), словарь D-38 |
+| `status` | enum | `spstatus` | Executed / Запланирован / Canceled / Delayed + пусто (остаётся пустым; в оплату входит как Executed — Q-37), словарь D-38; у новых — Executed (умолчание Vtiger) |
 | `payer` | linkParent Account / Contact / Vendor | `payer` | 43 пусто |
 | `legalEntity` | link LegalEntity | `spcompany` | пусто (188) — то же юрлицо (§3) |
 | `documentNumber` | varchar(100) | `doc_no` | int → строка |
@@ -313,6 +315,8 @@
 | `description` | text | `vtiger_crmentity.description` | |
 | `documents` | linkMultiple Document | `vtiger_senotesrel` | 1 |
 | `paymentAllocations` | hasMany PaymentAllocation | | |
+| `allocationList` | jsonArray, нехранимое, audited | строки `PaymentAllocation` | таблица распределений в форме платежа (D-63) |
+| `allocatedAmount`, `unallocatedAmount` | currency, нехранимые, только чтение | Σ строк; сумма − Σ | распределено и остаток платежа, считаются при чтении |
 | `vtigerData` | jsonObject, только чтение | `analytics_code`, `debit`, `coracc_subacc`, `target_code`; исходные `related_to` и связи | |
 
 ### PaymentAllocation
@@ -326,6 +330,8 @@
 | `source` | enum `relatedTo` / `relationLink` / `manual`, только чтение | категория `SourceAllocationResolver` | происхождение распределения |
 | `sourceConflict` | bool, только чтение | категория `conflict_rel_other_invoice` | 38; счёт из связи — в `vtigerData` и приватном отчёте |
 | `vtigerData` | jsonObject, только чтение | категория и связи источника | |
+| `order`, `name` | int, varchar, только чтение | — | порядок строки в таблице платежа; «номер платежа → номер документа» |
+| `paymentDatePaid`, `paymentStatus` | foreign (дата и статус платежа), только чтение | — | колонки панели «Оплаты» счёта и заказа |
 
 ### LegalEntity
 
@@ -482,3 +488,50 @@
 ### 15.4 Доступ
 
 Как §14.4: директор — `Invoice` полностью, `InvoiceItem` — чтение по доступу к счёту; прочие роли — нет (403, вкладки нет); позиции напрямую не пишет никто.
+
+## 16. Реализация этапа 04.4 (Payment, PaymentAllocation, оплата документов; 2026-10-02)
+
+Сущности и поля — по §11; решения D-62…D-68. Проверено на стенде: `payment.amount`, `payment_allocation.amount`, `paid_amount`/`balance_amount` у `invoice` и `sales_order` — DECIMAL(25,8), `date_paid` — `date`, `number` varchar(100), уникальный `vtiger_id`, счётчик `Payment` = 991. Код — `Tools/Finance/Payment/` (чистое правило таблицы `AllocationEditor`), `Tools/FinancePayment/` (сохранение, оплата, импорт, история, «Добавить платёж», предпросмотр), `Hooks/Payment`, `Hooks/PaymentAllocation`; описание — `model.md`.
+
+### 16.1 Факты источника (перепроверено 2026-10-02, только чтение)
+
+- `SPPayments::save_module` пуст: сохранение платежа ничего больше не меняет — статус, `received` и `balance` счёта не трогаются (D-26).
+- «Добавить платёж» на счёте или заказе (`SPPayments/views/Edit.php`): плательщик — контрагент документа, `related_to` — документ, сумма — итог документа (`hdnGrandTotal`, 2 знака); со страниц контрагента, контакта и поставщика — плательщик.
+- Обязательны `pay_date` (`D~M`), `pay_type` (`V~M`), ответственный; `amount` в Vtiger необязателен (`N~O`, заполнен у 797 из 798, один — 0), в контракте — обязателен. Умолчания полей: «Приход», `Executed`, `Cashless Transfer`, `Default`. Номер — без префикса, `cur_id` 991.
+- Доступ: общий доступ Public (`def_org_share = 2`), модуль скрыт во всех используемых профилях, кроме директорского (как Invoice).
+- Справочники (шаг 41 дополнен `pay_type`, `type_payment`, `spstatus`): Приход 735 / Expense 63; Cashless Transfer 622 / Наличные 174 / пусто 2; Executed 776 / Запланирован 3 / Canceled 1 / пусто 18, `Delayed` настроен, не используется. Подписи SalesPlatform: Расход, Безналичный расчет, Выполнен, Отменен, Просрочен; у «Приход», «Наличные», «Запланирован» подписи нет — значения русские.
+- История (`vtiger_modtracker`): `related_to` менялся у 43 платежей по одному разу (2018-09…2020-04) — 27 переносов «счёт → счёт» и 16 заполнений; статус — 2 раза «Запланирован → Executed», 1 раз «пусто → Executed». В Vtiger «повторное применение» — перенос платежа на другой документ.
+
+### 16.2 Таблица распределений (D-63)
+
+| Ввод | Результат |
+|---|---|
+| полная таблица `allocationList` | строка с `id` сохраняет свою строку; без `id` — новая или строка того же документа; отсутствующая — удаляется (отмена) |
+| таблица не передана | строки не меняются; смена суммы, статуса или типа проверяется по сохранённым строкам |
+| второй ряд того же документа | отказ `financeAllocationDuplicateTarget` |
+| Σ строк > суммы / сумма < распределённой | `financeOverAllocation` / `financeAmountBelowAllocated` |
+| расход со строками / переключение в расход со строками | `financeOutgoingAllocation` |
+| строка ≤ 0, доли копейки, float, обе цели или ни одной, чужой `id`, нет или недоступен документ | `financeAllocationNotPositive`, `financeTooManyDecimals`, `financeFloat`, `financeAllocationTargetExclusive` / `…Required`, `financeUnknownAllocation`, `financeAllocationUnknownTarget` |
+
+Отказы — HTTP 400 с переводом и местом («Строка 2, «Сумма»»), без значений; ничего не пишется, номер не занимается. Переплата документа допустима. Предпросмотр формы — `POST /FinanceDocument/Payment/calculate {id?, attributes: {amount, direction, allocationList}}` → `{allocatedAmount, unallocatedAmount}` или `{error}`.
+
+### 16.3 Оплата документа (D-64)
+
+| Событие | Что пересчитывается |
+|---|---|
+| строка добавлена, изменена, удалена, перенесена | её документ (при переносе — оба) |
+| статус или тип платежа изменён | все документы платежа |
+| платёж удалён | все его документы (строки удаляются под «журналом», как при удалении документа) |
+| итог документа изменён (позиции, скидка, корректировка) | остаток и состояние по сохранённому «оплачено» |
+| документ создан | не оплачен, остаток = итог |
+| документ удалён | его строки удаляются под «журналом» (блокирующим чтением, не каскадом ядра), остаток платежей растёт, в лентах платежей — заметка |
+
+«Оплачено» — сумма строк приходов в статусе `Executed` и без статуса (Q-37); остаток — итог минус оплачено (отрицательный — переплата); `unpaid` / `partial` / `paid` / `overpaid`. Порядок блокировок и свежесть чтений — D-64; `itvolga-finance-settle [--entity] [--id] [--dry-run] [--silent]` пересчитывает документы по строкам и печатает только счётчики.
+
+### 16.4 История и доступ (D-65, D-66, D-62)
+
+Лента платежа — создание, изменения полей и таблицы распределений («было → стало»); журнал аудита счёта и заказа — изменения «Оплачено», «Остаток к оплате», «Состояние оплаты» с автором. Директор — платежи полностью, распределения — чтение по доступу к платежу; прочие роли — 403, вкладки нет. Прямая запись распределений, link/unlink связей платежа, документа и плательщика, массовые действия над распределениями, CSV-импорт финансовых сущностей и восстановление удалённых распределений закрыты для всех, включая администратора.
+
+### 16.5 Импорт (D-68)
+
+Импорт (06.3) пишет платежи и строки через ORM с `SaveOption::IMPORT` (`tests/stage04/import_fixture.php` — то же на синтетике): платёж — номер, статус и даты как в источнике, юрлицо из `vtigerData.spcompany`; строка — `source`, `sourceConflict`, `vtigerData` по D-11 (§8, `SourceAllocationResolver`), с проверкой платежа, документа, единственности и суммы; затем `itvolga-finance-settle`. Отчёт конфликтов (38) и связей расходов (52) — этап 06.3.

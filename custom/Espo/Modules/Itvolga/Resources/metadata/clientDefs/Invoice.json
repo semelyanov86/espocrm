@@ -13,6 +13,12 @@
             "createDisabled": true,
             "selectDisabled": true,
             "unlinkDisabled": true
+        },
+        "paymentAllocations": {
+            "createDisabled": true,
+            "selectDisabled": true,
+            "unlinkDisabled": true,
+            "rowActionsView": "views/record/row-actions/relationship-view-only"
         }
     },
     "sidePanels": {
@@ -44,5 +50,15 @@
                 "reference": "tasks"
             }
         ]
-    }
+    },
+    "detailActionList": [
+        {
+            "name": "createPayment",
+            "label": "Add Payment",
+            "handler": "itvolga:handlers/finance/convert-document",
+            "actionFunction": "createPayment",
+            "acl": "create",
+            "aclScope": "Payment"
+        }
+    ]
 }

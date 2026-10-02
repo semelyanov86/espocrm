@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synthetic fixture for the stage-04.2 and 04.3 UI scenarios (checked in the browser with Playwriter, evidence.md).
+"""Synthetic fixture for the stage-04.2–04.4 UI scenarios (checked in the browser with Playwriter, evidence.md).
 
   python3 tests/stage04/ui_fixture.py create   → users/records; passwords → <private>/ui-users.env (600)
   python3 tests/stage04/ui_fixture.py delete   → removes everything created by `create`
@@ -8,7 +8,10 @@ Users: synth-ui-director (Директор), synth-ui-fdeputy (Заместит�
 «SYNTH-UI»: an account, a contact, two products, a quote calculated in EspoCRM and a sales order made from it, an
 "imported" quote, a new invoice and three "imported" invoices (source values written by SQL as the importer would;
 classified by itvolga-finance-verify): «По умолчанию» with historical 18 % lines and no due date, a rounded and a
-mismatching one. Documents created in the browser from the fixture quote and sales order are removed with them.
+mismatching one; payments (stage 04.4): a partial payment of the invoice, a payment of the sales order and of the
+rounded invoice with a rest, a planned payment and an outgoing payment to a vendor. Documents created in the browser
+from the fixture quote and sales order, and payments allocated in the browser to the fixture documents or paid by the
+fixture account or vendor, are removed with them.
 """
 import json
 import os
@@ -19,7 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "stage03"))
 from espo import Client, admin_credentials, espo_console, sql  # noqa: E402
 
-PRIVATE = Path(os.environ.get("UI_FIXTURE_DIR", "/data/itvolga/espo-private/stand/evidence/stage04.3"))
+PRIVATE = Path(os.environ.get("UI_FIXTURE_DIR", "/data/itvolga/espo-private/stand/evidence/stage04.4"))
 STATE = PRIVATE / "ui-fixture.json"
 USERS_ENV = PRIVATE / "ui-users.env"
 
@@ -112,20 +115,40 @@ def _create():
         sql(f"UPDATE invoice_item SET tax_rate={tax}, margin=0 WHERE invoice_id='{iid}'")
         print(espo_console("itvolga-finance-verify", "--entity=Invoice", f"--id={iid}").strip())
         invoices[key] = iid
+    vendor = rec("Vendor", {"name": "SYNTH-UI Поставщик"})
+    director = state["users"]["director"]
+    payment = {"datePaid": "2026-10-02", "assignedUserId": director, "payerType": "Account", "payerId": acc}
+    payments = {
+        "partialPayment": rec("Payment", {**payment, "amount": "5000", "documentNumber": "17",
+                                          "allocationList": [{"invoiceId": invoice, "amount": "5000"}]}),
+        "splitPayment": rec("Payment", {**payment, "amount": "7000", "method": "cash", "allocationList": [
+            {"salesOrderId": order, "amount": "6000"}, {"invoiceId": invoices["roundedInvoice"], "amount": "100.01"}]}),
+        "plannedPayment": rec("Payment", {**payment, "amount": "5000.01", "status": "Запланирован", "allocationList": [
+            {"invoiceId": invoices["mismatchInvoice"], "amount": "5000.01"}]}),
+        "vendorPayment": rec("Payment", {**payment, "amount": "1200", "direction": "outgoing", "payerType": "Vendor",
+                                         "payerId": vendor, "purpose": "SYNTH-UI оплата поставщику"}),
+    }
     state.update({"account": acc, "contact": contact, "service": svc, "product": prd, "quote": quote,
-                  "importedQuote": imported, "salesOrder": order, **invoices})
+                  "importedQuote": imported, "salesOrder": order, "vendor": vendor, **invoices, **payments})
     save_state(state)
     print(json.dumps({k: v for k, v in state.items() if k != "records"}, indent=2))
 
 
 # Documents the browser may create from a fixture document («Создать заказ», «Создать счёт»).
 CHILDREN = {"Quote": (("invoices", "Invoice"), ("salesOrders", "SalesOrder")), "SalesOrder": (("invoices", "Invoice"),)}
+# Payments the browser may create: allocated to a fixture document («Добавить платёж»), paid by the fixture account
+# or vendor (the «Платежи» panel).
+PAYMENT_LINKS = {"Invoice": "paymentAllocations", "SalesOrder": "paymentAllocations", "Account": "cPayments",
+                 "Vendor": "payments"}
 
 
 def delete_with_children(admin, entity, rid):
     for link, child in CHILDREN.get(entity, ()):
         for record in (admin.get(f"{entity}/{rid}/{link}")[1] or {"list": []})["list"]:
             delete_with_children(admin, child, record["id"])
+    if entity in PAYMENT_LINKS:
+        for record in (admin.get(f"{entity}/{rid}/{PAYMENT_LINKS[entity]}", maxSize=200)[1] or {"list": []})["list"]:
+            admin.delete(f"Payment/{record.get('paymentId') or record['id']}")
     admin.delete(f"{entity}/{rid}")
 
 

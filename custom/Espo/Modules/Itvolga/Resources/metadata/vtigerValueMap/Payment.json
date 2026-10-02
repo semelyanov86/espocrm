@@ -1,0 +1,72 @@
+{
+    "fields": {
+        "direction": {
+            "picklists": [
+                "pay_type"
+            ],
+            "options": [
+                "incoming",
+                "outgoing"
+            ],
+            "map": {
+                "SPPayments.pay_type": {
+                    "Приход": "incoming",
+                    "Expense": "outgoing"
+                },
+                "(picklist)": {
+                    "Приход": "incoming",
+                    "Expense": "outgoing"
+                }
+            }
+        },
+        "method": {
+            "picklists": [
+                "type_payment"
+            ],
+            "options": [
+                "",
+                "cash",
+                "bank"
+            ],
+            "map": {
+                "SPPayments.type_payment": {
+                    "": "",
+                    "Наличные": "cash",
+                    "Cashless Transfer": "bank"
+                },
+                "(picklist)": {
+                    "Наличные": "cash",
+                    "Cashless Transfer": "bank",
+                    "": ""
+                }
+            }
+        },
+        "status": {
+            "picklists": [
+                "spstatus"
+            ],
+            "options": [
+                "",
+                "Executed",
+                "Запланирован",
+                "Canceled",
+                "Delayed"
+            ],
+            "map": {
+                "SPPayments.spstatus": {
+                    "": "",
+                    "Executed": "Executed",
+                    "Запланирован": "Запланирован",
+                    "Canceled": "Canceled"
+                },
+                "(picklist)": {
+                    "Executed": "Executed",
+                    "Запланирован": "Запланирован",
+                    "Canceled": "Canceled",
+                    "Delayed": "Delayed",
+                    "": ""
+                }
+            }
+        }
+    }
+}

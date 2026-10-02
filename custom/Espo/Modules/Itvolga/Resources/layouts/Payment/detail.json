@@ -1,0 +1,114 @@
+[
+    {
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "number"
+                },
+                {
+                    "name": "datePaid"
+                }
+            ],
+            [
+                {
+                    "name": "direction"
+                },
+                {
+                    "name": "status"
+                }
+            ],
+            [
+                {
+                    "name": "payer"
+                },
+                {
+                    "name": "method"
+                }
+            ],
+            [
+                {
+                    "name": "amount"
+                },
+                {
+                    "name": "legalEntity"
+                }
+            ],
+            [
+                {
+                    "name": "documentNumber"
+                },
+                {
+                    "name": "purpose"
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Allocation",
+        "rows": [
+            [
+                {
+                    "name": "allocationList",
+                    "fullWidth": true,
+                    "noLabel": true
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Counterparty",
+        "rows": [
+            [
+                {
+                    "name": "counterpartyAccount"
+                },
+                {
+                    "name": "counterpartyBic"
+                }
+            ],
+            [
+                {
+                    "name": "counterpartyBankName"
+                },
+                {
+                    "name": "isForeignCurrencyAccount"
+                }
+            ],
+            [
+                {
+                    "name": "bankTransactionId"
+                },
+                false
+            ]
+        ]
+    },
+    {
+        "label": "Description",
+        "rows": [
+            [
+                {
+                    "name": "description",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    },
+    {
+        "label": "Vtiger",
+        "rows": [
+            [
+                {
+                    "name": "vtigerId"
+                },
+                false
+            ],
+            [
+                {
+                    "name": "vtigerData",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    }
+]

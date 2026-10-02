@@ -178,7 +178,8 @@ class ModelTest(unittest.TestCase):
         # Copied from the sales order template: no link of SalesOrder's own (invoices) may come along.
         self.assertEqual(set(defs["Invoice"]["links"]), {
             "items", "account", "contact", "opportunity", "legalEntity", "assignedUser", "teams", "documents",
-            "createdBy", "modifiedBy", "salesOrder", "quote", "vtigerArchives", "meetings", "calls", "tasks", "emails"})
+            "createdBy", "modifiedBy", "salesOrder", "quote", "vtigerArchives", "meetings", "calls", "tasks", "emails",
+            "paymentAllocations"})
         # The common Document fields stay identical across the finance documents (finance-contract.md §11).
         keys = ("type", "precision", "scale", "readOnly", "onlyDefaultCurrency", "options", "view")
         for name, spec in defs["Quote"]["fields"].items():
