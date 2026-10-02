@@ -141,13 +141,13 @@ def get(entity, rid, client="dir"):
     return must((S["admin"] if client == "admin" else c(client)).get(f"{entity}/{rid}"))
 
 
-def import_save(entity, attributes, rid=None, op="save", imported=True):
-    """One ORM save (or removal) with SaveOption::IMPORT, as the importer of stage 06.3 will do it (a removal without
-    the option and with attributes set on the loaded copy stands for the core cascade with a stale snapshot)."""
+def import_save(entity, attributes, rid=None, op="save", imported=True, silent=True):
+    """One ORM save (or removal) with SaveOption::IMPORT and SILENT, as the importer of stage 06.3 will do it (a removal
+    without the options and with attributes set on the loaded copy stands for the core cascade with a stale snapshot)."""
     php = subprocess.run(["bash", "-c", f"source {REPO}/scripts/stand/lib.sh && echo $PHP_BIN"],
                          capture_output=True, text=True, check=True).stdout.strip()
-    payload = json.dumps({"op": op, "entityType": entity, "id": rid, "attributes": attributes, "import": imported},
-                         ensure_ascii=False)
+    payload = json.dumps({"op": op, "entityType": entity, "id": rid, "attributes": attributes, "import": imported,
+                          "silent": silent}, ensure_ascii=False)
     out = subprocess.run(["sudo", "-n", "-u", "espocrm", "env", f"ESPO_ROOT={REPO}", php, "--", payload],
                          input=FIXTURE.read_text(encoding="utf-8"), capture_output=True, text=True, check=True).stdout
     return json.loads(out.strip().splitlines()[-1])
@@ -163,12 +163,12 @@ class ModelTest(unittest.TestCase):
         cols = {(t, c): ty for t, c, ty in sql(
             "SELECT table_name, column_name, column_type FROM information_schema.columns WHERE table_schema=DATABASE() "
             "AND ((table_name='payment' AND column_name IN ('amount','number','date_paid','vtiger_id')) "
-            "OR (table_name='payment_allocation' AND column_name='amount') "
+            "OR (table_name='payment_allocation' AND column_name IN ('amount','removed_with')) "
             "OR (table_name IN ('invoice','sales_order') AND column_name IN ('paid_amount','balance_amount')))")}
         self.assertEqual(cols, {
             ("payment", "amount"): "decimal(25,8)", ("payment", "number"): "varchar(100)",
             ("payment", "date_paid"): "date", ("payment", "vtiger_id"): "int",
-            ("payment_allocation", "amount"): "decimal(25,8)",
+            ("payment_allocation", "amount"): "decimal(25,8)", ("payment_allocation", "removed_with"): "varchar(64)",
             ("invoice", "paid_amount"): "decimal(25,8)", ("invoice", "balance_amount"): "decimal(25,8)",
             ("sales_order", "paid_amount"): "decimal(25,8)", ("sales_order", "balance_amount"): "decimal(25,8)"})
         self.assertEqual(sql("SELECT non_unique FROM information_schema.statistics WHERE table_schema=DATABASE() "
@@ -405,6 +405,21 @@ class RemovalTest(unittest.TestCase):
         self.assertEqual(c("dir").delete(f"Payment/{pay['id']}")[0], 200)
         self.assertEqual(settlement(inv), ("0.00000000", "1000.00000000", "unpaid"))
         self.assertEqual([r[2] for r in allocation_rows(pay["id"], deleted=True)], ["1"])
+        # The rows carry the payment they were removed with, so its restore is refused whatever the clock: the core
+        # picks the rows to restore by modifiedAt, which it sets on the payment after the hooks that removed the rows.
+        self.assertEqual(sql(f"SELECT removed_with FROM payment_allocation WHERE payment_id='{pay['id']}'"),
+                         [[f"Payment:{pay['id']}"]])
+        sql(f"UPDATE payment_allocation SET modified_at = modified_at - INTERVAL 5 SECOND WHERE payment_id='{pay['id']}'")
+        restore = S["admin"].request("POST", "Payment/action/restoreDeleted", {"id": pay["id"]})
+        self.assertEqual((restore[0], label(restore)), (409, "financeRestoreDenied"))
+        self.assertEqual(sql(f"SELECT deleted FROM payment WHERE id='{pay['id']}'"), [["1"]], "nothing restored")
+        # A row cancelled by an earlier save of the table does not hold the restore of its payment.
+        kept = payment("50", [row(inv, "50")])
+        ok(self, c("dir").put(f"Payment/{kept['id']}", {"allocationList": []}))
+        sql(f"UPDATE payment_allocation SET modified_at = modified_at - INTERVAL 1 MINUTE WHERE payment_id='{kept['id']}'")
+        self.assertEqual(c("dir").delete(f"Payment/{kept['id']}")[0], 200)
+        self.assertEqual(S["admin"].request("POST", "Payment/action/restoreDeleted", {"id": kept["id"]})[0], 200)
+        self.assertEqual((get("Payment", kept["id"])["allocationList"], settlement(inv)[2]), ([], "unpaid"))
 
     def test_remove_document_and_no_restore(self):
         inv = must(c("dir").post("Invoice", {"name": f"{TAG} removed", "accountId": S["account"], **DATES,
@@ -422,6 +437,10 @@ class RemovalTest(unittest.TestCase):
         self.assertEqual(([r["invoiceId"] for r in note["data"]["attributes"]["was"]["allocationList"]],
                           note["data"]["attributes"]["became"]["allocationList"][0]["invoiceId"]),
                          ([inv["id"], inv2["id"]], inv2["id"]))
+        # As for a payment: refused by the mark, also when the rows look older than the document's removal.
+        self.assertEqual(sql(f"SELECT removed_with FROM payment_allocation WHERE invoice_id='{inv['id']}'"),
+                         [[f"Invoice:{inv['id']}"]])
+        sql(f"UPDATE payment_allocation SET modified_at = modified_at - INTERVAL 5 SECOND WHERE invoice_id='{inv['id']}'")
         restore = S["admin"].request("POST", "Invoice/action/restoreDeleted", {"id": inv["id"]})
         self.assertEqual((restore[0], label(restore)), (409, "financeRestoreDenied"))
         self.assertEqual(sql(f"SELECT deleted FROM invoice WHERE id='{inv['id']}'"), [["1"]], "nothing restored")
@@ -669,6 +688,18 @@ class AccessTest(unittest.TestCase):
         # A document the user may not read is refused like a missing one.
         refused = c("own").put(f"Payment/{own['id']}", {"allocationList": [row(mine, "40"), row(self.inv, "10")]})
         self.assertEqual(label(refused), "financeAllocationUnknownTarget")
+        # A row to such a document (given by the director) keeps it: neither its amount nor its removal is allowed.
+        theirs, mine2 = invoice("30"), invoice("10", client=c("own"))
+        table = ok(self, c("dir").put(f"Payment/{own['id']}", {"allocationList": [
+            row(mine, "40", id=own["allocationList"][0]["id"]), row(theirs, "10")]}))["allocationList"]
+        before = (allocation_rows(own["id"]), settlement(theirs))
+        kept, other = ({"id": r["id"], "invoiceId": r["invoiceId"], "amount": r["amount"]} for r in table)
+        for rows in ([kept, {**other, "amount": "5"}], [kept], [kept, {**other, "invoiceId": mine2["id"]}]):
+            refused = c("own").put(f"Payment/{own['id']}", {"allocationList": rows})
+            self.assertEqual((refused[0], label(refused)), (400, "financeAllocationUnknownTarget"), rows)
+        self.assertEqual((allocation_rows(own["id"]), settlement(theirs)), before)
+        ok(self, c("own").put(f"Payment/{own['id']}", {"allocationList": [other, kept]}))
+        self.assertEqual(settlement(theirs), before[1], "renumbering changes no document")
 
     def test_no_csv_import_of_finance_records(self):
         # A real CSV upload: the core reads the file before it creates the import record that the guard refuses.
@@ -714,12 +745,17 @@ class ImportPathTest(unittest.TestCase):
                                       "vtigerData": {"spcompany": "По умолчанию", "related_to": vt}})
         self.assertTrue(pay["ok"], pay)
         S["created"].append(("Payment", pay["id"]))
+        quiet = f"SELECT COUNT(*) FROM note WHERE parent_id IN ('{pay['id']}','{inv['id']}') AND deleted=0"
+        self.assertEqual(sql(quiet), [["0"]], "an import writes no stream or audit notes")
+        self.assertEqual(sql(f"SELECT COUNT(*) FROM notification WHERE related_id='{pay['id']}'"), [["0"]],
+                         "nor assignment notifications")
         stored = sql(f"SELECT number, status, legal_entity_id IS NOT NULL FROM payment WHERE id='{pay['id']}'")
         self.assertEqual(stored, [[str(vt), "", "1"]], "the source number and the empty status are kept")
         alloc = import_save("PaymentAllocation", {"paymentId": pay["id"], "invoiceId": inv["id"], "amount": "1000",
                                                   "source": "relatedTo", "sourceConflict": True})
         self.assertTrue(alloc["ok"], alloc)
         self.assertEqual(settlement(inv), ("1000.00000000", "0.00000000", "paid"), "empty status counts (Q-37)")
+        self.assertEqual(sql(quiet), [["0"]], "an imported row settles its document silently")
         refused = [
             ({"paymentId": pay["id"], "invoiceId": inv2["id"], "amount": "0.01"}, "exceed"),
             ({"paymentId": pay["id"], "invoiceId": inv["id"], "amount": "1"}, "already has a row"),
@@ -736,6 +772,15 @@ class ImportPathTest(unittest.TestCase):
         self.assertFalse(unknown["ok"])
         self.assertNotIn("Other company", unknown["message"])
         self.assertEqual(sql(f"SELECT COUNT(*) FROM payment WHERE vtiger_id={vt + 1}"), [["0"]])
+        # An import write without SaveOption::SILENT would fill the stream, the audit and the notifications: refused.
+        loud = import_save("Payment", {"vtigerId": vt + 2, "number": str(vt + 2), "datePaid": "2018-05-01",
+                                       "direction": "incoming", "amount": "5", "assignedUserId": S["users"]["dir"],
+                                       "vtigerData": {"spcompany": "По умолчанию"}}, silent=False)
+        self.assertEqual((loud["ok"], "must be silent" in loud.get("message", "")), (False, True), loud)
+        self.assertEqual(sql(f"SELECT COUNT(*) FROM payment WHERE vtiger_id={vt + 2}"), [["0"]])
+        loud = import_save("PaymentAllocation", {}, alloc["id"], op="remove", silent=False)
+        self.assertFalse(loud["ok"], loud)
+        self.assertEqual(sql(f"SELECT deleted FROM payment_allocation WHERE id='{alloc['id']}'"), [["0"]])
         # A write past the hooks is repaired by the settle command, which prints counts only.
         sql(f"UPDATE invoice SET paid_amount=1, settlement_state='partial' WHERE id='{inv['id']}'")
         dry = espo_console("itvolga-finance-settle", "--entity=Invoice", f"--id={inv['id']}", "--dry-run")

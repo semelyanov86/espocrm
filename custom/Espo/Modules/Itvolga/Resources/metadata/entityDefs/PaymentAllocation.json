@@ -74,6 +74,13 @@
             "exportDisabled": true,
             "customizationDisabled": true
         },
+        "removedWith": {
+            "type": "varchar",
+            "maxLength": 64,
+            "readOnly": true,
+            "utility": true,
+            "customizationDisabled": true
+        },
         "createdAt": {
             "type": "datetime",
             "readOnly": true

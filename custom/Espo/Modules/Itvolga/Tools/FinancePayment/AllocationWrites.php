@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Espo\Modules\Itvolga\Tools\FinancePayment;
 
 use Espo\Core\Exceptions\Error;
-use Espo\Core\ORM\Repository\Option\SaveOption;
 use Espo\Core\Utils\Config;
 use Espo\Modules\Itvolga\Tools\Finance\Decimal;
 use Espo\Modules\Itvolga\Tools\Finance\Exceptions\InvalidValue;
@@ -209,7 +208,7 @@ class AllocationWrites
                 ->findOne();
             $before = $payment ? $this->rows->find($payment->getId(), $type, true) : [];
 
-            $this->entityManager->removeEntity($row, [PaymentProcessor::WRITE_OPTION => true, SaveOption::SILENT => true]);
+            $this->rows->removeWithOwner($row, $document);
 
             if ($payment && !$silent) {
                 $this->recordRemoval($payment, $type, $before, $row->getId());

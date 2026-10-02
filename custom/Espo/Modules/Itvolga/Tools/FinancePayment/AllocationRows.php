@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Espo\Modules\Itvolga\Tools\FinancePayment;
 
+use Espo\Core\ORM\Repository\Option\SaveOption;
 use Espo\Modules\Itvolga\Tools\Finance\Decimal;
 use Espo\Modules\Itvolga\Tools\Finance\Payment\AllocationInput;
 use Espo\Modules\Itvolga\Tools\Finance\Scale;
@@ -21,9 +22,28 @@ use stdClass;
  */
 class AllocationRows
 {
+    /** The owner a row was removed with ("Payment:<id>", "Invoice:<id>"): restoring that owner is refused. */
+    public const REMOVED_WITH = 'removedWith';
     private const OWN_COLUMNS = ['id', 'order', 'amount', 'source'];
 
     public function __construct(private EntityManager $entityManager) {}
+
+    /**
+     * Removes a row together with its payment or document, marked with that owner. The core restores the
+     * cascade-removed rows of a restored record by time — modifiedAt not before the record's, which the core sets
+     * after the record's beforeRemove hooks that remove the rows — so it may find or miss them; the mark refuses the
+     * owner's restore whatever the clock (Classes/Record/Finance/OwnerRestorer).
+     */
+    public function removeWithOwner(Entity $row, Entity $owner): void
+    {
+        $row->set(self::REMOVED_WITH, self::ownerKey($owner));
+        $this->entityManager->removeEntity($row, [PaymentProcessor::WRITE_OPTION => true, SaveOption::SILENT => true]);
+    }
+
+    public static function ownerKey(Entity $owner): string
+    {
+        return $owner->getEntityType() . ':' . $owner->getId();
+    }
 
     /**
      * Rows of a payment in their order; with $lock, a locking read of the rows' own columns only (no joins: rows of

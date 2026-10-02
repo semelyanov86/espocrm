@@ -21,5 +21,6 @@
         "convertCurrency": {
             "disabled": true
         }
-    }
+    },
+    "deletedRestorerClassName": "Espo\\Modules\\Itvolga\\Classes\\Record\\Finance\\OwnerRestorer"
 }

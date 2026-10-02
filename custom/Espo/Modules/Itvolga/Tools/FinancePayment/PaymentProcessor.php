@@ -130,7 +130,7 @@ class PaymentProcessor
         }
 
         $documents = $this->rows->lockDocuments($plan->documents());
-        $this->checkTargets($plan, $type, $documents, $import);
+        $this->checkTargets($plan, $type, $stored, $documents, $import);
 
         $settle = $settling
             ? AllocationPlan::sortedKeys([...$plan->affected, ...array_map(
@@ -238,7 +238,7 @@ class PaymentProcessor
         $documents = $this->rows->lockDocuments(AllocationPlan::sortedKeys($keys));
 
         foreach ($rows as $row) {
-            $this->entityManager->removeEntity($row, [self::WRITE_OPTION => true, SaveOption::SILENT => true]);
+            $this->rows->removeWithOwner($row, $payment);
         }
 
         return $documents;
@@ -294,28 +294,50 @@ class PaymentProcessor
     }
 
     /**
-     * A new or moved row needs a live document the user may read; one message for a missing and an unreadable
-     * document, so the existence of a document is not revealed.
+     * A row that changes what is paid on a document — new, moved (both documents), with another amount, removed —
+     * needs a live document the user may read: settlement of a document is not changed through a payment by a user
+     * who may not read the document. One message for a missing and an unreadable document, so the existence of a
+     * document is not revealed. A row only renumbered changes no document.
      *
+     * @param array<string, Entity> $stored
      * @param array<string, Entity> $documents
      */
-    private function checkTargets(AllocationPlan $plan, PaymentType $type, array $documents, bool $import): void
-    {
+    private function checkTargets(
+        AllocationPlan $plan,
+        PaymentType $type,
+        array $stored,
+        array $documents,
+        bool $import,
+    ): void {
+        $touched = [];
+
         foreach ($plan->rows as $row) {
-            if (!$row->isNew() && !$row->targetChanged()) {
+            if ($row->isNew() || $row->targetChanged() || $row->amountChanged()) {
+                $touched[] = [$row->input, $row->order, true];
+            }
+
+            if ($row->targetChanged()) {
+                $touched[] = [$row->previous, $row->order, false];
+            }
+        }
+
+        foreach ($plan->removed as $removed) {
+            $touched[] = [$removed, (int) $stored[(string) $removed->id]->get('order'), false];
+        }
+
+        foreach ($touched as [$input, $order, $required]) {
+            $document = $documents[$input->targetKey()] ?? null;
+
+            if ($document ? $import || $this->acl->checkEntity($document, Table::ACTION_READ) : !$required) {
                 continue;
             }
 
-            $document = $documents[$row->input->targetKey()] ?? null;
-
-            if (!$document || (!$import && !$this->acl->checkEntity($document, Table::ACTION_READ))) {
-                throw $this->errorMapper->toBadRequestIn(
-                    new InvalidValue("Row {$row->order}: no such document.", 'allocationUnknownTarget', $row->order,
-                        $type->linkOf($row->input->targetType)),
-                    $type->entityType,
-                    $type->allocationEntityType,
-                );
-            }
+            throw $this->errorMapper->toBadRequestIn(
+                new InvalidValue("Row $order: no such document.", 'allocationUnknownTarget', $order,
+                    $type->linkOf($input->targetType)),
+                $type->entityType,
+                $type->allocationEntityType,
+            );
         }
     }
 

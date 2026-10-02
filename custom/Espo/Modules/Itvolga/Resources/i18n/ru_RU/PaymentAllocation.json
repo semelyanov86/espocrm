@@ -11,6 +11,7 @@
         "paymentDatePaid": "Дата платежа",
         "paymentStatus": "Статус платежа",
         "vtigerData": "Исходные данные Vtiger",
+        "removedWith": "Удалено вместе с",
         "createdAt": "Создано",
         "modifiedAt": "Изменено",
         "createdBy": "Создал",
