@@ -118,6 +118,9 @@ define('itvolga:views/finance/fields/item-list', ['views/fields/base', 'itvolga:
             });
 
             this.addHandler('change', '[data-field]', (e, target) => this.onInput(target));
+            // A cell typed back to its value on focus fires no change event, though Ctrl+S (syncInputs) may have
+            // taken the intermediate value meanwhile.
+            this.addHandler('focusout', 'input[data-field], textarea[data-field]', (e, target) => this.onLeave(target));
             this.addActionHandler('addLine', () => this.addLine());
             this.addActionHandler('removeLine', (e, target) => this.removeLine(Number(target.dataset.index)));
             this.addActionHandler('moveLine', (e, target) =>
@@ -285,6 +288,21 @@ define('itvolga:views/finance/fields/item-list', ['views/fields/base', 'itvolga:
             }
         }
 
+        onLeave(target) {
+            const tr = target.closest('tr');
+            const row = tr && !this.domStale ? this.rows[Number(tr.dataset.index)] : null;
+
+            if (!row) {
+                return;
+            }
+
+            const before = JSON.stringify(row);
+
+            if (this.applyInput(target) && JSON.stringify(row) !== before) {
+                this.changed();
+            }
+        }
+
         /**
          * Text and number cells of the table → rows (no events; a select is applied on its change only).
          */
@@ -293,9 +311,22 @@ define('itvolga:views/finance/fields/item-list', ['views/fields/base', 'itvolga:
                 return;
             }
 
+            const before = JSON.stringify(this.rows);
+
             this.element.querySelectorAll('input[data-field], textarea[data-field]').forEach(input => {
                 this.applyInput(input);
             });
+
+            if (JSON.stringify(this.rows) !== before) {
+                // Values found here (Ctrl+S without a change event) make the shown and any coming preview outdated.
+                this.previewSeq++;
+                this.preview = null;
+                this.renderPreview(true);
+            }
+        }
+
+        hasInvalidInput() {
+            return this.rows.some(row => row._invalid && Object.keys(row._invalid).length);
         }
 
         /**
@@ -444,17 +475,27 @@ define('itvolga:views/finance/fields/item-list', ['views/fields/base', 'itvolga:
         }
 
         async requestPreview(seq) {
-            if (
-                seq !== this.previewSeq ||
-                !this.isEditMode() ||
-                this.rows.some(row => row._invalid && Object.keys(row._invalid).length)
-            ) {
+            if (seq !== this.previewSeq || !this.isEditMode()) {
+                return;
+            }
+
+            // fetch() first: it takes the values of the focused cell, which may be invalid or newer.
+            const itemList = this.fetch()[this.name];
+
+            if (this.hasInvalidInput()) {
+                return;
+            }
+
+            if (seq !== this.previewSeq) {
+                // The focused cell held newer values: calculate those instead.
+                this.schedulePreview();
+
                 return;
             }
 
             const attributes = {
                 // The preview does not look products up: a line without one yet is still calculated.
-                itemList: this.fetch()[this.name].map(line => ({...line, productId: line.productId || '-'})),
+                itemList: itemList.map(line => ({...line, productId: line.productId || '-'})),
             };
 
             for (const attribute of HEADER) {
@@ -472,7 +513,7 @@ define('itvolga:views/finance/fields/item-list', ['views/fields/base', 'itvolga:
                 return;
             }
 
-            if (seq !== this.previewSeq || !this.isEditMode()) {
+            if (seq !== this.previewSeq || !this.isEditMode() || this.hasInvalidInput()) {
                 return;
             }
 
