@@ -50,7 +50,17 @@ class FinanceItemGuard implements BeforeSave, BeforeRemove
     {
         $owners = $this->owners($entity);
 
-        if ($owners === null || $this->isAllowed($options)) {
+        if ($owners === null) {
+            return;
+        }
+
+        if ($this->isAllowed($options)) {
+            // An item removed while its document stays (an edit of the table, an import) is not restored with the
+            // document: the core restores items by time (ItemRestorer). A cascade comes after the document's removal.
+            if ($this->types->findByItem($entity->getEntityType()) && $this->allAlive($owners)) {
+                $entity->set(DocumentProcessor::REMOVED_BY_EDIT, true);
+            }
+
             return;
         }
 

@@ -43,7 +43,7 @@ class DocumentProcessor
 {
     public const WRITE_OPTION = 'itvolgaFinanceWrite';
     public const ITEM_LIST = 'itemList';
-    /** Item attribute: removed by an edit of the document's table, never restored with the document (ItemRestorer). */
+    /** Item attribute: removed while its document stays (Hooks/Common/FinanceItemGuard), not restored with it. */
     public const REMOVED_BY_EDIT = 'removedByEdit';
     public const SOURCE_TOTALS = 'sourceTotals';
     /** Stored total → the attribute that shows it after a recalculation («Итоги Vtiger», Q-40). */
@@ -190,7 +190,6 @@ class DocumentProcessor
         }
 
         foreach ($plan->edit->removedIds as $id) {
-            $plan->items[$id]->set(self::REMOVED_BY_EDIT, true);
             $this->entityManager->removeEntity($plan->items[$id], $options);
         }
     }

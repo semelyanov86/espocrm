@@ -14,8 +14,8 @@ use Espo\ORM\Entity;
  * cascade-removed items of a restored document (an item alone is not restored through the API: ItemRestoreRefusal)
  * and picks them by time — removed items modified not before the document. A line removed by an edit of the
  * document's table in the same second as the document's removal would come back while the totals stay without it
- * (found by the external review of stage 04.5, reproduced on the stand); such lines are marked removedByEdit
- * (DocumentProcessor) and stay removed.
+ * (found by the external review of stage 04.5, reproduced on the stand); a line removed while its document stays —
+ * by an edit or by the importer — is marked removedByEdit (Hooks/Common/FinanceItemGuard) and stays removed.
  *
  * @implements Restorer<Entity>
  */

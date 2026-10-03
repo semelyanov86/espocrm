@@ -356,6 +356,17 @@ class ImportTest(unittest.TestCase):
         self.assertEqual(int(sql(f"SELECT COUNT(*) FROM act_item WHERE act_id='{aid}'")[0][0]), 1)
         self.assertEqual(counts()[2], before[2])
 
+    def test_lines_removed_by_the_import_are_not_restored(self):
+        """A line the importer removes while its act stays is marked like one removed by an edit (not restored with the
+        act); the lines of a removed act are not marked and come back with it."""
+        aid, _ = imported_act("84", ("150.00000000",) * 3, [
+            {"unitPrice": "100", "amount": "100", "margin": "100"}, {"unitPrice": "50", "amount": "50", "margin": "50"}])
+        kept, removed = (r[0] for r in sql(f"SELECT id FROM act_item WHERE act_id='{aid}' ORDER BY `order`"))
+        self.assertTrue(import_save("ActItem", {}, rid=removed, op="remove")["ok"])
+        ok(self, c("dir").delete(f"Act/{aid}"))
+        self.assertEqual(sql(f"SELECT id, deleted, removed_by_edit FROM act_item WHERE act_id='{aid}' ORDER BY `order`"),
+                         [[kept, "1", "0"], [removed, "1", "1"]])
+
     def test_imported_invoices_point_to_their_act(self):
         aid, _ = imported_act("81", ("200.00000000",) * 3, [{"quantity": "2", "unitPrice": "100", "amount": "200",
                                                              "margin": "200"}])
