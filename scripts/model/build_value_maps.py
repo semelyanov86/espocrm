@@ -188,6 +188,9 @@ LABEL_FIXES = {
     ("ProjectTask", "status", "In Progress"): "В работе",
     ("ProjectTask", "status", "Completed"): "Завершена",
     ("ProjectTask", "status", "Deferred"): "Отложена",
+    # SalesPlatform «Доставка» for Delivered (owner's decision 2026-10-03, Q-39).
+    ("Quote", "status", "Delivered"): "Доставлено",
+    ("SalesOrder", "status", "Delivered"): "Доставлено",
     ("ProjectTask", "status", "Canceled"): "Отменена",
     ("Product", "unit", "Lb"): "фунт",                                   # «кг»
     ("Product", "unit", "Sq Ft"): "кв. фут",                             # «м2»

@@ -79,7 +79,7 @@
         "status": {
             "Created": "Создано",
             "Approved": "Одобрено",
-            "Delivered": "Доставка",
+            "Delivered": "Доставлено",
             "Cancelled": "Отменено"
         },
         "settlementState": {

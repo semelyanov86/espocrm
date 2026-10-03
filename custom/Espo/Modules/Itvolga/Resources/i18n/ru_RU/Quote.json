@@ -76,7 +76,7 @@
         },
         "status": {
             "Created": "Создано",
-            "Delivered": "Доставка",
+            "Delivered": "Доставлено",
             "Accepted": "Принято",
             "Reviewed": "Просмотрено",
             "Rejected": "Отклонено"
