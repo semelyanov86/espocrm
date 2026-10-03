@@ -104,6 +104,12 @@
             "view": "itvolga:views/fields/money",
             "readOnly": true
         },
+        "removedByEdit": {
+            "type": "bool",
+            "readOnly": true,
+            "utility": true,
+            "customizationDisabled": true
+        },
         "createdAt": {
             "type": "datetime",
             "readOnly": true

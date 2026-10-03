@@ -1,4 +1,5 @@
 {
     "actionsDisabled": true,
-    "massActionsDisabled": true
+    "massActionsDisabled": true,
+    "deletedRestorerClassName": "Espo\\Modules\\Itvolga\\Classes\\Record\\Finance\\ItemRestorer"
 }

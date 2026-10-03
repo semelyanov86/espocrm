@@ -15,6 +15,7 @@
         "amount": "Сумма",
         "purchaseCost": "Себестоимость",
         "margin": "Маржа",
+        "removedByEdit": "Удалена правкой документа",
         "createdAt": "Создано",
         "modifiedAt": "Изменено",
         "createdBy": "Создал",

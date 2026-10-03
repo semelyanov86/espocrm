@@ -453,6 +453,23 @@ class ConversionTest(unittest.TestCase):
         second = from_invoice(inv)
         self.assertEqual(act_of(inv["id"]), second["id"], "a removed act does not block a new one")
 
+    def test_restore_brings_back_cascade_lines_only(self):
+        """The core restores a document's removed items by time (modified not before the document): a line removed by
+        an edit in the same second as the document's removal stays removed (external review of stage 04.5)."""
+        for entity, table, parent, create in (("Act", "act_item", "act_id", act), ("Invoice", "invoice_item", "invoice_id",
+                                                                                    invoice)):
+            did = create([line(), line(unitPrice="50")])["id"]
+            lines = get(entity, did, "dir")["itemList"]
+            ok(self, c("dir").put(f"{entity}/{did}", {"itemList": [lines[0]]}))
+            ok(self, c("dir").delete(f"{entity}/{did}"))
+            # The same second as the removal, deterministically.
+            sql(f"UPDATE {table} SET modified_at=(SELECT modified_at FROM {table.rsplit('_', 1)[0]} WHERE id='{did}') "
+                f"WHERE id='{lines[1]['id']}'")
+            ok(self, S["admin"].post(f"{entity}/action/restoreDeleted", {"id": did}))
+            self.assertEqual(sql(f"SELECT id, deleted, removed_by_edit FROM {table} WHERE {parent}='{did}' ORDER BY `order`"),
+                             [[lines[0]["id"], "0", "0"], [lines[1]["id"], "1", "1"]], entity)
+            self.assertEqual(totals(get(entity, did))[2], "100.00000000", entity)
+
     def test_source_values_are_independent(self):
         inv = invoice([line(quantity="2", unitPrice="500")])
         aid = from_invoice(inv)["id"]
@@ -612,8 +629,11 @@ class AccessTest(unittest.TestCase):
     def test_item_access_follows_the_act(self):
         mine = act([line(), line()], client=c("own"))
         mine_items = {i["id"] for i in must(c("own").get(f"Act/{mine['id']}"))["itemList"]}
+        own_items = {r[0] for r in sql("SELECT i.id FROM act_item i JOIN act a ON a.id=i.act_id WHERE i.deleted=0 AND "
+                                       f"a.deleted=0 AND a.assigned_user_id='{S['users']['own']}'")}
         listed = {i["id"] for i in ok(self, c("own").get("ActItem", maxSize=200))["list"]}
-        self.assertEqual(listed, mine_items, "only the items of the user's own acts")
+        self.assertTrue(mine_items <= listed)
+        self.assertEqual(listed, own_items, "only the items of the user's own acts")
         self.assertEqual(c("own").get(f"ActItem/{self.item}")[0], 403)
 
     def test_items_are_restored_only_with_their_document(self):
@@ -630,6 +650,19 @@ class AccessTest(unittest.TestCase):
             table = "act_item" if scope == "ActItem" else "invoice_item"
             self.assertEqual(sql(f"SELECT deleted FROM {table} WHERE id='{rid}'"), [["1"]], scope)
             self.assertEqual(totals(get(*parent))[2], "100.00000000", "the totals keep the document's lines")
+
+    def test_act_side_links_need_the_invoice_edit_right(self):
+        """Relating or unrelating an invoice from the act's side writes the invoice's key: edit access to the invoice is
+        required as for its «Акт» field."""
+        mine = act(client=c("own"))
+        theirs = invoice()
+        refused = c("own").request("POST", f"Act/{mine['id']}/invoices", {"id": theirs["id"]})
+        self.assertEqual(refused[0], 403)
+        self.assertIsNone(act_of(theirs["id"]))
+        ok(self, c("dir").put(f"Invoice/{theirs['id']}", {"actId": mine["id"]}))
+        refused = c("own").request("DELETE", f"Act/{mine['id']}/invoices", {"id": theirs["id"]})
+        self.assertEqual(refused[0], 403)
+        self.assertEqual(act_of(theirs["id"]), mine["id"])
 
     def test_control_fields_are_read_only(self):
         aid, _ = imported_act("83", ("100.01000000",) * 3, [{"quantity": "3", "unitPrice": "33.335",
