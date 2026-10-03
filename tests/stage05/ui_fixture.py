@@ -100,14 +100,15 @@ def _create():
 
     legal = must(admin.get("LegalEntity", maxSize=5))["list"][0]["id"]
     original = must(admin.get(f"LegalEntity/{legal}"))
-    state["legalEntity"] = {"id": legal, "original": {f: original.get(f) for f in LEGAL_ENTITY_FIELDS},
-                            "logoAdded": not original.get("logoId")}
+    state["legalEntity"] = {"id": legal, "original": {f: original.get(f) for f in LEGAL_ENTITY_FIELDS}}
     save_state(state)
     logo = {}
-    if state["legalEntity"]["logoAdded"]:
+    if not original.get("logoId"):
         logo = {"logoId": must(admin.post("Attachment", {
             "name": "synth-logo.png", "type": "image/png", "role": "Attachment", "relatedType": "LegalEntity",
             "field": "logo", "file": logo_png()}))["id"]}
+        state["legalEntity"]["logoId"] = logo["logoId"]
+        save_state(state)
     must(admin.put(f"LegalEntity/{legal}", {**SELLER, "phoneNumber": phone(), **logo}))
 
     def rec(entity, data):
@@ -192,8 +193,9 @@ def delete():
     for entity, rid in reversed(state["records"]):
         admin.delete(f"{entity}/{rid}")
     if legal := state.get("legalEntity"):
-        # Clearing the logo the fixture added removes its attachment too.
-        logo = {"logoId": None} if legal.get("logoAdded") else {}
+        # Only the logo the fixture added is cleared (with its file), and only if it is still the current one.
+        current = (must(admin.get(f"LegalEntity/{legal['id']}")) or {}).get("logoId")
+        logo = {"logoId": None} if legal.get("logoId") and current == legal["logoId"] else {}
         must(admin.put(f"LegalEntity/{legal['id']}", {**legal["original"], **logo}))
     for rid in state["users"].values():
         admin.delete(f"User/{rid}")

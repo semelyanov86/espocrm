@@ -520,12 +520,16 @@ class ReviewFixesTest(PdfCase):
 
     def test_a_long_word_wraps_inside_its_cell(self):
         url = "https://example.com/" + "verylongpath" * 10
-        for entity, discount in (("Invoice", {}), ("Act", {"discountAmount": "1"})):
+        # The column after the name: the URL must end before it starts, and nothing may pass the right margin.
+        for entity, discount, next_header in (("Invoice", {}, "Ед."), ("Act", {"discountAmount": "1"}, "Количество")):
             record = document(entity, (("hours", "1", "10", {"description": url}), ("monthly", "1", "5", discount)))
             body, _ = self.pdf(entity, record["id"])
-            right = max(float(m.group(1)) for m in re.finditer(r'xMax="([\d.]+)"',
-                                                                 poppler("pdftotext", body, "-bbox", "-f", "1", "-l", "1")))
-            self.assertLessEqual(right, 595.28 - 10 * 72 / 25.4 + 1, f"{entity}: text beyond the right margin")
+            boxes = [(float(a), float(b), w) for a, b, w in re.findall(
+                r'<word xMin="([\d.]+)" yMin="[\d.]+" xMax="([\d.]+)"[^>]*>([^<]*)<',
+                poppler("pdftotext", body, "-bbox", "-f", "1", "-l", "1"))]
+            column = min(x0 for x0, _, w in boxes if w == next_header)
+            self.assertLess(max(x1 for _, x1, w in boxes if "verylongpath" in w), column, f"{entity}: into the next cell")
+            self.assertLessEqual(max(x1 for _, x1, _ in boxes), 595.28 - 10 * 72 / 25.4 + 1, f"{entity}: past the margin")
             self.assertIn(url, re.sub(r"\s+", "", text(body)), entity)
 
     def test_product_unit_follows_product_access(self):
