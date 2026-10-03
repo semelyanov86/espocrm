@@ -13,6 +13,7 @@ Stage 04.2: rows of Quote, SalesOrder, their items and LegalEntity (requisites p
 `реализовано (этап 04.2)`; generic line rows stay `контракт` until Invoice and Act items exist.
 Stage 04.3: rows of Invoice and its items get `реализовано (этап 04.3)`; links to Act and payments stay `контракт`
 (model_check.DEFERRED) and generic line rows stay partial until ActItem exists.
+Stage 04.5: rows of Act and its items, Invoice.act and the generic line rows get `реализовано (этап 04.5)`.
 """
 import csv
 import re
@@ -270,7 +271,7 @@ REL_TARGETS = {
     ("Invoice", "sp_act_id"): "Invoice.act (belongsTo; обратная Act.invoices hasMany без ограничения 1:1)",
     ("Invoice", "potential_id"): "Invoice.opportunity",
     ("Invoice", "productid"): "InvoiceItem.product",
-    ("Act", "salesorderid"): "Act.salesOrder",
+    ("Act", "salesorderid"): "— (у актов пусто: поле не создаётся, finance-contract.md §11 Act)",
     ("Act", "accountid"): "Act.account",
     ("Act", "contactid"): "Act.contact",
     ("Act", "productid"): "ActItem.product",

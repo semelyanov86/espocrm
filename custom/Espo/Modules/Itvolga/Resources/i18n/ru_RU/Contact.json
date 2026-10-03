@@ -36,6 +36,7 @@
         "cQuotes": "Предложения",
         "cSalesOrders": "Заказы",
         "cInvoices": "Счета",
+        "cActs": "Акты",
         "cPayments": "Платежи"
     },
     "tooltips": {

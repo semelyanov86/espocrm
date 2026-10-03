@@ -6,6 +6,7 @@ namespace Espo\Modules\Itvolga\Tools\FinanceDocument;
 
 use Espo\Core\Acl;
 use Espo\Core\Acl\Table;
+use Espo\Core\Exceptions\Conflict;
 use Espo\Core\Exceptions\Forbidden;
 use Espo\Core\Exceptions\NotFound;
 use Espo\Core\Utils\FieldUtil;
@@ -18,7 +19,9 @@ use stdClass;
  * 2026-10-01): the header fields of the registry's fieldList, the line inputs and the link to the source. Nothing is
  * created and no number is taken: the user reviews the form (historical tax rates stay visible to be set to 0, D-21)
  * and saves it as a new document, calculated by the core. «Добавить платёж» on an invoice or a sales order goes the
- * same way (PaymentPrefill, stage 04.4).
+ * same way (PaymentPrefill, stage 04.4). «Создать акт» on an invoice is a reverse conversion: the key stays on the
+ * source, the form carries it in the link stub `<link>Ids`, saving it needs edit access to the source, and a source
+ * already linked to a live act gets no form (ConversionSourceGuard, stage 04.5).
  */
 class DocumentConverter
 {
@@ -32,9 +35,11 @@ class DocumentConverter
         private DocumentTypes $types,
         private DocumentProcessor $processor,
         private PaymentPrefill $paymentPrefill,
+        private ConversionSourceGuard $sources,
     ) {}
 
     /**
+     * @throws Conflict a reverse conversion from a source already linked to a live target
      * @throws Forbidden
      * @throws NotFound
      */
@@ -47,12 +52,19 @@ class DocumentConverter
         $conversion = $this->types->conversion($from, $to) ?? throw new NotFound();
         $sourceType = $this->types->find($from) ?? throw new NotFound();
         $source = $this->entityManager->getEntityById($from, $id) ?? throw new NotFound();
+        $link = $conversion['link'];
+        $sourceLink = $this->sources->sourceLink($to, $link);
 
         if (
             !$this->acl->checkEntity($source, Table::ACTION_READ) ||
-            !$this->acl->checkScope($to, Table::ACTION_CREATE)
+            !$this->acl->checkScope($to, Table::ACTION_CREATE) ||
+            ($sourceLink && !$this->acl->checkEntity($source, Table::ACTION_EDIT))
         ) {
             throw new Forbidden();
+        }
+
+        if ($sourceLink) {
+            $this->sources->assertFree($source, $to, $sourceLink);
         }
 
         $forbidden = $this->acl->getScopeForbiddenAttributeList($to, Table::ACTION_EDIT);
@@ -66,8 +78,14 @@ class DocumentConverter
             }
         }
 
-        $attributes->{$conversion['link'] . 'Id'} = $source->getId();
-        $attributes->{$conversion['link'] . 'Name'} = $source->get('name');
+        if ($sourceLink) {
+            $attributes->{$link . 'Ids'} = [$source->getId()];
+            $attributes->{$link . 'Names'} = (object) [$source->getId() => $source->get('name')];
+        } else {
+            $attributes->{$link . 'Id'} = $source->getId();
+            $attributes->{$link . 'Name'} = $source->get('name');
+        }
+
         $attributes->{DocumentProcessor::ITEM_LIST} = array_map(
             static function (stdClass $line): stdClass {
                 foreach (self::SKIPPED_LINE_ATTRIBUTES as $attribute) {

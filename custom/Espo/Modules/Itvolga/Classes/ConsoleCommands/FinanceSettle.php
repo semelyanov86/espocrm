@@ -10,6 +10,7 @@ use Espo\Modules\Itvolga\Tools\Finance\Decimal;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\DocumentTypes;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\NumberAllocator;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\NumberSeries;
+use Espo\Modules\Itvolga\Tools\FinanceDocument\RowLock;
 use Espo\Modules\Itvolga\Tools\FinancePayment\SettlementUpdater;
 use Espo\ORM\EntityManager;
 
@@ -31,6 +32,7 @@ class FinanceSettle implements Command
         private DocumentTypes $types,
         private NumberAllocator $numberAllocator,
         private SettlementUpdater $settlement,
+        private RowLock $rowLock,
     ) {}
 
     public function run(Params $params, IO $io): void
@@ -86,11 +88,7 @@ class FinanceSettle implements Command
     ): string {
         $this->numberAllocator->lock($series);
 
-        $document = $this->entityManager
-            ->getRDBRepository($entityType)
-            ->where(['id' => $id])
-            ->forUpdate()
-            ->findOne();
+        $document = $this->rowLock->one($entityType, $id);
 
         if (!$document) {
             return 'gone';

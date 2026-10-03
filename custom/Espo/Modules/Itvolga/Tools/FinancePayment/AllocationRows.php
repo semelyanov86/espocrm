@@ -9,6 +9,7 @@ use Espo\Modules\Itvolga\Tools\Finance\Decimal;
 use Espo\Modules\Itvolga\Tools\Finance\Payment\AllocationInput;
 use Espo\Modules\Itvolga\Tools\Finance\Scale;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\PaymentType;
+use Espo\Modules\Itvolga\Tools\FinanceDocument\RowLock;
 use Espo\ORM\Entity;
 use Espo\ORM\EntityManager;
 use Espo\ORM\Query\SelectBuilder;
@@ -26,7 +27,7 @@ class AllocationRows
     public const REMOVED_WITH = 'removedWith';
     private const OWN_COLUMNS = ['id', 'order', 'amount', 'source'];
 
-    public function __construct(private EntityManager $entityManager) {}
+    public function __construct(private EntityManager $entityManager, private RowLock $rowLock) {}
 
     /**
      * Removes a row together with its payment or document, marked with that owner. The core restores the
@@ -100,11 +101,7 @@ class AllocationRows
         foreach ($keys as $key) {
             [$entityType, $id] = explode(':', $key, 2);
 
-            $document = $this->entityManager
-                ->getRDBRepository($entityType)
-                ->where(['id' => $id])
-                ->forUpdate()
-                ->findOne();
+            $document = $this->rowLock->one($entityType, $id);
 
             if ($document) {
                 $documents[$key] = $document;

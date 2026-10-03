@@ -10,6 +10,7 @@ use Espo\Core\ORM\Repository\Option\SaveOption;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\DocumentProcessor;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\DocumentType;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\DocumentTypes;
+use Espo\Modules\Itvolga\Tools\FinanceDocument\RowLock;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\SourceMarks;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\SourceVerification;
 use Espo\ORM\EntityManager;
@@ -30,6 +31,7 @@ class FinanceVerify implements Command
         private DocumentTypes $types,
         private DocumentProcessor $processor,
         private SourceVerification $verification,
+        private RowLock $rowLock,
     ) {}
 
     public function run(Params $params, IO $io): void
@@ -74,11 +76,7 @@ class FinanceVerify implements Command
      */
     private function verifyOne(DocumentType $type, string $id, bool $dryRun): string
     {
-        $document = $this->entityManager
-            ->getRDBRepository($type->entityType)
-            ->where(['id' => $id])
-            ->forUpdate()
-            ->findOne();
+        $document = $this->rowLock->one($type->entityType, $id);
 
         if (!$document) {
             return 'removed meanwhile (skipped)';

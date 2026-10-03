@@ -34,6 +34,8 @@ use Espo\ORM\EntityManager;
  * written directly; the legal entity is read-only for the director (requisites are kept by the administrator).
  * Payments (SPPayments: Public in Vtiger, hidden in every profile but the director's, stage 04.4) likewise: the
  * director gets them; their allocations are read with the payment's level and written only through the payment.
+ * Acts (Public in Vtiger, visible in the same profiles as invoices, stage 04.5) likewise, items read with the act.
+ * A tab added by a later stage is inserted after its predecessor in TABS, where a fresh install has it.
  */
 class SetupAcl implements Command
 {
@@ -74,12 +76,12 @@ class SetupAcl implements Command
         'lockPermission' => 'no',
     ];
 
-    public const TABS = ['Vendor', 'Product', 'Quote', 'SalesOrder', 'Invoice', 'Payment', 'Project', 'ProjectTask',
-        'VtigerArchive', 'ContactAccess'];
+    public const TABS = ['Vendor', 'Product', 'Quote', 'SalesOrder', 'Invoice', 'Act', 'Payment', 'Project',
+        'ProjectTask', 'VtigerArchive', 'ContactAccess'];
 
-    /** Finance scopes (stages 04.2–04.4): closed to every role that does not list them. */
-    private const FINANCE = ['Quote', 'SalesOrder', 'Invoice', 'QuoteItem', 'SalesOrderItem', 'InvoiceItem',
-        'LegalEntity', 'Payment', 'PaymentAllocation'];
+    /** Finance scopes (stages 04.2–04.5): closed to every role that does not list them. */
+    private const FINANCE = ['Quote', 'SalesOrder', 'Invoice', 'Act', 'QuoteItem', 'SalesOrderItem', 'InvoiceItem',
+        'ActItem', 'LegalEntity', 'Payment', 'PaymentAllocation'];
 
     public function __construct(
         private EntityManager $entityManager,
@@ -102,8 +104,9 @@ class SetupAcl implements Command
             'Project' => self::READ_ALL, 'ProjectTask' => self::READ_ALL, 'VtigerArchive' => ['read' => 'all'],
             'DocumentFolder' => self::FULL, 'KnowledgeBaseCategory' => self::FULL,
             'GlobalStream' => true,
-            'Quote' => self::FULL, 'SalesOrder' => self::FULL, 'Invoice' => self::FULL,
+            'Quote' => self::FULL, 'SalesOrder' => self::FULL, 'Invoice' => self::FULL, 'Act' => self::FULL,
             'QuoteItem' => ['read' => 'all'], 'SalesOrderItem' => ['read' => 'all'], 'InvoiceItem' => ['read' => 'all'],
+            'ActItem' => ['read' => 'all'],
             'LegalEntity' => ['read' => 'all', 'edit' => 'no'],
             'Payment' => self::FULL, 'PaymentAllocation' => ['read' => 'all'],
         ];
@@ -218,12 +221,41 @@ class SetupAcl implements Command
             $changes[] = 'tabs + ' . implode(', ', $missingTabs);
 
             if (!$dryRun) {
-                $this->configWriter->set('tabList', array_merge($tabList, $missingTabs));
+                $this->configWriter->set('tabList', self::withMissingTabs($tabList, $missingTabs));
                 $this->configWriter->save();
             }
         }
 
         $io->writeLine(($dryRun ? '[dry-run] ' : '') . ($changes ? implode("\n", $changes) : 'no changes'));
+    }
+
+    /**
+     * The tab list with the missing tabs of TABS inserted after their nearest predecessor in TABS that is present (at
+     * the end when none is): a tab added by a later stage lands where a fresh install puts it.
+     *
+     * @param list<mixed> $tabList
+     * @param list<string> $missingTabs in the order of TABS
+     * @return list<mixed>
+     */
+    private static function withMissingTabs(array $tabList, array $missingTabs): array
+    {
+        foreach ($missingTabs as $tab) {
+            $position = count($tabList);
+
+            for ($i = (int) array_search($tab, self::TABS, true) - 1; $i >= 0; $i--) {
+                $index = array_search(self::TABS[$i], $tabList, true);
+
+                if ($index !== false) {
+                    $position = (int) $index + 1;
+
+                    break;
+                }
+            }
+
+            array_splice($tabList, $position, 0, [$tab]);
+        }
+
+        return $tabList;
     }
 
     /**

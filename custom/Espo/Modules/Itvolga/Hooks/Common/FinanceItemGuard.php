@@ -10,6 +10,7 @@ use Espo\Core\Hook\Hook\BeforeSave;
 use Espo\Core\ORM\Repository\Option\SaveOption;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\DocumentProcessor;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\DocumentTypes;
+use Espo\Modules\Itvolga\Tools\FinanceDocument\RowLock;
 use Espo\ORM\Entity;
 use Espo\ORM\EntityManager;
 use Espo\ORM\Repository\Option\RemoveOptions;
@@ -33,6 +34,7 @@ class FinanceItemGuard implements BeforeSave, BeforeRemove
     public function __construct(
         private DocumentTypes $types,
         private EntityManager $entityManager,
+        private RowLock $rowLock,
     ) {}
 
     public function beforeSave(Entity $entity, SaveOptions $options): void
@@ -62,11 +64,7 @@ class FinanceItemGuard implements BeforeSave, BeforeRemove
             return;
         }
 
-        $current = $this->entityManager
-            ->getRDBRepository($entity->getEntityType())
-            ->where(['id' => $entity->getId()])
-            ->forUpdate()
-            ->findOne();
+        $current = $this->rowLock->one($entity->getEntityType(), $entity->getId());
 
         // Locking reads (fresh, not the snapshot): the payment, then the document — the order of the ledger holders.
         if ($current && $this->allAlive($this->owners($current) ?? [], true)) {
@@ -82,7 +80,7 @@ class FinanceItemGuard implements BeforeSave, BeforeRemove
     {
         foreach ($owners as [$entityType, $id]) {
             $found = $id && ($lock
-                ? $this->entityManager->getRDBRepository($entityType)->where(['id' => $id])->forUpdate()->findOne()
+                ? $this->rowLock->one($entityType, $id)
                 : $this->entityManager->getEntityById($entityType, $id));
 
             if (!$found) {

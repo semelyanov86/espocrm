@@ -1,0 +1,19 @@
+{
+    "controller": "controllers/record",
+    "iconClass": "fas fa-file-signature",
+    "boolFilterList": [
+        "onlyMy"
+    ],
+    "mergeDisabled": true,
+    "relationshipPanels": {
+        "invoices": {
+            "createDisabled": true,
+            "selectDisabled": true,
+            "unlinkDisabled": true,
+            "rowActionsView": "views/record/row-actions/relationship-view-only"
+        },
+        "documents": {
+            "createDisabled": false
+        }
+    }
+}

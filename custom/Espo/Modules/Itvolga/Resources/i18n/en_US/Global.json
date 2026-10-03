@@ -9,9 +9,11 @@
         "Quote": "Quote",
         "SalesOrder": "Sales Order",
         "Invoice": "Invoice",
+        "Act": "Act",
         "QuoteItem": "Quote Item",
         "SalesOrderItem": "Sales Order Item",
         "InvoiceItem": "Invoice Item",
+        "ActItem": "Act Item",
         "LegalEntity": "Legal Entity",
         "Payment": "Payment",
         "PaymentAllocation": "Payment Allocation"
@@ -26,9 +28,11 @@
         "Quote": "Quotes",
         "SalesOrder": "Sales Orders",
         "Invoice": "Invoices",
+        "Act": "Acts",
         "QuoteItem": "Quote Items",
         "SalesOrderItem": "Sales Order Items",
         "InvoiceItem": "Invoice Items",
+        "ActItem": "Act Items",
         "LegalEntity": "Legal Entities",
         "Payment": "Payments",
         "PaymentAllocation": "Payment Allocations"
@@ -44,6 +48,9 @@
         "financeRejected": "{place}: value not accepted.",
         "financeVat": "{place}: documents are issued without VAT ({reference}) — set the rate to 0.",
         "financeFloat": "{place}: pass numbers as strings (floats are not accepted).",
-        "financeNoLines": "A document needs at least one line."
+        "financeNoLines": "A document needs at least one line.",
+        "financeConversionLinked": "The {source} is already linked to another {target} — open it instead; a new one is not created.",
+        "financeConversionSourceMissing": "The source {source} was removed — reload the page.",
+        "financeRestoreItemDenied": "A line is restored only together with its document: add the removed line to the document's table again."
     }
 }

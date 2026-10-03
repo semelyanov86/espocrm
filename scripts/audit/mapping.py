@@ -404,7 +404,8 @@ F["Invoice"] = dict(_INV_COMMON, **{
     "invoicestatus": ("status", "enum: словарь metadata/vtigerValueMap/Invoice.json (D-38); пусто остаётся пустым, новые — Created",
                       "count+distribution"),
     "customerno": ("vtigerData.customerno", "string", "count"),
-    "sp_act_id": ("act", "fk Act (0..1; ни один акт не связан с >1 счётом)", "fk"),
+    "sp_act_id": ("act", "fk Act (belongsTo; у акта — список счетов Act.invoices без ограничения 1:1: в источнике "
+                         "фактически не больше одного счёта на акт)", "fk"),
     "received": ("vtigerData.received", "decimal: во всех записях 0 — оплата считается по Payment", "count+sum"),
     "balance": ("balanceSource", "decimal: исходное значение как контроль (не поддерживается Vtiger)", "count+sum"),
     "vtiger_purchaseorder": ("vtigerData.purchaseorder", "string", "count"),
@@ -435,9 +436,12 @@ F["SalesOrder"] = dict(_INV_COMMON, **{
     "vendor_id": ("vtigerData.vendor_id", "fk", "fk"),
 })
 F["Act"] = dict(_INV_COMMON, **{
-    "act_no": ("number", "string: цифры; 2 дубля номера и 1 пустой (см. open-questions)", "count+hash"),
-    "actdate": ("dateAct", "date", "count+hash"),
-    "sp_actstatus": ("status", "enum Created/Sent/Received/Done + пусто", "count+distribution"),
+    "act_no": ("number", "string как есть: цифры, повторы и пустой номер (D-17); новые — счётчик без префикса",
+               "count+hash"),
+    "actdate": ("dateAct", "date (обязательна для формы и API, по умолчанию сегодня; импорт — как есть)", "count+hash"),
+    "sp_actstatus": ("status", "enum: словарь metadata/vtigerValueMap/Act.json (D-38); пусто остаётся пустым, новые — "
+                     "Created", "count+distribution"),
+    "salesorder_id": (None, "у актов пусто — поле не создаётся (finance-contract.md §11, Act)", "fk"),
 })
 F["Consignment"] = {}
 

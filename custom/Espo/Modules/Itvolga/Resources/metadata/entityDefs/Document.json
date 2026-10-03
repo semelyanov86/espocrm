@@ -87,6 +87,12 @@
             "foreign": "documents",
             "relationName": "invoiceDocument"
         },
+        "cActs": {
+            "type": "hasMany",
+            "entity": "Act",
+            "foreign": "documents",
+            "relationName": "actDocument"
+        },
         "cPayments": {
             "type": "hasMany",
             "entity": "Payment",

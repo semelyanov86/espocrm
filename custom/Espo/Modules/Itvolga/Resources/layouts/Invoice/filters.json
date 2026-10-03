@@ -6,6 +6,7 @@
     "opportunity",
     "salesOrder",
     "quote",
+    "act",
     "status",
     "dateInvoiced",
     "dateDue",

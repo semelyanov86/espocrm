@@ -1,4 +1,4 @@
--- Stage 03 and 04.2–04.4: configured picklists (all values, order, presence) of the modules that get EspoCRM enums,
+-- Stage 03 and 04.2–04.5: configured picklists (all values, order, presence) of the modules that get EspoCRM enums,
 -- plus sharing rules and salutation usage. Picklist values are vocabulary, not row data; still, Vtiger adds
 -- imported values to picklist tables, so salutations print only standard values and long values print as length.
 SELECT 'picklist' k, 'industry' pl, IF(CHAR_LENGTH(industry)>60, CONCAT('(long value ', CHAR_LENGTH(industry), ' chars)'), industry) value, IFNULL(sortorderid,0) sortorderid, presence FROM vtiger_industry
@@ -40,6 +40,8 @@ UNION ALL SELECT 'picklist', 'invoicestatus', IF(CHAR_LENGTH(invoicestatus)>60, 
 UNION ALL SELECT 'picklist', 'pay_type', IF(CHAR_LENGTH(pay_type)>60, CONCAT('(long value ', CHAR_LENGTH(pay_type), ' chars)'), pay_type), IFNULL(sortorderid,0), presence FROM vtiger_pay_type
 UNION ALL SELECT 'picklist', 'type_payment', IF(CHAR_LENGTH(type_payment)>60, CONCAT('(long value ', CHAR_LENGTH(type_payment), ' chars)'), type_payment), IFNULL(sortorderid,0), presence FROM vtiger_type_payment
 UNION ALL SELECT 'picklist', 'spstatus', IF(CHAR_LENGTH(spstatus)>60, CONCAT('(long value ', CHAR_LENGTH(spstatus), ' chars)'), spstatus), IFNULL(sortorderid,0), presence FROM vtiger_spstatus
+-- Stage 04.5: statuses of acts.
+UNION ALL SELECT 'picklist', 'sp_actstatus', IF(CHAR_LENGTH(sp_actstatus)>60, CONCAT('(long value ', CHAR_LENGTH(sp_actstatus), ' chars)'), sp_actstatus), IFNULL(sortorderid,0), presence FROM vtiger_sp_actstatus
 ORDER BY 2, 4, 3;
 -- Salutation (uitype 55 is not covered by 14_picklist_values): distribution among live records. Only standard
 -- salutations are printed; anything else is counted as '(non-standard value)' so free text never leaves the host.

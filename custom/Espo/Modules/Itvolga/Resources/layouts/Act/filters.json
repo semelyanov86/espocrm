@@ -1,0 +1,14 @@
+[
+    "number",
+    "name",
+    "account",
+    "contact",
+    "status",
+    "dateAct",
+    "grandTotal",
+    "assignedUser",
+    "teams",
+    "createdAt",
+    "sourceFormula",
+    "totalsCheck"
+]

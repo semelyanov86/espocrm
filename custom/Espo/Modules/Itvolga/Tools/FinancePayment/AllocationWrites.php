@@ -16,6 +16,7 @@ use Espo\Modules\Itvolga\Tools\Finance\Payment\Direction;
 use Espo\Modules\Itvolga\Tools\Finance\Scale;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\NumberAllocator;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\PaymentType;
+use Espo\Modules\Itvolga\Tools\FinanceDocument\RowLock;
 use Espo\ORM\Entity;
 use Espo\ORM\EntityManager;
 
@@ -35,6 +36,7 @@ class AllocationWrites
         private AllocationRows $rows,
         private SettlementUpdater $settlement,
         private AllocationHistory $history,
+        private RowLock $rowLock,
     ) {}
 
     /**
@@ -55,11 +57,8 @@ class AllocationWrites
             throw new Error("Numbering of {$type->entityType} is not configured: run itvolga-setup-finance.");
         }
 
-        $payment = $this->entityManager
-            ->getRDBRepository($type->entityType)
-            ->where(['id' => $row->get($type->parentLink . 'Id')])
-            ->forUpdate()
-            ->findOne() ?? throw new Error("$name: the payment does not exist.");
+        $payment = $this->rowLock->one($type->entityType, (string) $row->get($type->parentLink . 'Id'))
+            ?? throw new Error("$name: the payment does not exist.");
 
         if (Direction::tryFrom((string) $payment->get('direction')) !== Direction::Incoming) {
             throw new Error("$name: an outgoing payment is not allocated (D-49, Q-36).");
@@ -170,11 +169,7 @@ class AllocationWrites
         $this->numberAllocator->lock($type->series());
 
         // The current target of the row, not the one of the copy loaded before the lock.
-        $current = $this->entityManager
-            ->getRDBRepository($type->allocationEntityType)
-            ->where(['id' => $row->getId()])
-            ->forUpdate()
-            ->findOne();
+        $current = $this->rowLock->one($type->allocationEntityType, $row->getId());
 
         return $current ? $this->rows->lockDocuments([$this->rows->toInput($current, $type)->targetKey()]) : [];
     }
@@ -192,20 +187,15 @@ class AllocationWrites
         }
 
         $link = $type->linkOf($document->getEntityType());
-        $rows = $this->entityManager
-            ->getRDBRepository($type->allocationEntityType)
+        $rows = $this->rowLock
+            ->query($type->allocationEntityType)
             ->where([$link . 'Id' => $document->getId()])
             ->order($type->parentLink . 'Id')
-            ->forUpdate()
             ->find();
 
         foreach ($rows as $row) {
             // A locking read: a payment committed while this removal waited is not in the transaction's snapshot.
-            $payment = $this->entityManager
-                ->getRDBRepository($type->entityType)
-                ->where(['id' => $row->get($type->parentLink . 'Id')])
-                ->forUpdate()
-                ->findOne();
+            $payment = $this->rowLock->one($type->entityType, (string) $row->get($type->parentLink . 'Id'));
             $before = $payment ? $this->rows->find($payment->getId(), $type, true) : [];
 
             $this->rows->removeWithOwner($row, $document);

@@ -55,7 +55,10 @@
     "cInvoices": {
         "index": 14
     },
-    "cPayments": {
+    "cActs": {
         "index": 15
+    },
+    "cPayments": {
+        "index": 16
     }
 }

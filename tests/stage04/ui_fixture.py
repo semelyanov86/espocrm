@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synthetic fixture for the stage-04.2–04.4 UI scenarios (checked in the browser with Playwriter, evidence.md).
+"""Synthetic fixture for the stage-04.2–04.5 UI scenarios (checked in the browser with Playwriter, evidence.md).
 
   python3 tests/stage04/ui_fixture.py create   → users/records; passwords → <private>/ui-users.env (600)
   python3 tests/stage04/ui_fixture.py delete   → removes everything created by `create`
@@ -9,9 +9,11 @@ Users: synth-ui-director (Директор), synth-ui-fdeputy (Заместит�
 "imported" quote, a new invoice and three "imported" invoices (source values written by SQL as the importer would;
 classified by itvolga-finance-verify): «По умолчанию» with historical 18 % lines and no due date, a rounded and a
 mismatching one; payments (stage 04.4): a partial payment of the invoice, a payment of the sales order and of the
-rounded invoice with a rest, a planned payment and an outgoing payment to a vendor. Documents created in the browser
-from the fixture quote and sales order, and payments allocated in the browser to the fixture documents or paid by the
-fixture account or vendor, are removed with them.
+rounded invoice with a rest, a planned payment and an outgoing payment to a vendor; acts (stage 04.5): an "imported"
+act with a mismatching total that two imported invoices point to (the new invoice has no act: «Создать акт» in the
+browser). Documents created in the browser from the fixture quote and sales order, acts created from the fixture
+invoices or account, and payments allocated in the browser to the fixture documents or paid by the fixture account or
+vendor, are removed with them.
 """
 import json
 import os
@@ -22,7 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "stage03"))
 from espo import Client, admin_credentials, espo_console, sql  # noqa: E402
 
-PRIVATE = Path(os.environ.get("UI_FIXTURE_DIR", "/data/itvolga/espo-private/stand/evidence/stage04.4"))
+PRIVATE = Path(os.environ.get("UI_FIXTURE_DIR", "/data/itvolga/espo-private/stand/evidence/stage04.5"))
 STATE = PRIVATE / "ui-fixture.json"
 USERS_ENV = PRIVATE / "ui-users.env"
 
@@ -128,14 +130,30 @@ def _create():
         "vendorPayment": rec("Payment", {**payment, "amount": "1200", "direction": "outgoing", "payerType": "Vendor",
                                          "payerId": vendor, "purpose": "SYNTH-UI оплата поставщику"}),
     }
+    # An "imported" act (digits number, status Received, a total that mismatches its line) of two imported invoices.
+    act = rec("Act", {"name": "SYNTH-UI Импортированный акт", "accountId": acc, "dateAct": "2019-05-20",
+                      "assignedUserId": director, "itemList": [{"productId": svc, "quantity": "1", "unitPrice": "5000"}]})
+    vt = 970_000_000 + secrets.randbelow(9_000_000)
+    data = json.dumps({"region_id": 0, "spcompany": "Default"}, ensure_ascii=False)
+    sql(f"UPDATE act SET vtiger_id={vt}, number='{vt}', status='Received', subtotal=5000.01, pre_tax_total=5000.01, "
+        f"grand_total=5000.01, vtiger_data='{data}' WHERE id='{act}'")
+    sql(f"UPDATE act_item SET margin=0 WHERE act_id='{act}'")
+    print(espo_console("itvolga-finance-verify", "--entity=Act", f"--id={act}").strip())
+    sql(f"UPDATE invoice SET act_id='{act}' WHERE id IN ('{invoices['importedInvoice']}', "
+        f"'{invoices['roundedInvoice']}')")
     state.update({"account": acc, "contact": contact, "service": svc, "product": prd, "quote": quote,
-                  "importedQuote": imported, "salesOrder": order, "vendor": vendor, **invoices, **payments})
+                  "importedQuote": imported, "salesOrder": order, "vendor": vendor, "importedAct": act, **invoices,
+                  **payments})
     save_state(state)
     print(json.dumps({k: v for k, v in state.items() if k != "records"}, indent=2))
 
 
-# Documents the browser may create from a fixture document («Создать заказ», «Создать счёт»).
-CHILDREN = {"Quote": (("invoices", "Invoice"), ("salesOrders", "SalesOrder")), "SalesOrder": (("invoices", "Invoice"),)}
+# Documents the browser may create from a fixture document («Создать заказ», «Создать счёт») or account (an act from
+# the «Акты» panel).
+CHILDREN = {"Quote": (("invoices", "Invoice"), ("salesOrders", "SalesOrder")), "SalesOrder": (("invoices", "Invoice"),),
+            "Account": (("cActs", "Act"),)}
+# An act the browser may create from a fixture invoice («Создать акт»): the key is on the invoice.
+PARENTS = {"Invoice": ("actId", "Act")}
 # Payments the browser may create: allocated to a fixture document («Добавить платёж»), paid by the fixture account
 # or vendor (the «Платежи» panel).
 PAYMENT_LINKS = {"Invoice": "paymentAllocations", "SalesOrder": "paymentAllocations", "Account": "cPayments",
@@ -143,6 +161,10 @@ PAYMENT_LINKS = {"Invoice": "paymentAllocations", "SalesOrder": "paymentAllocati
 
 
 def delete_with_children(admin, entity, rid):
+    if entity in PARENTS:
+        key, parent = PARENTS[entity]
+        if parent_id := (admin.get(f"{entity}/{rid}")[1] or {}).get(key):
+            admin.delete(f"{parent}/{parent_id}")
     for link, child in CHILDREN.get(entity, ()):
         for record in (admin.get(f"{entity}/{rid}/{link}")[1] or {"list": []})["list"]:
             delete_with_children(admin, child, record["id"])

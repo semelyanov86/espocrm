@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Espo\Modules\Itvolga\Tools\FinanceDocument;
 
 use Espo\Core\Exceptions\BadRequest;
+use Espo\Core\Exceptions\Conflict;
 use Espo\Core\Exceptions\Error;
 use Espo\Core\ORM\Repository\Option\SaveOption;
 use Espo\Core\Utils\Config;
@@ -24,7 +25,7 @@ use Espo\ORM\Repository\Option\SaveOptions;
 use stdClass;
 
 /**
- * Save path of finance documents with line items (Quote, SalesOrder, Invoice; registry app.itvolgaFinance).
+ * Save path of finance documents with line items (Quote, SalesOrder, Invoice, Act; registry app.itvolgaFinance).
  *
  * The document and its items are saved by one request: `itemList` (a non-stored list of line objects) carries the
  * complete item table. prepare() runs in the document's beforeSave inside its transaction (entityDefs
@@ -34,7 +35,9 @@ use stdClass;
  * Hooks/Common/FinanceItemGuard) and by the importer (SaveOption::IMPORT, values as in the source; only the source
  * legal entity is resolved, D-48). Documents that payments are allocated to (Invoice, SalesOrder) keep their stored
  * settlement in step with the total: a new document is unpaid, a changed total keeps the paid sum of the locked row
- * (SettlementUpdater::applyTotal); a document save never reads payments (stage 04.4).
+ * (SettlementUpdater::applyTotal); a document save never reads payments (stage 04.4). A new document whose form
+ * carries its sources in a reverse-conversion stub (an act from an invoice) first locks and re-checks them, before
+ * anything else is read or numbered (ConversionSourceGuard, stage 04.5).
  */
 class DocumentProcessor
 {
@@ -67,16 +70,23 @@ class DocumentProcessor
         private LegalEntityProvider $legalEntityProvider,
         private ErrorMapper $errorMapper,
         private SettlementUpdater $settlement,
+        private ConversionSourceGuard $sources,
+        private RowLock $rowLock,
     ) {
         $this->editor = new DocumentEditor();
     }
 
     /**
      * @throws BadRequest refused input (translated message with line and field)
+     * @throws Conflict a source of a reverse conversion is gone or already linked to a live target
      * @throws Error configuration missing (legal entity, numbering); an imported document of an unknown legal entity
      */
     public function prepare(Entity $document, DocumentType $type, SaveOptions $options): ?SavePlan
     {
+        if ($document->isNew()) {
+            $this->sources->claimSources($document);
+        }
+
         $import = (bool) $options->get(SaveOption::IMPORT);
         $this->legalEntityProvider->assign($document, $import);
 
@@ -104,11 +114,8 @@ class DocumentProcessor
 
         if (!$isNew) {
             // Serialises concurrent saves of the document; its stored state is read under the lock.
-            $current = $this->entityManager
-                ->getRDBRepository($type->entityType)
-                ->where(['id' => $document->getId()])
-                ->forUpdate()
-                ->findOne() ?? throw new Error("{$type->entityType} {$document->getId()} not found.");
+            $current = $this->rowLock->one($type->entityType, $document->getId())
+                ?? throw new Error("{$type->entityType} {$document->getId()} not found.");
             $items = $this->findItems($document->getId(), $type);
         }
 
@@ -313,11 +320,8 @@ class DocumentProcessor
             return;
         }
 
-        $current = $this->entityManager
-            ->getRDBRepository($type->entityType)
-            ->where(['id' => $document->getId()])
-            ->forUpdate()
-            ->findOne() ?? throw new Error("{$type->entityType} {$document->getId()} not found.");
+        $current = $this->rowLock->one($type->entityType, $document->getId())
+            ?? throw new Error("{$type->entityType} {$document->getId()} not found.");
 
         foreach (SettlementUpdater::FIELDS as $attribute) {
             $document->set($attribute, $current->get($attribute));

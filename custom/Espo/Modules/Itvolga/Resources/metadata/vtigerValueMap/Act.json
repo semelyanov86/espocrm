@@ -1,0 +1,42 @@
+{
+    "fields": {
+        "status": {
+            "picklists": [
+                "sp_actstatus"
+            ],
+            "options": [
+                "",
+                "Created",
+                "Sent",
+                "Done",
+                "Received"
+            ],
+            "map": {
+                "Act.sp_actstatus": {
+                    "Sent": "Sent",
+                    "Created": "Created",
+                    "": "",
+                    "Done": "Done",
+                    "Received": "Received"
+                },
+                "(picklist)": {
+                    "Created": "Created",
+                    "Sent": "Sent",
+                    "Done": "Done",
+                    "Received": "Received",
+                    "": ""
+                }
+            }
+        },
+        "taxMode": {
+            "picklists": [],
+            "map": {
+                "Act.hdnTaxType": {
+                    "individual": "individual",
+                    "group": "group",
+                    "group_tax_inc": "group_tax_inc"
+                }
+            }
+        }
+    }
+}

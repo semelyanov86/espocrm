@@ -368,6 +368,11 @@
         "quote": {
             "type": "link"
         },
+        "act": {
+            "type": "link",
+            "audited": true,
+            "tooltip": true
+        },
         "balanceSource": {
             "type": "currency",
             "decimal": true,
@@ -501,6 +506,11 @@
         "quote": {
             "type": "belongsTo",
             "entity": "Quote",
+            "foreign": "invoices"
+        },
+        "act": {
+            "type": "belongsTo",
+            "entity": "Act",
             "foreign": "invoices"
         },
         "vtigerArchives": {

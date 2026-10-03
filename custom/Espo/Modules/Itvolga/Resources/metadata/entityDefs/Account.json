@@ -164,6 +164,11 @@
             "entity": "Invoice",
             "foreign": "account"
         },
+        "cActs": {
+            "type": "hasMany",
+            "entity": "Act",
+            "foreign": "account"
+        },
         "cPayments": {
             "type": "hasChildren",
             "entity": "Payment",

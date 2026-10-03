@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build EspoCRM enum options, Russian labels and the Vtiger value dictionary (D-19) for stages 03 and 04.2.
+"""Build EspoCRM enum options, Russian labels and the Vtiger value dictionary (D-19) for stages 03 and 04.2–04.5.
 
 Usage: build_value_maps.py OUTDIR [--check]
 
@@ -114,6 +114,9 @@ ENUMS = [
          core={"Наличные": "cash", "Cashless Transfer": "bank"}, default="bank"),
     dict(entity="Payment", field="status", picklists=["spstatus"], used=["SPPayments.spstatus"], empty=True,
          default="Executed"),
+    # Stage 04.5: an empty act status stays empty; new acts start as Created (vtiger_field.defaultvalue).
+    dict(entity="Act", field="status", picklists=["sp_actstatus"], used=["Act.sp_actstatus"], empty=True,
+         default="Created"),
 ]
 # Fields whose dictionary is fixed by the source semantics (no picklist table).
 STATIC = {
@@ -129,6 +132,8 @@ STATIC = {
                                                           "group_tax_inc": "group_tax_inc"}},
     ("Invoice", "taxMode"): {"Invoice.hdnTaxType": {"individual": "individual", "group": "group",
                                                     "group_tax_inc": "group_tax_inc"}},
+    ("Act", "taxMode"): {"Act.hdnTaxType": {"individual": "individual", "group": "group",
+                                            "group_tax_inc": "group_tax_inc"}},
 }
 STATIC_OPTIONS = {
     ("Task", "cTaskType"): (["", "Письмо"], {"Письмо": "Письмо"}, ""),

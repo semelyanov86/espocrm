@@ -1,0 +1,31 @@
+[
+    {
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "act"
+                },
+                {
+                    "name": "order"
+                }
+            ],
+            [
+                {
+                    "name": "product"
+                },
+                {
+                    "name": "quantity"
+                }
+            ],
+            [
+                {
+                    "name": "unitPrice"
+                },
+                {
+                    "name": "amount"
+                }
+            ]
+        ]
+    }
+]

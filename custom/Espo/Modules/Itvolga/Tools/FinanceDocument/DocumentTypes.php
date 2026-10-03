@@ -7,9 +7,11 @@ namespace Espo\Modules\Itvolga\Tools\FinanceDocument;
 use Espo\Core\Utils\Metadata;
 
 /**
- * Registry of finance records (metadata app.itvolgaFinance): documents with line items (Quote, SalesOrder, Invoice;
- * Act later only adds an entry there) and payments with their allocations (stage 04.4). all() lists documents only:
- * the item processor, the item guard and itvolga-finance-verify never see payments.
+ * Registry of finance records (metadata app.itvolgaFinance): documents with line items (Quote, SalesOrder, Invoice,
+ * Act) and payments with their allocations (stage 04.4). all() lists documents only: the item processor, the item
+ * guard and itvolga-finance-verify never see payments. Conversions prefill a new document from another one; a
+ * conversion link that is has-many on the new document keeps its key on the source (Invoice → Act,
+ * ConversionSourceGuard).
  */
 class DocumentTypes
 {
@@ -65,6 +67,24 @@ class DocumentTypes
         $defs = $this->metadata->get(['app', 'itvolgaFinance', 'conversions', $from, $to]);
 
         return is_array($defs) ? $defs : null;
+    }
+
+    /**
+     * Conversions into a document type, by source type.
+     *
+     * @return array<string, array{link: string, fieldList: list<string>}>
+     */
+    public function conversionsTo(string $to): array
+    {
+        $list = [];
+
+        foreach ($this->metadata->get(['app', 'itvolgaFinance', 'conversions']) ?? [] as $from => $targets) {
+            if (is_array($targets[$to] ?? null)) {
+                $list[$from] = $targets[$to];
+            }
+        }
+
+        return $list;
     }
 
     public function findPayment(string $entityType): ?PaymentType

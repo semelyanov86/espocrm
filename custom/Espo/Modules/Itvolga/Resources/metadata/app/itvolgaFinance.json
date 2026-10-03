@@ -1,5 +1,5 @@
 {
-    "comment": "Finance documents with line items (stage 04.2: Quote, SalesOrder; 04.3: Invoice; Act joins in 04.5) and payments with their allocations (04.4). number: prefix + counter without padding; firstNumber = vtiger_modentity_num.cur_id at the audit snapshot (finance-contract.md §6), seeded by itvolga-setup-finance and raised, never lowered, at switchover. Every document carries the common Document fields of finance-contract.md §11, including the control totals (expected*, source*). payments.targets: document entity type => link of the allocation to it; those documents store their settlement (paidAmount, balanceAmount, settlementState).",
+    "comment": "Finance documents with line items (stage 04.2: Quote, SalesOrder; 04.3: Invoice; 04.5: Act) and payments with their allocations (04.4). number: prefix + counter without padding; firstNumber = vtiger_modentity_num.cur_id at the audit snapshot (finance-contract.md §6), seeded by itvolga-setup-finance and raised, never lowered, at switchover. Every document carries the common Document fields of finance-contract.md §11, including the control totals (expected*, source*). payments.targets: document entity type => link of the allocation to it; those documents store their settlement (paidAmount, balanceAmount, settlementState); acts are not allocated to (no source payment points to an act). conversions.{from}.{to}: link of the new document to its source and the header fields copied; a link that is has-many on the new document keeps its key on the source (Invoice → Act: invoice.actId), and a source already linked to a live target gets no new one (ConversionSourceGuard).",
     "documents": {
         "Quote": {
             "itemEntityType": "QuoteItem",
@@ -18,6 +18,12 @@
             "parentLink": "invoice",
             "numberPrefix": "С-",
             "firstNumber": 637
+        },
+        "Act": {
+            "itemEntityType": "ActItem",
+            "parentLink": "act",
+            "numberPrefix": "",
+            "firstNumber": 403
         }
     },
     "payments": {
@@ -95,6 +101,26 @@
                     "termsAndConditions",
                     "description",
                     "quote"
+                ]
+            }
+        },
+        "Invoice": {
+            "Act": {
+                "link": "invoices",
+                "fieldList": [
+                    "name",
+                    "account",
+                    "contact",
+                    "assignedUser",
+                    "teams",
+                    "taxMode",
+                    "discountAmount",
+                    "discountPercent",
+                    "shippingAmount",
+                    "adjustment",
+                    "billingAddress",
+                    "shippingAddress",
+                    "description"
                 ]
             }
         }

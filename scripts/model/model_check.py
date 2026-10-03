@@ -10,6 +10,8 @@ Usage: model_check.py [REPO]   — prints a summary of field-map/relations check
 Stage 04.2: Quote, SalesOrder, their items and LegalEntity are checked like stage-03 entities; for them rows without
 source data are checked too (the contract creates working fields for new documents, D-47). Generic rows of the
 document lines (<Doc>Item.*) stay «частично» until every item entity exists (Invoice 04.3, Act 04.5).
+Stage 04.5: Act and ActItem complete the finance documents; a row is marked with the latest stage among its entities,
+the entities its links lead to (Invoice.act → Act) and, for the generic line rows, all item entities.
 """
 import csv
 import json
@@ -34,18 +36,21 @@ STAGE03 = {"Account", "Contact", "Lead", "Opportunity", "Task", "Call", "Meeting
 STAGE042 = {"Quote", "QuoteItem", "SalesOrder", "SalesOrderItem", "LegalEntity"}
 STAGE043 = {"Invoice", "InvoiceItem"}
 STAGE044 = {"Payment", "PaymentAllocation"}
+STAGE045 = {"Act", "ActItem"}
+# Finance stages, latest first: an implemented row gets the latest stage among its entities.
+FINANCE_STAGES = (("04.5", STAGE045), ("04.4", STAGE044), ("04.3", STAGE043), ("04.2", STAGE042))
 LATER = {
-    "Act": "04.5", "ActItem": "04.5", "Template": "05",
+    "Template": "05",
 }
 # Links of implemented entities to entities of later stages: the row stays at its later stage until both ends exist.
-DEFERRED = {("Invoice", "act"): "04.5"}
+DEFERRED = {}
 # Item entity of each document and its link to the document (generic rows of vtiger_inventoryproductrel).
 ITEM_PARENT = {"QuoteItem": "quote", "SalesOrderItem": "salesOrder", "InvoiceItem": "invoice", "ActItem": "act"}
 # Entities that receive imported Vtiger records (vtigerId, unique).
 IMPORTED = ["Account", "Contact", "Lead", "Opportunity", "Task", "Call", "Meeting", "Email", "Case",
             "KnowledgeBaseArticle", "Document", "DocumentFolder", "Note", "User", "Attachment", "Vendor", "Product",
             "Project", "ProjectTask", "VtigerArchive", "ContactAccess", "Quote", "QuoteItem", "SalesOrder",
-            "SalesOrderItem", "Invoice", "InvoiceItem", "Payment"]
+            "SalesOrderItem", "Invoice", "InvoiceItem", "Payment", "Act", "ActItem"]
 # target_entity column of field-map → entities (Events rows are split by activitytype).
 ENTITY_ALIASES = {
     "Call/Meeting/Task (вид «Письмо») по activitytype": ["Call", "Meeting", "Task"],
@@ -174,8 +179,7 @@ def parse_target(target, default_entities):
 
 # Picklist tables (rows «entityDefs options») that do not become an EspoCRM enum of stage 03.
 PICKLIST_FATE = {
-    **{pl: "этап 04.x: справочник финансового модуля" for pl in (
-        "invoicestatus", "postatus", "sp_actstatus")},
+    "postatus": "этап 04.x: справочник финансового модуля",
     **{pl: "архив: исходные значения в vtigerData (enum не создаётся; периодичность заказов закончилась в 2016, D-15)"
        for pl in ("carrier", "recurring_frequency", "payment_duration")},
     "spcompany": "одна запись LegalEntity (D-04, D-48): значения — не опции, а ссылка legalEntity",
@@ -213,21 +217,24 @@ def target_entities(target):
 
 def is_empty_contract_row(fate, entities):
     """A row without source data whose target is a working field of a finance entity (checked, D-47)."""
-    return fate.startswith("пусто") and bool(set(entities) & (STAGE042 | STAGE043 | STAGE044))
+    return fate.startswith("пусто") and bool(set(entities) & set().union(*(group for _, group in FINANCE_STAGES)))
 
 
 def implemented_stage(model, row):
-    """Stage of an implemented row: the latest stage among its entities (04.4, 04.3, 04.2), otherwise 03."""
+    """Stage of an implemented row: the latest stage among its entities (04.5 … 04.2), otherwise 03."""
     target = row.get("target_field") or row.get("target_link") or ""
     entities = set(entities_for(row)) | set(target_entities(target))
+    if target.startswith("<Doc>Item"):
+        entities |= set(ITEM_PARENT)
+    for ent, name, _ in parse_target(target, entities_for(row)) or []:
+        entities.add((model.link(ent, name) or {}).get("entity"))
     if row.get("from_module"):
         entities |= {MODULE_ENTITY.get(row.get("from_module")), MODULE_ENTITY.get(row.get("to_module"))}
     if target.strip() == "entityDefs options":
         pl = row.get("source_table", "")[len("vtiger_"):]
         entities |= {e for e, data in model.value_maps.items() for spec in data.get("fields", {}).values()
                      if pl in spec.get("picklists", [])}
-    return ("04.4" if entities & STAGE044 else "04.3" if entities & STAGE043 else "04.2" if entities & STAGE042
-            else "03")
+    return next((stage for stage, group in FINANCE_STAGES if entities & group), "03")
 
 
 def check_generic_item(model, target):

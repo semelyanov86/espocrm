@@ -122,6 +122,11 @@
             "entity": "Invoice",
             "foreign": "contact"
         },
+        "cActs": {
+            "type": "hasMany",
+            "entity": "Act",
+            "foreign": "contact"
+        },
         "cPayments": {
             "type": "hasChildren",
             "entity": "Payment",

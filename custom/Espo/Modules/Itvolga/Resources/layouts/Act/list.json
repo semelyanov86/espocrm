@@ -1,0 +1,30 @@
+[
+    {
+        "name": "number",
+        "width": 10
+    },
+    {
+        "name": "name",
+        "link": true
+    },
+    {
+        "name": "account",
+        "width": 18
+    },
+    {
+        "name": "status",
+        "width": 11
+    },
+    {
+        "name": "grandTotal",
+        "width": 12
+    },
+    {
+        "name": "dateAct",
+        "width": 10
+    },
+    {
+        "name": "assignedUser",
+        "width": 12
+    }
+]

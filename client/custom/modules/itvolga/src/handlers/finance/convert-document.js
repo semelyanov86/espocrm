@@ -1,7 +1,9 @@
 /**
- * «Создать заказ» on a quote, «Создать счёт» on a quote or a sales order and «Добавить платёж» on an invoice or a sales
- * order (clientDefs detailActionList): opens a new record prefilled by the server (header, lines or the allocation to
- * the source document). Nothing is saved until the user saves the form; the server calculates it.
+ * «Создать заказ» on a quote, «Создать счёт» on a quote or a sales order, «Создать акт» on an invoice and «Добавить
+ * платёж» on an invoice or a sales order (clientDefs detailActionList): opens a new record prefilled by the server
+ * (header, lines or the allocation to the source document). Nothing is saved until the user saves the form; the server
+ * calculates it. An invoice that already has a live act offers «Открыть акт» instead (the server refuses a second
+ * act too); a removed act keeps the invoice's key, but its name is not loaded, so the invoice gets a new act.
  */
 define('itvolga:handlers/finance/convert-document', [], () => {
 
@@ -24,6 +26,24 @@ define('itvolga:handlers/finance/convert-document', [], () => {
 
         createPayment() {
             return this.convert('Payment');
+        }
+
+        createAct() {
+            return this.convert('Act');
+        }
+
+        canCreateAct() {
+            return !this.hasAct() && this.view.getAcl().checkModel(this.view.model, 'edit');
+        }
+
+        hasAct() {
+            const model = this.view.model;
+
+            return !!(model.get('actId') && model.get('actName'));
+        }
+
+        openAct() {
+            this.view.getRouter().navigate(`#Act/view/${this.view.model.get('actId')}`, {trigger: true});
         }
 
         /**

@@ -8,5 +8,6 @@
     "cQuotes",
     "cSalesOrders",
     "cInvoices",
+    "cActs",
     "cPayments"
 ]

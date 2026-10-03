@@ -46,7 +46,9 @@
                 {
                     "name": "legalEntity"
                 },
-                false
+                {
+                    "name": "act"
+                }
             ]
         ]
     },

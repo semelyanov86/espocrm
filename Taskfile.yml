@@ -121,7 +121,7 @@ tasks:
       - python3 -m unittest discover -s tests/stage03 -v
 
   test:stage04:
-    desc: Stage 04.2–04.4 acceptance tests on the stand (Quote, SalesOrder, Invoice, items, legal entity, control totals, payments and allocations; synthetic data)
+    desc: Stage 04.2–04.5 acceptance tests on the stand (Quote, SalesOrder, Invoice, Act, items, legal entity, control totals, payments and allocations; synthetic data)
     cmds:
       - python3 -m unittest discover -s tests/stage04 -v
 

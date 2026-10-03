@@ -53,6 +53,24 @@
     },
     "detailActionList": [
         {
+            "name": "createAct",
+            "label": "Create Act",
+            "handler": "itvolga:handlers/finance/convert-document",
+            "actionFunction": "createAct",
+            "checkVisibilityFunction": "canCreateAct",
+            "acl": "create",
+            "aclScope": "Act"
+        },
+        {
+            "name": "openAct",
+            "label": "Open Act",
+            "handler": "itvolga:handlers/finance/convert-document",
+            "actionFunction": "openAct",
+            "checkVisibilityFunction": "hasAct",
+            "acl": "read",
+            "aclScope": "Act"
+        },
+        {
             "name": "createPayment",
             "label": "Add Payment",
             "handler": "itvolga:handlers/finance/convert-document",

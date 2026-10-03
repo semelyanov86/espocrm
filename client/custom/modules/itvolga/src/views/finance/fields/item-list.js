@@ -1,8 +1,8 @@
 /**
- * Line items of a finance document (Quote, SalesOrder, Invoice): the table is edited in the document form and saved
- * with it by one request (`itemList`, owner decision 2026-10-01). Values stay decimal strings; amounts and totals come
- * from the server only — saved values, or a preview of the same calculation while the form is edited
- * (POST FinanceDocument/:entityType/calculate). The browser does no arithmetic with money.
+ * Line items of a finance document (Quote, SalesOrder, Invoice, Act): the table is edited in the document form and
+ * saved with it by one request (`itemList`, owner decision 2026-10-01). Values stay decimal strings; amounts and totals
+ * come from the server only — saved values, or a preview of the same calculation while the form is edited (POST
+ * FinanceDocument/:entityType/calculate). The browser does no arithmetic with money.
  */
 define('itvolga:views/finance/fields/item-list', ['views/fields/base', 'itvolga:finance/decimal-text'],
     (BaseFieldView, DecimalText) => {

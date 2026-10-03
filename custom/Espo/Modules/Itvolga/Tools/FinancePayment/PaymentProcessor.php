@@ -24,6 +24,7 @@ use Espo\Modules\Itvolga\Tools\FinanceDocument\ErrorMapper;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\LegalEntityProvider;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\NumberAllocator;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\PaymentType;
+use Espo\Modules\Itvolga\Tools\FinanceDocument\RowLock;
 use Espo\ORM\Entity;
 use Espo\ORM\EntityManager;
 use Espo\ORM\Repository\Option\RemoveOptions;
@@ -69,6 +70,7 @@ class PaymentProcessor
         private AllocationRows $rows,
         private AllocationHistory $history,
         private RecordIdGenerator $idGenerator,
+        private RowLock $rowLock,
     ) {
         $this->editor = new AllocationEditor();
     }
@@ -107,11 +109,8 @@ class PaymentProcessor
         $stored = [];
 
         if (!$isNew) {
-            $current = $this->entityManager
-                ->getRDBRepository($type->entityType)
-                ->where(['id' => $payment->getId()])
-                ->forUpdate()
-                ->findOne() ?? throw new Error("{$type->entityType} {$payment->getId()} not found.");
+            $current = $this->rowLock->one($type->entityType, $payment->getId())
+                ?? throw new Error("{$type->entityType} {$payment->getId()} not found.");
 
             $this->rebaseOnLockedRow($payment, $current);
             $stored = $this->rows->find($payment->getId(), $type, true);
@@ -227,11 +226,7 @@ class PaymentProcessor
             return [];
         }
 
-        $this->entityManager
-            ->getRDBRepository($type->entityType)
-            ->where(['id' => $payment->getId()])
-            ->forUpdate()
-            ->findOne();
+        $this->rowLock->one($type->entityType, $payment->getId());
 
         $rows = $this->rows->find($payment->getId(), $type, true);
         $keys = array_map(fn (Entity $row) => $this->rows->toInput($row, $type)->targetKey(), $rows);

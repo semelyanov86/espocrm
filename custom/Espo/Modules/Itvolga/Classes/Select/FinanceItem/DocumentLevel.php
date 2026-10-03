@@ -8,8 +8,8 @@ use Espo\Core\Select\AccessControl\FilterResolver;
 use Espo\Core\Utils\Metadata;
 
 /**
- * Access filter of item lists (QuoteItem, SalesOrderItem, InvoiceItem): the read level of the document decides (all,
- * team → core ForeignOnlyTeam, own → core ForeignOnlyOwn, no), not the item's own level, which only has to enable
+ * Access filter of item lists (QuoteItem, SalesOrderItem, InvoiceItem, ActItem): the read level of the document decides
+ * (all, team → core ForeignOnlyTeam, own → core ForeignOnlyOwn, no), not the item's own level, which only has to enable
  * reading.
  */
 class DocumentLevel implements FilterResolver

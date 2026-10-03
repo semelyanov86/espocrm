@@ -665,7 +665,8 @@ class AccessTest(unittest.TestCase):
             self.assertEqual(c(user).get(f"FinanceDocument/Invoice/{self.inv['id']}/convertTo/Payment")[0], 403, user)
         self.assertEqual(c("dir").get(f"PaymentAllocation/{self.rid}")[0], 200)
         tabs = ok(self, S["admin"].get("Settings"))["tabList"]
-        self.assertEqual(tabs[tabs.index("Invoice") + 1], "Payment", "the Payments tab follows the Invoices tab")
+        self.assertEqual(tabs[tabs.index("Invoice") + 1:tabs.index("Invoice") + 3], ["Act", "Payment"],
+                         "the Payments tab follows the Invoices and the Acts tabs")
 
     def test_rows_are_never_written_directly(self):
         before = allocation_rows(self.pay["id"])
