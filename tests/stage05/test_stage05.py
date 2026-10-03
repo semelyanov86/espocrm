@@ -528,6 +528,19 @@ class ReviewFixesTest(PdfCase):
             self.assertLessEqual(right, 595.28 - 10 * 72 / 25.4 + 1, f"{entity}: text beyond the right margin")
             self.assertIn(url, re.sub(r"\s+", "", text(body)), entity)
 
+    def test_product_unit_follows_product_access(self):
+        invoice = document("Invoice")
+        self.assertIn("Часы 2,5", text(self.pdf("Invoice", invoice["id"])[0]))
+        no_products = user_with_role("noproduct", {**READ_FINANCE, "Product": {"create": "no", "read": "no",
+                                                                              "edit": "no", "delete": "no"}})
+        no_link = user_with_role("nolink", READ_FINANCE, {"InvoiceItem": {"product": {"read": "no", "edit": "no"}}})
+        espo_console("clear-cache")
+        for client in (no_products, no_link):
+            content = text(self.pdf("Invoice", invoice["id"], client)[0])
+            self.assertNotIn("Часы", content)
+            self.assertNotIn("мес.", content)
+            self.assertIn("Всего к оплате: 19 500,00", content)
+
     def test_quote_manager_contacts_only_of_a_readable_user(self):
         hidden = must(S["admin"].post("User", {
             "userName": f"synth-{RUN}-gone", "firstName": "Менеджер", "lastName": f"{TAG} gone", "type": "regular",

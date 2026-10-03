@@ -27,9 +27,11 @@ from espo import Client, admin_credentials, espo_console  # noqa: E402
 PRIVATE = Path(os.environ.get("UI_FIXTURE_DIR", "/data/itvolga/espo-private/stand/evidence/stage05"))
 STATE = PRIVATE / "ui-fixture.json"
 USERS_ENV = PRIVATE / "ui-users.env"
+# The logo is not saved and restored: replacing an image field makes the core delete the previous attachment, so an
+# existing logo is kept and a synthetic one is added only when there is none (and cleared, with its file, by delete).
 LEGAL_ENTITY_FIELDS = ["name", "inn", "kpp", "okpo", "bankAccount", "bankName", "bic", "corrAccount", "director",
                        "bookkeeper", "phoneNumber", "website", "addressStreet", "addressCity", "addressState",
-                       "addressPostalCode", "addressCountry", "logoId"]
+                       "addressPostalCode", "addressCountry"]
 # Synthetic requisites: letters inside every number, so no value looks like a real INN, account or phone.
 SELLER = {
     "name": "ООО «Тестовая Организация»", "inn": "50-SYNTH-02", "kpp": "500-SYNTH", "okpo": "SYNTH-OKPO",
@@ -98,11 +100,15 @@ def _create():
 
     legal = must(admin.get("LegalEntity", maxSize=5))["list"][0]["id"]
     original = must(admin.get(f"LegalEntity/{legal}"))
-    state["legalEntity"] = {"id": legal, "original": {f: original.get(f) for f in LEGAL_ENTITY_FIELDS}}
+    state["legalEntity"] = {"id": legal, "original": {f: original.get(f) for f in LEGAL_ENTITY_FIELDS},
+                            "logoAdded": not original.get("logoId")}
     save_state(state)
-    logo = must(admin.post("Attachment", {"name": "synth-logo.png", "type": "image/png", "role": "Attachment",
-                                          "relatedType": "LegalEntity", "field": "logo", "file": logo_png()}))
-    must(admin.put(f"LegalEntity/{legal}", {**SELLER, "phoneNumber": phone(), "logoId": logo["id"]}))
+    logo = {}
+    if state["legalEntity"]["logoAdded"]:
+        logo = {"logoId": must(admin.post("Attachment", {
+            "name": "synth-logo.png", "type": "image/png", "role": "Attachment", "relatedType": "LegalEntity",
+            "field": "logo", "file": logo_png()}))["id"]}
+    must(admin.put(f"LegalEntity/{legal}", {**SELLER, "phoneNumber": phone(), **logo}))
 
     def rec(entity, data):
         payload = must(admin.post(entity, data))
@@ -186,10 +192,9 @@ def delete():
     for entity, rid in reversed(state["records"]):
         admin.delete(f"{entity}/{rid}")
     if legal := state.get("legalEntity"):
-        current = (admin.get(f"LegalEntity/{legal['id']}")[1] or {}).get("logoId")
-        must(admin.put(f"LegalEntity/{legal['id']}", legal["original"]))
-        if current and current != legal["original"].get("logoId"):
-            admin.delete(f"Attachment/{current}")
+        # Clearing the logo the fixture added removes its attachment too.
+        logo = {"logoId": None} if legal.get("logoAdded") else {}
+        must(admin.put(f"LegalEntity/{legal['id']}", {**legal["original"], **logo}))
     for rid in state["users"].values():
         admin.delete(f"User/{rid}")
     STATE.unlink()

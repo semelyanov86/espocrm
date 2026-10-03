@@ -121,7 +121,9 @@ class PrintData
         }
 
         $items = $this->documentProcessor->loadItemList($document, $type);
-        $units = $this->units(array_map(static fn ($item) => (string) $item->productId, $items));
+        $productIds = in_array('productId', $forbidden, true) ? [] :
+            array_map(static fn ($item) => (string) $item->productId, $items);
+        $units = $this->units($productIds);
         $lines = [];
 
         foreach ($items as $item) {
@@ -140,7 +142,8 @@ class PrintData
     }
 
     /**
-     * Russian labels of the units of the products (SalesPlatform printed the translated usage unit).
+     * Russian labels of the units of the products (SalesPlatform printed the translated usage unit), of the products
+     * the user may read.
      *
      * @param list<string> $productIds
      * @return array<string, string> by product id; products without a readable unit are absent
@@ -156,7 +159,6 @@ class PrintData
         $language = $this->languageFactory->create(self::LANGUAGE);
         $products = $this->entityManager
             ->getRDBRepository('Product')
-            ->select(['id', 'unit'])
             ->where(['id' => $productIds])
             ->find();
         $units = [];
@@ -164,7 +166,7 @@ class PrintData
         foreach ($products as $product) {
             $unit = (string) $product->get('unit');
 
-            if ($unit !== '') {
+            if ($unit !== '' && $this->acl->checkEntityRead($product)) {
                 $units[$product->getId()] = $language->translateOption($unit, 'unit', 'Product');
             }
         }
