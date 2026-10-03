@@ -481,10 +481,17 @@ class PaymentAccessTest(unittest.TestCase):
         self.assertEqual(settlement("Invoice", self.theirs["id"])[2], "unpaid")
 
     def test_import_is_not_limited(self):
-        self.assertTrue(import_save("Payment", {"status": "Canceled"}, rid=self.pay["id"])["ok"])
+        """Run as the user who may not read a document of the payment (not as the system user, an administrator for
+        the ACL): a plain ORM write is refused, the import is not (external review of stage 04.6, W3)."""
+        own, pid = S["users"]["own"], self.pay["id"]
+        for attributes, op in (({"status": "Canceled"}, "save"), ({}, "remove")):
+            refused = import_save("Payment", attributes, rid=pid, op=op, imported=False, user=own)
+            self.assertEqual((refused["ok"], refused.get("message")), (False, UNKNOWN), op)
+        self.assertEqual(sql(f"SELECT status, deleted FROM payment WHERE id='{pid}'"), [["Executed", "0"]])
+        self.assertTrue(import_save("Payment", {"status": "Canceled"}, rid=pid, user=own)["ok"])
         self.assertEqual(settlement("Invoice", self.theirs["id"])[2], "unpaid")
-        self.assertTrue(import_save("Payment", {}, rid=self.pay["id"], op="remove")["ok"])
-        self.assertEqual(sql(f"SELECT deleted FROM payment WHERE id='{self.pay['id']}'"), [["1"]])
+        self.assertTrue(import_save("Payment", {}, rid=pid, op="remove", user=own)["ok"])
+        self.assertEqual(sql(f"SELECT deleted FROM payment WHERE id='{pid}'"), [["1"]])
 
 
 class NumberGuardTest(unittest.TestCase):
@@ -560,6 +567,26 @@ class CoverageTest(unittest.TestCase):
         row["source_table"] = "vtiger_postatus"
         self.assertEqual(coverage.disposition(row, "предложено", "переносится как опции enum", "entityDefs options",
                                               None, text, None)[0], "исключено", "an explicit decision closes it")
+
+    def test_chain_and_dictionaries_are_checked_both_ways(self):
+        """A missing step of the chain, a link without its reciprocal and an empty or foreign dictionary are open
+        (external review of stage 04.6, W1, W2)."""
+        sys.path.insert(0, str(REPO / "scripts/model"))
+        import copy
+        import build_finance_coverage as coverage
+        import model_check
+        model = model_check.Model(REPO)
+        registry = model.load("app")["itvolgaFinance"]
+        self.assertEqual(coverage.chain_checks(model, registry)[1], [])
+        broken = copy.deepcopy(registry)
+        del broken["conversions"]["Quote"]["SalesOrder"]
+        self.assertIn("реестр: нет конвертации Quote → SalesOrder", coverage.chain_checks(model, broken)[1])
+        self.assertTrue(coverage.chain_checks(model, {})[1], "an empty registry is not a complete chain")
+        model.entity_defs["Invoice"]["links"]["paymentAllocations"]["entity"] = "QuoteItem"
+        self.assertTrue(any("Payment → Invoice" in p for p in coverage.chain_checks(model, registry)[1]))
+        self.assertEqual(coverage.dictionary_problems(model, "vtiger_invoicestatus"), [])
+        model.value_maps["Invoice"]["fields"]["status"]["map"] = {}
+        self.assertTrue(coverage.dictionary_problems(model, "vtiger_invoicestatus"), "an empty map")
 
 
 if __name__ == "__main__":

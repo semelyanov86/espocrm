@@ -199,35 +199,71 @@ def target_cell(row):
     return f"{entity}.{field}"
 
 
-def chain_checks(model):
-    """The finance registry (documents, conversions, payment targets) against the model: (rows, problems)."""
-    registry = model.load("app").get("itvolgaFinance", {})
+# The chain of the finance contract (finance-contract.md §18.2): every step must be in the registry and in the model.
+CHAIN_DOCUMENTS = ["Quote", "SalesOrder", "Invoice", "Act"]
+CHAIN_CONVERSIONS = [("Quote", "SalesOrder"), ("Quote", "Invoice"), ("SalesOrder", "Invoice"), ("Invoice", "Act")]
+CHAIN_PAYMENTS = {"Payment": ["Invoice", "SalesOrder"]}
+
+
+def reciprocal(model, entity, link, other):
+    """entity.link points at `other` and the foreign link of `other` points back at entity.link (both sides)."""
+    defs = model.link(entity, link) or {}
+    back = model.link(other, defs.get("foreign") or "") or {}
+    return defs.get("entity") == other and back.get("entity") == entity and back.get("foreign") == link
+
+
+def dictionary_problems(model, table):
+    """A dictionary is covered only by a value map whose every target value is an option of its enum (D-38)."""
+    picklist = table.removeprefix("vtiger_")
+    problems = []
+    for entity, data in sorted(model.value_maps.items()):
+        for field, spec in data.get("fields", {}).items():
+            if picklist not in spec.get("picklists", []):
+                continue
+            options = model.options(entity, field)
+            keys = [key for mapping in spec.get("map", {}).values() for key in mapping.values()]
+            if not options or not keys or any(key not in options for key in keys):
+                problems.append(f"{entity}.{field}: словарь пуст или не сходится с опциями enum")
+    return problems
+
+
+def chain_checks(model, registry=None):
+    """The finance registry (documents, conversions, payment targets) against the contract chain and the model:
+    (rows, problems). A step missing from the registry or a link without its reciprocal is a problem."""
+    if registry is None:
+        registry = model.load("app").get("itvolgaFinance", {})
+    documents, conversions = registry.get("documents", {}), registry.get("conversions", {})
+    payments = registry.get("payments", {})
     rows, problems = [], []
-    for doc, defs in registry.get("documents", {}).items():
+    problems += [f"реестр: нет документа {doc}" for doc in CHAIN_DOCUMENTS if doc not in documents]
+    problems += [f"реестр: нет конвертации {src} → {dst}" for src, dst in CHAIN_CONVERSIONS
+                 if dst not in conversions.get(src, {})]
+    problems += [f"реестр: нет распределения {payment} → {doc}" for payment, docs in CHAIN_PAYMENTS.items()
+                 for doc in docs if doc not in payments.get(payment, {}).get("targets", {})]
+    for doc, defs in documents.items():
         item, parent = defs["itemEntityType"], defs["parentLink"]
-        ok = (model.link(doc, "items") or {}).get("entity") == item and (model.link(item, parent) or {}).get(
-            "entity") == doc
+        ok = reciprocal(model, doc, "items", item) and (model.link(doc, "items") or {}).get("foreign") == parent
         rows.append((f"{doc} → позиции", f"{doc}.items ↔ {item}.{parent}", "—", "ok" if ok else "ОШИБКА"))
         if not ok:
-            problems.append(f"позиции {doc}: нет связи {doc}.items ↔ {item}.{parent}")
-    for src, targets in registry.get("conversions", {}).items():
+            problems.append(f"позиции {doc}: нет взаимной связи {doc}.items ↔ {item}.{parent}")
+    for src, targets in conversions.items():
         for dst, conversion in targets.items():
-            link = model.link(dst, conversion["link"]) or {}
+            link = conversion["link"]
             missing = [f for f in conversion["fieldList"] if not (model.field(src, f) and model.field(dst, f))]
-            ok = link.get("entity") == src and not missing
-            how = "ключ у источника" if link.get("type") == "hasMany" else "ссылка у нового документа"
-            rows.append((f"{src} → {dst}", f"{dst}.{conversion['link']} ({how})", ", ".join(conversion["fieldList"]),
+            ok = reciprocal(model, dst, link, src) and not missing
+            how = "ключ у источника" if (model.link(dst, link) or {}).get("type") == "hasMany" else "ссылка у нового документа"
+            rows.append((f"{src} → {dst}", f"{dst}.{link} ({how})", ", ".join(conversion["fieldList"]),
                          "ok" if ok else "ОШИБКА: " + ", ".join(missing or ["связь"])))
             if not ok:
                 problems.append(f"конвертация {src} → {dst}: связь или поля {missing}")
-    for payment, defs in registry.get("payments", {}).items():
+    for payment, defs in payments.items():
         allocation = defs["allocationEntityType"]
         for doc, link in defs["targets"].items():
-            ok = (model.link(allocation, link) or {}).get("entity") == doc and model.link(doc, "paymentAllocations")
+            ok = reciprocal(model, allocation, link, doc)
             rows.append((f"{payment} → {doc}", f"{allocation}.{link} ↔ {doc}.paymentAllocations",
                          "«Добавить платёж»: плательщик, сумма, строка распределения", "ok" if ok else "ОШИБКА"))
             if not ok:
-                problems.append(f"распределение {payment} → {doc}: нет связи {allocation}.{link}")
+                problems.append(f"распределение {payment} → {doc}: нет взаимной связи {allocation}.{link}")
     return rows, problems
 
 
@@ -246,6 +282,8 @@ def build(repo):
         stage = MC.implemented_stage(model, row) if res is True else None
         kind, reason = disposition(row, row["mapping_status"], row["fate"], row["target_field"].strip(), res, text,
                                    stage)
+        if kind == "справочник" and (problems := dictionary_problems(model, row["source_table"])):
+            kind, reason = "открыто", "; ".join(problems)
         sections.setdefault(("field", section), []).append((row, kind, reason))
         summary.setdefault(section, Counter())[kind] += 1
         dates[row["count_status"]] += 1

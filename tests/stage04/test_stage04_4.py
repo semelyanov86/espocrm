@@ -148,13 +148,14 @@ def get(entity, rid, client="dir"):
     return must((S["admin"] if client == "admin" else c(client)).get(f"{entity}/{rid}"))
 
 
-def import_save(entity, attributes, rid=None, op="save", imported=True, silent=True):
+def import_save(entity, attributes, rid=None, op="save", imported=True, silent=True, user=None):
     """One ORM save (or removal) with SaveOption::IMPORT and SILENT, as the importer of stage 06.3 will do it (a removal
-    without the options and with attributes set on the loaded copy stands for the core cascade with a stale snapshot)."""
+    without the options and with attributes set on the loaded copy stands for the core cascade with a stale snapshot).
+    `user`: the id of the user the write runs as (default: the system user)."""
     php = subprocess.run(["bash", "-c", f"source {REPO}/scripts/stand/lib.sh && echo $PHP_BIN"],
                          capture_output=True, text=True, check=True).stdout.strip()
     payload = json.dumps({"op": op, "entityType": entity, "id": rid, "attributes": attributes, "import": imported,
-                          "silent": silent}, ensure_ascii=False)
+                          "silent": silent, "userId": user}, ensure_ascii=False)
     out = subprocess.run(["sudo", "-n", "-u", "espocrm", "env", f"ESPO_ROOT={REPO}", php, "--", payload],
                          input=FIXTURE.read_text(encoding="utf-8"), capture_output=True, text=True, check=True).stdout
     return json.loads(out.strip().splitlines()[-1])

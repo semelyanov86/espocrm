@@ -10,7 +10,8 @@
  *
  * A removal may first set attributes on the loaded copy (a stale copy, as the core cascade reads from an older
  * snapshot) and may run without SaveOption::IMPORT (`"import": false`, the core cascade's options). `"silent": false`
- * drops SaveOption::SILENT (the refused import write).
+ * drops SaveOption::SILENT (the refused import write). `"userId"` runs the write as that user instead of the system user
+ * (stage 04.6: an import is not limited by the user's access, a plain ORM save is).
  *
  * Prints {"ok": true, "id": ...} or {"ok": false, "error": <class>, "message": <message>}; messages of the finance
  * code never carry values.
@@ -22,13 +23,20 @@ $root = getenv('ESPO_ROOT') ?: '';
 include $root . '/bootstrap.php';
 
 use Espo\Core\Application;
+use Espo\Core\ApplicationUser;
 use Espo\Core\ORM\Repository\Option\SaveOption;
 use Espo\ORM\EntityManager;
 
 $app = new Application();
-$app->setupSystemUser();
 $entityManager = $app->getContainer()->getByClass(EntityManager::class);
 $op = json_decode($argv[1] ?? '{}', true, 512, JSON_THROW_ON_ERROR);
+
+if ($op['userId'] ?? null) {
+    $user = $entityManager->getEntityById('User', $op['userId']) ?? throw new RuntimeException('no such user');
+    $app->getContainer()->getByClass(ApplicationUser::class)->setUser($user);
+} else {
+    $app->setupSystemUser();
+}
 
 $options = ($op['import'] ?? true)
     ? [SaveOption::IMPORT => true, SaveOption::SILENT => $op['silent'] ?? true]
