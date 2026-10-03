@@ -9,6 +9,7 @@ use Espo\Core\Acl\Table;
 use Espo\Core\Exceptions\Conflict;
 use Espo\Core\Exceptions\Forbidden;
 use Espo\Core\Exceptions\NotFound;
+use Espo\Core\ORM\Entity as CoreEntity;
 use Espo\Core\Utils\FieldUtil;
 use Espo\Modules\Itvolga\Tools\FinancePayment\PaymentPrefill;
 use Espo\ORM\EntityManager;
@@ -71,6 +72,12 @@ class DocumentConverter
         $attributes = (object) [];
 
         foreach ($conversion['fieldList'] as $field) {
+            // A record read by id carries no link-multiple values (teams): without loading them the form got null and
+            // the new document no teams (D-52, D-71; stage 04.6).
+            if ($source instanceof CoreEntity && $source->hasLinkMultipleField($field)) {
+                $source->loadLinkMultipleField($field);
+            }
+
             foreach ($this->fieldUtil->getAttributeList($from, $field) as $attribute) {
                 if (!in_array($attribute, $forbidden, true)) {
                     $attributes->$attribute = $source->get($attribute);

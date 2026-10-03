@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synthetic fixture for the stage-04.2–04.5 UI scenarios (checked in the browser with Playwriter, evidence.md).
+"""Synthetic fixture for the stage-04.2–04.6 UI scenarios (checked in the browser with Playwriter, evidence.md).
 
   python3 tests/stage04/ui_fixture.py create   → users/records; passwords → <private>/ui-users.env (600)
   python3 tests/stage04/ui_fixture.py delete   → removes everything created by `create`
@@ -11,9 +11,10 @@ classified by itvolga-finance-verify): «По умолчанию» with historic
 mismatching one; payments (stage 04.4): a partial payment of the invoice, a payment of the sales order and of the
 rounded invoice with a rest, a planned payment and an outgoing payment to a vendor; acts (stage 04.5): an "imported"
 act with a mismatching total that two imported invoices point to (the new invoice has no act: «Создать акт» in the
-browser). Documents created in the browser from the fixture quote and sales order, acts created from the fixture
-invoices or account, and payments allocated in the browser to the fixture documents or paid by the fixture account or
-vendor, are removed with them.
+browser); the end-to-end chain (stage 04.6): the quote has a team, a contact and a deal, so «Создать заказ» → «Создать
+счёт» → «Создать акт» → «Добавить платёж» in the browser shows what each step carries. Documents created in the browser
+from the fixture quote and sales order, acts created from the fixture invoices or account, and payments allocated in the
+browser to the fixture documents or paid by the fixture account or vendor, are removed with them.
 """
 import json
 import os
@@ -24,7 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "stage03"))
 from espo import Client, admin_credentials, espo_console, sql  # noqa: E402
 
-PRIVATE = Path(os.environ.get("UI_FIXTURE_DIR", "/data/itvolga/espo-private/stand/evidence/stage04.5"))
+PRIVATE = Path(os.environ.get("UI_FIXTURE_DIR", "/data/itvolga/espo-private/stand/evidence/stage04.6"))
 STATE = PRIVATE / "ui-fixture.json"
 USERS_ENV = PRIVATE / "ui-users.env"
 
@@ -79,7 +80,11 @@ def _create():
                           "unitPriceCurrency": "RUB", "unit": "Hours", "description": "Абонентское обслуживание"})
     prd = rec("Product", {"name": "SYNTH-UI Лицензия", "type": "product", "unitPrice": "12345.67",
                           "unitPriceCurrency": "RUB"})
+    team = rec("Team", {"name": "SYNTH-UI Команда"})
+    contact = rec("Contact", {"lastName": "SYNTH-UI Контакт", "accountId": acc})
+    deal = rec("Opportunity", {"name": "SYNTH-UI Сделка", "accountId": acc, "closeDate": "2026-12-31"})
     quote = rec("Quote", {"name": "SYNTH-UI Предложение", "accountId": acc, "assignedUserId": state["users"]["director"],
+                          "teamsIds": [team], "contactId": contact, "opportunityId": deal,
                           "itemList": [
                               {"productId": svc, "quantity": "2.5", "unitPrice": "1500.00", "description": "Часы"},
                               {"productId": prd, "quantity": "1", "unitPrice": "12345.67", "discountPercent": "10"}]})
@@ -92,7 +97,6 @@ def _create():
     sql(f"UPDATE quote_item SET tax_rate=18, margin=0 WHERE quote_id='{imported}'")
     print(espo_console("itvolga-finance-verify", "--entity=Quote", f"--id={imported}").strip())
 
-    contact = rec("Contact", {"lastName": "SYNTH-UI Контакт", "accountId": acc})
     order = rec("SalesOrder", {"name": "SYNTH-UI Заказ", "accountId": acc, "quoteId": quote, "itemList": [
         {"productId": svc, "quantity": "4", "unitPrice": "1500.00"}]})
     dates = {"dateInvoiced": "2026-10-02", "dateDue": "2026-10-16"}
@@ -141,7 +145,7 @@ def _create():
     print(espo_console("itvolga-finance-verify", "--entity=Act", f"--id={act}").strip())
     sql(f"UPDATE invoice SET act_id='{act}' WHERE id IN ('{invoices['importedInvoice']}', "
         f"'{invoices['roundedInvoice']}')")
-    state.update({"account": acc, "contact": contact, "service": svc, "product": prd, "quote": quote,
+    state.update({"account": acc, "contact": contact, "team": team, "deal": deal, "service": svc, "product": prd, "quote": quote,
                   "importedQuote": imported, "salesOrder": order, "vendor": vendor, "importedAct": act, **invoices,
                   **payments})
     save_state(state)

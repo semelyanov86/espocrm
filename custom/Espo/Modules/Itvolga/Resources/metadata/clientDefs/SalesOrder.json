@@ -9,7 +9,8 @@
         "invoices": {
             "createDisabled": true,
             "selectDisabled": true,
-            "unlinkDisabled": true
+            "unlinkDisabled": true,
+            "rowActionsView": "views/record/row-actions/relationship-view-only"
         },
         "documents": {
             "createDisabled": false

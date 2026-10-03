@@ -75,7 +75,7 @@ class Allocations implements BeforeSave, AfterSave, BeforeRemove, AfterRemove
         $type = $this->types->findPayment($entity->getEntityType());
 
         if ($type) {
-            $this->removals[$entity] = $this->processor->prepareRemoval($entity, $type);
+            $this->removals[$entity] = $this->processor->prepareRemoval($entity, $type, $options);
         }
     }
 

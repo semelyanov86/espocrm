@@ -602,6 +602,9 @@ UNDECLARED = {
     ("vtiger_crmentity", "presence"): (None, "служебное", "count"),
     ("vtiger_crmentity", "smgroupid"): (None, "служебное (все 0)", "count"),
     ("vtiger_crmentity", "crmid"): ("vtigerId", "исходный id — ключ идемпотентности импорта", "count"),
+    # Payments are an SPPayments module of SalesPlatform with own tables: their record key is checked as a field (stage 04.6).
+    ("sp_payments", "payid"): ("Payment.vtigerId", "ключ записи платежа (= crmid) → vtigerId", "count"),
+    ("sp_paymentscf", "payid"): ("Payment.vtigerId", "ключ присоединения пользовательских полей платежа (= payid)", "count"),
     ("vtiger_attachments", "attachmentsid"): ("Attachment.vtigerId", "id вложения", "file-hash"),
     ("vtiger_attachments", "type"): ("Attachment.type", "mime", "count"),
     ("vtiger_attachments", "path"): ("Attachment (файл)", "storage/<path>/<id>_<name> → хранилище EspoCRM", "file-hash"),

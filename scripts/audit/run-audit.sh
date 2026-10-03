@@ -39,7 +39,7 @@ remote_sql < "$OUT/15_table_live_counts.sql" > "$OUT/15_table_live_counts.raw"
 
 echo "3. relations, ACL, workflows, finance, telephony"
 for n in 20_relations 21_acl 25_activity_workflows 26_finance 27_payments 28_pbx 31_misc 32_cardinality 33_allocation_check \
-         34_finance_config 36_rounding 37_timezone 46_finance_contract; do
+         34_finance_config 36_rounding 37_timezone 46_finance_contract 48_finance_chain; do
     run_sql "$n"
 done
 run_sql 40_cdr asteriskcdrdb

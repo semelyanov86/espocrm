@@ -101,9 +101,10 @@ tasks:
       - scripts/stand/espo.sh update-app-timestamp
 
   model:check:
-    desc: Check field-map.csv / relations.csv targets against the merged EspoCRM metadata
+    desc: Check field-map.csv / relations.csv targets against the merged EspoCRM metadata and that finance-coverage.md is current
     cmds:
       - python3 scripts/model/model_check.py
+      - python3 scripts/model/build_finance_coverage.py --check
 
   model:value-maps:
     desc: Regenerate enum options, labels and the Vtiger value dictionary (-- <private audit dir> [--check])
@@ -111,9 +112,15 @@ tasks:
       - python3 scripts/model/build_value_maps.py {{.CLI_ARGS}}
 
   maps:build:
-    desc: Regenerate field-map.csv and relations.csv from a private audit run (-- <private audit dir>)
+    desc: Regenerate field-map.csv and relations.csv from a private audit run (-- <private audit dir>), then finance-coverage.md
     cmds:
       - python3 scripts/audit/build_maps.py {{.CLI_ARGS}} docs/migration
+      - python3 scripts/model/build_finance_coverage.py
+
+  finance:coverage:
+    desc: Regenerate docs/migration/finance-coverage.md from the maps and the model (stage 04.6; -- --check to verify)
+    cmds:
+      - python3 scripts/model/build_finance_coverage.py {{.CLI_ARGS}}
 
   test:stage03:
     desc: Stage 03 acceptance tests on the stand (synthetic data, created and deleted by the run)
@@ -121,7 +128,7 @@ tasks:
       - python3 -m unittest discover -s tests/stage03 -v
 
   test:stage04:
-    desc: Stage 04.2–04.5 acceptance tests on the stand (Quote, SalesOrder, Invoice, Act, items, legal entity, control totals, payments and allocations; synthetic data)
+    desc: Stage 04.2–04.6 acceptance tests on the stand (Quote, SalesOrder, Invoice, Act, items, legal entity, control totals, payments and allocations, the end-to-end chain; synthetic data)
     cmds:
       - python3 -m unittest discover -s tests/stage04 -v
 

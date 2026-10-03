@@ -11,14 +11,6 @@
         "cInvoices": {
             "selectDisabled": true,
             "unlinkDisabled": true
-        },
-        "cActs": {
-            "selectDisabled": true,
-            "unlinkDisabled": true
-        },
-        "cPayments": {
-            "selectDisabled": true,
-            "unlinkDisabled": true
         }
     }
 }

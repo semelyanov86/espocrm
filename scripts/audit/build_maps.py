@@ -14,6 +14,9 @@ Stage 04.2: rows of Quote, SalesOrder, their items and LegalEntity (requisites p
 Stage 04.3: rows of Invoice and its items get `реализовано (этап 04.3)`; links to Act and payments stay `контракт`
 (model_check.DEFERRED) and generic line rows stay partial until ActItem exists.
 Stage 04.5: rows of Act and its items, Invoice.act and the generic line rows get `реализовано (этап 04.5)`.
+Stage 04.6: the contract status is gone — a finance row that migrates nothing (excluded, empty, not migrated as data)
+is `решено` (the fate is the reason); a migrated one stays `предложено` until the model check finds its target, and
+scripts/model/build_finance_coverage.py reports it as open. The payment record keys are checked as Payment.vtigerId.
 """
 import csv
 import re
@@ -26,9 +29,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "model"))
 import mapping as M  # noqa: E402
 import model_check  # noqa: E402
 
-CONTRACT = "контракт (этап 04.1)"  # finance rows fixed by docs/migration/finance-contract.md §11
+DECIDED = "решено"
 DOC_LINK = {"Invoice": "invoice", "Act": "act", "Quotes": "quote", "SalesOrder": "salesOrder", "Consignment": "data"}
 NUMERIC = re.compile(r"^(int|tinyint|smallint|mediumint|bigint|decimal|float|double)")
+
+
+def finance_status(status, fate):
+    """Stage 04.6: a finance row that migrates nothing (excluded, empty, not migrated as data) is decided — its fate is
+    the reason; a migrated row stays as it is until the model check marks it implemented."""
+    if status == "предложено" and fate.startswith(("исключено", "пусто", "не переносится")):
+        return DECIDED
+    return status
 
 
 def read_tsv(path):
@@ -165,8 +176,8 @@ def field_rows(outdir):
                 fate = "пусто — данных нет"
             elif fname in M.NULL_SIGNIFICANT and r["live_rows"] not in ("", "0"):
                 fate = "перенос (значимы NULL и 0)"
-            if mod in M.FINANCE_CONTRACT_MODULES and status == "предложено":
-                status = CONTRACT
+            if mod in M.FINANCE_CONTRACT_MODULES:
+                status = finance_status(status, fate)
             ml = maxlen.get((mod, r["table"], r["column"]))
             out.append([mod, r["table"], r["column"], fname, r["label"], r["uitype"], r["db_type"], custom,
                         r["nonempty_all"], r["live_rows"], count, entity if target not in (None, "—") else "—",
@@ -230,8 +241,8 @@ def field_rows(outdir):
                     status = "решено"
                 if fate == "не классифицировано":
                     status = "не проверено"
-            if tbl in M.FINANCE_CONTRACT_TABLES and status == "предложено":
-                status = CONTRACT
+            if tbl in M.FINANCE_CONTRACT_TABLES:
+                status = finance_status(status, fate)
             out.append(["", tbl, col, "", "", "", r["db_type"], "нет", r["nonempty_all"], live_records,
                         eff if live_records != "" else "", entity, target, transform, verification, fate, status,
                         checked, ""])
@@ -512,7 +523,7 @@ def relation_rows(outdir):
                      "PaymentAllocation.payment / PaymentAllocation.invoice / PaymentAllocation.salesOrder (сумма = сумма платежа)",
                      "count по категориям разбиения; сумма распределений = сумма платежа; конфликты — ручной разбор",
                      "перенос: related_to — основной; связь — только при пустом related_to; конфликты не угадывать; "
-                     "расходы со связью — Q-36", CONTRACT])
+                     "расходы со связью — Q-36", "предложено"])
     ia = read_kind_rows(outdir / "27_payments.tsv", "invoice_act")
     awi = read_kind_rows(outdir / "27_payments.tsv", "act_without_invoice")
     if ia:
@@ -529,9 +540,9 @@ def relation_rows(outdir):
                      "—", "count", "исключено: история не переносится (Q-27)", "решено"])
     rows.append(["users2group", "acl", "vtiger_users2group", "Users", "Groups", "M:N", 4, 0, "", "User.teams", "count", "перенос", "предложено"])
     rows.append(["user2role", "acl", "vtiger_user2role", "Users", "Roles", "N:1", 7, 0, "", "User.roles", "count", "перенос (роли пересобираются)", "предложено"])
-    for r in rows:  # links of finance documents are fixed by the stage 04.1 contract
-        if r[12] == "предложено" and (r[3] in M.FINANCE_CONTRACT_MODULES or r[4] in M.FINANCE_CONTRACT_MODULES):
-            r[12] = CONTRACT
+    for r in rows:  # links of finance documents: final status (stage 04.6)
+        if r[3] in M.FINANCE_CONTRACT_MODULES or r[4] in M.FINANCE_CONTRACT_MODULES:
+            r[12] = finance_status(r[12], r[11])
     return rows
 
 

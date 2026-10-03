@@ -24,7 +24,8 @@ task stand:install | stand:health          # локальный стенд EspoC
 task stand:backup | stand:restore -- latest --yes
 task espo -- rebuild                       # консоль EspoCRM; bin/command напрямую не запускать
 task test:finance                          # тесты расчётного ядра финансов (этап 04.1)
-task test:stage04                          # приёмочные тесты финансовых документов, платежей и актов на стенде (этапы 04.2–04.5)
+task test:stage04                          # приёмочные тесты финансовых документов, платежей, актов и сквозной цепочки на стенде (этапы 04.2–04.6)
+task finance:coverage                      # пересобрать docs/migration/finance-coverage.md (покрытие финансовых полей и связей, этап 04.6)
 ```
 
 - `docs/migration/field-map.csv` и `relations.csv` **не редактировать вручную**: правила — `scripts/audit/mapping.py`, генерация — `scripts/audit/build_maps.py` из приватного прогона.

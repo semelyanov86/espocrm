@@ -1,5 +1,21 @@
 {
     "relationshipPanels": {
+        "cQuotes": {
+            "selectDisabled": true,
+            "unlinkDisabled": true
+        },
+        "cSalesOrders": {
+            "selectDisabled": true,
+            "unlinkDisabled": true
+        },
+        "cInvoices": {
+            "selectDisabled": true,
+            "unlinkDisabled": true
+        },
+        "cActs": {
+            "selectDisabled": true,
+            "unlinkDisabled": true
+        },
         "cPayments": {
             "selectDisabled": true,
             "unlinkDisabled": true

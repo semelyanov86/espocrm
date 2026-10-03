@@ -179,7 +179,7 @@ def parse_target(target, default_entities):
 
 # Picklist tables (rows «entityDefs options») that do not become an EspoCRM enum of stage 03.
 PICKLIST_FATE = {
-    "postatus": "этап 04.x: справочник финансового модуля",
+    "postatus": "не используется: модуль PurchaseOrder без записей не создаётся (finance-contract.md §1)",
     **{pl: "архив: исходные значения в vtigerData (enum не создаётся; периодичность заказов закончилась в 2016, D-15)"
        for pl in ("carrier", "recurring_frequency", "payment_duration")},
     "spcompany": "одна запись LegalEntity (D-04, D-48): значения — не опции, а ссылка legalEntity",

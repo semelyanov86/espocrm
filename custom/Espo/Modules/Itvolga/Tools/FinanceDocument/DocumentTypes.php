@@ -158,6 +158,14 @@ class DocumentTypes
     }
 
     /**
+     * The number counter of a numbered record type (a document or a payment); null for other scopes.
+     */
+    public function seriesOf(string $entityType): ?NumberSeries
+    {
+        return ($this->find($entityType) ?? $this->findPayment($entityType))?->series();
+    }
+
+    /**
      * Scopes whose records are written only through the finance save paths (documents, items, payments, allocations).
      */
     public function isFinanceScope(string $entityType): bool

@@ -129,7 +129,7 @@ class PaymentProcessor
         }
 
         $documents = $this->rows->lockDocuments($plan->documents());
-        $this->checkTargets($plan, $type, $stored, $documents, $import);
+        $this->checkTargets($plan, $type, $stored, $documents, $import, $settling);
 
         $settle = $settling
             ? AllocationPlan::sortedKeys([...$plan->affected, ...array_map(
@@ -216,11 +216,14 @@ class PaymentProcessor
     /**
      * beforeRemove of a payment: the ledger, the payment and the documents of its rows are locked, then the rows of a
      * locking read are removed here — not by the core cascade, whose plain read may come from a snapshot older than the
-     * lock (core hooks read before this one) and miss a row another save committed meanwhile.
+     * lock (core hooks read before this one) and miss a row another save committed meanwhile. Removing a payment
+     * changes what is paid on every document of its rows: each must be readable by the user (checkTargets; owner
+     * decision 2026-10-03, stage 04.6), checked before any row is removed.
      *
      * @return array<string, Entity> locked documents by key
+     * @throws BadRequest a document of a row the user may not read
      */
-    public function prepareRemoval(Entity $payment, PaymentType $type): array
+    public function prepareRemoval(Entity $payment, PaymentType $type, RemoveOptions $options): array
     {
         if (!$this->numberAllocator->lock($type->series())) {
             return [];
@@ -229,8 +232,15 @@ class PaymentProcessor
         $this->rowLock->one($type->entityType, $payment->getId());
 
         $rows = $this->rows->find($payment->getId(), $type, true);
-        $keys = array_map(fn (Entity $row) => $this->rows->toInput($row, $type)->targetKey(), $rows);
-        $documents = $this->rows->lockDocuments(AllocationPlan::sortedKeys($keys));
+        $inputs = array_map(fn (Entity $row) => $this->rows->toInput($row, $type), $rows);
+        $documents = $this->rows->lockDocuments(AllocationPlan::sortedKeys(
+            array_map(static fn (AllocationInput $input) => $input->targetKey(), $inputs)));
+        $import = (bool) $options->get(SaveOption::IMPORT);
+
+        foreach ($inputs as $id => $input) {
+            $this->assertReadable($documents[$input->targetKey()] ?? null, $input, (int) $rows[$id]->get('order'),
+                false, $type, $import);
+        }
 
         foreach ($rows as $row) {
             $this->rows->removeWithOwner($row, $payment);
@@ -291,8 +301,10 @@ class PaymentProcessor
     /**
      * A row that changes what is paid on a document — new, moved (both documents), with another amount, removed —
      * needs a live document the user may read: settlement of a document is not changed through a payment by a user
-     * who may not read the document. One message for a missing and an unreadable document, so the existence of a
-     * document is not revealed. A row only renumbered changes no document.
+     * who may not read the document. A changed status or direction starts or stops counting every row (D-49), so then
+     * every row's document is checked too (owner decision 2026-10-03, stage 04.6); a payment removal is checked in
+     * prepareRemoval(). One message for a missing and an unreadable document, so the existence of a document is not
+     * revealed. A row only renumbered changes no document.
      *
      * @param array<string, Entity> $stored
      * @param array<string, Entity> $documents
@@ -303,12 +315,15 @@ class PaymentProcessor
         array $stored,
         array $documents,
         bool $import,
+        bool $settling,
     ): void {
         $touched = [];
 
         foreach ($plan->rows as $row) {
             if ($row->isNew() || $row->targetChanged() || $row->amountChanged()) {
                 $touched[] = [$row->input, $row->order, true];
+            } elseif ($settling) {
+                $touched[] = [$row->input, $row->order, false];
             }
 
             if ($row->targetChanged()) {
@@ -321,19 +336,35 @@ class PaymentProcessor
         }
 
         foreach ($touched as [$input, $order, $required]) {
-            $document = $documents[$input->targetKey()] ?? null;
-
-            if ($document ? $import || $this->acl->checkEntity($document, Table::ACTION_READ) : !$required) {
-                continue;
-            }
-
-            throw $this->errorMapper->toBadRequestIn(
-                new InvalidValue("Row $order: no such document.", 'allocationUnknownTarget', $order,
-                    $type->linkOf($input->targetType)),
-                $type->entityType,
-                $type->allocationEntityType,
-            );
+            $this->assertReadable($documents[$input->targetKey()] ?? null, $input, $order, $required, $type, $import);
         }
+    }
+
+    /**
+     * The document of a row whose paid sum the write changes: readable by the user, or the write is refused. A missing
+     * document is refused only when the row points at it ($required: a new, moved or re-amounted row). The importer is
+     * not checked; the console runs as the system user, an administrator for the ACL.
+     *
+     * @throws BadRequest
+     */
+    private function assertReadable(
+        ?Entity $document,
+        AllocationInput $input,
+        int $order,
+        bool $required,
+        PaymentType $type,
+        bool $import,
+    ): void {
+        if ($document ? $import || $this->acl->checkEntity($document, Table::ACTION_READ) : !$required) {
+            return;
+        }
+
+        throw $this->errorMapper->toBadRequestIn(
+            new InvalidValue("Row $order: no such document.", 'allocationUnknownTarget', $order,
+                $type->linkOf($input->targetType)),
+            $type->entityType,
+            $type->allocationEntityType,
+        );
     }
 
     /**
