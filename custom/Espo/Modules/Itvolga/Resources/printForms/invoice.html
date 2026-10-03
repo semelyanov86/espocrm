@@ -1,0 +1,125 @@
+<!-- Invoice — SalesPlatform «Новый счёт» (sp_templates 10) without its defects (stage 05, D-80). Values: form.* -->
+<div class="head">
+    <p class="b seller">{{form.seller.name}}<br>{{form.seller.address}}</p>
+
+    <div class="b c">Образец заполнения платежного поручения</div>
+    <table class="grid bank wide">
+        <tr>
+            <td style="width: 26.4%;">ИНН {{form.seller.inn}}</td>
+            <td style="width: 26.4%;">КПП {{form.seller.kpp}}</td>
+            <td rowspan="2" class="mid" style="width: 9.4%;">Сч. №</td>
+            <td rowspan="2" class="mid" style="width: 37.8%;">{{form.seller.bankAccount}}</td>
+        </tr>
+        <tr>
+            <td colspan="2"><span class="small">Получатель</span><br>{{form.seller.name}}</td>
+        </tr>
+        <tr>
+            <td colspan="2" rowspan="2"><span class="small">Банк получателя</span><br>{{form.seller.bankName}}</td>
+            <td>БИК</td>
+            <td rowspan="2">{{form.seller.bic}}<br>{{form.seller.corrAccount}}</td>
+        </tr>
+        <tr>
+            <td>Сч. №</td>
+        </tr>
+    </table>
+
+    <h1>СЧЕТ № {{form.number}} от {{form.date}}</h1>
+
+    <table class="party wide">
+        <tr>
+            <td style="width: 18.9%;">Покупатель:</td>
+            <td class="b">{{form.buyer.linePhone}}</td>
+        </tr>
+    </table>
+</div>
+
+<table class="grid items wide">
+    <thead>
+        <tr>
+            <th style="width: 5.7%;">№</th>
+            {{#if form.hasDiscount}}
+            <th style="width: 35.8%;">Наименование товара, работ, услуг</th>
+            {{else}}
+            <th style="width: 49%;">Наименование товара, работ, услуг</th>
+            {{/if}}
+            <th style="width: 12.3%;">Ед. изм.</th>
+            <th style="width: 6.6%;">Кол-во</th>
+            <th style="width: 13.2%;">Цена</th>
+            {{#if form.hasDiscount}}
+            <th style="width: 13.2%;">Скидка</th>
+            {{/if}}
+            <th style="width: 13.2%;">Сумма</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{#each form.rows}}
+        <tr class="{{#if more.length}}cont{{/if}}">
+            <td>{{no}}</td>
+            <td>{{name}}{{#if description}} <span class="pre">{{description}}</span>{{/if}}</td>
+            <td class="c">{{unit}}</td>
+            <td class="r">{{quantity}}</td>
+            <td class="r">{{price}}</td>
+            {{#if @root.form.hasDiscount}}
+            <td class="r">{{discount}}</td>
+            {{/if}}
+            <td class="r">{{amount}}</td>
+        </tr>
+        {{#each more}}
+        <tr class="more{{#if @last}} last{{/if}}">
+            <td></td><td class="pre">{{this}}</td><td></td><td></td><td></td>
+            {{#if @root.form.hasDiscount}}<td></td>{{/if}}
+            <td></td>
+        </tr>
+        {{/each}}
+        {{/each}}
+    </tbody>
+</table>
+
+<div class="keep">
+    <table class="summary wide">
+        <tr>
+            <td class="label">Итого:</td>
+            <td class="value">{{form.totals.subtotal}}</td>
+        </tr>
+        {{#if form.totals.discount}}
+        <tr>
+            <td class="label">Скидка:</td>
+            <td class="value">{{form.totals.discount}}</td>
+        </tr>
+        {{/if}}
+        {{#if form.totals.shipping}}
+        <tr>
+            <td class="label">Доставка:</td>
+            <td class="value">{{form.totals.shipping}}</td>
+        </tr>
+        {{/if}}
+        {{#if form.totals.tax}}
+        <tr>
+            <td class="label">НДС:</td>
+            <td class="value">{{form.totals.tax}}</td>
+        </tr>
+        {{else}}
+        <tr>
+            <td class="label">Без налога (НДС):</td>
+            <td class="value">--</td>
+        </tr>
+        {{/if}}
+        {{#if form.totals.adjustment}}
+        <tr>
+            <td class="label">Корректировка:</td>
+            <td class="value">{{form.totals.adjustment}}</td>
+        </tr>
+        {{/if}}
+        <tr>
+            <td class="label">Всего к оплате:</td>
+            <td class="value">{{form.totals.grandTotal}}</td>
+        </tr>
+    </table>
+
+    <p class="words">
+        Всего наименований {{form.count}}, на сумму {{form.totals.grandTotal}} руб.<br>
+        <span class="b">{{form.words}}</span>
+    </p>
+
+    <p class="sign">Руководитель __________________ ( {{form.seller.director}} )</p>
+</div>

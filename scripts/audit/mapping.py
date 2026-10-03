@@ -695,8 +695,21 @@ TABLE_RULES = [
      "отчёты", "не переносится: отчёты не нужны (решение владельца, Q-16)", "—"),
     (r"^com_vtiger_workflow", "workflows", "не переносится как данные: логика реализуется собственными hooks/formula по decisions.md", "—"),
     (r"^vtiger_cron_task$", "планировщик", "не переносится: задачи EspoCRM Scheduled Jobs", "—"),
-    (r"^(sp_templates|vtiger_emailtemplates|vtiger_quotingtool.*|vtiger_inventory_tandc|vtiger_notificationscheduler|vtiger_inventorynotification)$",
-     "шаблоны", "переносится как спецификация (print-forms.md); реализация собственным кодом", "Template (собств.)"),
+    # Stage 05 (print-forms.md): the source templates are a specification, not data — the forms are module code.
+    (r"^sp_templates$", "печатные формы SalesPlatform",
+     "переносится собственным кодом: «Новый счёт», «Новый акт» и «Приходный кассовый ордер» — печатные формы модуля, "
+     "предложение и заказ — собственные формы, судьба остальных шаблонов — print-forms.md (решение владельца, Q-21, "
+     "2026-10-03; D-79)", "печатные формы (этап 05)"),
+    (r"^vtiger_inventory_tandc$", "условия документов",
+     "переносится настройкой: общий текст условий — значение по умолчанию termsAndConditions новых предложений, заказов "
+     "и счетов (решение владельца 2026-09-29, print-forms.md §2; D-83)", "termsAndConditions (умолчание)"),
+    (r"^vtiger_emailtemplates$", "шаблоны писем",
+     "не переносится: только штатные уведомления EspoCRM (решение владельца, Q-14)", "—"),
+    (r"^(vtiger_notificationscheduler|vtiger_inventorynotification)$", "уведомления Vtiger",
+     "не переносится: стандартные уведомления Vtiger, в EspoCRM — штатные (решение владельца, Q-14)", "—"),
+    (r"^vtiger_quotingtool", "QuotingTool (VTE)",
+     "исключено: шаблон закрытого расширения VTE удалён в источнике (deleted=1); платные расширения не переносятся "
+     "(решение владельца, Q-30)", "—"),
     (r"^vtiger_(organizationdetails)$", "реквизиты организации", "переносится в настройку юрлица (LegalEntity) — значения вне Git", "LegalEntity"),
     (r"^vtiger_spcompany$", "справочник юрлиц SalesPlatform",
      "не переносится как опции: 'Default' и 'По умолчанию' — одно юрлицо, одна запись LegalEntity (D-04)", "LegalEntity"),

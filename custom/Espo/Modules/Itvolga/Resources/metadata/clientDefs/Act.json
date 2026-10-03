@@ -15,5 +15,15 @@
         "documents": {
             "createDisabled": false
         }
-    }
+    },
+    "detailActionList": [
+        {
+            "name": "printForm",
+            "label": "Print",
+            "handler": "itvolga:handlers/finance/print-form",
+            "actionFunction": "print",
+            "checkVisibilityFunction": "canPrint",
+            "acl": "read"
+        }
+    ]
 }

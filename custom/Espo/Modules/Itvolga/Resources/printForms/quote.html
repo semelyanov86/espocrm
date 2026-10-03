@@ -1,0 +1,53 @@
+<!-- Commercial offer (Quote), own layout (stage 05, D-80): no SalesPlatform template is reproduced. Shared blocks —
+     offer-parts.html. Values: form.* -->
+{{> offerHead}}
+
+<table class="title">
+    <tr>
+        <td>
+            <h1>Коммерческое предложение</h1>
+            <div>№ {{form.number}} от {{form.date}}</div>
+        </td>
+        {{#if form.extraDate}}
+        <td class="validity"><span class="badge">Действительно до {{form.extraDate}}</span></td>
+        {{/if}}
+    </tr>
+</table>
+
+<table class="parties">
+    <tr>
+        <td>
+            <div class="label">Для</div>
+            {{> offerParty form.buyer}}
+        </td>
+        <td class="gap"></td>
+        <td>
+            <div class="label">Контактное лицо</div>
+            <div class="b">{{#if form.contact}}{{form.contact}}{{else}}—{{/if}}</div>
+            {{#if form.manager}}
+            <div class="label" style="margin-top: 5pt;">Ваш менеджер</div>
+            <div>{{form.manager.name}}</div>
+            <div class="muted">{{form.manager.phone}}{{#if form.manager.email}} · {{form.manager.email}}{{/if}}</div>
+            {{/if}}
+        </td>
+    </tr>
+</table>
+
+{{#if form.subject}}<p class="subject">Предлагаем: <span class="b">{{form.subject}}</span></p>{{/if}}
+
+{{> offerLines}}
+
+<div class="keep">
+    {{> offerTotals grandLabel="Всего:"}}
+
+    <table class="closing">
+        <tr>
+            <td>
+                С уважением,<br>
+                Руководитель
+                <div class="sign-line">__________________ ( {{form.seller.director}} )</div>
+            </td>
+            <td class="right muted">Будем рады ответить на ваши вопросы.</td>
+        </tr>
+    </table>
+</div>

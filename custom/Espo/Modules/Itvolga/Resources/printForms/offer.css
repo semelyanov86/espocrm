@@ -1,0 +1,222 @@
+/* Commercial offer and sales order (stage 05, D-80): no source template to reproduce — a conventional business layout
+   with one accent colour; the same data rules as the invoice (stored totals, words, units). */
+body {
+    font-size: 9pt;
+    color: #1d2733;
+}
+
+.muted {
+    color: #5b6775;
+}
+
+.accent {
+    color: #1f3a5f;
+}
+
+table.top {
+    width: 100%;
+}
+
+table.top td.logo {
+    width: 45%;
+    vertical-align: middle;
+}
+
+table.top td.logo img {
+    max-height: 20mm;
+    max-width: 70mm;
+}
+
+table.top td.logo .brand {
+    font-size: 14pt;
+    font-weight: bold;
+    color: #1f3a5f;
+}
+
+table.top td.seller {
+    width: 55%;
+    text-align: right;
+    font-size: 8pt;
+    line-height: 1.35;
+}
+
+table.top td.seller .name {
+    font-size: 10pt;
+    font-weight: bold;
+    color: #1d2733;
+}
+
+.bar {
+    border-top: 2.5pt solid #1f3a5f;
+    margin: 7pt 0 12pt 0;
+}
+
+table.title {
+    width: 100%;
+    margin-bottom: 10pt;
+}
+
+table.title h1 {
+    font-size: 17pt;
+    font-weight: bold;
+    color: #1f3a5f;
+    text-transform: uppercase;
+    letter-spacing: 0.5pt;
+    margin: 0 0 3pt 0;
+}
+
+table.title td.validity {
+    text-align: right;
+    vertical-align: bottom;
+}
+
+.badge {
+    display: inline-block;
+    background: #eef2f6;
+    border: 0.6pt solid #c9d3de;
+    padding: 3pt 7pt;
+    font-weight: bold;
+}
+
+table.parties {
+    width: 100%;
+    margin-bottom: 10pt;
+}
+
+table.parties td {
+    width: 50%;
+    background: #f5f7fa;
+    border-left: 2pt solid #1f3a5f;
+    padding: 5pt 7pt;
+    line-height: 1.35;
+}
+
+table.parties td.gap {
+    width: 2%;
+    background: none;
+    border: none;
+    padding: 0;
+}
+
+.label {
+    font-size: 7pt;
+    text-transform: uppercase;
+    letter-spacing: 0.4pt;
+    color: #5b6775;
+    margin-bottom: 2pt;
+}
+
+.subject {
+    margin: 0 0 8pt 0;
+}
+
+table.lines {
+    width: 100%;
+    font-size: 8.5pt;
+}
+
+table.lines th {
+    background: #1f3a5f;
+    color: #fff;
+    font-weight: bold;
+    padding: 4pt 4pt;
+    text-align: center;
+    vertical-align: middle;
+}
+
+table.lines td {
+    padding: 4pt 4pt;
+    border-bottom: 0.6pt solid #d8dee6;
+}
+
+table.lines tbody tr:nth-child(even) td {
+    background: #f5f7fa;
+}
+
+/* A long line description continues in rows of its own (Presenter parts). */
+table.lines tr.cont td,
+table.lines tr.more td {
+    border-bottom: none;
+}
+
+table.lines tr.more td {
+    padding-top: 0;
+}
+
+table.lines tr.more.last td {
+    border-bottom: 0.6pt solid #d8dee6;
+}
+
+table.lines td.n {
+    text-align: center;
+    color: #5b6775;
+}
+
+table.lines .note {
+    font-size: 7.5pt;
+    color: #5b6775;
+}
+
+table.after {
+    width: 100%;
+    margin-top: 8pt;
+}
+
+table.after td.words {
+    width: 55%;
+    padding-right: 10pt;
+    line-height: 1.4;
+}
+
+table.totals {
+    width: 100%;
+}
+
+table.totals td {
+    padding: 2.5pt 5pt;
+    text-align: right;
+}
+
+table.totals td.value {
+    width: 40%;
+    white-space: nowrap;
+}
+
+table.totals tr.grand td {
+    background: #1f3a5f;
+    color: #fff;
+    font-weight: bold;
+    font-size: 10.5pt;
+    padding: 5pt 5pt;
+}
+
+.terms {
+    margin-top: 14pt;
+    padding: 6pt 8pt;
+    border: 0.6pt solid #d8dee6;
+    background: #fbfcfd;
+}
+
+.terms .text {
+    white-space: pre-line;
+    line-height: 1.4;
+}
+
+table.closing {
+    width: 100%;
+    margin-top: 18pt;
+}
+
+table.closing td {
+    width: 50%;
+    vertical-align: bottom;
+    line-height: 1.4;
+}
+
+table.closing td.right {
+    text-align: right;
+}
+
+.sign-line {
+    margin-top: 16pt;
+}

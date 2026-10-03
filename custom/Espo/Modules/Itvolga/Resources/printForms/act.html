@@ -1,0 +1,97 @@
+<!-- Act — SalesPlatform «Новый акт» (sp_templates 11) without its defects: every line inside one table (stage 05, D-80). -->
+<div class="head">
+    <h3>Акт № {{form.number}} от {{form.date}}</h3>
+    <div class="rule"></div>
+
+    <table class="parties wide">
+        <tr>
+            <td style="width: 15.1%;">Исполнитель:</td>
+            <td>{{form.seller.line}}</td>
+        </tr>
+        <tr>
+            <td class="gap" colspan="2"></td>
+        </tr>
+        <tr>
+            <td>Заказчик:</td>
+            <td>{{form.buyer.line}}</td>
+        </tr>
+    </table>
+</div>
+
+<table class="grid items wide">
+    <thead>
+        <tr>
+            <th style="width: 5.7%;">№</th>
+            {{#if form.hasDiscount}}
+            <th style="width: 28.3%;">Услуга</th>
+            {{else}}
+            <th style="width: 41.5%;">Услуга</th>
+            {{/if}}
+            <th style="width: 13.2%;">Количество</th>
+            <th style="width: 13.2%;">Ед.</th>
+            <th style="width: 13.2%;">Цена</th>
+            {{#if form.hasDiscount}}
+            <th style="width: 13.2%;">Скидка</th>
+            {{/if}}
+            <th style="width: 13.2%;">Сумма</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{#each form.rows}}
+        <tr class="{{#if more.length}}cont{{/if}}">
+            <td>{{no}}</td>
+            <td>{{name}}{{#if description}}. <span class="pre">{{description}}</span>{{/if}}</td>
+            <td class="r">{{quantity}}</td>
+            <td class="l">{{unit}}</td>
+            <td class="r">{{price}}</td>
+            {{#if @root.form.hasDiscount}}
+            <td class="r">{{discount}}</td>
+            {{/if}}
+            <td class="r">{{amount}}</td>
+        </tr>
+        {{#each more}}
+        <tr class="more{{#if @last}} last{{/if}}">
+            <td></td><td class="pre">{{this}}</td><td></td><td></td><td></td>
+            {{#if @root.form.hasDiscount}}<td></td>{{/if}}
+            <td></td>
+        </tr>
+        {{/each}}
+        {{/each}}
+    </tbody>
+</table>
+
+<div class="keep">
+    <table class="summary wide">
+        <tr><td>Сумма: {{form.totals.subtotal}}</td></tr>
+        {{#if form.totals.discount}}<tr><td>Скидка: {{form.totals.discount}}</td></tr>{{/if}}
+        {{#if form.totals.shipping}}<tr><td>Доставка: {{form.totals.shipping}}</td></tr>{{/if}}
+        {{#if form.totals.tax}}
+        <tr><td>НДС: {{form.totals.tax}}</td></tr>
+        {{else}}
+        <tr><td>Без налога (НДС)</td></tr>
+        {{/if}}
+        {{#if form.totals.adjustment}}<tr><td>Корректировка: {{form.totals.adjustment}}</td></tr>{{/if}}
+        <tr><td>Итого: {{form.totals.grandTotal}}</td></tr>
+    </table>
+
+    <p class="i words">
+        Всего оказано услуг {{form.count}}, на сумму: {{form.totals.grandTotal}} руб.<br>
+        {{form.words}}
+    </p>
+
+    <p class="accept">
+        Вышеперечисленные работы выполнены в полном объеме и в установленный срок. Заказчик не имеет
+        претензий по качеству, срокам и объемам выполненных работ.
+    </p>
+
+    <table class="signatures wide">
+        <tr>
+            <td style="width: 50%;">Исполнитель</td>
+            <td style="width: 50%;">Заказчик</td>
+        </tr>
+        <tr>
+            <td class="c line">_____________________ ({{form.seller.director}})</td>
+            <td class="c line">_____________________ (____________________)</td>
+        </tr>
+    </table>
+</div>

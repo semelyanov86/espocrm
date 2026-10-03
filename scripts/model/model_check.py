@@ -39,9 +39,7 @@ STAGE044 = {"Payment", "PaymentAllocation"}
 STAGE045 = {"Act", "ActItem"}
 # Finance stages, latest first: an implemented row gets the latest stage among its entities.
 FINANCE_STAGES = (("04.5", STAGE045), ("04.4", STAGE044), ("04.3", STAGE043), ("04.2", STAGE042))
-LATER = {
-    "Template": "05",
-}
+LATER = {}
 # Links of implemented entities to entities of later stages: the row stays at its later stage until both ends exist.
 DEFERRED = {}
 # Item entity of each document and its link to the document (generic rows of vtiger_inventoryproductrel).
@@ -71,11 +69,19 @@ NON_FIELD = {
     "links EspoCRM": "связь — проверяется в relations.csv",
     "entityDefs options": "опции enum — metadata/vtigerValueMap (D-19, Q-32)",
     "config": "настройки EspoCRM (валюта RUB, D-37)",
-    "Template (собств.)": "этап 05 (печатные формы)",
     "multiEnum": "значения тегов: Case.cTags, KnowledgeBaseArticle.cTags, ProjectTask.tags",
     "DocumentFolder": "запись DocumentFolder",
     "Attachment (файл)": "файл вложения → хранилище EspoCRM, сверка sha256 — этап 06.3",
 }
+# Stage 05: targets of the source templates (sp_templates) and of the default document terms (vtiger_inventory_tandc).
+PRINT_FORMS_TARGET = "печатные формы (этап 05)"
+TERMS_TARGET = "termsAndConditions (умолчание)"
+# SalesPlatform templates the print forms reproduce (Q-21, D-27): sp_templates.templateid → entity.
+PRINT_FORM_SOURCES = {10: "Invoice", 11: "Act", 5: "Payment"}
+PRINT_FORM_ENTITIES = {"Invoice", "Act", "Payment", "Quote", "SalesOrder"}
+PRINT_FORM_DIR = "custom/Espo/Modules/Itvolga/Resources/printForms"
+PRINT_ENTRY_POINT = "custom/Espo/Modules/Itvolga/EntryPoints/ItvolgaPrint.php"
+TERMS_ENTITIES = ("Quote", "SalesOrder", "Invoice")
 STRING_TARGET_TYPES = {"varchar", "url", "email", "phone", "password", "text", "wysiwyg", "enum", "multiEnum"}
 DEFAULT_MAX_LENGTH = {"varchar": 255, "url": 255, "password": 255, "enum": 255, "email": 255, "phone": 36}
 
@@ -221,8 +227,10 @@ def is_empty_contract_row(fate, entities):
 
 
 def implemented_stage(model, row):
-    """Stage of an implemented row: the latest stage among its entities (04.5 … 04.2), otherwise 03."""
+    """Stage of an implemented row: 05 for the print forms, the latest stage among its entities (04.5 … 04.2), otherwise 03."""
     target = row.get("target_field") or row.get("target_link") or ""
+    if target.strip() in (PRINT_FORMS_TARGET, TERMS_TARGET):
+        return "05"
     entities = set(entities_for(row)) | set(target_entities(target))
     if target.startswith("<Doc>Item"):
         entities |= set(ITEM_PARENT)
@@ -291,6 +299,10 @@ def check_field_row(model, row, max_len=None):
 def _check_field_row(model, row, target, max_len):
     if target.strip() == "entityDefs options":
         return picklist_check(model, row.get("source_table", ""))
+    if target.strip() == PRINT_FORMS_TARGET:
+        return check_print_forms(model)
+    if target.strip() == TERMS_TARGET:
+        return check_default_terms(model)
     if target.strip() in NON_FIELD:
         return None, NON_FIELD[target.strip()]
     entities = entities_for(row)
@@ -370,6 +382,43 @@ MODULE_ENTITY = {
     "JVmes": "VtigerArchive", "Users": "User", "Quotes": "Quote", "SalesOrder": "SalesOrder", "Invoice": "Invoice",
     "Act": "Act", "SPPayments": "Payment",
 }
+
+
+def check_print_forms(model):
+    """The print forms (app.itvolgaFinance.printForms): one per finance entity with its template files and date fields,
+    the three SalesPlatform templates of Q-21 reproduced, the entry point present."""
+    forms = model.load("app").get("itvolgaFinance", {}).get("printForms", {})
+    problems = []
+    if set(forms) != PRINT_FORM_ENTITIES:
+        problems.append("формы: " + ", ".join(sorted(set(forms) ^ PRINT_FORM_ENTITIES)))
+    for tid, entity in PRINT_FORM_SOURCES.items():
+        if (forms.get(entity) or {}).get("sourceTemplateId") != tid:
+            problems.append(f"шаблон {tid} не воспроизведён формой {entity}")
+    for entity, form in sorted(forms.items()):
+        if entity not in model.entity_defs:
+            problems.append(f"нет сущности {entity}")
+            continue
+        files = [f"{form.get('template')}.html", f"{form.get('style') or form.get('template')}.css", "common.css",
+                 *([f"{form['partials']}.html"] if form.get("partials") else [])]
+        problems += [f"{entity}: нет {name}" for name in files if not (model.repo / PRINT_FORM_DIR / name).is_file()]
+        for key in ("dateField", "extraDateField"):
+            name = form.get(key)
+            if name and name != "createdAt" and not model.field(entity, name):
+                problems.append(f"{entity}: нет поля {name}")
+    if not (model.repo / PRINT_ENTRY_POINT).is_file():
+        problems.append("нет точки входа печати")
+    if problems:
+        return False, "ОШИБКА: " + "; ".join(problems)
+    return True, f"ok: печатные формы {len(forms)} (шаблоны SalesPlatform {', '.join(map(str, PRINT_FORM_SOURCES))})"
+
+
+def check_default_terms(model):
+    """One default text of termsAndConditions for new quotes, sales orders and invoices (vtiger_inventory_tandc)."""
+    defaults = {e: (model.field(e, "termsAndConditions") or {}).get("default") for e in TERMS_ENTITIES}
+    if not all(defaults.values()) or len(set(defaults.values())) != 1:
+        return False, "ОШИБКА: умолчание termsAndConditions не задано или различается: " + ", ".join(
+            e for e, v in defaults.items() if not v)
+    return True, f"ok: умолчание termsAndConditions ({', '.join(TERMS_ENTITIES)})"
 
 
 def check_relation_row(model, row):

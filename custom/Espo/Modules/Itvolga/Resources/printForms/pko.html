@@ -1,0 +1,136 @@
+<!-- Cash receipt order (unified form КО-1) with its receipt — SalesPlatform «Приходный кассовый ордер» (sp_templates 5),
+     stage 05, D-81. Accounting codes are not kept in EspoCRM (empty in the source data): their cells stay blank. -->
+<table class="layout">
+    <tr>
+        <td class="order">
+            <div class="form-ref">Унифицированная форма КО-1<br>Утверждена постановлением Госкомстата России от 18.08.98 № 88</div>
+
+            <table class="org">
+                <tr>
+                    <td class="org-name">
+                        <div class="filled">{{form.seller.name}}</div>
+                        <div class="caption">организация</div>
+                        <div class="filled empty">&nbsp;</div>
+                        <div class="caption">подразделение</div>
+                    </td>
+                    <td class="code-labels">
+                        <div class="code-head">&nbsp;</div>
+                        <div class="code-label">Форма по ОКУД</div>
+                        <div class="code-label">по ОКПО</div>
+                        <div class="code-label">&nbsp;</div>
+                    </td>
+                    <td class="codes">
+                        <div class="code-head">Коды</div>
+                        <div class="code bold-top">0310001</div>
+                        <div class="code">{{form.seller.okpo}}</div>
+                        <div class="code bold-bottom">&nbsp;</div>
+                    </td>
+                </tr>
+            </table>
+
+            <table class="title">
+                <tr>
+                    <td class="name">ПРИХОДНЫЙ КАССОВЫЙ ОРДЕР</td>
+                    <td class="doc">
+                        <table class="doc-no">
+                            <tr><th>Номер документа</th><th>Дата составления</th></tr>
+                            <tr><td>{{form.number}}</td><td>{{form.date}}</td></tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+
+            <table class="grid entries">
+                <tr>
+                    <th rowspan="2" style="width: 12%;">Дебет</th>
+                    <th colspan="4">Кредит</th>
+                    <th rowspan="2" style="width: 15%;">Сумма, руб. коп.</th>
+                    <th rowspan="2" style="width: 13%;">Код целевого назначения</th>
+                    <th rowspan="2" style="width: 6%;">&nbsp;</th>
+                </tr>
+                <tr>
+                    <th class="tiny" style="width: 10%;">&nbsp;</th>
+                    <th class="tiny" style="width: 14%;">код структурного подразделения</th>
+                    <th class="tiny" style="width: 15%;">корреспондирующий счет, субсчет</th>
+                    <th class="tiny" style="width: 15%;">код аналитического учета</th>
+                </tr>
+                <tr class="values">
+                    <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
+                    <td class="r">{{form.amount}}</td><td>&nbsp;</td><td>&nbsp;</td>
+                </tr>
+            </table>
+
+            <table class="fields">
+                <tr><td class="label">Принято от</td><td class="value">{{form.payer}}</td></tr>
+                <tr><td class="label">Основание</td><td class="value">{{form.purpose}}</td></tr>
+                <tr><td class="label">Сумма</td><td class="value">{{form.words}}</td></tr>
+                <tr><td class="label">В том числе</td><td class="value">НДС (Без НДС)</td></tr>
+                <tr><td class="label">Приложение</td><td class="value">&nbsp;</td></tr>
+            </table>
+
+            <table class="signs">
+                <tr>
+                    <td class="who">Главный бухгалтер</td>
+                    <td class="line">&nbsp;</td>
+                    <td class="gap"></td>
+                    <td class="line c">{{form.seller.bookkeeper}}</td>
+                </tr>
+                <tr class="captions">
+                    <td></td><td>подпись</td><td></td><td>расшифровка подписи</td>
+                </tr>
+                <tr>
+                    <td class="who">Получил кассир</td>
+                    <td class="line">&nbsp;</td>
+                    <td class="gap"></td>
+                    <td class="line">&nbsp;</td>
+                </tr>
+                <tr class="captions">
+                    <td></td><td>подпись</td><td></td><td>расшифровка подписи</td>
+                </tr>
+            </table>
+        </td>
+
+        <td class="cut">&nbsp;</td>
+
+        <td class="receipt">
+            <div class="filled">{{form.seller.name}}</div>
+            <div class="caption">организация</div>
+
+            <div class="receipt-title">КВИТАНЦИЯ</div>
+            <div class="field">к ПКО № <span class="u">{{form.number}}</span></div>
+            <div class="field">от <span class="u">{{form.dateLong}}</span></div>
+
+            <div class="field">Принято от</div>
+            <div class="filled">{{form.payer}}</div>
+            <div class="field top">Основание</div>
+            <div class="filled">{{form.purpose}}</div>
+            <table class="fields top">
+                <tr><td class="label">Сумма</td><td class="value b">{{form.amount}}</td></tr>
+                <tr><td></td><td class="caption">цифрами</td></tr>
+            </table>
+            <div class="filled">{{form.words}}</div>
+            <div class="field top">В том числе</div>
+            <div class="filled">НДС (Без НДС)</div>
+
+            <div class="field stamp"><span class="b">{{form.dateLong}}</span></div>
+            <div class="field b">М.П. (штампа)</div>
+
+            <table class="signs">
+                <tr><td colspan="3" class="who">Главный бухгалтер</td></tr>
+                <tr>
+                    <td class="line">&nbsp;</td>
+                    <td class="gap"></td>
+                    <td class="line c">{{form.seller.bookkeeper}}</td>
+                </tr>
+                <tr class="captions"><td>подпись</td><td></td><td>расшифровка подписи</td></tr>
+                <tr><td colspan="3" class="who">Кассир</td></tr>
+                <tr>
+                    <td class="line">&nbsp;</td>
+                    <td class="gap"></td>
+                    <td class="line">&nbsp;</td>
+                </tr>
+                <tr class="captions"><td>подпись</td><td></td><td>расшифровка подписи</td></tr>
+            </table>
+        </td>
+    </tr>
+</table>

@@ -1,49 +1,105 @@
-# Печатные формы и шаблоны (факты аудита 2026-09-29)
+# Печатные формы и шаблоны (аудит 2026-09-29; реализация этапа 05 — 2026-10-03)
 
-Тексты шаблонов не выгружались: на сервере извлекались только имя, модуль, размер, sha256 (12 знаков), список плейсхолдеров и счётчики «похожих на реквизиты» числовых последовательностей (`scripts/audit/remote/template_tokens.py`). Во всех шаблонах таких последовательностей (20/9/10–12 цифр) — **0**: реквизиты подставляются из настроек организации, а не зашиты в текст.
+Аудит (2026-09-29) извлекал на сервере только имя, модуль, размер, sha256 (12 знаков), список плейсхолдеров и счётчики «похожих на реквизиты» числовых последовательностей (`scripts/audit/remote/template_tokens.py`). Ни в одном шаблоне нет последовательностей из 20, 9 или 10–12 цифр: реквизиты подставляются из настроек организации, в текст шаблонов они не зашиты.
+
+На этапе 05 (2026-10-03) тексты шаблонов 1–11 прочитаны **только на чтение** (`SELECT … TO_BASE64(template) FROM sp_templates`) в приватный каталог `/data/itvolga/espo-private/print-forms/20261003-templates/`. Хеши совпали с аудитом. Тексты в Git не копировались: формы сверстаны заново по их структуре. Печатные формы EspoCRM — код модуля (D-79), см. §3.
 
 ## 1. SPPDFTemplates (SalesPlatform, таблица `sp_templates`)
 
-Движок SalesPlatform: секции `{header}`, `{table_head}`, `{table_row}`/`{services_row}`/`{goods_row}`, `{summary}`, `{ending}`, `{content}`; переменные `{$name}`. Все шаблоны — `spcompany='All'`.
+Движок SalesPlatform — секции `{header}`, `{table_head}`, `{table_row}`/`{services_row}`/`{goods_row}`, `{summary}`, `{ending}`, `{content}` и переменные `{$name}`; вёрстка на TCPDF. Все шаблоны — `spcompany='All'`.
 
-| id | Название | Модуль | Ориентация | Header/Footer | Размер | sha256 | Судьба |
+| id | Название | Модуль | Ориентация | Header/Footer, мм | Размер | sha256 | Судьба |
 |---|---|---|---|---|---|---|---|
-| 1 | Счет | Invoice | P | 110/50 | 3426 | 2b65fd2b31ad | не реализуется (Q-21) |
-| 10 | Новый счёт | Invoice | P | 85/50 | 3371 | d29ae01663a1 | **реализовать** (этап 05) — форма счёта (Q-21, D-27) |
-| 8 | Акт | Act | P | 50/50 | 2676 | c064f3fb48b9 | не реализуется (Q-21) |
+| 10 | Новый счёт | Invoice | P | 85/50 | 3371 | d29ae01663a1 | **реализован** — форма «Счёт» (`printForms/invoice.html`, D-79, D-80) |
+| 11 | Новый акт | Act | P | 50/50 | 2843 | 994b6520061e | **реализован** — форма «Акт» (`printForms/act.html`) |
+| 5 | Приходный кассовый ордер | SPPayments | P | 0/50 | 10913 | cece42ccbfb4 | **реализован** — форма «ПКО» (КО-1 с квитанцией, `printForms/pko.html`, D-81); коды `debit`, `coracc_subacc`, `analytics_code`, `target_code` в форме пустые — заполняются вручную |
+| 1 | Счет | Invoice | P | 110/50 | 3426 | 2b65fd2b31ad | не реализуется — заменён «Новым счётом» (Q-21) |
+| 8 | Акт | Act | P | 50/50 | 2676 | c064f3fb48b9 | не реализуется — заменён «Новым актом» (Q-21) |
 | 9 | Акт с НДС | Act | P | 50/50 | 2689 | eca24c3a3c91 | не реализуется: работа без НДС (Q-04, Q-21) |
-| 11 | Новый акт | Act | P | 50/50 | 2843 | 994b6520061e | **реализовать** (этап 05) — форма акта (Q-21, D-27) |
-| 5 | Приходный кассовый ордер | SPPayments | P | 0/50 | 10913 | cece42ccbfb4 | **реализовать** (этап 05, Q-21, D-27); поля `debit`, `coracc_subacc`, `target_code` в данных пусты — в форме остаются пустыми или заполняются вручную |
-| 3 | Предложение | Quotes | P | 100/0 | 1796 | b712974ddc12 | не реализовывать сейчас (предложений с 2018 г. нет) |
-| 2 | Накладная | SalesOrder | P | 50/0 | 2387 | 09b5ca510754 | не реализовывать (заказы практически не используются) |
+| 3 | Предложение | Quotes | P | 100/0 | 1796 | b712974ddc12 | не воспроизводится: вместо него — **собственная форма «Коммерческое предложение»** (`printForms/quote.html`, задание этапа 05, D-83) |
+| 2 | Накладная | SalesOrder | P | 50/0 | 2387 | 09b5ca510754 | не воспроизводится (расходная накладная со «Страной», «ГТД»): вместо неё — **собственная форма «Заказ»** (`printForms/sales-order.html`, D-83) |
 | 4 | Заказ на закупку | PurchaseOrder | P | 50/0 | 1644 | 05b6adbca01c | исключить (модуль пуст) |
 | 6 | Счет-фактура | Consignment | L | 85/50 | 7865 | 9f4fa44db6ca | исключить (1 накладная 2019 г., архив) |
 | 7 | ТОРГ-12 | Consignment | L | 90/20 | 14589 | af4486eebfce | исключить (архив) |
 
-Состав форм утверждён владельцем 2026-09-29 (Q-21): «Новый счёт», «Новый акт», «Приходный кассовый ордер». Журналов генерации PDF в Vtiger нет.
+Состав форм утвердил владелец 2026-09-29 (Q-21): «Новый счёт», «Новый акт», «Приходный кассовый ордер». Предложение и заказ добавлены заданием этапа 05 (2026-10-03) как собственные формы без исходного шаблона. Журналов генерации PDF в Vtiger нет.
 
-### Плейсхолдеры, которые нужны формам счёта и акта
+Проверено по коду SalesPlatform (локальная копия, 2026-10-03; ранее помечено «не проверено»):
+- **единицы** — миллиметры: `PDF_UNIT = 'mm'` в `libraries/tcpdf/config/tcpdf_config.php`, поля страницы TCPDF — 10 мм;
+- блок `{header}` выводится **один раз на первой странице** в рамке высотой `header_size`, таблица начинается на 10 мм ниже; `{ending}` идёт в общем потоке после итогов;
+- базовый шрифт — Arial 10 pt (TCPDF `helvetica`); ширины таблиц заданы в пунктах, сумма — 530 pt;
+- форматы: деньги — `number_format(…, 2, ',', ' ')`, количество в счёте — `productQuantityInt` (**округление до целого**), в акте — 3 знака; дата — «03 Октября 2026» (месяц с заглавной), в акте и счёте — `literalDate`;
+- сумма прописью — `num2str`: рубли словами, копейки цифрами, «Девятнадцать тысяч пятьсот рублей 00 копеек».
 
-| Группа | Плейсхолдеры | Источник в EspoCRM (предложено) |
+### Плейсхолдеры форм и их источник в EspoCRM
+
+| Группа | Плейсхолдеры SalesPlatform | Источник в EspoCRM (этап 05) |
 |---|---|---|
-| Документ | `invoice_no`, `invoice_invoicedate`, `act_no`, `act_actdate` | `Invoice.number/dateInvoiced`, `Act.number/dateAct` |
-| Покупатель | `account_accountname`, `account_inn`, `account_kpp`, `account_phone`, `account_bill_street/city/state/code`, `billingAddress` | `Account.name/cInn/cKpp/phoneNumber/billingAddress*` (формы 10/11 берут адрес **контрагента**, не документа) |
-| Продавец | `orgName`, `orgAddress`, `orgBillingAddress`, `orgCity`, `orgState`, `orgCode`, `orgPhone`, `orgInn`, `orgKpp`, `orgBankAccount`, `orgBankName`, `orgBankId`, `orgCorrAccount`, `orgDirector`, `orgBookkeeper` (+ в других формах `orgFax`, `orgWebsite`, `orgLogo`, `orgOKPO`, `orgEntrepreneur`, `orgEntrepreneurreg`) | `LegalEntity.*` (значения — вне Git) |
-| Строки | `productNumber`/`serviceNumber` (№ п/п), `productName`, `productComment`, `productQuantity`, `productQuantityInt`, `productUnits`, `productPrice`, `productPriceWithTax`, `productNetTotal`, `productTotal` | `InvoiceItem`/`ActItem` + `Product.name/unit` |
-| Итоги | `summaryTotalItems`, `summaryNetTotal`, `summaryTax`, `summaryGrandTotal`, `summaryGrandTotalLiteral`; для актов `summary*Services*` (итоги только по услугам) | расчёт в коде формы; **сумма прописью** на русском — собственная реализация |
-
-Остальные формы дополнительно используют: коды ОКЕИ единиц (`productUnitsCode`, модуль SPUnits пуст), страну и ГТД (`manufCountry`, `manufCountryCode`, `customsId`, `internatonalCode`), разбиение товары/услуги (`summary*Goods*`), поля платежа (`payment_amount_literal`, `payment_pay_date`, `payment_doc_no`, `payment_pay_details`, `payment_payer`, `payment_debit`, `payment_coracc_subacc`, `payment_analytics_code`, `payment_target_code`).
-
-Требования для этапа 05: кириллица, A4 портрет, отступы колонтитулов как в источнике (header/footer — значения выше, единицы SalesPlatform — предположительно мм, **не проверено**), номер/дата/реквизиты/строки/итоги/сумма прописью; сверка визуально и по числам на синтетических примерах; реальные реквизиты в Git не коммитить.
+| Документ | `invoice_no`, `invoice_invoicedate`, `act_no`, `act_actdate` | `Invoice.number/dateInvoiced`, `Act.number/dateAct`; пустой номер — «б/н», пустая дата — ««___» __________ 20__ г.» |
+| Покупатель | `account_accountname`, `account_inn`, `account_kpp`, `account_phone`, `account_bill_code/state/city/street` | `Account.name/cInn/cKpp/phoneNumber`; адрес — **адрес для счёта самого документа** (`billingAddress*`), если он целиком пуст — адрес контрагента (D-80, ответ владельца 2026-10-03; в Vtiger — текущий адрес контрагента) |
+| Продавец | `orgName`, `orgAddress`, `orgBillingAddress`, `orgCity`, `orgState`, `orgCode`, `orgInn`, `orgKpp`, `orgBankAccount`, `orgBankName`, `orgBankId`, `orgCorrAccount`, `orgDirector`, `orgBookkeeper`, `orgOKPO` | `LegalEntity` документа или платежа (без ссылки — единственная запись `Default`): `name`, `address*`, `inn`, `kpp`, `bankAccount`, `bankName`, `bic`, `corrAccount`, `director`, `bookkeeper`, `okpo` (значения — вне Git, заполняет импорт этапа 06); пустые руководитель и бухгалтер — «_______________», как в SalesPlatform |
+| Строки | `productNumber`/`serviceNumber`, `productName`, `productComment`, `productUnits`, `productQuantity(Int)`, `productPrice(WithTax)`, `productNetTotal`, `productTotal` | позиции документа по порядку (`loadItemList`): текущее название товара (запасное — сохранённое), описание строки, единица `Product.unit` (подпись ru_RU, пусто — «-»), количество **точно**, цена, сумма строки — как хранятся |
+| Итоги | `summaryNetTotal(Services)`, `summaryGrandTotal(Services)`, `summaryTotalItems`, `summaryGrandTotal(Services)Literal`, `summaryTax` | хранимые `subtotal`, `shippingAmount`, `preTaxTotal`, `adjustment`, `grandTotal`; скидка документа = `subtotal + shippingAmount − preTaxTotal`; НДС = `grandTotal − preTaxTotal − adjustment`; число строк; сумма прописью — `Tools/Finance/Printing/AmountInWords` |
+| Платёж | `payment_doc_no`, `payment_pay_date`, `payment_amount`, `payment_amount_literal`, `payment_payer`, `payment_pay_details`, `payment_debit`, `payment_coracc_subacc`, `payment_analytics_code`, `payment_target_code` | `Payment.documentNumber` (пусто — `number`), `datePaid`, `amount`, имя плательщика, `purpose`; учётные коды не печатаются (их нет в рабочих полях, в источнике пусты) |
 
 ## 2. Прочие шаблоны
 
 | Тип | Кол-во | Факт | Судьба |
 |---|---|---|---|
 | Email-шаблоны `vtiger_emailtemplates` | 15 (3 системных) | 9 демонстрационных англоязычных шаблонов Vtiger; «Регистрационная информация клиента» (Contacts, ~12 КБ); «Support end notification before a week/month» (~6.9 КБ); системные Activity Reminder, ToDo Reminder, Invite Users | не переносятся: только штатные уведомления EspoCRM (Q-14) |
-| QuotingTool | 1 | «Invoice Light Blue», `deleted=1` | исключить |
-| Условия `vtiger_inventory_tandc` | 6 | один и тот же текст для Invoice, Quotes, PurchaseOrder, SalesOrder, Act, Consignment (одинаковый хеш) | перенести в настройку `termsAndConditions` по умолчанию |
-| `vtiger_notificationscheduler` | 8 | стандартные уведомления Vtiger (`LBL_*`), `active=1`, отдельной cron-задачи нет | не переносить |
-| `vtiger_inventorynotification` | 3 | стандартные тексты Invoice/Quote/SalesOrder | не переносить |
-| Логотипы `test/logo` | 11 файлов | файл логотипа организации указан в `vtiger_organizationdetails.logoname` | перенести логотип в `LegalEntity` (файл — вне Git) |
+| QuotingTool | 1 | «Invoice Light Blue», `deleted=1` | исключено: шаблон закрытого расширения VTE удалён в источнике (Q-30) |
+| Условия `vtiger_inventory_tandc` | 6 | один и тот же текст (187 символов, sha256 `ee5fff3edd70`) для Invoice, Quotes, PurchaseOrder, SalesOrder, Act, Consignment; типовая фраза о сроке действия счёта, без реквизитов | **перенесено**: значение по умолчанию поля «Условия» (`termsAndConditions`) новых предложений, заказов и счетов (этап 05, D-83); у акта поля нет |
+| `vtiger_notificationscheduler` | 8 | стандартные уведомления Vtiger (`LBL_*`), `active=1`, отдельной cron-задачи нет | не переносятся (Q-14) |
+| `vtiger_inventorynotification` | 3 | стандартные тексты Invoice/Quote/SalesOrder | не переносятся (Q-14) |
+| Логотипы `test/logo` | 11 файлов | файл логотипа организации указан в `vtiger_organizationdetails.logoname` | перенести логотип в `LegalEntity.logo` (этап 06, файл — вне Git); печатается в КП и заказе |
 | Webforms | 0 | — | — |
+
+## 3. Реализация (этап 05, D-79…D-83)
+
+**Путь печати.** Кнопка «Печать» в меню карточки (`clientDefs.<Entity>.detailActionList`, обработчик `itvolga:handlers/finance/print-form`) открывает в новой вкладке `?entryPoint=itvolgaPrint&entityType=<Entity>&id=<id>`. Точка входа `EntryPoints/ItvolgaPrint` передаёт запрос в `Tools/FinancePrint/PrintService`, тот выполняет шаги:
+1. находит форму в реестре `app.itvolgaFinance.printForms`;
+2. в одной транзакции загружает запись, проверяет право чтения записи, её контрагента и юрлица, условие формы и собирает данные (`PrintData`): поле, которое пользователю запрещено читать, не печатается, запрещённая сумма или таблица строк даёт 403; контакты менеджера в КП — только если пользователь доступен на чтение;
+3. готовит модель представления в чистом слое (`Tools/Finance/Printing/Presenter`: только `Decimal`, без округления и без float);
+4. строит PDF штатным Dompdf ядра EspoCRM через `Espo\Tools\Pdf\Builder` с собственным шаблоном из файлов (`CodeTemplate`).
+
+PDF отдаётся inline с именем «Счёт С-637.pdf», «Акт 403.pdf», «ПКО 77.pdf», «КП ПРЕД_25.pdf», «Заказ ЗАКАЗ_15.pdf». Печать ничего не пишет в БД и не создаёт `Attachment`.
+
+**Шаблоны** — `custom/Espo/Modules/Itvolga/Resources/printForms/`: `common.css` + `invoice`, `act`, `pko`, `quote` и `sales-order` (`.html`, Handlebars ядра), стили `invoice.css`, `act.css`, `pko.css`, `offer.css` (общий для КП и заказа), общие блоки КП и заказа — inline-партиалы `offer-parts.html` (ключ реестра `partials`). A4 портрет, поля 10 мм (снизу 15). Все значения передаются под ключом `form` и экранируются (`{{ }}`). Таблицы шириной 530 pt, колонки — в процентах от ширин SalesPlatform. Блок шапки — на первой странице, не ниже высоты источника (счёт — 75 мм, акт — 40 мм от верхнего поля; длинные реквизиты сдвигают таблицу); заголовок таблицы повторяется на каждой странице; длинное описание строки (больше 20 строк или 400 символов — чтобы часть помещалась на страницу даже в самой узкой колонке) продолжается отдельными строками таблицы — Dompdf не разрывает строку таблицы между страницами и обрезал бы её.
+
+**Шрифт** — Liberation Sans 2.1.5 (метрики Arial), четыре начертания в `Resources/fonts/` (SIL OFL 1.1, `OFL.txt`, sha256 — `README.md`), регистрация — `metadata/app/pdfEngines.json` (D-82). После развёртывания нужен `clear-cache` — его выполняет `task model:apply`.
+
+**Отличия от исходных форм** (решение владельца 2026-10-03 «как источник, без его дефектов», D-80):
+
+| Источник | Форма EspoCRM |
+|---|---|
+| количество в счёте округлено до целого (2,5 ч → «3»), в акте — «1,000» | точное количество без хвостовых нулей: «2,5», «1» |
+| «Итого:» счёта = итог к оплате (скидка документа не видна) | «Итого» = сумма строк; строки «Скидка», «Доставка», «Корректировка» — если не ноль |
+| цена в строке — «цена со скидкой» (float, округление) | цена — `unitPrice`; при скидке строки — колонка «Скидка» (сумма или процент, как применило ядро) |
+| строки акта со 2-й выпадают из таблицы (`</table>` внутри `{services_row}`) | все строки — в одной таблице |
+| «03 Октября 2026» | «3 октября 2026 г.» (ICU, родительный падеж месяца; нужно расширение PHP `intl`) |
+| «ИНН , КПП ,» при пустых реквизитах | пустые части адреса и реквизитов пропускаются |
+| «{название}. » у строки акта без комментария | точка — только перед описанием строки |
+| в строках исторических счетов с налогом 18 % — цена и сумма «с налогом», итог без налога | хранимые цена и сумма строки; итоги — хранимые; строка «НДС» — только когда итог больше суммы до налога (2 счёта класса `groupTaxAdded`) |
+
+**КП и заказ** — собственный деловой макет без исходного шаблона:
+- шапка с логотипом юрлица и реквизитами, акцентная линия;
+- заголовок, номер и дата создания записи (по часовому поясу системы, D-80), «Действительно до» (КП) или «Срок исполнения» (заказ);
+- блоки сторон: «Для» и «Контактное лицо», «Ваш менеджер» в КП; «Исполнитель» и «Заказчик» в заказе;
+- предмет — название документа;
+- таблица позиций, итоги, сумма прописью;
+- «Условия» — `termsAndConditions`;
+- подписи: руководитель в КП; исполнитель и заказчик с «М.П.» в заказе.
+
+**ПКО** — по унифицированной форме КО-1 с квитанцией через линию отреза. Реквизиты ордера:
+- организация, ОКПО, «Номер документа» (`documentNumber`, если заполнен, иначе номер платежа — ответ владельца 2026-10-03), «Дата составления» — «03.10.2026»;
+- таблица «Дебет / Кредит / Сумма» (коды пустые), «Принято от», «Основание», сумма прописью, «В том числе НДС (Без НДС)», «Приложение», главный бухгалтер, кассир.
+
+Квитанция печатает «к ПКО №», дату «3 октября 2026 г.», плательщика, основание, сумму цифрами и прописью, «М.П. (штампа)» и подписи. Форма есть только у приходов (`onlyWhen: {direction: incoming}`). У расходов нет кнопки, сервер отвечает 403.
+
+**Проверка** (2026-10-03, синтетические данные):
+- исходные шаблоны 10, 11, 5 отрисованы **кодом SalesPlatform** (TCPDF из локальной копии, совместимость с PHP 8 — правка приватной копии вне Git) на тех же синтетических данных;
+- эталоны и наши PDF сравнены попарно визуально (`/data/itvolga/espo-private/stand/evidence/stage05/compare-*.png`);
+- сумма прописью сверена с исходной `num2str` на 22 113 значениях — расхождений 0;
+- тексты, A4, шрифт, логотип, доступ и отсутствие записи — `tests/stage05/test_stage05.py`; форматирование — `tests/finance/{PrintFormatterTest,AmountInWordsTest,PrintPresenterTest}.php`.
+
+Доказательства — `evidence.md`, раздел «Этап 05».

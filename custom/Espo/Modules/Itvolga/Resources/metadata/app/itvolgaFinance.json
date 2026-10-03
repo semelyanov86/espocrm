@@ -1,5 +1,5 @@
 {
-    "comment": "Finance documents with line items (stage 04.2: Quote, SalesOrder; 04.3: Invoice; 04.5: Act) and payments with their allocations (04.4). number: prefix + counter without padding; firstNumber = vtiger_modentity_num.cur_id at the audit snapshot (finance-contract.md §6), seeded by itvolga-setup-finance and raised, never lowered, at switchover. Every document carries the common Document fields of finance-contract.md §11, including the control totals (expected*, source*). payments.targets: document entity type => link of the allocation to it; those documents store their settlement (paidAmount, balanceAmount, settlementState); acts are not allocated to (no source payment points to an act). conversions.{from}.{to}: link of the new document to its source and the header fields copied; a link that is has-many on the new document keeps its key on the source (Invoice → Act: invoice.actId), and a source already linked to a live target gets no new one (ConversionSourceGuard).",
+    "comment": "Finance documents with line items (stage 04.2: Quote, SalesOrder; 04.3: Invoice; 04.5: Act) and payments with their allocations (04.4). number: prefix + counter without padding; firstNumber = vtiger_modentity_num.cur_id at the audit snapshot (finance-contract.md §6), seeded by itvolga-setup-finance and raised, never lowered, at switchover. Every document carries the common Document fields of finance-contract.md §11, including the control totals (expected*, source*). payments.targets: document entity type => link of the allocation to it; those documents store their settlement (paidAmount, balanceAmount, settlementState); acts are not allocated to (no source payment points to an act). conversions.{from}.{to}: link of the new document to its source and the header fields copied; a link that is has-many on the new document keeps its key on the source (Invoice → Act: invoice.actId), and a source already linked to a live target gets no new one (ConversionSourceGuard). printForms.{entityType} (stage 05): the print form of a record — template: the body Resources/printForms/<template>.html; style: its CSS <style>.css (default: the template name; common.css is always included); partials: a file <partials>.html of inline Handlebars partials put before the body; title: file name prefix; dateField: the printed document date (createdAt — its calendar date in the system time zone); extraDateField: the second date of the form; onlyWhen: attribute values required to print (the server refuses others); sourceTemplateId: the SalesPlatform template it reproduces (sp_templates.templateid).",
     "documents": {
         "Quote": {
             "itemEntityType": "QuoteItem",
@@ -123,6 +123,45 @@
                     "description"
                 ]
             }
+        }
+    },
+    "printForms": {
+        "Invoice": {
+            "template": "invoice",
+            "title": "Счёт",
+            "dateField": "dateInvoiced",
+            "sourceTemplateId": 10
+        },
+        "Act": {
+            "template": "act",
+            "title": "Акт",
+            "dateField": "dateAct",
+            "sourceTemplateId": 11
+        },
+        "Payment": {
+            "template": "pko",
+            "title": "ПКО",
+            "dateField": "datePaid",
+            "onlyWhen": {
+                "direction": "incoming"
+            },
+            "sourceTemplateId": 5
+        },
+        "Quote": {
+            "template": "quote",
+            "style": "offer",
+            "partials": "offer-parts",
+            "title": "КП",
+            "dateField": "createdAt",
+            "extraDateField": "dateValidUntil"
+        },
+        "SalesOrder": {
+            "template": "sales-order",
+            "style": "offer",
+            "partials": "offer-parts",
+            "title": "Заказ",
+            "dateField": "createdAt",
+            "extraDateField": "dateDue"
         }
     }
 }

@@ -24,6 +24,14 @@
     },
     "detailActionList": [
         {
+            "name": "printForm",
+            "label": "Print",
+            "handler": "itvolga:handlers/finance/print-form",
+            "actionFunction": "print",
+            "checkVisibilityFunction": "canPrint",
+            "acl": "read"
+        },
+        {
             "name": "createSalesOrder",
             "label": "Create Sales Order",
             "handler": "itvolga:handlers/finance/convert-document",

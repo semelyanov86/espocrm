@@ -1,0 +1,37 @@
+{
+    "Dompdf": {
+        "fontFaceList": [
+            "__APPEND__",
+            "Liberation Sans"
+        ],
+        "additionalParams": {
+            "fonts": [
+                "__APPEND__",
+                {
+                    "family": "Liberation Sans",
+                    "style": "normal",
+                    "weight": "normal",
+                    "source": "custom/Espo/Modules/Itvolga/Resources/fonts/LiberationSans-Regular.ttf"
+                },
+                {
+                    "family": "Liberation Sans",
+                    "style": "normal",
+                    "weight": "bold",
+                    "source": "custom/Espo/Modules/Itvolga/Resources/fonts/LiberationSans-Bold.ttf"
+                },
+                {
+                    "family": "Liberation Sans",
+                    "style": "italic",
+                    "weight": "normal",
+                    "source": "custom/Espo/Modules/Itvolga/Resources/fonts/LiberationSans-Italic.ttf"
+                },
+                {
+                    "family": "Liberation Sans",
+                    "style": "italic",
+                    "weight": "bold",
+                    "source": "custom/Espo/Modules/Itvolga/Resources/fonts/LiberationSans-BoldItalic.ttf"
+                }
+            ]
+        }
+    }
+}

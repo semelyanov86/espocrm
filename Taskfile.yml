@@ -132,6 +132,11 @@ tasks:
     cmds:
       - python3 -m unittest discover -s tests/stage04 -v
 
+  test:stage05:
+    desc: Stage 05 acceptance tests on the stand (print forms of invoices, acts, payments, quotes and sales orders as PDF; synthetic data)
+    cmds:
+      - python3 -m unittest discover -s tests/stage05 -v
+
   # --- finance contract and calculation core (stage 04.1) --------------------------------------
   test:finance:
     desc: Finance core tests (synthetic structures; the private source snapshot when available, counts only)

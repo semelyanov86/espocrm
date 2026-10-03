@@ -1,0 +1,99 @@
+{{!-- Blocks shared by the commercial offer and the sales order (stage 05, D-80): inline partials, prepended to the
+     body by CodeTemplate (registry key `partials`); they print nothing by themselves. --}}
+{{#*inline "offerHead"}}
+<table class="top">
+    <tr>
+        <td class="logo">
+            {{#if form.seller.logoId}}
+            <img src="?entryPoint=attachment&amp;id={{form.seller.logoId}}" alt="">
+            {{else}}
+            <span class="brand">{{form.seller.name}}</span>
+            {{/if}}
+        </td>
+        <td class="seller">
+            <div class="name">{{form.seller.name}}</div>
+            {{#if form.seller.inn}}<div>ИНН {{form.seller.inn}}{{#if form.seller.kpp}} / КПП {{form.seller.kpp}}{{/if}}</div>{{/if}}
+            {{#if form.seller.address}}<div>{{form.seller.address}}</div>{{/if}}
+            <div class="muted">
+                {{#if form.seller.phoneNumber}}тел.: {{form.seller.phoneNumber}}{{/if}}
+                {{#if form.seller.website}} · {{form.seller.website}}{{/if}}
+            </div>
+        </td>
+    </tr>
+</table>
+<div class="bar"></div>
+{{/inline}}
+
+{{#*inline "offerParty"}}
+<div class="b">{{name}}</div>
+{{#if inn}}<div>ИНН {{inn}}{{#if kpp}} / КПП {{kpp}}{{/if}}</div>{{/if}}
+{{#if address}}<div class="muted">{{address}}</div>{{/if}}
+{{/inline}}
+
+{{#*inline "offerLines"}}
+<table class="lines">
+    <thead>
+        <tr>
+            <th style="width: 5%;">№</th>
+            <th>Наименование</th>
+            <th style="width: 9%;">Кол-во</th>
+            <th style="width: 8%;">Ед.</th>
+            <th style="width: 13%;">Цена, руб.</th>
+            {{#if form.hasDiscount}}<th style="width: 13%;">Скидка, руб.</th>{{/if}}
+            <th style="width: 14%;">Сумма, руб.</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{#each form.rows}}
+        <tr class="{{#if more.length}}cont{{/if}}">
+            <td class="n">{{no}}</td>
+            <td>{{name}}{{#if description}}<div class="note pre">{{description}}</div>{{/if}}</td>
+            <td class="r">{{quantity}}</td>
+            <td class="c">{{unit}}</td>
+            <td class="r nowrap">{{price}}</td>
+            {{#if @root.form.hasDiscount}}<td class="r nowrap">{{discount}}</td>{{/if}}
+            <td class="r nowrap">{{amount}}</td>
+        </tr>
+        {{#each more}}
+        <tr class="more{{#if @last}} last{{/if}}">
+            <td></td><td><div class="note pre">{{this}}</div></td><td></td><td></td><td></td>
+            {{#if @root.form.hasDiscount}}<td></td>{{/if}}
+            <td></td>
+        </tr>
+        {{/each}}
+        {{/each}}
+    </tbody>
+</table>
+{{/inline}}
+
+{{#*inline "offerTotals"}}
+<table class="after">
+    <tr>
+        <td class="words">
+            Всего наименований {{form.count}}, на сумму {{form.totals.grandTotal}} руб.<br>
+            <span class="b">{{form.words}}</span>
+        </td>
+        <td>
+            <table class="totals">
+                <tr><td>Итого:</td><td class="value">{{form.totals.subtotal}}</td></tr>
+                {{#if form.totals.discount}}<tr><td>Скидка:</td><td class="value">−{{form.totals.discount}}</td></tr>{{/if}}
+                {{#if form.totals.shipping}}<tr><td>Доставка:</td><td class="value">{{form.totals.shipping}}</td></tr>{{/if}}
+                {{#if form.totals.tax}}
+                <tr><td>НДС:</td><td class="value">{{form.totals.tax}}</td></tr>
+                {{else}}
+                <tr><td>Без налога (НДС)</td><td class="value">—</td></tr>
+                {{/if}}
+                {{#if form.totals.adjustment}}<tr><td>Корректировка:</td><td class="value">{{form.totals.adjustment}}</td></tr>{{/if}}
+                <tr class="grand"><td>{{grandLabel}}</td><td class="value">{{form.totals.grandTotal}} руб.</td></tr>
+            </table>
+        </td>
+    </tr>
+</table>
+
+{{#if form.terms}}
+<div class="terms">
+    <div class="label">Условия</div>
+    <div class="text">{{form.terms}}</div>
+</div>
+{{/if}}
+{{/inline}}

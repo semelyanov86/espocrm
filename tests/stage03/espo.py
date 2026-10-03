@@ -51,9 +51,16 @@ class Client:
         if params:
             url += "?" + urlencode(params, doseq=True)
         data = None if body is None else json.dumps(body).encode()
-        req = urllib.request.Request(url, data=data, method=method, headers={
-            "Espo-Authorization": self._auth, "Content-Type": "application/json", "Accept": "application/json",
-            **(headers or {})})
+        return self._send(url, method, data, {"Content-Type": "application/json", "Accept": "application/json",
+                                              **(headers or {})})
+
+    def entry_point(self, name, **params):
+        """GET <site>/?entryPoint=<name>&… (stage 05: PDF print forms); the same header authentication as the API."""
+        return self._send(f"{BASE}/?" + urlencode({"entryPoint": name, **params}), "GET", None, {})
+
+    def _send(self, url, method, data, headers):
+        req = urllib.request.Request(url, data=data, method=method,
+                                     headers={"Espo-Authorization": self._auth, **headers})
         try:
             with _OPENER.open(req, timeout=30) as resp:
                 raw = resp.read()

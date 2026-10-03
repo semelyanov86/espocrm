@@ -1,0 +1,80 @@
+/* Shared style of the print forms (stage 05). Sizes in pt and mm: the SalesPlatform forms were laid out in TCPDF
+   points (table widths) on A4 with 10 mm margins, base font Arial 10 pt — Liberation Sans has the same metrics. */
+body {
+    font-family: 'Liberation Sans', sans-serif;
+    font-size: 10pt;
+    line-height: 1.15;
+    color: #000;
+}
+
+p {
+    margin: 0 0 8pt 0;
+}
+
+table {
+    border-collapse: collapse;
+}
+
+/* Full-width tables of the forms: 530 pt as the SalesPlatform layout (column widths in % of it). */
+table.wide {
+    width: 530pt;
+}
+
+td, th {
+    padding: 0;
+    vertical-align: top;
+}
+
+.b { font-weight: bold; }
+.i { font-style: italic; }
+.c { text-align: center; }
+.r { text-align: right; }
+.l { text-align: left; }
+.small { font-size: 8pt; }
+.pre { white-space: pre-line; }
+.nowrap { white-space: nowrap; }
+
+/* Bordered tables of the forms (thin black lines as TCPDF border="1"). */
+table.grid td,
+table.grid th {
+    border: 0.6pt solid #000;
+    padding: 1.5pt 2pt;
+}
+
+/* Line items: the header row repeats on every page, a row is never split. */
+table.items {
+    font-size: 8pt;
+}
+
+table.items th {
+    font-weight: bold;
+    text-align: center;
+    vertical-align: middle;
+}
+
+table.items tr {
+    page-break-inside: avoid;
+}
+
+/* A long line description continues in rows of its own (Presenter parts: the PDF engine cannot split a row). */
+table.grid.items tr.cont td {
+    border-bottom: none;
+}
+
+table.grid.items tr.more td {
+    border-top: none;
+    border-bottom: none;
+}
+
+table.grid.items tr.more.last td {
+    border-bottom: 0.6pt solid #000;
+}
+
+/* The first-page header block of the source forms (fixed height, the table starts 10 mm below it). */
+.head {
+    margin-bottom: 10mm;
+}
+
+.keep {
+    page-break-inside: avoid;
+}

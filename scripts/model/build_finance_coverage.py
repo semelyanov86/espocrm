@@ -73,7 +73,7 @@ SHARED = {("vtiger_crmentity", "crmid"), ("vtiger_crmentity", "setype")}
 SHARED_SECTION = "Общие колонки записей (vtiger_crmentity)"
 
 # Dispositions, in the order of the summary columns.
-KINDS = ["перенос", "рабочее поле, в источнике пусто", "справочник", "архив", "ключ", "настройка", "этап 05",
+KINDS = ["перенос", "рабочее поле, в источнике пусто", "справочник", "архив", "ключ", "настройка", "печатная форма",
          "исключено", "пусто", "открыто"]
 KIND_NOTES = {
     "перенос": "значения переносятся в рабочее поле EspoCRM (поле или связь есть в модели, проверено `model_check`)",
@@ -81,8 +81,10 @@ KIND_NOTES = {
     "справочник": "значения — опции enum и словарь `vtigerValueMap` (D-38)",
     "архив": "исходные значения хранятся только для чтения (`vtigerData`, `VtigerArchive.data`)",
     "ключ": "ключ записи или соединения таблиц: исходный id → `vtigerId`, тип записи → целевая сущность",
-    "настройка": "воспроизводится настройкой EspoCRM (валюта RUB, без НДС — D-21, D-37)",
-    "этап 05": "печатные формы и шаблоны — этап 05",
+    "настройка": "воспроизводится настройкой EspoCRM (валюта RUB, без НДС — D-21, D-37; условия документов по умолчанию — "
+                 "D-83)",
+    "печатная форма": "шаблон источника воспроизведён печатной формой модуля (этап 05, D-79; реестр и файлы форм "
+                      "проверены `model_check`)",
     "исключено": "не переносится по решению (причина — в строке)",
     "пусто": "в источнике значений нет, рабочее поле не создаётся",
     "открыто": "нет окончательного решения — должно быть 0",
@@ -96,6 +98,7 @@ ENTITY_TESTS = {
     "Act, ActItem": ["tests/stage04/test_stage04_5.py", "tests/stage04/test_stage04_6.py"],
     "LegalEntity": ["tests/stage04/test_stage04_2.py", "tests/stage04/test_stage04_3.py"],
     "расчётное ядро (итоги, налоги, оплата, юрлицо)": ["tests/finance/run.php"],
+    "печатные формы (этап 05)": ["tests/stage05/test_stage05.py", "tests/finance/run.php"],
 }
 
 
@@ -150,6 +153,10 @@ def disposition(row, status, fate, target, res, text, stage):
             return "открыто", f"отмечено реализованным, проверка модели: {text}"
         if status != f"реализовано (этап {stage})" or row["espo_check"] != text:
             return "открыто", "карта устарела: перегенерировать build_maps.py"
+        if target == MC.PRINT_FORMS_TARGET:
+            return "печатная форма", text
+        if target == MC.TERMS_TARGET:
+            return "настройка", text
         if fate.startswith("архив"):
             return "архив", text
         if fate.startswith("пусто"):
@@ -159,8 +166,6 @@ def disposition(row, status, fate, target, res, text, stage):
         return "открыто", "цель есть в модели, а статус карты — нет: перегенерировать build_maps.py"
     if status.startswith("контракт") or status == "не проверено":
         return "открыто", f"статус «{status}»: {fate}"
-    if target.startswith("Template") or text.startswith("этап 05") or fate.startswith("переносится как спецификация"):
-        return "этап 05", fate
     if target in ("(ключ записи)", "(тип сущности)") or fate.startswith("только ключ записи"):
         return "ключ", text if text != "—" else fate
     if target == "entityDefs options":

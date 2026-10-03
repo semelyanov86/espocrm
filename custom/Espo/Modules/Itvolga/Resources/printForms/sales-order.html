@@ -1,0 +1,53 @@
+<!-- Sales order, own layout in the style of the commercial offer (stage 05, D-80). Shared blocks — offer-parts.html.
+     Values: form.* -->
+{{> offerHead}}
+
+<table class="title">
+    <tr>
+        <td>
+            <h1>Заказ</h1>
+            <div>№ {{form.number}} от {{form.date}}</div>
+        </td>
+        {{#if form.extraDate}}
+        <td class="validity"><span class="badge">Срок исполнения: {{form.extraDate}}</span></td>
+        {{/if}}
+    </tr>
+</table>
+
+<table class="parties">
+    <tr>
+        <td>
+            <div class="label">Исполнитель</div>
+            {{> offerParty form.seller}}
+        </td>
+        <td class="gap"></td>
+        <td>
+            <div class="label">Заказчик</div>
+            {{> offerParty form.buyer}}
+            {{#if form.contact}}<div>Контактное лицо: {{form.contact}}</div>{{/if}}
+        </td>
+    </tr>
+</table>
+
+{{#if form.subject}}<p class="subject">Предмет заказа: <span class="b">{{form.subject}}</span></p>{{/if}}
+
+{{> offerLines}}
+
+<div class="keep">
+    {{> offerTotals grandLabel="Всего к оплате:"}}
+
+    <table class="closing">
+        <tr>
+            <td>
+                <div class="label">Исполнитель</div>
+                <div class="sign-line">__________________ ( {{form.seller.director}} )</div>
+                <div class="muted small">М.П.</div>
+            </td>
+            <td>
+                <div class="label">Заказчик</div>
+                <div class="sign-line">__________________ ( ____________________ )</div>
+                <div class="muted small">М.П.</div>
+            </td>
+        </tr>
+    </table>
+</div>

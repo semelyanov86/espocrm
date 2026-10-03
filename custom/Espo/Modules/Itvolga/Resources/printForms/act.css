@@ -1,0 +1,49 @@
+/* «Новый акт»: header block 50 mm from the page top (SalesPlatform header_size) or taller, the table 10 mm below it. */
+.head {
+    min-height: 40mm;
+}
+
+h3 {
+    font-size: 12pt;
+    font-weight: bold;
+    margin: 0 0 0 3mm;
+}
+
+.rule {
+    border-bottom: 1.2pt solid #000;
+    margin: 6pt 0 12pt 3mm;
+}
+
+table.parties {
+    font-size: 9pt;
+}
+
+table.parties td {
+    padding: 2pt;
+}
+
+table.parties td.gap {
+    height: 14pt;
+}
+
+table.summary td {
+    text-align: right;
+    font-weight: bold;
+    padding: 1pt 2pt 0 0;
+}
+
+p.words {
+    margin-top: 12pt;
+}
+
+p.accept {
+    margin-top: 40pt;
+}
+
+table.signatures td {
+    padding: 0;
+}
+
+table.signatures td.line {
+    padding-top: 26pt;
+}

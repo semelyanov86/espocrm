@@ -28,10 +28,13 @@
 | `…/metadata/logicDefs/{Quote,SalesOrder,Invoice}.json` | показ «Пересчёта ядра» и «Итогов Vtiger» (D-59) |
 | `…/Classes/ConsoleCommands/{SetupFinance,FinanceVerify}.php` | `itvolga-setup-finance` (юрлицо, счётчики), `itvolga-finance-verify` (`sourceFormula`/`totalsCheck` импорта) |
 | `client/custom/modules/itvolga/src/views/finance/`, `…/views/fields/money.js`, `…/finance/decimal-text.js`, `…/handlers/finance/convert-document.js` | редакторы позиций и распределений, показ денег без float, «Создать заказ»/«Создать счёт»/«Добавить платёж» |
-| `scripts/model/` | сверка модели с картой, генератор словаря значений |
-| `tests/stage03/`, `tests/stage04/` | приёмочные тесты API и помощники UI-сценариев |
+| `…/EntryPoints/ItvolgaPrint.php`, `…/Tools/FinancePrint/`, `…/Tools/Finance/Printing/` | печатные формы (этап 05, D-79): `?entryPoint=itvolgaPrint` → `PrintService` (реестр `printForms`, доступ, транзакция чтения) → `PrintData` (запись, строки с единицами, юрлицо, контрагент) → `Presenter` (чистое ядро: `Formatter`, `AmountInWords`) → `CodeTemplate` → Dompdf ядра |
+| `…/Resources/printForms/`, `…/Resources/fonts/`, `…/metadata/app/pdfEngines.json` | HTML/CSS форм (счёт, акт, ПКО, КП, заказ), шрифт Liberation Sans и его регистрация (D-82) |
+| `client/custom/modules/itvolga/src/handlers/finance/print-form.js` | кнопка «Печать» карточек `Invoice`, `Act`, `Payment` (только приходы), `Quote`, `SalesOrder` |
+| `scripts/model/` | сверка модели с картой (в том числе реестр печатных форм и умолчание условий), генератор словаря значений, покрытие финансов |
+| `tests/stage03/`, `tests/stage04/`, `tests/stage05/` | приёмочные тесты API и PDF, помощники UI-сценариев |
 
-Развёртывание на стенд: `task model:apply` (clear-cache, rebuild, роли, юрлицо и счётчики номеров, оплата документов, отметка времени клиента). Тесты: `task test:stage03`, `task test:stage04`, `task test:finance`.
+Развёртывание на стенд: `task model:apply` (clear-cache — в том числе кэш шрифтов PDF, rebuild, роли, юрлицо и счётчики номеров, оплата документов, отметка времени клиента). Тесты: `task test:stage03`, `task test:stage04`, `task test:stage05`, `task test:finance`.
 
 ## Служебные поля (D-41)
 
@@ -102,4 +105,4 @@
 
 ## Отложено
 
-Quote, SalesOrder, позиции и LegalEntity — этап 04.2 (§14); Invoice и InvoiceItem — этап 04.3 (§15); Payment, PaymentAllocation и оплата документов — этап 04.4 (§16); Act, ActItem и `Invoice.act` — этап 04.5 (§17); сквозной сценарий — этап 04.6 (§18); печатные формы — этап 05; расчётное ядро — `Tools/Finance/`, этап 04.1 (D-45); живая телефония и импорт истории звонков — 07.x; импорт данных — 06.x.
+Quote, SalesOrder, позиции и LegalEntity — этап 04.2 (§14); Invoice и InvoiceItem — этап 04.3 (§15); Payment, PaymentAllocation и оплата документов — этап 04.4 (§16); Act, ActItem и `Invoice.act` — этап 04.5 (§17); сквозной сценарий — этап 04.6 (§18); печатные формы — этап 05 (§19, `print-forms.md`); расчётное ядро — `Tools/Finance/`, этап 04.1 (D-45); живая телефония и импорт истории звонков — 07.x; импорт данных — 06.x.
