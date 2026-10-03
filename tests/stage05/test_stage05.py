@@ -36,7 +36,9 @@ SELLER = {
     "addressStreet": "ул. Синтетическая, д. 1", "addressCity": "Тестовск", "addressState": "Московская обл.",
     "addressPostalCode": "101000", "website": "https://example.com",
 }
-LEGAL_FIELDS = [*SELLER, "phoneNumber", "addressCountry", "logoId"]
+# The logo is left as it is: replacing an image field makes the core delete the previous attachment, so a logo of
+# the UI fixture could not be restored (the commercial offer test adds a temporary logo only when there is none).
+LEGAL_FIELDS = [*SELLER, "phoneNumber", "addressCountry"]
 ADDRESS = {"billingAddressPostalCode": "620000", "billingAddressState": "Свердловская обл.",
            "billingAddressCity": "Примерград", "billingAddressStreet": "пр. Образцов, 10"}
 # Tables a print must not change (documents, lines, payments, allocations, numbering, files, history).
@@ -66,7 +68,7 @@ def setUpModule():
     legal = sql("SELECT id FROM legal_entity WHERE vtiger_company_key='Default' AND deleted=0")[0][0]
     original = must(admin.get(f"LegalEntity/{legal}"))
     S["legal"] = (legal, {f: original.get(f) for f in LEGAL_FIELDS})
-    must(admin.put(f"LegalEntity/{legal}", {**SELLER, "phoneNumber": phone(), "logoId": None}))
+    must(admin.put(f"LegalEntity/{legal}", {**SELLER, "phoneNumber": phone()}))
     S["timeZone"] = must(admin.get("Settings")).get("timeZone") or "UTC"
 
     S["phone"] = phone()
@@ -367,18 +369,20 @@ class OfferFormsTest(PdfCase):
 
     def test_commercial_offer(self):
         legal, _ = S["legal"]
-        logo = must(S["admin"].post("Attachment", {
-            "name": "synth.png", "type": "image/png", "role": "Attachment", "relatedType": "LegalEntity",
-            "field": "logo", "file": "data:image/png;base64," + png()}))
-        S["created"].append(("Attachment", logo["id"]))
-        must(S["admin"].put(f"LegalEntity/{legal}", {"logoId": logo["id"]}))
+        temporary = not must(S["admin"].get(f"LegalEntity/{legal}")).get("logoId")
+        if temporary:
+            logo = must(S["admin"].post("Attachment", {
+                "name": "synth.png", "type": "image/png", "role": "Attachment", "relatedType": "LegalEntity",
+                "field": "logo", "file": "data:image/png;base64," + png()}))
+            must(S["admin"].put(f"LegalEntity/{legal}", {"logoId": logo["id"]}))
         try:
             quote = document("Quote", (*REFERENCE, ("licence", "1", "12345.67", {"discountPercent": "10"})),
                              contactId=S["contact"], dateValidUntil="2026-10-17")
             date = self.created_date("quote", quote["id"])
             body, _ = self.pdf("Quote", quote["id"])
         finally:
-            must(S["admin"].put(f"LegalEntity/{legal}", {"logoId": None}))
+            if temporary:  # clearing the field removes the temporary attachment
+                must(S["admin"].put(f"LegalEntity/{legal}", {"logoId": None}))
         content = text(body)
         self.assertPhrases(content, "КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ", f"№ {quote['number']} от {date}",
                            "Действительно до 17 октября 2026 г.", f"ООО «Покупатель {RUN}»",
@@ -490,6 +494,39 @@ class ReviewFixesTest(PdfCase):
         client = user_with_role("hiddenname", READ_FINANCE, {"InvoiceItem": {"name": {"read": "no", "edit": "no"}}})
         espo_console("clear-cache")
         self.assertNotIn("Удалённая услуга", text(self.pdf("Invoice", invoice["id"], client)[0]))
+
+    def test_forbidden_links_hide_their_blocks(self):
+        invoice = document("Invoice")
+        client = user_with_role("links", READ_FINANCE, {"Invoice": {"account": {"read": "no", "edit": "no"},
+                                                                    "legalEntity": {"read": "no", "edit": "no"}}})
+        espo_console("clear-cache")
+        content = text(self.pdf("Invoice", invoice["id"], client)[0])
+        for hidden in ("77-SYNTH-01", f"Покупатель {RUN}", SELLER["inn"], SELLER["bankAccount"], SELLER["name"]):
+            self.assertNotIn(hidden, content)
+        self.assertIn("Всего к оплате: 19 500,00", content)
+
+    def test_cash_receipt_payer_follows_access(self):
+        payment = create("Payment", {"datePaid": "2026-10-03", "amount": "10", "assignedUserId": S["users"]["dir"],
+                                     "payerType": "Account", "payerId": S["account"]})
+        payments = {**READ_FINANCE, "Payment": {"create": "no", "read": "all", "edit": "no", "delete": "no"}}
+        hidden = user_with_role("nopayer", {**payments, "Account": {"create": "no", "read": "no", "edit": "no",
+                                                                    "delete": "no"}})
+        self.assertEqual(403, download("Payment", payment["id"], hidden)[0])
+        masked = user_with_role("payerfield", payments, {"Payment": {"payer": {"read": "no", "edit": "no"}}})
+        espo_console("clear-cache")
+        order = text(self.pdf("Payment", payment["id"], masked)[0], ORDER)
+        self.assertNotIn(f"Покупатель {RUN}", order)
+        self.assertIn(f"Покупатель {RUN}", text(self.pdf("Payment", payment["id"])[0], ORDER))
+
+    def test_a_long_word_wraps_inside_its_cell(self):
+        url = "https://example.com/" + "verylongpath" * 10
+        for entity, discount in (("Invoice", {}), ("Act", {"discountAmount": "1"})):
+            record = document(entity, (("hours", "1", "10", {"description": url}), ("monthly", "1", "5", discount)))
+            body, _ = self.pdf(entity, record["id"])
+            right = max(float(m.group(1)) for m in re.finditer(r'xMax="([\d.]+)"',
+                                                                 poppler("pdftotext", body, "-bbox", "-f", "1", "-l", "1")))
+            self.assertLessEqual(right, 595.28 - 10 * 72 / 25.4 + 1, f"{entity}: text beyond the right margin")
+            self.assertIn(url, re.sub(r"\s+", "", text(body)), entity)
 
     def test_quote_manager_contacts_only_of_a_readable_user(self):
         hidden = must(S["admin"].post("User", {

@@ -18,9 +18,10 @@ use Espo\ORM\Type\AttributeType;
 
 /**
  * Stored values a print form shows (stage 05), read without any write: the record, its lines with the units of their
- * products, the seller (the record's legal entity), the buyer (the account) and, on a quote, its manager. Every value
- * goes through the user's access like the record view: the account and the legal entity must be readable, a field the
- * user may not read prints empty, and a forbidden amount refuses the print (a form without its sums would mislead).
+ * products, the seller (the record's legal entity), the buyer (the account, the payer) and, on a quote, its manager.
+ * Every value goes through the user's access like the record view: a related record the form prints must be readable,
+ * a field the user may not read prints empty (a forbidden link — its whole block), and a forbidden amount refuses the
+ * print (a form without its sums would mislead).
  * Values stay as stored (decimal strings); Presenter formats them.
  */
 class PrintData
@@ -32,9 +33,9 @@ class PrintData
     private const BUYER = ['name', 'cInn', 'cKpp', 'phoneNumber', 'billingAddressPostalCode', 'billingAddressState',
         'billingAddressCity', 'billingAddressStreet'];
     private const TOTALS = ['subtotal', 'shippingAmount', 'preTaxTotal', 'adjustment', 'grandTotal'];
-    private const DOCUMENT = ['number', 'name', 'accountName', 'contactName', 'assignedUserId', 'assignedUserName',
-        'termsAndConditions', 'billingAddressPostalCode', 'billingAddressState', 'billingAddressCity',
-        'billingAddressStreet'];
+    private const DOCUMENT = ['number', 'name', 'accountId', 'accountName', 'legalEntityId', 'contactName',
+        'assignedUserId', 'assignedUserName', 'termsAndConditions', 'billingAddressPostalCode', 'billingAddressState',
+        'billingAddressCity', 'billingAddressStreet'];
     private const LINE_AMOUNTS = ['quantity', 'unitPrice', 'discountAmount', 'discountPercent', 'amount'];
     /** Attributes of the printed line name: the product link and the saved name (loadItemList falls back to it). */
     private const LINE_NAMES = ['productName', 'name'];
@@ -58,7 +59,7 @@ class PrintData
     {
         $dates = array_filter([$form->dateField, $form->extraDateField]);
         $values = $this->values($document, [...self::DOCUMENT, ...self::TOTALS, ...$dates], self::TOTALS);
-        $account = $this->readable('Account', $document->get('accountId'));
+        $account = $this->readable('Account', $values['accountId']);
         $buyer = $account ? $this->values($account, self::BUYER) : [];
 
         return [
@@ -66,7 +67,7 @@ class PrintData
             'subject' => $values['name'],
             'date' => $this->date($document, $form->dateField, $values),
             'extraDate' => $form->extraDateField ? $this->date($document, $form->extraDateField, $values) : null,
-            'seller' => $this->seller($document->get('legalEntityId')),
+            'seller' => $this->seller($document, $values['legalEntityId']),
             'buyer' => [
                 'name' => $buyer['name'] ?? $values['accountName'],
                 'inn' => $buyer['cInn'] ?? null,
@@ -87,25 +88,22 @@ class PrintData
      * Cash receipt order of a payment.
      *
      * @return array<string, mixed> input of Presenter::cashReceipt()
-     * @throws Forbidden the legal entity is not readable; the amount is forbidden
+     * @throws Forbidden the payer or the legal entity is not readable; the amount is forbidden
      */
     public function payment(Entity $payment, PrintForm $form): array
     {
-        if ($payment instanceof \Espo\Core\ORM\Entity) {
-            $payment->loadParentNameField('payer');
-        }
-
-        $values = $this->values($payment, ['number', 'documentNumber', 'amount', 'payerName', 'purpose',
-            $form->dateField], ['amount']);
+        $values = $this->values($payment, ['number', 'documentNumber', 'amount', 'payerId', 'payerType', 'purpose',
+            'legalEntityId', $form->dateField], ['amount']);
+        $payer = $values['payerType'] ? $this->readable($values['payerType'], $values['payerId']) : null;
 
         return [
             'number' => $values['number'],
             'documentNumber' => $values['documentNumber'],
             'date' => $this->date($payment, $form->dateField, $values),
             'amount' => $values['amount'],
-            'payer' => $values['payerName'],
+            'payer' => $payer ? $this->values($payer, ['name'])['name'] : null,
             'purpose' => $values['purpose'],
-            'seller' => $this->seller($payment->get('legalEntityId')),
+            'seller' => $this->seller($payment, $values['legalEntityId']),
         ];
     }
 
@@ -175,11 +173,19 @@ class PrintData
     }
 
     /**
+     * The legal entity of the record; a record without one (payments of the bank import) — the single legal entity,
+     * unless the user may not read the record's legal entity field.
+     *
      * @return array<string, mixed>
      * @throws Forbidden
      */
-    private function seller(?string $legalEntityId): array
+    private function seller(Entity $record, ?string $legalEntityId): array
     {
+        if ($legalEntityId === null && in_array('legalEntityId',
+                $this->acl->getScopeForbiddenAttributeList($record->getEntityType()), true)) {
+            return [];
+        }
+
         $legalEntity = $this->readable(LegalEntityProvider::ENTITY_TYPE,
             $legalEntityId ?? $this->legalEntityProvider->findDefaultId());
 

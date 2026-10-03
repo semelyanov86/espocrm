@@ -23,6 +23,8 @@ table.wide {
 td, th {
     padding: 0;
     vertical-align: top;
+    /* A word longer than its cell (a URL, an account number) wraps instead of widening the table past the page. */
+    overflow-wrap: anywhere;
 }
 
 .b { font-weight: bold; }
