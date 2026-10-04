@@ -458,6 +458,20 @@ class OptionalDateTimeTest(Case):
         self.assertEqual("2026-10-04", self.run_ok(table["id"])["rows"][0]["cells"][1]["v"])
 
 
+class EnumSortingTest(Case):
+    """Status options go Created, Approved, Sent: ascending starts with Created, descending with Sent (external review
+    B15, 2026-10-04: descending gave the ascending order)."""
+
+    def test_both_directions_of_an_enum(self):
+        w = W()
+        for direction, first in (("asc", "Created"), ("desc", "Sent")):
+            with self.subTest(direction=direction):
+                report = w.report("dir", f"status {direction}", entityType="Invoice", columns=["name", "status"],
+                                  sorting=[{"column": "status", "direction": direction}], rowLimit=1,
+                                  filters=all_of(w.name_filter()))
+                self.assertEqual([first], [r["cells"][1]["v"] for r in self.run_ok(report["id"])["rows"]])
+
+
 class MatrixCapTest(Case):
     """With the run cap at 4 rows, the 3 × 2 matrix of MatrixTest shows 2 rows: every shown cell is there, and the
     columns and the grand total are those of the shown rows (review finding of 2026-10-04: cells beyond the cap were

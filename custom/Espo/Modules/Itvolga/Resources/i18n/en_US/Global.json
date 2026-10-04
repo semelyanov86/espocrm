@@ -72,7 +72,9 @@
         },
         "searchRanges": {
             "isCurrentUser": "Current User",
-            "isNotCurrentUser": "Not Current User"
+            "isNotCurrentUser": "Not Current User",
+            "isNotOneOfAndIsNotEmpty": "None of (and not empty)",
+            "isNotAndIsNotEmpty": "Is not (and not empty)"
         }
     }
 }

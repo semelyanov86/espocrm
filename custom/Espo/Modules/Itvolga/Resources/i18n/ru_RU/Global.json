@@ -136,7 +136,9 @@
         },
         "searchRanges": {
             "isCurrentUser": "Текущий пользователь",
-            "isNotCurrentUser": "Не текущий пользователь"
+            "isNotCurrentUser": "Не текущий пользователь",
+            "isNotOneOfAndIsNotEmpty": "Ни один из (и не пусто)",
+            "isNotAndIsNotEmpty": "Не (и не пусто)"
         }
     }
 }

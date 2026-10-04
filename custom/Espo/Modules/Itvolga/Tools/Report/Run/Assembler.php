@@ -137,8 +137,10 @@ final class Assembler
             $desc = $direction === 'desc';
 
             if ($field->family() === FieldInfo::FAMILY_ENUM && $field->options !== []) {
-                $order = Order::createByPositionInList(Expr::column($value), $field->options);
-                $builder->order($desc ? $order->withDesc() : $order);
+                // The core order already sorts by position with DESC: the reverse direction reverses the options
+                // (external review B15).
+                $builder->order(Order::createByPositionInList(Expr::column($value),
+                    $desc ? array_reverse($field->options) : $field->options));
 
                 continue;
             }

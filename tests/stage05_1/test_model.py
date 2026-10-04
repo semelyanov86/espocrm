@@ -357,6 +357,24 @@ class StandardReportsTest(Case):
                 f"WHERE id='{rid}'")
         self.assertEqual([[rid, "0"]], sql(f"SELECT id, deleted FROM report WHERE seed_key='{key}'"))
 
+    def test_a_restored_shared_report_without_lists_becomes_private(self):
+        """Cleanup keeps a standard report's row but deletes its sharing rows; restored, it is private, not a shared
+        report without anybody (external review W18)."""
+        w = W()
+        report = w.report("dir", "shared standard", entityType="Account", columns=["name"], accessType="shared",
+                          sharedUsersIds=[w.uid["dir2"]])
+        rid = report["id"]
+        sql(f"UPDATE report SET seed_key='{w.tag}-shared' WHERE id='{rid}'")
+        try:
+            self.ok(w.admin.delete(f"Report/{rid}"))
+            sql(f"UPDATE report SET modified_at='2020-01-01 00:00:00' WHERE id='{rid}'")
+            espo_console("run-job", "Cleanup")
+            self.assertEqual([], sql(f"SELECT 1 FROM report_shared_user WHERE report_id='{rid}'"))
+            self.ok(w.admin.post("Report/action/restoreDeleted", {"id": rid}))
+            self.assertEqual("private", self.ok(w.admin.get(f"Report/{rid}"))["accessType"])
+        finally:
+            sql(f"UPDATE report SET seed_key=NULL WHERE id='{rid}'")
+
     def test_a_deleted_standard_folder_is_not_recreated(self):
         """The core category tree deletes a folder row; a standard folder leaves a soft-deleted row, and the setup does
         not bring it back (D-100, review finding of 2026-10-04)."""
