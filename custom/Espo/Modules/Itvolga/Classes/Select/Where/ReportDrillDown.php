@@ -71,9 +71,11 @@ class ReportDrillDown implements ItemConverter
                 throw new BadRequest('itvolgaReport: bad group key.');
             }
 
+            // The empty group is NULL only: text keys already fold '' into NULL (NULLIF), and '' compared with a number
+            // would match zero (external review B11).
             $expression = $query->groupExpression($groups[$i]);
-            $builder->where(WhereClause::fromRaw($key === null || $key === '' ?
-                ['OR' => [[$expression => null], [$expression => '']]] : [$expression => $key]));
+            $builder->where(WhereClause::fromRaw($key === null || $key === '' ? [$expression => null] :
+                [$expression => $key]));
         }
 
         return Cond::in(Expr::column('id'), $builder->select(['id'])->build());

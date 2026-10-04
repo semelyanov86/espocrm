@@ -99,7 +99,7 @@ value `{"operator", "field"}`; в where ядра — `itvolgaFieldCompare`: об
 | `GET /Report/catalog/:entityType` | `{"entityType", "fields": [...], "links": [{"link", "kind": "one"\|"many", "entityType", "label", "fields": [...]}]}`; поле: `ref, field, label, type, family, entityType, foreignEntityType, column, group, sort, aggregate, filter, quickFilter, date, operators` |
 | `GET /Report/folderCounts` | `{"total": n, "folders": {"<folderId>": n}}` — отчёты, которые пользователь может читать |
 | штатный `PUT /Report/:id` | сохранение, в том числе «Сохранить условия» (`filters`) |
-| штатный список с `where=[{"type": "itvolgaReport", "attribute": "id", "value": "<JSON {id, path, filters?, quickFilters?}>"}]` | детализация группы (§6) |
+| штатный список с `where=[{"type": "itvolgaReport", "attribute": "id", "value": "<JSON {id, path, filters?, quickFilters?}>"}]` | детализация группы (§6): ключ уровня — равенство выражению группы, пустой (`null`) — только `IS NULL` (текст уже свёрнут `NULLIF`, а `= ''` у чисел совпало бы с нулём) |
 
 **Результат.** Ячейка — `{"v": <сырое: числа строками, COUNT — целое, даты ISO, id>, "f": <текст>, "id"?, "et"?
 (запись по ссылке), "cur"? (валюта), "mixed"? (разные валюты)}`. Общие поля: `id, name, type, entityType,

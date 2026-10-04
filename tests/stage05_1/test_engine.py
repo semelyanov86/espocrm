@@ -417,6 +417,26 @@ class QuickFilterEmptyTextTest(Case):
         self.assertEqual(1, self.run_ok(report["id"], quickFilters=empty)["recordCount"])
 
 
+class EmptyNumberGroupTest(Case):
+    """Products priced 0 and without a price are two groups; the drill-down of the empty one is the product without a
+    price only — '' compared with a number would match 0 (external review B11, 2026-10-04)."""
+
+    def test_the_empty_number_group_is_null_only(self):
+        w = W()
+        zero = w.create("Product", {"name": f"{w.tag} price zero", "type": "service", "unitPrice": "0",
+                                    "unitPriceCurrency": "RUB"}, by="dir")["id"]
+        none = w.create("Product", {"name": f"{w.tag} price none", "type": "service"}, by="dir")["id"]
+        report = w.report("dir", "price groups", type="summaries", entityType="Product",
+                          groups=[{"field": "unitPrice"}], aggregates=[{"function": "COUNT"}],
+                          filters=all_of(cond("name", "startsWith", f"{w.tag} price")))
+        tree = self.run_ok(report["id"])["tree"]
+        self.assertEqual([1, 1], [n["count"] for n in tree])
+        client = w.client("dir")
+        self.assertEqual((200, {none}), drill_down(client, "Product", report["id"], [None]))
+        zero_key = next(n["key"]["v"] for n in tree if n["key"]["v"] is not None)
+        self.assertEqual((200, {zero}), drill_down(client, "Product", report["id"], [zero_key]))
+
+
 class MatrixCapTest(Case):
     """With the run cap at 4 rows, the 3 × 2 matrix of MatrixTest shows 2 rows: every shown cell is there, and the
     columns and the grand total are those of the shown rows (review finding of 2026-10-04: cells beyond the cap were
