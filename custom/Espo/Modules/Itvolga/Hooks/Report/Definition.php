@@ -101,13 +101,33 @@ class Definition implements BeforeSave
 
     private function checkAccess(CoreEntity $entity): void
     {
+        if (!$entity->isNew()) {
+            // Saves of one report wait for each other, and what this save does not change — the access type, a
+            // sharing list — is taken as committed now: concurrent saves cannot leave a shared report without
+            // anybody (external review W5).
+            $current = $this->rowLock->one(Report::ENTITY_TYPE, $entity->getId());
+
+            if ($current && !$entity->isAttributeChanged('accessType')) {
+                $entity->set('accessType', $current->get('accessType'));
+            }
+        }
+
         $accessType = $entity->get('accessType') ?: Report::ACCESS_PRIVATE;
         $entity->set('accessType', $accessType);
+        $lists = [
+            'sharedUsers' => fn () => $this->committedIds('ReportSharedUser', 'userId', $entity->getId()),
+            'sharedTeams' => fn () => $this->committedIds('ReportSharedTeam', 'teamId', $entity->getId()),
+        ];
+        $ids = [];
+
+        foreach ($lists as $field => $committed) {
+            $ids[$field] = $entity->isNew() || $entity->isAttributeChanged($field . 'Ids') ?
+                ($entity->get($field . 'Ids') ?? []) : $committed();
+        }
 
         if ($accessType !== Report::ACCESS_SHARED) {
-            foreach (['sharedUsers', 'sharedTeams'] as $field) {
-                if ($entity->isNew() ? ($entity->get($field . 'Ids') ?? []) !== [] :
-                    $entity->getLinkMultipleIdList($field) !== []) {
+            foreach ($ids as $field => $list) {
+                if ($list !== []) {
                     $entity->setLinkMultipleIdList($field, []);
                 }
             }
@@ -115,20 +135,7 @@ class Definition implements BeforeSave
             return;
         }
 
-        if (!$entity->isNew()) {
-            // Saves of one report wait for each other; a list this save does not change is read as committed now,
-            // so two saves emptying one list each cannot leave a shared report without anybody (external review W5).
-            $this->rowLock->one(Report::ENTITY_TYPE, $entity->getId());
-        }
-
-        $users = $entity->isNew() || $entity->isAttributeChanged('sharedUsersIds') ?
-            ($entity->get('sharedUsersIds') ?? []) :
-            $this->committedIds('ReportSharedUser', 'userId', $entity->getId());
-        $teams = $entity->isNew() || $entity->isAttributeChanged('sharedTeamsIds') ?
-            ($entity->get('sharedTeamsIds') ?? []) :
-            $this->committedIds('ReportSharedTeam', 'teamId', $entity->getId());
-
-        if ($users === [] && $teams === []) {
+        if ($ids['sharedUsers'] === [] && $ids['sharedTeams'] === []) {
             throw self::badRequest('sharedNeedsList', []);
         }
     }

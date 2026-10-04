@@ -338,6 +338,25 @@ class StandardReportsTest(Case):
         self.ok(run(W().admin, rid))
 
 
+    def test_the_cleanup_job_keeps_a_deleted_standard_report(self):
+        """The core cleanup job purges old soft-deleted rows; a standard report's row stays, so the setup still knows it
+        was deleted (external review B10)."""
+        seeded = self.seeded()
+        if not seeded:
+            self.skipTest("no standard report on the stand")
+        rid, key = seeded[0]
+        before = sql(f"SELECT modified_at, IFNULL(modified_by_id, '') FROM report WHERE id='{rid}'")[0]
+        try:
+            self.ok(W().admin.delete(f"Report/{rid}"))
+            sql(f"UPDATE report SET modified_at='2020-01-01 00:00:00' WHERE id='{rid}'")
+            espo_console("run-job", "Cleanup")
+            self.assertEqual([[rid, "1"]], sql(f"SELECT id, deleted FROM report WHERE seed_key='{key}'"))
+            self.assertEqual("no changes", setup_reports())
+        finally:
+            sql(f"UPDATE report SET deleted=0, modified_at='{before[0]}', modified_by_id=NULLIF('{before[1]}', '') "
+                f"WHERE id='{rid}'")
+        self.assertEqual([[rid, "0"]], sql(f"SELECT id, deleted FROM report WHERE seed_key='{key}'"))
+
     def test_a_deleted_standard_folder_is_not_recreated(self):
         """The core category tree deletes a folder row; a standard folder leaves a soft-deleted row, and the setup does
         not bring it back (D-100, review finding of 2026-10-04)."""

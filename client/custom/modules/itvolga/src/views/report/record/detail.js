@@ -40,7 +40,8 @@ define('itvolga:views/report/record/detail', ['views/record/detail'], (DetailVie
             const result = this.getView('bottom');
 
             if (result) {
-                result.run();
+                // From the first page: the conditions may have changed since a later page was shown.
+                result.run(true);
             }
         }
 

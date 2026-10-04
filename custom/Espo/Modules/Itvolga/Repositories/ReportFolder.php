@@ -7,6 +7,7 @@ namespace Espo\Modules\Itvolga\Repositories;
 use Espo\Core\Repositories\CategoryTree;
 use Espo\Modules\Itvolga\Entities\ReportFolder as ReportFolderEntity;
 use Espo\ORM\Entity;
+use Espo\ORM\Query\SelectBuilder;
 use Espo\ORM\Query\InsertBuilder;
 
 /**
@@ -34,5 +35,26 @@ class ReportFolder extends CategoryTree
             ->values(['id' => $entity->getId(), 'name' => $entity->get('name'), 'seedKey' => $seedKey,
                 'deleted' => true])
             ->build());
+    }
+
+    /**
+     * The core cleanup job purges old soft-deleted rows through this method; a standard row (with a seed key) stays,
+     * since it is what tells `itvolga-setup-reports` not to bring the record back (D-100, external review B10).
+     */
+    public function deleteFromDb(string $id, bool $onlyDeleted = false): void
+    {
+        $query = SelectBuilder::create()
+            ->from(ReportFolderEntity::ENTITY_TYPE)
+            ->select(['seedKey'])
+            ->where(['id' => $id])
+            ->withDeleted()
+            ->build();
+        $seedKey = $this->entityManager->getQueryExecutor()->execute($query)->fetchColumn();
+
+        if (is_string($seedKey) && $seedKey !== '') {
+            return;
+        }
+
+        parent::deleteFromDb($id, $onlyDeleted);
     }
 }

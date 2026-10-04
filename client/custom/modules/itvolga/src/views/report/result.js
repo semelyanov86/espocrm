@@ -44,6 +44,7 @@ define('itvolga:views/report/result', ['view', 'ui/multi-select'], (View, MultiS
             this.maxSize = 50;
             this.generation = 0;
             this.quick = {};
+            this.quickTexts = {};
             this.conditionsModel = this.model.clone();
 
             this.addActionHandler('run', () => this.run(true));
@@ -565,31 +566,44 @@ define('itvolga:views/report/result', ['view', 'ui/multi-select'], (View, MultiS
                 // Options go to the widget under opaque ids ('e' — the empty item, 'v<n>' — a value): any text, also
                 // one looking like a marker or holding the delimiter, stays a value. Values stay strings; the server
                 // reads 'true'/'false' of a flag itself.
+                // A chosen value the new conditions no longer produce stays chosen (with its last text): the shown
+                // selection is the one the result was made with.
+                const texts = this.quickTexts[filter.field] = this.quickTexts[filter.field] || {};
                 const values = {};
                 const items = filter.options.map((option, i) => {
                     const id = option.empty ? 'e' : 'v' + i;
 
                     if (!option.empty) {
                         values[id] = String(option.v);
+                        texts[values[id]] = option.f;
+                    } else {
+                        texts[''] = option.f;
                     }
 
                     return {value: id, text: option.f};
                 });
-                const ids = Object.keys(values);
-                const keptValues = state.values.filter(value => ids.some(id => values[id] === value));
-                const keptEmpty = state.includeEmpty && filter.options.some(option => option.empty);
 
-                if (this.quick[filter.field]) {
-                    this.quick[filter.field] = {mode: state.mode, values: keptValues, includeEmpty: keptEmpty};
+                state.values.filter(value => !Object.values(values).includes(value)).forEach((value, j) => {
+                    const id = 'v' + (filter.options.length + j);
+                    values[id] = value;
+                    items.push({value: id, text: texts[value] ?? value});
+                });
+
+                if (state.includeEmpty && !items.some(item => item.value === 'e')) {
+                    items.push({value: 'e', text: texts[''] ?? this.translate('None')});
                 }
 
                 MultiSelect.init(input, {items: items, delimiter: ',', values: [
-                    ...ids.filter(id => keptValues.includes(values[id])), ...(keptEmpty ? ['e'] : [])]});
+                    ...Object.keys(values).filter(id => state.values.includes(values[id])),
+                    ...(state.includeEmpty ? ['e'] : [])]});
 
                 const update = () => {
                     const chosen = input.value ? input.value.split(',') : [];
-                    this.quick[filter.field] = {mode: mode.value, values: chosen.filter(id => id !== 'e')
-                        .map(id => values[id]).filter(value => value !== undefined), includeEmpty: chosen.includes('e')};
+                    this.quick[filter.field] = {
+                        mode: mode.value,
+                        values: chosen.filter(id => id !== 'e').map(id => values[id]).filter(v => v !== undefined),
+                        includeEmpty: chosen.includes('e'),
+                    };
                 };
 
                 // Selectize reports a change through jQuery only; a native listener would never hear it.
