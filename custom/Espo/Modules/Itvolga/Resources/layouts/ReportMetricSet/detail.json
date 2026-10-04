@@ -1,0 +1,28 @@
+[
+    {
+        "name": "basics",
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "createdBy"
+                }
+            ],
+            [
+                {
+                    "name": "description",
+                    "fullWidth": true
+                }
+            ],
+            [
+                {
+                    "name": "rows",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    }
+]

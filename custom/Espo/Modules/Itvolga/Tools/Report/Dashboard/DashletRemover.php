@@ -1,0 +1,140 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Espo\Modules\Itvolga\Tools\Report\Dashboard;
+
+use Closure;
+use Espo\Core\Utils\Config;
+use Espo\Core\Utils\Config\ConfigWriter;
+use Espo\Core\Utils\Json;
+use Espo\Entities\DashboardTemplate;
+use Espo\Entities\Preferences;
+use Espo\Modules\Itvolga\Tools\Report\Core\Dashboard\DashboardPruner;
+use Espo\ORM\EntityManager;
+use Espo\ORM\Query\SelectBuilder;
+use PDO;
+use stdClass;
+
+/**
+ * Removes the dashlets of a deleted key-metrics set from every dashboard (D-113): the users' preferences (rows whose
+ * JSON mentions the set are changed under a lock of the row), the dashboard templates of the administrator and the default dashboard of the
+ * settings. Other dashlets and options stay as they are.
+ */
+final class DashletRemover
+{
+    public const DASHLET = 'ReportMetrics';
+    public const OPTION = 'metricSetId';
+
+    public function __construct(
+        private readonly EntityManager $entityManager,
+        private readonly Config $config,
+        private readonly ConfigWriter $configWriter,
+    ) {}
+
+    /**
+     * @return int number of removed dashlets
+     */
+    public function remove(string $setId): int
+    {
+        $isTarget = fn (string $name, array $options) =>
+            $name === self::DASHLET && ($options[self::OPTION] ?? null) === $setId;
+        $removed = 0;
+
+        $query = SelectBuilder::create()
+            ->from(Preferences::ENTITY_TYPE)
+            ->select(['id', 'data'])
+            ->build();
+
+        foreach ($this->entityManager->getQueryExecutor()->execute($query)->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            // The ORM compares a JSON attribute as JSON: the text of the row is looked through for the set id.
+            if (str_contains((string) $row['data'], $setId)) {
+                $removed += $this->entityManager->getTransactionManager()->run(fn () =>
+                    $this->prunePreferences((string) $row['id'], $isTarget));
+            }
+        }
+
+        foreach ($this->entityManager->getRDBRepository(DashboardTemplate::ENTITY_TYPE)->find() as $template) {
+            $result = DashboardPruner::prune(self::decode($template->get('layout')),
+                self::decode($template->get('dashletsOptions')), $isTarget);
+
+            if ($result) {
+                $template->set(['layout' => self::encode($result[0]),
+                    'dashletsOptions' => self::encodeObject($result[1])]);
+                $this->entityManager->saveEntity($template);
+                $removed += count($result[2]);
+            }
+        }
+
+        $result = DashboardPruner::prune(self::decode($this->config->get('dashboardLayout')),
+            self::decode($this->config->get('dashletsOptions')), $isTarget);
+
+        if ($result) {
+            $this->configWriter->set('dashboardLayout', self::encode($result[0]));
+            $this->configWriter->set('dashletsOptions', self::encodeObject($result[1]));
+            $this->configWriter->save();
+            $removed += count($result[2]);
+        }
+
+        return $removed;
+    }
+
+    /**
+     * The preferences of one user, read under a lock of their row and written back as a whole: a change the user saves
+     * meanwhile waits for this one instead of being overwritten by an older copy (the core stores them as one JSON).
+     *
+     * @param Closure(string, array<string, mixed>): bool $isTarget
+     */
+    private function prunePreferences(string $id, Closure $isTarget): int
+    {
+        $query = SelectBuilder::create()
+            ->from(Preferences::ENTITY_TYPE)
+            ->select(['data'])
+            ->where(['id' => $id])
+            ->forUpdate()
+            ->build();
+        $data = json_decode((string) $this->entityManager->getQueryExecutor()->execute($query)->fetchColumn(), true);
+
+        if (!is_array($data)) {
+            return 0;
+        }
+
+        $result = DashboardPruner::prune($data['dashboardLayout'] ?? null, $data['dashletsOptions'] ?? null, $isTarget);
+
+        if ($result === null) {
+            return 0;
+        }
+
+        $data['dashboardLayout'] = $result[0];
+        $data['dashletsOptions'] = self::encodeObject($result[1]);
+        $update = $this->entityManager->getQueryBuilder()
+            ->update()
+            ->in(Preferences::ENTITY_TYPE)
+            ->set(['data' => Json::encode($data, JSON_PRETTY_PRINT)])
+            ->where(['id' => $id])
+            ->build();
+        $this->entityManager->getQueryExecutor()->execute($update);
+
+        return count($result[2]);
+    }
+
+    private static function decode(mixed $value): mixed
+    {
+        return json_decode((string) json_encode($value), true);
+    }
+
+    private static function encode(mixed $value): mixed
+    {
+        return json_decode((string) json_encode($value));
+    }
+
+    /**
+     * Options keep the JSON object form also when empty.
+     *
+     * @param array<string, mixed> $value
+     */
+    private static function encodeObject(array $value): stdClass
+    {
+        return $value === [] ? new stdClass() : (object) self::encode($value);
+    }
+}

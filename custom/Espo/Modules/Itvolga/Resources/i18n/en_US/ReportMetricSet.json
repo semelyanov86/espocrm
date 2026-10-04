@@ -1,0 +1,44 @@
+{
+    "fields": {
+        "name": "Name",
+        "description": "Description",
+        "rows": "Rows",
+        "createdBy": "Author",
+        "createdAt": "Created",
+        "modifiedAt": "Modified",
+        "modifiedBy": "Modified By"
+    },
+    "labels": {
+        "Create ReportMetricSet": "Create Key Metrics Set",
+        "Reports": "Reports",
+        "Values": "Values",
+        "Add Row": "Add Row",
+        "Label": "Label",
+        "Source": "Source",
+        "Metric": "Metric",
+        "Report": "Report",
+        "Column": "Column",
+        "Entity": "Entity",
+        "Filter": "Filter",
+        "Select report": "Select report",
+        "System filters": "List filters",
+        "My filters": "My saved filters",
+        "Up": "Up",
+        "Down": "Down",
+        "Remove": "Remove",
+        "No rows": "No rows",
+        "Set deleted": "The set is deleted",
+        "No access": "No access",
+        "statusForbidden": "no access",
+        "statusNotFound": "source deleted",
+        "statusInvalid": "source changed",
+        "Records of filter": "Records of the filter",
+        "No filters": "The entity has no filters"
+    },
+    "options": {
+        "source": {
+            "report": "Tabular report",
+            "filter": "List filter"
+        }
+    }
+}

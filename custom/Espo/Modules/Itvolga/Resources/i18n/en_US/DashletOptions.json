@@ -1,0 +1,14 @@
+{
+    "fields": {
+        "report": "Report",
+        "mode": "Mode",
+        "metricSet": "Key metrics set"
+    },
+    "options": {
+        "reportMode": {
+            "": "As in the report",
+            "chart": "Chart",
+            "table": "Table"
+        }
+    }
+}

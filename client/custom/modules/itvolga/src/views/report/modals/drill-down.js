@@ -1,7 +1,8 @@
 /**
  * Records of a report group (drill-down, D-98): the standard record list of the main entity in a modal, filtered by the
  * where item `itvolgaReport` — the server selects the records with the report's own query (its conditions, the
- * one-off conditions and quick filters of the run, the ACL of the user) plus the keys of the group.
+ * one-off conditions and quick filters of the run, the ACL of the user) plus the keys of the group. Given `where`
+ * items instead (a list filter of a key metric, D-112), the list shows the records of those conditions.
  */
 define('itvolga:views/report/modals/drill-down', ['views/modal'], (ModalView) => {
 
@@ -12,13 +13,13 @@ define('itvolga:views/report/modals/drill-down', ['views/modal'], (ModalView) =>
         backdrop = true
 
         setup() {
-            this.headerText = this.translate('Group records', 'labels', 'Report');
+            this.headerText = this.options.headerText || this.translate('Group records', 'labels', 'Report');
             this.buttonList = [{name: 'cancel', label: 'Close'}];
             const entityType = this.options.entityType;
 
             this.wait(this.getCollectionFactory().create(entityType).then(collection => {
                 collection.maxSize = this.getConfig().get('recordsPerPage') || 20;
-                collection.where = [{
+                collection.where = this.options.where || [{
                     type: 'itvolgaReport',
                     attribute: 'id',
                     value: JSON.stringify({

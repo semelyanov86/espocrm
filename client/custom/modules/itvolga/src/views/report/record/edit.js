@@ -1,6 +1,6 @@
 /**
  * Report builder: the core record form whose tabs are the steps (basics, grouping and aggregates, columns and sorting,
- * calculations, filters, labels, access); steps not used by the report type are hidden by logicDefs. «Сохранить»
+ * calculations, filters, labels, charts, access, dashboard); steps not used by the report type are hidden by logicDefs. «Сохранить»
  * keeps the builder open, «Сохранить и показать» opens the result. Parts the type does not use are sent empty, so a
  * switch of the type before the first save leaves no stale part the server would refuse.
  */
@@ -8,12 +8,12 @@ define('itvolga:views/report/record/edit', ['views/record/edit'], (EditView) => 
 
     const PARTS = {
         tabular: ['columns', 'sorting', 'totals', 'calculations'],
-        summaries: ['groups', 'aggregates', 'groupSort', 'havingFilters'],
-        summariesWithDetails: ['groups', 'aggregates', 'groupSort', 'havingFilters', 'columns', 'sorting'],
-        matrix: ['groups', 'aggregates', 'groupSort', 'havingFilters'],
+        summaries: ['groups', 'aggregates', 'groupSort', 'havingFilters', 'charts'],
+        summariesWithDetails: ['groups', 'aggregates', 'groupSort', 'havingFilters', 'columns', 'sorting', 'charts'],
+        matrix: ['groups', 'aggregates', 'groupSort', 'havingFilters', 'charts'],
     };
     const EMPTY = {columns: [], sorting: [], totals: [], calculations: [], groups: [], aggregates: [], groupSort: null,
-        havingFilters: []};
+        havingFilters: [], charts: null};
 
     return class extends EditView {
 
@@ -57,7 +57,7 @@ define('itvolga:views/report/record/edit', ['views/record/edit'], (EditView) => 
             this.listenTo(this.model, 'change:entityType', (model, value, options) => {
                 if (options.ui && this.model.isNew()) {
                     this.model.set({...EMPTY, aggregates: [{function: 'COUNT', link: null, field: null}],
-                        quickFilters: [], filters: {type: 'and', items: []}, labels: {}});
+                        quickFilters: [], filters: {type: 'and', items: []}, labels: {}, dashboard: null});
                 }
             });
         }

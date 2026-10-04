@@ -26,5 +26,18 @@
     "filterList": [],
     "boolFilterList": [
         "onlyMy"
-    ]
+    ],
+    "menu": {
+        "list": {
+            "buttons": [
+                {
+                    "label": "Key Metrics",
+                    "link": "#ReportMetricSet",
+                    "acl": "read",
+                    "aclScope": "ReportMetricSet",
+                    "iconHtml": "<span class=\"fas fa-tachometer-alt\"></span>"
+                }
+            ]
+        }
+    }
 }

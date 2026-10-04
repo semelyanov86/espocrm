@@ -15,6 +15,7 @@ use Espo\Entities\User;
 use Espo\Modules\Itvolga\Entities\Report;
 use Espo\Modules\Itvolga\Tools\Finance\Decimal;
 use Espo\Modules\Itvolga\Tools\Report\Core\DecimalMath;
+use Espo\Modules\Itvolga\Tools\Report\Core\Chart\ChartBuilder;
 use Espo\Modules\Itvolga\Tools\Report\Core\Definition\Aggregate;
 use Espo\Modules\Itvolga\Tools\Report\Core\Definition\Definition;
 use Espo\Modules\Itvolga\Tools\Report\Core\Definition\DefinitionParser;
@@ -23,8 +24,11 @@ use Espo\Modules\Itvolga\Tools\Report\Core\Definition\GroupLevel;
 use Espo\Modules\Itvolga\Tools\Report\Core\Definition\ReportType;
 use Espo\Modules\Itvolga\Tools\Report\Core\Definition\RunOptions;
 use Espo\Modules\Itvolga\Tools\Report\Core\Filter\RunContext;
+use Espo\Modules\Itvolga\Tools\Report\Core\Format\NumberText;
 use Espo\Modules\Itvolga\Tools\Report\Core\Format\RawNumber;
+use Espo\Modules\Itvolga\Tools\Report\Core\Metric\MetricRules;
 use Espo\Modules\Itvolga\Tools\Report\Core\Result\KeyOrder;
+use Espo\Modules\Itvolga\Tools\Report\Format\FormatContext;
 use Espo\Modules\Itvolga\Tools\Report\Format\FormatContextFactory;
 use Espo\Modules\Itvolga\Tools\Report\Format\ValueFormatter;
 use Espo\Modules\Itvolga\Tools\Report\Query\ReportQuery;
@@ -132,12 +136,7 @@ final class ReportRunner
     public function run(Report $report, array $raw, User $user): array
     {
         $query = $this->prepare($report, $raw, $user);
-        $context = $this->formatContextFactory->create($user);
-        $formatter = new ValueFormatter($context, $this->entityManager);
-        $labels = new Labels($context->language, $query->definition);
-        $order = new KeyOrder(class_exists(Collator::class) ? new Collator($context->languageCode) : null);
-        $assembler = new Assembler($query, $formatter, $labels, $order, $this->maxRows(), fn (Select $s) =>
-            $this->fetch($s));
+        [$assembler, $context, $formatter, $labels, $order] = $this->tools($query, $user);
 
         $counts = $this->fetch($query->base()->select([['ITVOLGA_COUNT_DISTINCT:(id)', 'records'],
             ['COUNT:(id)', 'rows']])->build())[0] ?? [];
@@ -157,13 +156,79 @@ final class ReportRunner
             ReportType::MATRIX => $assembler->matrix(),
         };
 
+        // Charts are made of the assembled result, no query of their own (D-105).
+        $charts = (new ChartBuilder($order, $context->numbers, fn (Aggregate $a) => $labels->aggregate($a),
+            fn (Aggregate $a, string $function, Decimal $value, ?string $currency) =>
+                self::progressCell($formatter, $context->numbers, $a, $function, $value, $currency)))
+            ->build($query->definition, $result);
+
+        if ($charts !== null) {
+            $result['charts'] = $charts;
+        }
+
+        $result['dashboard'] = $query->definition->dashboard->toArray();
+
         if ($query->options->withQuickFilterOptions) {
             $result['quickFilters'] = $assembler->quickFilterOptions();
+        }
+
+        if ($query->options->withDashboardFilterOptions && $query->definition->dashboard->filterField !== null) {
+            $result['dashboardFilter'] = $assembler->filterOptions($query->definition->dashboard->filterField);
         }
 
         $result['limits']['maxRows'] = $this->maxRows();
 
         return $result;
+    }
+
+    /**
+     * One metric of a tabular report for a user (D-112): the record count or SUM/AVG/MIN/MAX of a numeric column over
+     * all records of the report's conditions, checked and computed like the report itself (its definition parsed with
+     * the user's ACL, the same query as `recordCount` and the column totals). The caller loads the report readable for
+     * the user and runs this in a reading transaction, as for run().
+     *
+     * @return array<string, mixed> the cell of the value
+     */
+    public function metric(Report $report, string $function, ?string $column, User $user): array
+    {
+        $query = $this->prepare($report, ['withQuickFilterOptions' => false], $user);
+        $aggregate = MetricRules::aggregate($query->definition, $function, $column);
+
+        return $this->tools($query, $user)[0]->overall([$aggregate])[0];
+    }
+
+    /**
+     * @return array{Assembler, FormatContext, ValueFormatter, Labels, KeyOrder}
+     */
+    private function tools(ReportQuery $query, User $user): array
+    {
+        $context = $this->formatContextFactory->create($user);
+        $formatter = new ValueFormatter($context, $this->entityManager);
+        $labels = new Labels($context->language, $query->definition);
+        $order = new KeyOrder(class_exists(Collator::class) ? new Collator($context->languageCode) : null);
+        $assembler = new Assembler($query, $formatter, $labels, $order, $this->maxRows(), fn (Select $s) =>
+            $this->fetch($s));
+
+        return [$assembler, $context, $formatter, $labels, $order];
+    }
+
+    /**
+     * A progress-line value (D-107) in the notation of the aggregate: an average with two decimals, money with its
+     * currency.
+     *
+     * @return array<string, mixed>
+     */
+    private static function progressCell(ValueFormatter $formatter, NumberText $numbers, Aggregate $aggregate,
+        string $function, Decimal $value, ?string $currency): array
+    {
+        $scale = $function === 'AVG' ? 2 : null;
+
+        if ($aggregate->field === null) {
+            return ['v' => $value->toString(), 'f' => $numbers->format($value, $scale)];
+        }
+
+        return $formatter->number($aggregate->field, $value, $currency,
+            $scale ?? ($aggregate->function === 'AVG' || $aggregate->field->isCurrency() ? 2 : null));
     }
 
     /**

@@ -24,6 +24,8 @@ final class Definition
      * @param list<FieldInfo> $quickFilters
      * @param array<string, string> $labels result key → label
      * @param ?string $manyLink the single to-many link of columns, groups and aggregates
+     * @param ChartSettings $charts charts of a summary type (D-105)
+     * @param DashboardSettings $dashboard the report on a dashboard (D-109)
      */
     public function __construct(
         public readonly ReportType $type,
@@ -43,7 +45,17 @@ final class Definition
         public readonly array $quickFilters,
         public readonly array $labels,
         public readonly ?string $manyLink,
+        public readonly ChartSettings $charts = new ChartSettings(),
+        public readonly DashboardSettings $dashboard = new DashboardSettings(),
     ) {}
+
+    /**
+     * A copy with some parts replaced, by the names of the constructor parameters.
+     */
+    public function with(mixed ...$changes): self
+    {
+        return new self(...array_merge(get_object_vars($this), $changes));
+    }
 
     /**
      * @param array<string, mixed> $filters
@@ -51,9 +63,7 @@ final class Definition
      */
     public function withFilters(array $filters, array $filterFields): self
     {
-        return new self($this->type, $this->entityType, $this->columns, $this->sorting, $this->rowLimit,
-            $this->groups, $this->aggregates, $this->groupSort, $this->groupLimit, $this->totals, $this->calculations,
-            $filters, $filterFields, $this->having, $this->quickFilters, $this->labels, $this->manyLink);
+        return $this->with(filters: $filters, filterFields: $filterFields);
     }
 
     /**
@@ -61,9 +71,7 @@ final class Definition
      */
     public function withLabels(array $labels): self
     {
-        return new self($this->type, $this->entityType, $this->columns, $this->sorting, $this->rowLimit,
-            $this->groups, $this->aggregates, $this->groupSort, $this->groupLimit, $this->totals, $this->calculations,
-            $this->filters, $this->filterFields, $this->having, $this->quickFilters, $labels, $this->manyLink);
+        return $this->with(labels: $labels);
     }
 
     public function aggregate(string $key): ?Aggregate
@@ -112,6 +120,8 @@ final class Definition
             'havingFilters' => array_map(fn (Having $h) => $h->toArray(), $this->having),
             'quickFilters' => array_map(fn (FieldInfo $f) => $f->ref->toString(), $this->quickFilters),
             'labels' => (object) $this->labels,
+            'charts' => $this->charts->toArray(),
+            'dashboard' => $this->dashboard->toArray(),
         ];
     }
 }

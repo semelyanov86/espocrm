@@ -87,7 +87,10 @@ final class DefinitionParser
             manyLink: $manyLink,
         );
 
-        return $definition->withLabels($this->labels($a['labels'] ?? null, $definition));
+        $definition = $definition->withLabels($this->labels($a['labels'] ?? null, $definition));
+        $definition = $definition->with(charts: ChartSettingsParser::parse($a['charts'] ?? null, $definition));
+
+        return $definition->with(dashboard: $this->dashboard($a['dashboard'] ?? null, $definition));
     }
 
     /**
@@ -117,7 +120,9 @@ final class DefinitionParser
             $path = "quickFilters[$i]";
             $field = null;
 
-            foreach ($definition->quickFilters as $candidate) {
+            // The main filter of a dashlet is a quick filter of the dashboard's field (D-109).
+            foreach ([...$definition->quickFilters, ...array_filter([$definition->dashboard->filterField])] as
+                $candidate) {
                 if (is_array($item) && $candidate->ref->toString() === ($item['field'] ?? null)) {
                     $field = $candidate;
                 }
@@ -150,6 +155,7 @@ final class DefinitionParser
             quickFilters: array_values(array_filter($quick, fn (QuickFilterValue $q) => !$q->isEmpty())),
             noLimit: ($raw['noLimit'] ?? false) === true,
             withQuickFilterOptions: ($raw['withQuickFilterOptions'] ?? true) !== false,
+            withDashboardFilterOptions: ($raw['withDashboardFilterOptions'] ?? false) === true,
         )];
     }
 
@@ -691,6 +697,50 @@ final class DefinitionParser
         }
 
         return array_values($result);
+    }
+
+    /**
+     * The dashboard part (D-109): the main filter field is an enum field or the owner of the main entity (resolved with
+     * the ACL of the user, like every field); the mode defaults to the chart when the report has charts. A tabular
+     * report has no charts, so only the table.
+     */
+    private function dashboard(mixed $raw, Definition $definition): DashboardSettings
+    {
+        $raw = json_decode((string) json_encode($raw), true);
+        $default = $definition->charts->isEmpty() ? DashboardSettings::MODE_TABLE : DashboardSettings::MODE_CHART;
+
+        if ($raw === null || $raw === []) {
+            return new DashboardSettings(null, $default);
+        }
+
+        if (!is_array($raw) || array_is_list($raw)) {
+            throw new DefinitionError('badStructure', 'dashboard');
+        }
+
+        $field = null;
+
+        if (($raw['filterField'] ?? null) !== null) {
+            $field = $this->field($definition->entityType, $raw['filterField'], 'dashboard.filterField');
+            $isOwner = $field->ref->field === 'assignedUser' && $field->isUserLink();
+
+            if ($field->linkKind !== FieldInfo::LINK_NONE || !$field->canQuickFilter() ||
+                !($field->family() === FieldInfo::FAMILY_ENUM || $isOwner)) {
+                throw new DefinitionError('badDashboardFilter', 'dashboard.filterField',
+                    ['field' => $field->ref->toString()]);
+            }
+        }
+
+        $mode = $raw['mode'] ?? $default;
+
+        if (!in_array($mode, DashboardSettings::MODES, true)) {
+            throw new DefinitionError('badDashboardMode', 'dashboard.mode');
+        }
+
+        if ($mode === DashboardSettings::MODE_CHART && !$definition->type->isGrouped()) {
+            throw new DefinitionError('notForType', 'dashboard.mode');
+        }
+
+        return new DashboardSettings($field, $mode);
     }
 
     private function limit(mixed $value, int $max, string $path): ?int

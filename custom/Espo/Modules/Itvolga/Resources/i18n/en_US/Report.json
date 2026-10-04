@@ -26,7 +26,10 @@
         "modifiedAt": "Modified At",
         "createdBy": "Created By",
         "modifiedBy": "Modified By",
-        "seedKey": "Standard report key"
+        "seedKey": "Standard report key",
+        "charts": "Charts",
+        "dashboard": "Dashboard",
+        "usedInMetrics": "Used in key metrics"
     },
     "links": {
         "folder": "Folder",
@@ -89,6 +92,33 @@
             "compareField": "Compare with field",
             "isCurrentUser": "Current user",
             "isNotCurrentUser": "Not current user"
+        },
+        "chartType": {
+            "bar": "Bars",
+            "stackedBar": "Stacked bars",
+            "horizontalBar": "Horizontal bars",
+            "stackedHorizontalBar": "Stacked horizontal bars",
+            "line": "Line",
+            "pie": "Pie",
+            "piePercent": "Pie in percent",
+            "funnel": "Funnel"
+        },
+        "chartPosition": {
+            "top": "Above the table",
+            "bottom": "Below the table"
+        },
+        "chartAxis": {
+            "group1": "Group 1",
+            "group1group2": "Group 1 → group 2"
+        },
+        "progressLine": {
+            "MIN": "Running minimum",
+            "AVG": "Running average",
+            "MAX": "Running maximum"
+        },
+        "dashboardMode": {
+            "chart": "Chart",
+            "table": "Table"
         }
     },
     "labels": {
@@ -167,7 +197,36 @@
         "Columns axis": "Columns (axis)",
         "noNumericColumns": "No numeric columns selected.",
         "Compare dates": "Compare dates",
-        "Add Field Condition": "Add condition"
+        "Add Field Condition": "Add condition",
+        "Charts": "Charts",
+        "Dashboard": "Dashboard",
+        "Chart title": "Title",
+        "Chart position": "Position",
+        "Collapse table": "Collapse the table by default",
+        "X axis": "X axis",
+        "Progress lines": "Progress lines",
+        "Chart": "Chart",
+        "Chart type": "Chart type",
+        "Data series": "Data series",
+        "Add Chart": "Add Chart",
+        "Record count": "Record count",
+        "Show table": "Show table",
+        "Hide table": "Hide table",
+        "Main filter": "Main filter",
+        "Default mode": "Default mode",
+        "No main filter": "None",
+        "All values": "All",
+        "No access to report": "No access to the report",
+        "Report not found": "Report not found",
+        "Select report": "Select a report in the dashlet options",
+        "Open report": "Open report",
+        "No charts": "The report has no charts: the table is shown.",
+        "chartMixedCurrencies": "No chart: the values are in different currencies.",
+        "noteNonPositiveOmitted": "Values less than or equal to zero are not shown.",
+        "noteMixedValuesOmitted": "Groups with values in different currencies are not shown.",
+        "noteSeriesCapped": "The first {n} series are shown.",
+        "Key Metrics": "Key Metrics",
+        "usedInMetrics": "Used in key metrics"
     },
     "messages": {
         "badType": "Unknown report type.",
@@ -222,13 +281,36 @@
         "badQuickFilter": "Bad quick filter value ({path}).",
         "readOnlyAfterCreate": "The field '{field}' does not change after the report is created.",
         "sharedNeedsList": "For 'Shared' access set users or teams.",
-        "folderNotFound": "The folder is not found: it may have just been removed."
+        "folderNotFound": "The folder is not found: it may have just been removed.",
+        "badChart": "Bad chart settings ({path}).",
+        "badChartType": "Unknown chart type ({path}).",
+        "badChartAggregate": "A chart plots the record count or one of the report aggregates ({path}).",
+        "chartAxisNotAllowed": "The axis \"group 1 → group 2\" exists only for summaries with two or more group levels and for a matrix.",
+        "chartAxisOneChart": "With the axis \"group 1 → group 2\" there is one chart.",
+        "chartFunnelSecondGroup": "A funnel is drawn by group 1 only.",
+        "chartProgressSecondGroup": "Progress lines are drawn only with the axis \"group 1\".",
+        "badDashboardFilter": "The main filter is an enum field or the owner of the main entity (the field '{field}' does not fit).",
+        "badDashboardMode": "Bad dashlet mode ({path}).",
+        "metricNotTabular": "A metric is made of a tabular report only ({path}).",
+        "badMetric": "Bad metric ({path}).",
+        "metricBadColumn": "The column '{field}' is not a numeric column of the report ({path}).",
+        "metricLabelRequired": "A row needs a label of at most {max} characters ({path}).",
+        "badMetricSource": "Bad metric source ({path}).",
+        "badMetricFilter": "Bad source filter ({path}).",
+        "metricFilterTooLarge": "The filter conditions are too large: at most {max} bytes ({path}).",
+        "metricReportNotFound": "The source report is not found ({path}).",
+        "metricReportForbidden": "No access to the source report ({path}).",
+        "metricEntityForbidden": "No access to the source entity ({path}).",
+        "metricSetNameExists": "A key metrics set with this name already exists.",
+        "metricFilterForbidden": "No access to the fields of the filter conditions ({path})."
     },
     "tooltips": {
         "rowLimit": "Empty — all records (within the per-run cap).",
         "groupLimit": "Empty — all groups.",
         "calculations": "Expression: numbers, references to numeric columns {field}, + - * /, parentheses, round(x, n). Division by zero gives an empty value.",
-        "accessType": "Private — owner and administrators; public — everyone with access to reports; shared — listed users and teams."
+        "accessType": "Private — owner and administrators; public — everyone with access to reports; shared — listed users and teams.",
+        "charts": "Up to three charts of a summary report. With the axis \"group 1 → group 2\" there is one chart: categories are the values of group 1, series the values of group 2 (of a matrix, its columns). Progress lines: the minimum, average and maximum of the values from the first category up to the current one.",
+        "dashboard": "Main filter: the field whose value is chosen in the header of the \"Report\" dashlet (an enum field or the owner of the main entity). Default mode: what a new dashlet shows, the chart or the table."
     },
     "massActions": {
         "moveToFolder": "Move to Folder"

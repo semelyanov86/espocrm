@@ -11,12 +11,6 @@
     },
     "type": "summariesWithDetails",
     "entityType": "Lead",
-    "charts": [
-        {
-            "type": "bar",
-            "aggregate": "COUNT"
-        }
-    ],
     "definition": {
         "columns": [
             "name",
@@ -51,6 +45,14 @@
         },
         "havingFilters": [],
         "quickFilters": [],
-        "labels": {}
+        "labels": {},
+        "charts": {
+            "items": [
+                {
+                    "type": "bar",
+                    "aggregate": "COUNT"
+                }
+            ]
+        }
     }
 }

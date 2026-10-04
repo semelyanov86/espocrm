@@ -11,12 +11,6 @@
     },
     "type": "summaries",
     "entityType": "Opportunity",
-    "charts": [
-        {
-            "type": "pie",
-            "aggregate": "SUM:amount"
-        }
-    ],
     "definition": {
         "columns": [],
         "sorting": [],
@@ -55,6 +49,14 @@
         },
         "havingFilters": [],
         "quickFilters": [],
-        "labels": {}
+        "labels": {},
+        "charts": {
+            "items": [
+                {
+                    "type": "pie",
+                    "aggregate": "SUM:amount"
+                }
+            ]
+        }
     }
 }

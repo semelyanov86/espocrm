@@ -1,0 +1,44 @@
+{
+    "fields": {
+        "name": "Название",
+        "description": "Описание",
+        "rows": "Строки",
+        "createdBy": "Автор",
+        "createdAt": "Создан",
+        "modifiedAt": "Изменён",
+        "modifiedBy": "Изменил"
+    },
+    "labels": {
+        "Create ReportMetricSet": "Создать набор показателей",
+        "Reports": "Отчёты",
+        "Values": "Значения",
+        "Add Row": "Добавить строку",
+        "Label": "Подпись",
+        "Source": "Источник",
+        "Metric": "Показатель",
+        "Report": "Отчёт",
+        "Column": "Колонка",
+        "Entity": "Сущность",
+        "Filter": "Фильтр",
+        "Select report": "Выбрать отчёт",
+        "System filters": "Фильтры списка",
+        "My filters": "Мои сохранённые фильтры",
+        "Up": "Вверх",
+        "Down": "Вниз",
+        "Remove": "Удалить",
+        "No rows": "Строк нет",
+        "Set deleted": "Набор удалён",
+        "No access": "Нет доступа",
+        "statusForbidden": "нет доступа",
+        "statusNotFound": "источник удалён",
+        "statusInvalid": "источник изменён",
+        "Records of filter": "Записи фильтра",
+        "No filters": "У сущности нет фильтров"
+    },
+    "options": {
+        "source": {
+            "report": "Табличный отчёт",
+            "filter": "Фильтр списка"
+        }
+    }
+}

@@ -219,6 +219,46 @@
             "customizationDisabled": true,
             "inlineEditDisabled": true
         },
+        "charts": {
+            "type": "jsonObject",
+            "view": "itvolga:views/report/fields/charts",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true,
+            "inlineEditDisabled": true
+        },
+        "dashboard": {
+            "type": "jsonObject",
+            "view": "itvolga:views/report/fields/dashboard",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true,
+            "inlineEditDisabled": true
+        },
+        "usedInMetrics": {
+            "type": "bool",
+            "notStorable": true,
+            "readOnly": true,
+            "duplicateIgnore": true,
+            "view": "itvolga:views/report/fields/used-in-metrics",
+            "layoutDetailDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true,
+            "filterDisabled": true,
+            "orderDisabled": true
+        },
         "seedKey": {
             "type": "varchar",
             "maxLength": 100,

@@ -24,6 +24,7 @@ define('itvolga:views/report/record/detail', ['views/record/detail'], (DetailVie
                     [{name: 'aggregates'}, {name: 'groupLimit'}],
                     [{name: 'columns'}, {name: 'sorting'}],
                     [{name: 'filters', fullWidth: true}],
+                    [{name: 'charts'}, {name: 'dashboard'}],
                     [{name: 'description', fullWidth: true}],
                 ],
             },

@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Espo\Modules\Itvolga\Tools\Report\Core\Definition;
 
 /**
- * Parameters of one run (POST Report/:id/run): page of the rows, quick filter values, the no-limit flag (export,
- * 05.3) and whether the quick filter options are wanted. One-off conditions replace the definition's filters before
+ * Parameters of one run (POST Report/:id/run): page of the rows, quick filter values (the main filter of a dashlet is
+ * one of them, D-109), the no-limit flag (export, 05.3) and whether the options of the quick filters and of the
+ * dashboard filter are wanted. One-off conditions replace the definition's filters before
  * these options are made (Definition::withFilters).
  */
 final class RunOptions
@@ -22,5 +23,6 @@ final class RunOptions
         public readonly array $quickFilters = [],
         public readonly bool $noLimit = false,
         public readonly bool $withQuickFilterOptions = true,
+        public readonly bool $withDashboardFilterOptions = false,
     ) {}
 }

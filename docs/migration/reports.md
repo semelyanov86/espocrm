@@ -1,11 +1,11 @@
 # Модуль отчётов (этапы 05.1–05.3)
 
 Собственный открытый модуль «Отчёты» — аналог расширения Vtiger Reports 4 You (поведение, не код; код Reports 4 You
-закрытый, Advanced Pack EspoCRM не используется). Решения — D-84…D-104; вопросы Q-50…Q-53 закрыты владельцем 2026-10-04. Этот файл — контракт
-модели, хранимого JSON, API, доступа, движка и сида; проверено на стенде 2026-10-04 (EspoCRM 10.0.9).
+закрытый, Advanced Pack EspoCRM не используется). Решения — D-84…D-115; вопросы Q-50…Q-53 закрыты владельцем 2026-10-04. Этот файл — контракт
+модели, хранимого JSON, API, доступа, движка, сида, графиков, дашлетов и ключевых показателей; проверено на стенде 2026-10-04 (EspoCRM 10.0.9).
 
-Подэтапы: **05.1** — модель, конструктор, движок, доступ, стандартные отчёты (этот файл); 05.2 — графики, дашлеты,
-ключевые показатели; 05.3 — экспорт (CSV, XLSX, PDF; ODS не нужен — уточнение владельца 2026-10-04), печать, рассылка по расписанию (разделы появятся в своих подэтапах).
+Подэтапы: **05.1** — модель, конструктор, движок, доступ, стандартные отчёты; **05.2** — графики, дашлеты, ключевые
+показатели (§9–§11); 05.3 — экспорт (CSV, XLSX, PDF; ODS не нужен — уточнение владельца 2026-10-04), печать, рассылка по расписанию (разделы появятся в своём подэтапе).
 
 ## 1. Где код
 
@@ -24,7 +24,11 @@
 | `M/Hooks/Report/Definition.php`, `M/Hooks/ReportFolder/Guard.php`, `M/Repositories/{Report,ReportFolder}.php`, `M/Services/ReportFolder.php` | проверка определения при любом сохранении (в транзакции репозитория); правила папок; «надгробие» удалённой стандартной папки |
 | `M/Classes/ConsoleCommands/SetupReports.php`, `M/Tools/Report/Seed/StandardReports.php`, `M/Resources/metadata/app/itvolgaReports.json`, `M/Resources/reports/standard/*.json` | `itvolga-setup-reports`: папки и стандартные отчёты |
 | `C/report/catalog.js`, `C/views/report/fields/*.js`, `C/views/report/filter/*.js` | конструктор: каталог полей, редакторы частей определения, условия |
-| `C/views/report/record/{edit,detail}.js`, `C/views/report/result.js`, `C/views/report/list.js`, `C/views/report/modals/drill-down.js`, `C/handlers/report/move-to-folder.js` | конструктор-форма, страница результата, список с папками, детализация, перенос в папку |
+| `C/views/report/record/{edit,detail}.js`, `C/views/report/result.js`, `C/report/result-table.js`, `C/views/report/list.js`, `C/views/report/modals/drill-down.js`, `C/handlers/report/move-to-folder.js` | конструктор-форма, страница результата и её таблицы (общие с дашлетом), список с папками, детализация, перенос в папку |
+| `M/Tools/Report/Core/Definition/{ChartType,ChartAxis,ChartItem,ChartSettings,ChartSettingsParser,DashboardSettings}.php`, `M/Tools/Report/Core/Chart/{ChartBuilder,ProgressLines}.php` | 05.2: части `charts` и `dashboard`, данные графиков из результата (§9) |
+| `C/views/report/{chart,charts}.js`, `C/views/report/fields/{charts,dashboard}.js` | 05.2: графики (Flotr2, EspoFunnel), шаги 7 «Графики» и 10 «Дашборд» конструктора |
+| `M/Resources/metadata/dashlets/{Report,ReportMetrics}.json`, `C/views/dashlets/{report,report-metrics}.js` | 05.2: дашлеты «Отчёт» и «Ключевые показатели» (§10, §11) |
+| `M/Resources/metadata/*/ReportMetricSet.json`, `M/Hooks/ReportMetricSet/{Guard,RemoveDashlets}.php`, `M/Repositories/ReportMetricSet.php`, `M/Tools/Report/Core/Metric/`, `M/Tools/Report/Metric/{FilterQuery,MetricSources}.php`, `M/Tools/Report/Api/GetMetricValues.php`, `M/Tools/Report/Core/Dashboard/DashboardPruner.php`, `M/Tools/Report/Dashboard/DashletRemover.php`, `M/Classes/FieldProcessing/Report/MetricUsageLoader.php`, `C/views/report-metric-set/`, `C/views/report/fields/used-in-metrics.js` | 05.2: наборы ключевых показателей, их значения, очистка дашлетов, значок в списке отчётов (§11) |
 
 ## 2. Модель и хранимый JSON
 
@@ -48,6 +52,8 @@
 | `havingFilters` | `[{"aggregate": <ключ>, "operator": "equals"\|"notEquals"\|"greaterThan"\|"lessThan"\|"greaterThanOrEquals"\|"lessThanOrEquals"\|"between", "value": "1500.5"\|["10","20"]}]`, ≤ 10, по И | сводные |
 | `quickFilters` | `["status", "account"]` — поля основной сущности или связи «к одному» (текст, перечисление, флаг, ссылка, целое), ≤ 10 | все |
 | `labels` | `{"c:<колонка>": "…", "g:<уровень 1..3>": "…", "a:<ключ агрегата>": "…", "k:<id расчёта>": "…"}`; пустая подпись — стандартная | все |
+| `charts` (05.2) | `{"title": "", "position": "top"\|"bottom", "collapseTable": false, "axis": "group1"\|"group1group2", "progressLines": ["MIN","AVG","MAX"], "items": [{"type": <тип>, "aggregate": "COUNT"\|<ключ агрегата>}]}`, ≤ 3 графиков; типы `bar`, `stackedBar`, `horizontalBar`, `stackedHorizontalBar`, `line`, `pie`, `piePercent`, `funnel`; всегда объект (§9) | сводные (у табличного `items` пусты) |
+| `dashboard` (05.2) | `{"filterField": null\|<перечисление или assignedUser основной сущности>, "mode": "chart"\|"table"}` (§10) | все |
 
 **Ссылки на поля.** `field` — поле основной сущности, `link.field` — поле сущности на одной связи (`belongsTo`,
 `hasMany`, `hasChildren`, `manyMany`, включая `assignedUser`, `teams`, строки документов `items`). Доступность поля
@@ -92,6 +98,9 @@ value `{"operator", "field"}`; в where ядра — `itvolgaFieldCompare`: об
 сохранят сортировку по удалённой колонке) и не оставят «по списку» без получателей или «публичный» со списком. Штатная очистка удалённых записей (`Cleanup`) строки стандартных отчётов и папок
 (`seedKey`) не удаляет — иначе сид вернул бы удалённое (`Repositories/*::deleteFromDb`).
 
+`ReportMetricSet` (05.2, §11): `name` (уникально среди живых без учёта регистра: `deleteId` и уникальный индекс
+`(name, deleteId)`), `description`, `rows` (JSON, ≤ 30), автор — `createdBy`.
+
 ## 3. API
 
 | Запрос | Ответ |
@@ -100,6 +109,8 @@ value `{"operator", "field"}`; в where ядра — `itvolgaFieldCompare`: об
 | `GET /Report/catalog` | `{"list": [{"entityType", "label"}]}` — сущности, доступные пользователю |
 | `GET /Report/catalog/:entityType` | `{"entityType", "fields": [...], "links": [{"link", "kind": "one"\|"many", "entityType", "label", "fields": [...]}]}`; поле: `ref, field, label, type, family, entityType, foreignEntityType, column, group, sort, aggregate, filter, quickFilter, date, operators` |
 | `GET /Report/folderCounts` | `{"total": n, "folders": {"<folderId>": n}}` — отчёты, которые пользователь может читать |
+| `POST /Report/:id/run` `{…, withDashboardFilterOptions?: false}` (05.2) | плюс `charts` (у сводных с графиками, §9), `dashboard` (часть определения), `dashboardFilter` (варианты основного фильтра, при флаге); быстрый фильтр поля `dashboard.filterField` принимается и без включения в `quickFilters` отчёта |
+| `GET /ReportMetricSet/:id/values` (05.2) | `{"id", "name", "rows": [строка + {"status": "ok"\|"forbidden"\|"notFound"\|"invalid", "value": ячейка\|null}]}`; 404 — нет набора, 403 — набор не читается (§11) |
 | штатный `PUT /Report/:id` | сохранение, в том числе «Сохранить условия» (`filters`) |
 | штатный список с `where=[{"type": "itvolgaReport", "attribute": "id", "value": "<JSON {id, path, filters?, quickFilters?}>"}]` | детализация группы (§6): ключ уровня — равенство выражению группы, пустой (`null`) — только `IS NULL` (текст уже свёрнут `NULLIF`, а `= ''` у чисел совпало бы с нулём) |
 
@@ -113,7 +124,7 @@ fieldType, numeric}]`, `groups[{key, field, label, granularity}]`, `aggregates[{
 calculationsCapped}`; сводные — `tree[{key, count, values[], children?, rows?}]`, `grandTotal{count, values[]}`,
 `limits{groupLimit, groupCount, groupLimitHit, capHit, rowLimit, rowLimitHit?}`; матрица — `matrix{rows[узел],
 columns[узел], cells[строка][колонка] → {count, values[]}|null}`, `grandTotal`, `limits{…, matrixColumnsHit,
-maxMatrixColumns}`. Ключи групп: дата — `YYYY-MM-DD`, неделя — `YYYY/W` (ISO), месяц — `YYYY-MM`, квартал — `YYYY_Q`,
+maxMatrixColumns}`. Узлы групп и колонок матрицы несут `keyId` — непрозрачный id группы БД (05.2, D-106). Ключи групп: дата — `YYYY-MM-DD`, неделя — `YYYY/W` (ISO), месяц — `YYYY-MM`, квартал — `YYYY_Q`,
 полугодие — `YYYY_H`, год — `YYYY`; ссылка — id; пусто — `null`.
 
 ## 4. Доступ
@@ -128,7 +139,8 @@ maxMatrixColumns}`. Ключи групп: дата — `YYYY-MM-DD`, недел
 — `Core/Access/SharingPolicy` (проверка записи) и `Classes/Select/Report/SharedReports` (тот же смысл в SQL).
 Роли (`itvolga-setup-acl`): рабочие — `Report` create, read `team`, edit/delete `own`; `ReportFolder` create, read
 `all`, edit/delete `own`; «Доступы» — `Report` только read `own` (публичные и адресованные лично), `ReportFolder` read.
-Вкладка «Отчёты» — после «Платежи».
+Вкладка «Отчёты» — после «Платежи». Наборы ключевых показателей (05.2): рабочие роли — создание, чтение all, правка и
+удаление own (автор); «Доступы» — только чтение; значения — правами зрителя (§11).
 
 **Данные отчёта** (D-89, D-99), независимо от конструктора — при каждом сохранении и запуске:
 - сущность — `scopes.*.entity && object` или флаг `scopes.<E>.itvolgaReports: true` (строки документов,
@@ -205,6 +217,9 @@ maxMatrixColumns}`. Ключи групп: дата — `YYYY-MM-DD`, недел
 «Сведения об отчёте» (по кнопке), «Условия» (тот же редактор на копии отчёта: «Сформировать» — разово, «Сохранить
 условия» — в отчёт), быстрые фильтры, счётчики и пометки об ограничениях, таблица типа отчёта; кнопка у группы
 открывает штатный список её записей (`itvolgaReport`). Только штатные классы EspoCRM, без собственных стилей.
+05.2: шаги «Графики» (сводные) и «Дашборд» (все типы) конструктора; графики над или под таблицей результата, кнопка
+«Показать/Скрыть таблицу» (отчёт со «свернуть таблицу» открывается без таблицы); значок «используется в показателях» в
+списке; кнопка «Ключевые показатели» в шапке списка отчётов.
 
 ## 7. Стандартные отчёты
 
@@ -214,12 +229,63 @@ maxMatrixColumns}`. Ключи групп: дата — `YYYY-MM-DD`, недел
 новые стандартные отчёты удалённой папки попадают в «Общие»); отчёт по
 выключенной сущности пропускается с сообщением; владелец — первый активный администратор, доступ публичный; каждый
 отчёт сохраняется через ORM и проверяется хуком определения. Манифест: `seedKey`, `folder`, `name {ru,en}`,
-`description {ru,en}`, `type`, `entityType`, `definition` (части §2), `charts` (для 05.2, сейчас не используется).
-`task model:check` проверяет реестр, манифесты и ссылки на поля.
+`description {ru,en}`, `type`, `entityType`, `definition` (части §2, в том числе `charts` — у 18 манифестов).
+Строки стенда, вставленные до 05.2 (колонка `charts` ещё NULL), получают графики манифеста один раз (D-114).
+`task model:check` проверяет реестр, манифесты, ссылки на поля, графики манифестов, сущность наборов и дашлеты.
 
 ## 8. Ограничения и не реализуется
 
 Не больше одной связи «ко многим» на отчёт (D-90); сравнение дат — только полей основной сущности; группировка по
 связанному полю-ссылке сортируется по имени только в пределах загруженных групп; фиксированное смещение пояса при
 группировке дат-времени (в часовых поясах РФ переходов нет); отчёты Custom SQL / custom PHP, экспорт в путь на сервере,
-почасовая рассылка, XML-экспорт, карты и внешние сервисы графиков — не реализуются (D-103).
+почасовая рассылка, XML-экспорт, карты и внешние сервисы графиков — не реализуются (D-103). 05.2: не больше 50 рядов
+на оси «группа 1 → группа 2»; линии хода — только при оси «группа 1»; воронка — только по группе 1; у внешнего кольца
+двух колец подписей нет (доли — в подсказке); удаление набора не защищено от записи старой раскладки уже открытой
+вкладкой (дашлет покажет «Набор удалён»); штатное окно настроек дашлета «Отчёт» сохраняет опции целиком и сбрасывает
+выбранный основной фильтр на «Все».
+
+## 9. Графики (05.2)
+
+Данные графиков (`charts` ответа запуска) строит чистый `Core/Chart/ChartBuilder` из собранного результата — без
+запросов (D-105): `{title, position, collapseTable, axis, progressLines, categoryLabel, seriesLabel, categories[{key,
+path}], items[{type, aggregate, label, series[{key, label, points[точка|null]}], inner?, progress{MIN|AVG|MAX: [ячейка]},
+notes[], unavailable}]}`. Точка — ячейка таблицы (`v`, `f`, `cur`) плюс `path` детализации (`[ключ группы 1]` или
+`[ключ 1, ключ 2]`) и `share` у круговых. Категории — показанные группы уровня 1 (у матрицы — её строки, значения —
+итоги строк); при оси «группа 1 → группа 2» ряды — значения группы 2 (у матрицы — колонки, у сводного — объединение
+групп уровня 2 по `keyId` в порядке группы 2, ≤ 50; D-106). COUNT, не выбранный агрегатом, — точное число записей
+группы. Линии хода — бегущие минимум, простое среднее и максимум значений категорий (D-107). Круговые — доли от суммы
+положительных значений кольца; два кольца — внутренний диск (группа 1, `inner`) и внешнее кольцо (пары) (D-108). Разные
+валюты среди точек — `unavailable: "mixedCurrencies"`. Пометки `notes`: `nonPositiveOmitted`, `mixedValuesOmitted`,
+`seriesCapped`.
+
+Клиент (`C/views/report/chart.js`): Flotr2 — столбцы (несколько рядов — рядом или с накоплением), полосы, линия (пустая
+точка — разрыв), круговая (подписи — значения или проценты), два кольца (два пирога Flotr2 одного центра, внешний
+снизу), EspoFunnel — воронка; цвета — темы, как у дашлетов ядра; подписи — на холсте или экранированные; клик →
+`drill-down` с путём (у пустой пары столбца нет: она рисуется нулевой высоты).
+
+## 10. Дашлет «Отчёт» (05.2)
+
+Метаданные `dashlets/Report.json` (`aclScope: Report`; опции: заголовок, период обновления, отчёт — ссылка на доступный
+зрителю отчёт, режим «как в отчёте / график / таблица»). Тело (`C/views/dashlets/report.js`): `GET Report/:id`, затем
+`POST Report/:id/run` (первые 20 строк, без вариантов быстрых фильтров, с вариантами основного фильтра) — правами
+зрителя; режим — опция или `dashboard.mode`, табличный отчёт и отчёт без графиков — таблица и ссылка «Открыть отчёт»;
+403/404 — «Нет доступа к отчёту» / «Отчёт не найден». Основной фильтр (D-109) — список в шапке дашлета: «Все»,
+значения (перечисление — переведённые, владелец — имена), пусто; выбор — быстрый фильтр поля дашборда, сохраняется в
+`Preferences.dashletsOptions[id].mainFilter`, если дашборд можно менять; клик по графику или группе — детализация с
+тем же фильтром.
+
+## 11. Ключевые показатели (05.2)
+
+`ReportMetricSet` (D-111): строки `{"id": "m<n>", "label", "source": "report", "reportId", "function":
+"COUNT"|"SUM"|"AVG"|"MIN"|"MAX", "column": <числовая колонка отчёта>|null}` и `{"id", "label", "source": "filter",
+"entityType", "function": "COUNT", "filter": {"kind": "system"|"preset", "name"}, "where": [where-элементы штатного
+списка]}`. Системный фильтр хранится по имени (`where` — его primary-элемент), личный сохранённый фильтр автора
+(`Preferences.presetFilters`) копируется при выборе (клиент переводит его в where через `search-manager` ядра).
+Проверка при сохранении (`Hooks/ReportMetricSet/Guard`, транзакция и блокировка строки): имя (409), структура (≤ 30
+строк, подпись ≤ 150, where ≤ 8 КБ), источники новых и изменённых строк — правами сохраняющего (отчёт есть, читается,
+табличный; колонка числовая, правило D-90; сущность доступна, системный фильтр существует, условия строятся строгим
+построителем ядра). Значения (D-112) — `GET ReportMetricSet/:id/values`: отчёт — `ReportRunner::metric`, фильтр —
+запрос штатного списка зрителя; статус строки вместо значения при недоступном, удалённом или изменённом источнике.
+Дашлет `dashlets/ReportMetrics.json` (`aclScope: ReportMetricSet`; опции: заголовок, период, набор) — строки «подпись …
+значение», ссылки на источник. Удаление набора — дашлеты убираются из `Preferences`, шаблонов дашборда и `Settings`
+(D-113). Список отчётов помечает отчёты строк живых наборов (`usedInMetrics`, D-115).

@@ -153,6 +153,21 @@
         ]
     },
     {
+        "name": "chartsPanel",
+        "label": "Charts",
+        "tabBreak": true,
+        "tabLabel": "$label:Charts",
+        "rows": [
+            [
+                {
+                    "name": "charts",
+                    "fullWidth": true,
+                    "noLabel": false
+                }
+            ]
+        ]
+    },
+    {
         "name": "access",
         "label": "Access",
         "tabBreak": true,
@@ -172,6 +187,21 @@
                 },
                 {
                     "name": "sharedTeams"
+                }
+            ]
+        ]
+    },
+    {
+        "name": "dashboardPanel",
+        "label": "Dashboard",
+        "tabBreak": true,
+        "tabLabel": "$label:Dashboard",
+        "rows": [
+            [
+                {
+                    "name": "dashboard",
+                    "fullWidth": true,
+                    "noLabel": false
                 }
             ]
         ]

@@ -11,20 +11,6 @@
     },
     "type": "matrix",
     "entityType": "Case",
-    "charts": [
-        {
-            "type": "line",
-            "aggregate": "COUNT"
-        },
-        {
-            "type": "bar",
-            "aggregate": "COUNT"
-        },
-        {
-            "type": "bar",
-            "aggregate": "COUNT"
-        }
-    ],
     "definition": {
         "columns": [],
         "sorting": [],
@@ -58,6 +44,18 @@
         },
         "havingFilters": [],
         "quickFilters": [],
-        "labels": {}
+        "labels": {},
+        "charts": {
+            "items": [
+                {
+                    "type": "line",
+                    "aggregate": "COUNT"
+                },
+                {
+                    "type": "bar",
+                    "aggregate": "COUNT"
+                }
+            ]
+        }
     }
 }

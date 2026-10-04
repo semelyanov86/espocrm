@@ -11,12 +11,6 @@
     },
     "type": "summaries",
     "entityType": "InvoiceItem",
-    "charts": [
-        {
-            "type": "line",
-            "aggregate": "SUM:quantity"
-        }
-    ],
     "definition": {
         "columns": [],
         "sorting": [],
@@ -45,6 +39,14 @@
         },
         "havingFilters": [],
         "quickFilters": [],
-        "labels": {}
+        "labels": {},
+        "charts": {
+            "items": [
+                {
+                    "type": "line",
+                    "aggregate": "SUM:quantity"
+                }
+            ]
+        }
     }
 }

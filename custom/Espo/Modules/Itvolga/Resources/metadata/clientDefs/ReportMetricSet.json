@@ -1,0 +1,26 @@
+{
+    "controller": "controllers/record",
+    "iconClass": "fas fa-tachometer-alt",
+    "recordViews": {
+        "detail": "itvolga:views/report-metric-set/record/detail"
+    },
+    "quickCreateDisabled": true,
+    "mergeDisabled": true,
+    "exportDisabled": true,
+    "menu": {
+        "list": {
+            "buttons": [
+                {
+                    "label": "Reports",
+                    "link": "#Report",
+                    "acl": "read",
+                    "aclScope": "Report"
+                }
+            ]
+        }
+    },
+    "filterList": [],
+    "boolFilterList": [
+        "onlyMy"
+    ]
+}

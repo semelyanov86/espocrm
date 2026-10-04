@@ -33,5 +33,10 @@
         "route": "/Report/:id/run",
         "method": "post",
         "actionClassName": "Espo\\Modules\\Itvolga\\Tools\\Report\\Api\\PostRun"
+    },
+    {
+        "route": "/ReportMetricSet/:id/values",
+        "method": "get",
+        "actionClassName": "Espo\\Modules\\Itvolga\\Tools\\Report\\Api\\GetMetricValues"
     }
 ]

@@ -1,0 +1,19 @@
+[
+    {
+        "name": "name",
+        "link": true,
+        "width": 30
+    },
+    {
+        "name": "description",
+        "notSortable": true
+    },
+    {
+        "name": "createdBy",
+        "width": 18
+    },
+    {
+        "name": "modifiedAt",
+        "width": 16
+    }
+]

@@ -92,6 +92,17 @@
                     }
                 ]
             }
+        },
+        "chartsPanel": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "notEquals",
+                        "attribute": "type",
+                        "value": "tabular"
+                    }
+                ]
+            }
         }
     }
 }

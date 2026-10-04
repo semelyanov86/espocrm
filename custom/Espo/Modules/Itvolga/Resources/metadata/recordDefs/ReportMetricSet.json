@@ -1,0 +1,25 @@
+{
+    "actions": {
+        "merge": {
+            "disabled": true
+        },
+        "convertCurrency": {
+            "disabled": true
+        }
+    },
+    "massActions": {
+        "convertCurrency": {
+            "disabled": true
+        },
+        "follow": {
+            "disabled": true
+        },
+        "unfollow": {
+            "disabled": true
+        },
+        "massUpdate": {
+            "disabled": true
+        }
+    },
+    "exportDisabled": true
+}

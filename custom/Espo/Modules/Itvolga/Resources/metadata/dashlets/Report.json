@@ -1,0 +1,64 @@
+{
+    "view": "itvolga:views/dashlets/report",
+    "aclScope": "Report",
+    "options": {
+        "view": "views/dashlets/options/base",
+        "fields": {
+            "title": {
+                "type": "varchar",
+                "required": true
+            },
+            "autorefreshInterval": {
+                "type": "enumFloat",
+                "options": [
+                    0,
+                    0.5,
+                    1,
+                    2,
+                    5,
+                    10
+                ]
+            },
+            "report": {
+                "type": "link",
+                "entity": "Report",
+                "required": true
+            },
+            "mode": {
+                "type": "enum",
+                "options": [
+                    "",
+                    "chart",
+                    "table"
+                ],
+                "translation": "DashletOptions.options.reportMode"
+            }
+        },
+        "layout": [
+            {
+                "rows": [
+                    [
+                        {
+                            "name": "title"
+                        },
+                        {
+                            "name": "autorefreshInterval"
+                        }
+                    ],
+                    [
+                        {
+                            "name": "report"
+                        },
+                        {
+                            "name": "mode"
+                        }
+                    ]
+                ]
+            }
+        ],
+        "defaults": {
+            "autorefreshInterval": null,
+            "mode": ""
+        }
+    }
+}

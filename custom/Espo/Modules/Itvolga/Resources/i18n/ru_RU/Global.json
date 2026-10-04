@@ -18,7 +18,8 @@
         "Payment": "Платёж",
         "PaymentAllocation": "Распределение платежа",
         "Report": "Отчёт",
-        "ReportFolder": "Папка отчётов"
+        "ReportFolder": "Папка отчётов",
+        "ReportMetricSet": "Набор показателей"
     },
     "scopeNamesPlural": {
         "Vendor": "Поставщики",
@@ -39,7 +40,8 @@
         "Payment": "Платежи",
         "PaymentAllocation": "Распределения платежей",
         "Report": "Отчёты",
-        "ReportFolder": "Папки отчётов"
+        "ReportFolder": "Папки отчётов",
+        "ReportMetricSet": "Ключевые показатели"
     },
     "labels": {
         "Finance": "Финансы",
@@ -140,5 +142,9 @@
             "isNotOneOfAndIsNotEmpty": "Ни один из (и не пусто)",
             "isNotAndIsNotEmpty": "Не (и не пусто)"
         }
+    },
+    "dashlets": {
+        "Report": "Отчёт",
+        "ReportMetrics": "Ключевые показатели"
     }
 }

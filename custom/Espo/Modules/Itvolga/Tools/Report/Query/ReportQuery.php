@@ -67,6 +67,7 @@ final class ReportQuery
             ...array_map(fn (GroupLevel $g) => $g->field, $definition->groups),
             ...array_values(array_filter(array_map(fn (Aggregate $a) => $a->field, $definition->aggregates))),
             ...$definition->quickFilters,
+            ...array_filter([$definition->dashboard->filterField]),
         ];
     }
 

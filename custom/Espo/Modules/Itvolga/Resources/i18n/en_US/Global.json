@@ -18,7 +18,8 @@
         "Payment": "Payment",
         "PaymentAllocation": "Payment Allocation",
         "Report": "Report",
-        "ReportFolder": "Report Folder"
+        "ReportFolder": "Report Folder",
+        "ReportMetricSet": "Key Metrics Set"
     },
     "scopeNamesPlural": {
         "Vendor": "Vendors",
@@ -39,7 +40,8 @@
         "Payment": "Payments",
         "PaymentAllocation": "Payment Allocations",
         "Report": "Reports",
-        "ReportFolder": "Report Folders"
+        "ReportFolder": "Report Folders",
+        "ReportMetricSet": "Key Metrics"
     },
     "labels": {
         "Finance": "Finance",
@@ -76,5 +78,9 @@
             "isNotOneOfAndIsNotEmpty": "None of (and not empty)",
             "isNotAndIsNotEmpty": "Is not (and not empty)"
         }
+    },
+    "dashlets": {
+        "Report": "Report",
+        "ReportMetrics": "Key Metrics"
     }
 }

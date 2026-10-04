@@ -5,6 +5,11 @@
         "width": 24
     },
     {
+        "name": "usedInMetrics",
+        "width": 3,
+        "notSortable": true
+    },
+    {
         "name": "type",
         "width": 11
     },

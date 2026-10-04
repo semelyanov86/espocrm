@@ -139,7 +139,7 @@ tasks:
       - python3 -m unittest discover -s tests/stage05 -v
 
   test:reports:
-    desc: Report core tests without the stand (definition rules, calculations, periods, ordering; stage 05.1)
+    desc: Report core tests without the stand (definition rules, calculations, periods, ordering, charts, key metrics; stages 05.1-05.2)
     cmds:
       - php tests/reports/run.php {{.CLI_ARGS}}
 
@@ -147,6 +147,11 @@ tasks:
     desc: Stage 05.1 acceptance tests on the stand (reports - engine, access, seed; synthetic data)
     cmds:
       - python3 -m unittest discover -s tests/stage05_1 -v
+
+  test:stage05.2:
+    desc: Stage 05.2 acceptance tests on the stand (reports - charts, dashlets, key metrics; synthetic data)
+    cmds:
+      - python3 -m unittest discover -s tests/stage05_2 -v
 
   # --- finance contract and calculation core (stage 04.1) --------------------------------------
   test:finance:

@@ -2,6 +2,9 @@
     "fields": {
         "seedKey": {
             "readOnly": true
+        },
+        "usedInMetrics": {
+            "readOnly": true
         }
     },
     "links": {

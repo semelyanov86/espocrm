@@ -10,6 +10,7 @@ use Espo\Core\Utils\Metadata;
 use Espo\Entities\User;
 use Espo\Modules\Itvolga\Entities\Report;
 use Espo\Modules\Itvolga\Entities\ReportFolder;
+use Espo\Modules\Itvolga\Tools\FinanceDocument\RowLock;
 use Espo\ORM\EntityManager;
 use Espo\ORM\Query\SelectBuilder;
 use PDO;
@@ -32,6 +33,7 @@ final class StandardReports
         private readonly EntityManager $entityManager,
         private readonly Metadata $metadata,
         private readonly Config $config,
+        private readonly RowLock $rowLock,
     ) {}
 
     /**
@@ -126,7 +128,53 @@ final class StandardReports
             }
         }
 
+        foreach ($this->manifests() as $manifest) {
+            $this->backfillCharts($manifest, $dryRun, $changes);
+        }
+
         return [$changes, $errors];
+    }
+
+    /**
+     * Charts of a standard report inserted before the charts existed (D-114): its `charts` column is still NULL —
+     * every save since writes the canonical object, also an empty one — so the manifest's charts are filled in once,
+     * under a lock of the row, and checked by the definition hook. Charts that no longer fit a report changed by a
+     * user are skipped with a message.
+     *
+     * @param array<string, mixed> $manifest
+     * @param list<string> $changes
+     */
+    private function backfillCharts(array $manifest, bool $dryRun, array &$changes): void
+    {
+        $key = $manifest['seedKey'] ?? null;
+        $charts = $manifest['definition']['charts'] ?? null;
+        $row = is_string($key) && $charts !== null ? $this->bySeedKey(Report::ENTITY_TYPE, $key) : null;
+
+        if ($row === null || $row['deleted'] || $row['charts'] !== null) {
+            return;
+        }
+
+        $changes[] = "report ~ $key: charts";
+
+        if ($dryRun) {
+            return;
+        }
+
+        try {
+            $this->entityManager->getTransactionManager()->run(function () use ($row, $charts): void {
+                $report = $this->rowLock->one(Report::ENTITY_TYPE, $row['id']);
+
+                if ($report === null || $report->get('charts') !== null) {
+                    return;
+                }
+
+                $report->set('charts', json_decode((string) json_encode($charts)));
+                $this->entityManager->saveEntity($report);
+            });
+        } catch (Throwable $e) {
+            $label = $e instanceof HasBody ? (string) $e->getBody() : $e->getMessage();
+            $changes[count($changes) - 1] = "report ~ $key: charts skipped ($label)";
+        }
     }
 
     /**
@@ -162,19 +210,20 @@ final class StandardReports
      * The record with the seed key, soft-deleted ones included (a deleted standard report or folder stays deleted;
      * a removed folder leaves such a row, see Repositories\ReportFolder).
      *
-     * @return ?array{id: string, deleted: bool}
+     * @return ?array{id: string, deleted: bool, charts?: ?string}
      */
     private function bySeedKey(string $entityType, string $key): ?array
     {
         $query = SelectBuilder::create()
             ->from($entityType)
-            ->select(['id', 'deleted'])
+            ->select($entityType === Report::ENTITY_TYPE ? ['id', 'deleted', 'charts'] : ['id', 'deleted'])
             ->where(['seedKey' => $key])
             ->withDeleted()
             ->build();
         $row = $this->entityManager->getQueryExecutor()->execute($query)->fetch(PDO::FETCH_ASSOC);
 
-        return is_array($row) ? ['id' => (string) $row['id'], 'deleted' => (bool) $row['deleted']] : null;
+        return is_array($row) ? ['id' => (string) $row['id'], 'deleted' => (bool) $row['deleted'],
+            'charts' => $row['charts'] ?? null] : null;
     }
 
     private function owner(): ?User

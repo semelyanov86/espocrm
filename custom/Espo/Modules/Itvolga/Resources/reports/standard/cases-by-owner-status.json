@@ -11,12 +11,6 @@
     },
     "type": "summaries",
     "entityType": "Case",
-    "charts": [
-        {
-            "type": "line",
-            "aggregate": "COUNT"
-        }
-    ],
     "definition": {
         "columns": [],
         "sorting": [],
@@ -50,6 +44,14 @@
         },
         "havingFilters": [],
         "quickFilters": [],
-        "labels": {}
+        "labels": {},
+        "charts": {
+            "items": [
+                {
+                    "type": "line",
+                    "aggregate": "COUNT"
+                }
+            ]
+        }
     }
 }

@@ -19,5 +19,9 @@
         }
     },
     "exportDisabled": true,
-    "deletedRestorerClassName": "Espo\\Modules\\Itvolga\\Classes\\Record\\Report\\Restorer"
+    "deletedRestorerClassName": "Espo\\Modules\\Itvolga\\Classes\\Record\\Report\\Restorer",
+    "listLoaderClassNameList": [
+        "__APPEND__",
+        "Espo\\Modules\\Itvolga\\Classes\\FieldProcessing\\Report\\MetricUsageLoader"
+    ]
 }

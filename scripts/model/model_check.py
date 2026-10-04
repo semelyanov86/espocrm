@@ -424,9 +424,11 @@ def check_default_terms(model):
 REPORT_DIR = "custom/Espo/Modules/Itvolga/Resources/reports/standard"
 REPORT_TYPES = {"tabular", "summaries", "summariesWithDetails", "matrix"}
 REPORT_PARTS = {"columns", "sorting", "rowLimit", "groups", "aggregates", "groupSort", "groupLimit", "totals",
-                "calculations", "filters", "havingFilters", "quickFilters", "labels"}
+                "calculations", "filters", "havingFilters", "quickFilters", "labels", "charts", "dashboard"}
 REPORT_FIELDS = REPORT_PARTS | {"name", "type", "entityType", "folder", "accessType", "sharedUsers", "sharedTeams",
-                                "assignedUser", "seedKey"}
+                                "assignedUser", "seedKey", "usedInMetrics"}
+CHART_TYPES = {"bar", "stackedBar", "horizontalBar", "stackedHorizontalBar", "line", "pie", "piePercent", "funnel"}
+REPORT_DASHLETS = {"Report": "Report", "ReportMetrics": "ReportMetricSet"}
 
 
 def report_ref_exists(model, entity, ref):
@@ -456,6 +458,7 @@ def check_reports(model):
     if len(keys) != len(set(keys)) or sum(1 for f in folders if f.get("isSystem")) != 1:
         problems.append("папки: ключи повторяются или системная папка не одна")
     seeds = registry.get("standardReports", [])
+    charted = 0
     if len(seeds) != len(set(seeds)):
         problems.append("стандартные отчёты повторяются")
     for name in seeds:
@@ -485,9 +488,52 @@ def check_reports(model):
 
         walk(definition.get("filters") or {"items": []})
         problems += [f"{name}: нет поля {ref}" for ref in refs if not report_ref_exists(model, entity, ref)]
+        problems += [f"{name}: {p}" for p in report_chart_problems(manifest)]
+        charted += bool((definition.get("charts") or {}).get("items"))
+    problems += report_metric_problems(model)
     if problems:
         return False, "ОШИБКА: " + "; ".join(problems[:20])
-    return True, f"ok: отчёты — папок {len(folders)}, стандартных отчётов {len(seeds)}"
+    return True, (f"ok: отчёты — папок {len(folders)}, стандартных отчётов {len(seeds)} (с графиками {charted}), "
+                  f"дашлеты {', '.join(sorted(REPORT_DASHLETS))}")
+
+
+def report_chart_problems(manifest):
+    """Stage 05.2 (D-105, D-106): charts of a standard report — summary types only, at most three, known types, COUNT
+    or an aggregate of the manifest; the axis «group 1 → group 2» with a second group, one chart, no funnel."""
+    definition = manifest.get("definition", {})
+    charts = definition.get("charts") or {}
+    items = charts.get("items") or []
+    keys = {"COUNT"} | {a["function"] + (":" + (a["link"] + "." if a.get("link") else "") + a["field"]
+                                         if a.get("field") else "") for a in definition.get("aggregates", [])}
+    problems = []
+    if items and manifest.get("type") == "tabular":
+        problems.append("графики у табличного отчёта")
+    if len(items) > 3 or any(i.get("type") not in CHART_TYPES or i.get("aggregate", "COUNT") not in keys
+                             for i in items):
+        problems.append("графики: число, тип или ряд данных")
+    if charts.get("axis") == "group1group2":
+        second = manifest.get("type") == "matrix" or (manifest.get("type") == "summaries" and
+                                                       len(definition.get("groups", [])) >= 2)
+        if not second or len(items) > 1 or any(i.get("type") == "funnel" for i in items) or charts.get(
+                "progressLines"):
+            problems.append("графики: ось «группа 1 → группа 2»")
+    return problems
+
+
+def report_metric_problems(model):
+    """Stage 05.2 (D-110, D-111): the key-metrics set entity (author, rows, unique live names) and the two dashlets."""
+    problems = []
+    defs = model.entity_defs.get("ReportMetricSet", {})
+    for name in ("name", "description", "rows", "createdBy"):
+        if model.field("ReportMetricSet", name) is None:
+            problems.append(f"ReportMetricSet: нет поля {name}")
+    if not defs.get("deleteId") or defs.get("indexes", {}).get("nameDeleteId", {}).get("columns") != ["name", "deleteId"]:
+        problems.append("ReportMetricSet: нет уникальности имени (deleteId)")
+    dashlets = model.load("dashlets")
+    for dashlet, scope in REPORT_DASHLETS.items():
+        if dashlets.get(dashlet, {}).get("aclScope") != scope:
+            problems.append(f"дашлет {dashlet}: нет или не тот aclScope")
+    return problems
 
 
 def check_relation_row(model, row):
@@ -605,7 +651,7 @@ def main():
         failures += bad
         print(f"{name}: ok {ok}, failed {bad}, not applicable {na}")
     res, text = check_reports(model)
-    print(f"reports (stage 05.1): {text}")
+    print(f"reports (stages 05.1–05.2): {text}")
     failures += 0 if res else 1
     sys.exit(1 if failures else 0)
 

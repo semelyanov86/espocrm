@@ -1,0 +1,72 @@
+{
+    "fields": {
+        "name": {
+            "type": "varchar",
+            "maxLength": 100,
+            "required": true,
+            "pattern": "$noBadCharacters"
+        },
+        "description": {
+            "type": "text",
+            "rowsMin": 2
+        },
+        "rows": {
+            "type": "jsonArray",
+            "view": "itvolga:views/report-metric-set/fields/rows",
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutListDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true,
+            "inlineEditDisabled": true
+        },
+        "createdAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "modifiedAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "createdBy": {
+            "type": "link",
+            "readOnly": true,
+            "view": "views/fields/user"
+        },
+        "modifiedBy": {
+            "type": "link",
+            "readOnly": true,
+            "view": "views/fields/user"
+        }
+    },
+    "links": {
+        "createdBy": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "modifiedBy": {
+            "type": "belongsTo",
+            "entity": "User"
+        }
+    },
+    "collection": {
+        "orderBy": "name",
+        "order": "asc",
+        "textFilterFields": [
+            "name",
+            "description"
+        ]
+    },
+    "indexes": {
+        "nameDeleteId": {
+            "type": "unique",
+            "columns": [
+                "name",
+                "deleteId"
+            ]
+        }
+    },
+    "deleteId": true
+}

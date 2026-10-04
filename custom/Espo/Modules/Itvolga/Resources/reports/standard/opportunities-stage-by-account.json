@@ -11,12 +11,6 @@
     },
     "type": "matrix",
     "entityType": "Opportunity",
-    "charts": [
-        {
-            "type": "bar",
-            "aggregate": "SUM:amount"
-        }
-    ],
     "definition": {
         "columns": [],
         "sorting": [],
@@ -55,6 +49,14 @@
         },
         "havingFilters": [],
         "quickFilters": [],
-        "labels": {}
+        "labels": {},
+        "charts": {
+            "items": [
+                {
+                    "type": "bar",
+                    "aggregate": "SUM:amount"
+                }
+            ]
+        }
     }
 }

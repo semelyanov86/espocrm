@@ -20,5 +20,5 @@ class Report extends Base
     /** Attributes of the report definition (stored JSON and limits), validated together (reports.md §2). */
     public const DEFINITION_ATTRIBUTES = ['type', 'entityType', 'columns', 'sorting', 'rowLimit', 'groups',
         'aggregates', 'groupSort', 'groupLimit', 'totals', 'calculations', 'filters', 'havingFilters', 'quickFilters',
-        'labels'];
+        'labels', 'charts', 'dashboard'];
 }

@@ -275,39 +275,48 @@ final class Assembler
      */
     private function columnTotals(): array
     {
-        $totals = $this->query->definition->totals;
-
-        if ($totals === []) {
-            return [];
-        }
-
-        $select = [];
+        $refs = [];
         $aggregates = [];
 
-        foreach ($totals as $ref => $functions) {
-            $field = $this->query->definition->column($ref);
-
+        foreach ($this->query->definition->totals as $ref => $functions) {
             foreach ($functions as $function) {
-                $alias = 't' . count($aggregates);
-                $aggregate = new Aggregate($function, $field);
-                $aggregates[$alias] = [$ref, $aggregate];
+                $refs[] = $ref;
+                $aggregates[] = new Aggregate($function, $this->query->definition->column($ref));
+            }
+        }
 
-                foreach ($this->query->aggregateExpressions($aggregate) as $role => $expression) {
-                    $select[] = [$expression, $alias . ($role === 'value' ? '' : $role)];
-                }
+        $result = [];
+
+        foreach ($aggregates === [] ? [] : $this->overall($aggregates) as $i => $cell) {
+            $result['c:' . $refs[$i]][$aggregates[$i]->function] = $cell;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Aggregates over all records of the conditions and quick filters, in one query (row limit and page ignored): the
+     * column totals (D-96) and the metrics of a tabular report (D-112) — COUNT is the number of distinct main records,
+     * like `recordCount`.
+     *
+     * @param list<Aggregate> $aggregates
+     * @return list<array<string, mixed>> cells in the order of the aggregates
+     */
+    public function overall(array $aggregates): array
+    {
+        $select = [];
+
+        foreach ($aggregates as $i => $aggregate) {
+            foreach ($this->query->aggregateExpressions($aggregate) as $role => $expression) {
+                $select[] = [$expression, "t$i" . ($role === 'value' ? '' : $role)];
             }
         }
 
         $row = $this->fetch($this->query->base()->select($select))[0] ?? [];
-        $result = [];
 
-        foreach ($aggregates as $alias => [$ref, $aggregate]) {
-            $result['c:' . $ref][$aggregate->function] = $this->formatter->aggregate($aggregate, [
-                'value' => $row[$alias] ?? null, 'currencyMin' => $row[$alias . 'currencyMin'] ?? null,
-                'currencyMax' => $row[$alias . 'currencyMax'] ?? null]);
-        }
-
-        return $result;
+        return array_map(fn (Aggregate $aggregate, int $i) => $this->formatter->aggregate($aggregate, [
+            'value' => $row["t$i"] ?? null, 'currencyMin' => $row["t{$i}currencyMin"] ?? null,
+            'currencyMax' => $row["t{$i}currencyMax"] ?? null]), $aggregates, array_keys($aggregates));
     }
 
     /**
@@ -579,7 +588,7 @@ final class Assembler
         }
 
         return $this->header() + [
-            'tree' => self::stripRaw($tree),
+            'tree' => $this->stripRaw($tree),
             'grandTotal' => $this->grandTotal($keys),
             'limits' => $limits + ['rowLimit' => $definition->rowLimit],
         ];
@@ -772,8 +781,8 @@ final class Assembler
 
         return $this->header() + [
             'matrix' => [
-                'rows' => self::stripRaw($rows),
-                'columns' => self::stripRaw($columns),
+                'rows' => $this->stripRaw($rows),
+                'columns' => $this->stripRaw($columns),
                 'cells' => $cells,
             ],
             'grandTotal' => $this->grandTotal($keys),
@@ -808,55 +817,59 @@ final class Assembler
      */
     public function quickFilterOptions(): array
     {
-        $result = [];
+        return array_map(fn (FieldInfo $field) => $this->filterOptions($field), $this->query->definition->quickFilters);
+    }
 
-        foreach ($this->query->definition->quickFilters as $field) {
-            $expression = $this->query->valueExpressions($field)['value'];
+    /**
+     * Options of one quick filter block — also of the main filter of a dashlet (D-109).
+     *
+     * @return array<string, mixed>
+     */
+    public function filterOptions(FieldInfo $field): array
+    {
+        $expression = $this->query->valueExpressions($field)['value'];
 
-            // A text that the column collation finds equal to '' (spaces, a no-break space) is the empty item, as
-            // the quick filter compares it.
-            if (in_array($field->family(), [FieldInfo::FAMILY_TEXT, FieldInfo::FAMILY_ENUM], true)) {
-                $expression = "NULLIF:($expression, '')";
-            }
-
-            $rows = $this->fetch($this->query->base([])
-                ->select([[$expression, 'v']])
-                ->group([$expression])
-                ->limit(0, ReportRunner::MAX_QUICK_FILTER_OPTIONS + 1));
-            $truncated = count($rows) > ReportRunner::MAX_QUICK_FILTER_OPTIONS;
-            $rows = array_slice($rows, 0, ReportRunner::MAX_QUICK_FILTER_OPTIONS);
-
-            foreach ($rows as $row) {
-                $this->formatter->rememberField($field, ['value' => $row['v']]);
-            }
-
-            $options = [];
-            $hasEmpty = false;
-
-            foreach ($rows as $row) {
-                if ($row['v'] === null || $row['v'] === '') {
-                    $hasEmpty = true;
-
-                    continue;
-                }
-
-                $cell = $this->formatter->field($field, ['value' => $row['v']]);
-                $options[] = ['v' => $field->family() === FieldInfo::FAMILY_BOOL ? (bool) $row['v'] : (string) $row['v'],
-                    'f' => $cell['f']];
-            }
-
-            $group = new GroupLevel($field, null, 'asc');
-            usort($options, fn ($a, $b) => $this->order->compare($group, $a, $b));
-
-            if ($hasEmpty) {
-                $options[] = ['v' => null, 'f' => $this->formatter->groupKey($group, null)['f'], 'empty' => true];
-            }
-
-            $result[] = ['field' => $field->ref->toString(), 'label' => $this->labels->field($field),
-                'options' => $options, 'truncated' => $truncated];
+        // A text that the column collation finds equal to '' (spaces, a no-break space) is the empty item, as
+        // the quick filter compares it.
+        if (in_array($field->family(), [FieldInfo::FAMILY_TEXT, FieldInfo::FAMILY_ENUM], true)) {
+            $expression = "NULLIF:($expression, '')";
         }
 
-        return $result;
+        $rows = $this->fetch($this->query->base([])
+            ->select([[$expression, 'v']])
+            ->group([$expression])
+            ->limit(0, ReportRunner::MAX_QUICK_FILTER_OPTIONS + 1));
+        $truncated = count($rows) > ReportRunner::MAX_QUICK_FILTER_OPTIONS;
+        $rows = array_slice($rows, 0, ReportRunner::MAX_QUICK_FILTER_OPTIONS);
+
+        foreach ($rows as $row) {
+            $this->formatter->rememberField($field, ['value' => $row['v']]);
+        }
+
+        $options = [];
+        $hasEmpty = false;
+
+        foreach ($rows as $row) {
+            if ($row['v'] === null || $row['v'] === '') {
+                $hasEmpty = true;
+
+                continue;
+            }
+
+            $cell = $this->formatter->field($field, ['value' => $row['v']]);
+            $options[] = ['v' => $field->family() === FieldInfo::FAMILY_BOOL ? (bool) $row['v'] : (string) $row['v'],
+                'f' => $cell['f']];
+        }
+
+        $group = new GroupLevel($field, null, 'asc');
+        usort($options, fn ($a, $b) => $this->order->compare($group, $a, $b));
+
+        if ($hasEmpty) {
+            $options[] = ['v' => null, 'f' => $this->formatter->groupKey($group, null)['f'], 'empty' => true];
+        }
+
+        return ['field' => $field->ref->toString(), 'label' => $this->labels->field($field),
+            'options' => $options, 'truncated' => $truncated];
     }
 
     /**
@@ -905,16 +918,21 @@ final class Assembler
     }
 
     /**
+     * Nodes as the result gives them: the SQL internals dropped; `keyId` — an opaque id of the database group (equal
+     * for «Берлин» and «берлин» of one group), so the charts merge the series of group 2 across groups of level 1
+     * (D-106).
+     *
      * @param list<array<string, mixed>> $nodes
      * @return list<array<string, mixed>>
      */
-    private static function stripRaw(array $nodes): array
+    private function stripRaw(array $nodes): array
     {
         return array_map(function (array $node): array {
+            $node['keyId'] = substr(hash('sha256', $this->nodeKey($node)), 0, 16);
             unset($node['raw'], $node['rawKey'], $node['token']);
 
             if (isset($node['children'])) {
-                $node['children'] = self::stripRaw($node['children']);
+                $node['children'] = $this->stripRaw($node['children']);
             }
 
             return $node;

@@ -32,6 +32,7 @@
 | `…/Resources/printForms/`, `…/Resources/fonts/`, `…/metadata/app/pdfEngines.json` | HTML/CSS форм (счёт, акт, ПКО, КП, заказ), шрифт Liberation Sans и его регистрация (D-82) |
 | `client/custom/modules/itvolga/src/handlers/finance/print-form.js` | кнопка «Печать» карточек `Invoice`, `Act`, `Payment` (только приходы), `Quote`, `SalesOrder` |
 | `…/Tools/Report/` (`Core/` — чистое ядро), `…/Classes/Select/Where/{Related,FieldCompare,ReportDrillDown}.php`, `…/Classes/ORM/CountDistinct.php`, `…/Classes/Acl/Report/`, `…/Classes/Select/Report/`, `…/Hooks/Report/`, `…/Hooks/ReportFolder/`, `…/Repositories/{Report,ReportFolder}.php`, `…/Services/ReportFolder.php`, `…/Classes/ConsoleCommands/SetupReports.php`, `…/Resources/reports/standard/`, `…/metadata/app/{itvolgaReports,select,orm}.json` | модуль отчётов (этап 05.1, D-84…D-104): движок, свои типы where-элементов, `COUNT(DISTINCT)`, доступ к отчётам, проверка определения, папки, стандартные отчёты — `reports.md` |
+| `…/Tools/Report/Core/{Chart,Metric,Dashboard}/`, `…/Tools/Report/{Metric,Dashboard}/`, `…/Tools/Report/Api/GetMetricValues.php`, `…/Hooks/ReportMetricSet/`, `…/Repositories/ReportMetricSet.php`, `…/Classes/FieldProcessing/Report/MetricUsageLoader.php`, `…/metadata/dashlets/{Report,ReportMetrics}.json` | графики, дашлеты «Отчёт» и «Ключевые показатели», наборы показателей (этап 05.2, D-105…D-115) — `reports.md` §9–§11 |
 | `client/custom/modules/itvolga/src/{report,views/report,handlers/report}/` | конструктор, страница результата, список с папками, детализация, перенос в папку |
 | `scripts/model/` | сверка модели с картой (в том числе реестр печатных форм и умолчание условий), генератор словаря значений, покрытие финансов |
 | `tests/stage03/`, `tests/stage04/`, `tests/stage05/` | приёмочные тесты API и PDF, помощники UI-сценариев |
@@ -86,8 +87,9 @@
 
 | Сущность | Поля | Связи |
 |---|---|---|
-| Report | `name`, `description`, `type` (табличный, сводный, сводный с детализацией, матрица; после создания не меняется), `entityType` (не меняется), `accessType` (личный, публичный, по списку), лимиты `rowLimit`/`groupLimit`, JSON-части определения (`columns`, `sorting`, `groups`, `aggregates`, `groupSort`, `totals`, `calculations`, `filters`, `havingFilters`, `quickFilters`, `labels`), `seedKey` | `folder` → ReportFolder, `assignedUser` (владелец), `sharedUsers` → User, `sharedTeams` → Team (обратные `cSharedReports` у User и Team, без панелей) |
+| Report | `name`, `description`, `type` (табличный, сводный, сводный с детализацией, матрица; после создания не меняется), `entityType` (не меняется), `accessType` (личный, публичный, по списку), лимиты `rowLimit`/`groupLimit`, JSON-части определения (`columns`, `sorting`, `groups`, `aggregates`, `groupSort`, `totals`, `calculations`, `filters`, `havingFilters`, `quickFilters`, `labels`, `charts`, `dashboard` — 05.2), `seedKey`, вычисляемый `usedInMetrics` | `folder` → ReportFolder, `assignedUser` (владелец), `sharedUsers` → User, `sharedTeams` → Team (обратные `cSharedReports` у User и Team, без панелей) |
 | ReportFolder | `name` (уникально), `description`, `isSystem` («Общие»), `assignedUser`, `seedKey`; CategoryTree без вложенности | `reports` |
+| ReportMetricSet | `name` (уникально среди живых), `description`, `rows` (JSON: подпись и источник — табличный отчёт или фильтр списка), автор — `createdBy` | — |
 
 Сущности, доступные отчётам, — по флагу `scopes.<E>.itvolgaReports` (`true` у строк документов, распределений и ContactAccess, `"admin"` у User, Team, журналов, `false` у Report и ReportFolder) и `object`. Контракт — `reports.md`.
 
@@ -111,6 +113,7 @@
 | ContactAccess | только с ролью «Доступы» (создание, чтение, правка, удаление: all) |||||
 | Report | создание, чтение team (свои, публичные, адресованные пользователю или его команде), правка и удаление own | то же | то же | то же |
 | ReportFolder | создание, чтение all, правка и удаление own | то же | то же | то же |
+| ReportMetricSet | создание, чтение all, правка и удаление own (автор) | то же | то же | то же |
 | Quote, SalesOrder, Invoice, Act, Payment | all | — | — | — |
 | QuoteItem, SalesOrderItem, InvoiceItem, ActItem, PaymentAllocation, LegalEntity | чтение all (позиции — по доступу к документу, распределения — к платежу; запись позиций и распределений — никому) | — | — | — |
 
@@ -118,4 +121,4 @@
 
 ## Отложено
 
-Графики, дашлеты и ключевые показатели — этап 05.2; экспорт, печать и рассылка отчётов — 05.3 (`reports.md`). Quote, SalesOrder, позиции и LegalEntity — этап 04.2 (§14); Invoice и InvoiceItem — этап 04.3 (§15); Payment, PaymentAllocation и оплата документов — этап 04.4 (§16); Act, ActItem и `Invoice.act` — этап 04.5 (§17); сквозной сценарий — этап 04.6 (§18); печатные формы — этап 05 (§19, `print-forms.md`); расчётное ядро — `Tools/Finance/`, этап 04.1 (D-45); живая телефония и импорт истории звонков — 07.x; импорт данных — 06.x.
+Экспорт, печать и рассылка отчётов — 05.3 (`reports.md`). Quote, SalesOrder, позиции и LegalEntity — этап 04.2 (§14); Invoice и InvoiceItem — этап 04.3 (§15); Payment, PaymentAllocation и оплата документов — этап 04.4 (§16); Act, ActItem и `Invoice.act` — этап 04.5 (§17); сквозной сценарий — этап 04.6 (§18); печатные формы — этап 05 (§19, `print-forms.md`); расчётное ядро — `Tools/Finance/`, этап 04.1 (D-45); живая телефония и импорт истории звонков — 07.x; импорт данных — 06.x.

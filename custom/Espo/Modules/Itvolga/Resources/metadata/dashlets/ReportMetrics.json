@@ -1,0 +1,52 @@
+{
+    "view": "itvolga:views/dashlets/report-metrics",
+    "aclScope": "ReportMetricSet",
+    "options": {
+        "view": "views/dashlets/options/base",
+        "fields": {
+            "title": {
+                "type": "varchar",
+                "required": true
+            },
+            "autorefreshInterval": {
+                "type": "enumFloat",
+                "options": [
+                    0,
+                    0.5,
+                    1,
+                    2,
+                    5,
+                    10
+                ]
+            },
+            "metricSet": {
+                "type": "link",
+                "entity": "ReportMetricSet",
+                "required": true
+            }
+        },
+        "layout": [
+            {
+                "rows": [
+                    [
+                        {
+                            "name": "title"
+                        },
+                        {
+                            "name": "autorefreshInterval"
+                        }
+                    ],
+                    [
+                        {
+                            "name": "metricSet"
+                        },
+                        false
+                    ]
+                ]
+            }
+        ],
+        "defaults": {
+            "autorefreshInterval": null
+        }
+    }
+}

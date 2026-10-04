@@ -11,12 +11,6 @@
     },
     "type": "summariesWithDetails",
     "entityType": "Invoice",
-    "charts": [
-        {
-            "type": "bar",
-            "aggregate": "SUM:grandTotal"
-        }
-    ],
     "definition": {
         "columns": [
             "number",
@@ -62,6 +56,14 @@
         },
         "havingFilters": [],
         "quickFilters": [],
-        "labels": {}
+        "labels": {},
+        "charts": {
+            "items": [
+                {
+                    "type": "bar",
+                    "aggregate": "SUM:grandTotal"
+                }
+            ]
+        }
     }
 }

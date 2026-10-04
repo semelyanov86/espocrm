@@ -61,6 +61,9 @@ class SetupAcl implements Command
         // Reports (stage 05.1, D-87): own, public and shared-with-me/my-team reports; edit and delete — the owner.
         'Report' => self::REPORT,
         'ReportFolder' => ['create' => 'yes', 'read' => 'all', 'edit' => 'own', 'delete' => 'own'],
+        // Key metrics (stage 05.2, D-111): every set is readable (values are computed with the viewer's rights);
+        // changing, reordering and removing — the author.
+        'ReportMetricSet' => ['create' => 'yes', 'read' => 'all', 'edit' => 'own', 'delete' => 'own'],
     ];
 
     private const REPORT = ['create' => 'yes', 'read' => 'team', 'edit' => 'own', 'delete' => 'own'];
@@ -168,7 +171,8 @@ class SetupAcl implements Command
             'data' => ['ContactAccess' => ['create' => 'yes', 'read' => 'all', 'edit' => 'all', 'delete' => 'all',
                 'stream' => 'no'],
                 'Report' => ['create' => 'no', 'read' => 'own', 'edit' => 'no', 'delete' => 'no'],
-                'ReportFolder' => ['create' => 'no', 'read' => 'all', 'edit' => 'no', 'delete' => 'no']],
+                'ReportFolder' => ['create' => 'no', 'read' => 'all', 'edit' => 'no', 'delete' => 'no'],
+                'ReportMetricSet' => ['create' => 'no', 'read' => 'all', 'edit' => 'no', 'delete' => 'no']],
             'permissions' => array_map(fn () => 'not-set', self::PERMISSIONS),
         ];
 
