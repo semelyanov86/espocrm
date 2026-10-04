@@ -102,10 +102,10 @@ class Definition implements BeforeSave
     }
 
     /**
-     * Saves of one report wait for each other (a lock of its row in the save transaction), and what this save does not
-     * change — definition parts, the access type — is taken from the row as committed now, so the checks below see
-     * the report that will be stored: two partial saves cannot together store sorting by a removed column (external
-     * review B12) or a shared report without anybody (W5; the sharing lists are read in checkAccess).
+     * Saves of one report wait for each other (a lock of its row in the save transaction), and the save is rebased on
+     * the row as committed now: what it does not change — definition parts, the access type, the sharing lists — is
+     * taken from that row, and the fetched values become the committed ones, so the checks below see the report that
+     * will be stored and the core writes exactly what differs from it (external review B12, B13, W5, W13).
      */
     private function takeCommitted(CoreEntity $entity): void
     {
@@ -115,10 +115,21 @@ class Definition implements BeforeSave
             return;
         }
 
+        $committed = [];
+
         foreach ([...Report::DEFINITION_ATTRIBUTES, 'accessType'] as $attribute) {
+            $committed[$attribute] = $current->get($attribute);
+        }
+
+        $committed['sharedUsersIds'] = $this->committedIds('ReportSharedUser', 'userId', $entity->getId());
+        $committed['sharedTeamsIds'] = $this->committedIds('ReportSharedTeam', 'teamId', $entity->getId());
+
+        foreach ($committed as $attribute => $value) {
             if (!$entity->isAttributeChanged($attribute)) {
-                $entity->set($attribute, $current->get($attribute));
+                $entity->set($attribute, $value);
             }
+
+            $entity->setFetched($attribute, $value);
         }
     }
 
@@ -126,19 +137,11 @@ class Definition implements BeforeSave
     {
         $accessType = $entity->get('accessType') ?: Report::ACCESS_PRIVATE;
         $entity->set('accessType', $accessType);
-        $lists = [
-            'sharedUsers' => fn () => $this->committedIds('ReportSharedUser', 'userId', $entity->getId()),
-            'sharedTeams' => fn () => $this->committedIds('ReportSharedTeam', 'teamId', $entity->getId()),
-        ];
-        $ids = [];
-
-        foreach ($lists as $field => $committed) {
-            $ids[$field] = $entity->isNew() || $entity->isAttributeChanged($field . 'Ids') ?
-                ($entity->get($field . 'Ids') ?? []) : $committed();
-        }
+        $users = $entity->get('sharedUsersIds') ?? [];
+        $teams = $entity->get('sharedTeamsIds') ?? [];
 
         if ($accessType !== Report::ACCESS_SHARED) {
-            foreach ($ids as $field => $list) {
+            foreach (['sharedUsers' => $users, 'sharedTeams' => $teams] as $field => $list) {
                 if ($list !== []) {
                     $entity->setLinkMultipleIdList($field, []);
                 }
@@ -147,7 +150,7 @@ class Definition implements BeforeSave
             return;
         }
 
-        if ($ids['sharedUsers'] === [] && $ids['sharedTeams'] === []) {
+        if ($users === [] && $teams === []) {
             throw self::badRequest('sharedNeedsList', []);
         }
     }

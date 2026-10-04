@@ -70,6 +70,14 @@ define('itvolga:views/report/fields/labels', ['itvolga:views/report/fields/base'
             });
         }
 
+        /** A removed column, group, aggregate or calculation takes its label along: a later one of the same key starts
+         * with the standard header. */
+        onDependencyChange() {
+            const keys = this.keys().map(k => k.key);
+
+            Object.keys(this.state).filter(key => !keys.includes(key)).forEach(key => delete this.state[key]);
+        }
+
         fetch() {
             this.syncInputs();
             const keys = this.keys().map(k => k.key);

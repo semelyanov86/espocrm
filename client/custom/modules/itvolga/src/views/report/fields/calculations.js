@@ -36,9 +36,11 @@ define('itvolga:views/report/fields/calculations', ['itvolga:views/report/fields
 
             this.addActionHandler('addItem', () => {
                 this.syncInputs();
-                // A calculation keeps its id for good: header labels refer to it ("k:<id>").
+                // A calculation keeps its id for good: header labels refer to it ("k:<id>"). Ids grow within the
+                // editing session, so a new calculation never takes the id (and the label) of one just removed.
                 const used = this.state.map(item => Number(String(item.id || '').slice(1)) || 0);
-                this.state.push({id: 'k' + (Math.max(0, ...used) + 1), label: '', expression: '', functions: []});
+                this.lastId = Math.max(this.lastId || 0, 0, ...used) + 1;
+                this.state.push({id: 'k' + this.lastId, label: '', expression: '', functions: []});
                 this.commit();
             });
 
