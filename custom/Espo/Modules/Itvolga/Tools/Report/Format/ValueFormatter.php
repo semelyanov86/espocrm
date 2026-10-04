@@ -49,13 +49,12 @@ final class ValueFormatter
                 continue;
             }
 
-            // Deleted records keep their names: a group of a removed product still reads as the product.
+            // Like the core name join, which skips removed rows: a removed record shows its id, not its name.
             foreach (array_chunk(array_keys($ids), 500) as $chunk) {
                 $query = SelectBuilder::create()
                     ->from($entityType)
                     ->select(['id', 'name'])
-                    ->where(['id' => $chunk])
-                    ->withDeleted()
+                    ->where(['id' => $chunk, 'deleted' => false])
                     ->build();
 
                 foreach ($this->entityManager->getQueryExecutor()->execute($query)->fetchAll(PDO::FETCH_ASSOC) as $row) {

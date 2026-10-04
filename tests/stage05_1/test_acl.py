@@ -275,6 +275,16 @@ class FieldAccessTest(Case):
         self.assertRefusedList(drill_down(nototal, "Invoice", rid, filters=closed))
         self.ok(run(w.client("owner"), rid, filters=closed))
 
+    def test_any_save_of_a_report_with_a_closed_field_is_refused(self):
+        """The owner lost access to a field the report uses: changing only the description or the folder is refused
+        too — every save is checked with the acting user's ACL (external review B5, 2026-10-04)."""
+        w = W()
+        rid = w.report("admin", "closed later", entityType="Invoice", columns=["name", "grandTotal"],
+                       assignedUserId=w.uid["nototal"])["id"]
+        nototal = w.client("nototal")
+        self.refused(nototal.put(f"Report/{rid}", {"description": "x"}), 403, "fieldForbidden")
+        self.ok(w.admin.put(f"Report/{rid}", {"description": "x"}))
+
     def test_a_closed_link_and_a_closed_related_field(self):
         w = W()
         for user, definition, key in (

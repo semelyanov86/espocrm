@@ -86,7 +86,7 @@ define('itvolga:views/report/fields/having-filters', ['itvolga:views/report/fiel
         }
 
         syncInputs() {
-            if (!this.element || !this.isEditMode()) {
+            if (!this.element || !this.isEditMode() || this.domStale) {
                 return;
             }
 

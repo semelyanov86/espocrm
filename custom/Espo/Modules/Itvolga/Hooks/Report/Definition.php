@@ -23,10 +23,11 @@ use Espo\ORM\EntityManager;
 use Espo\ORM\Repository\Option\SaveOptions;
 
 /**
- * Every save of a report — API, console, seed (D-101): the definition is checked by the rules of reports.md and with
- * the ACL of the acting user (a field closed to him is refused: 403) and stored in its canonical form; the type and the
- * main entity never change after creation; a shared report lists at least one user or team, the lists of other access
- * types are cleared; only an administrator gives a report to another owner; a report without folder goes to «Общие».
+ * Every save of a report — API, console, seed, mass update (D-101), also one that changes no definition part: the
+ * definition is checked by the rules of reports.md and with the ACL of the acting user (a field closed to him is
+ * refused: 403) and stored in its canonical form; the type and the main entity never change after creation; a shared
+ * report lists at least one user or team, the lists of other access types are cleared; only an administrator gives a
+ * report to another owner; a report without folder goes to «Общие».
  *
  * The folder of a new or moved report is read with a lock that the save transaction holds until the report is stored
  * (Repositories\Report), so a folder being removed meanwhile is never left with this report (D-88).
@@ -70,10 +71,6 @@ class Definition implements BeforeSave
             throw self::badRequest('folderNotFound', []);
         }
 
-        if (!$entity->isNew() && !self::definitionChanged($entity)) {
-            return;
-        }
-
         try {
             $definition = (new DefinitionParser($this->schemaFactory->create($this->user)))
                 ->parse(ReportRunner::attributes($entity));
@@ -85,17 +82,6 @@ class Definition implements BeforeSave
             $entity->set($attribute, is_array($value) && !array_is_list($value) ?
                 json_decode((string) json_encode($value)) : $value);
         }
-    }
-
-    private static function definitionChanged(CoreEntity $entity): bool
-    {
-        foreach (Report::DEFINITION_ATTRIBUTES as $attribute) {
-            if ($entity->isAttributeChanged($attribute)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function checkOwner(CoreEntity $entity): void

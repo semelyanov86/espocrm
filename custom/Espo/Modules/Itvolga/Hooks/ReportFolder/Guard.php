@@ -12,15 +12,19 @@ use Espo\Core\Hook\Hook\BeforeSave;
 use Espo\Modules\Itvolga\Entities\Report;
 use Espo\Modules\Itvolga\Entities\ReportFolder;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\RowLock;
+use PDO;
 use Espo\ORM\Entity;
 use Espo\ORM\EntityManager;
+use Espo\ORM\Query\SelectBuilder;
 use Espo\ORM\Repository\Option\RemoveOptions;
 use Espo\ORM\Repository\Option\SaveOptions;
 
 /**
  * Report folders (D-88): flat (no parent), names unique among live folders (case-insensitive), the system folder
  * «Общие» is never removed, a folder holding reports is not removed (move or delete them first; reports of any owner
- * count, the check runs under a lock of the folder row so a report cannot be moved in meanwhile).
+ * count). Both checks are current (locking) reads inside the save or delete transaction: a plain read could use the
+ * transaction's older REPEATABLE READ snapshot. Name checks are serialised on the system folder row; the emptiness
+ * check runs under the lock of the folder row, which a report save also takes (Repositories\Report).
  *
  * @implements BeforeSave<ReportFolder>
  * @implements BeforeRemove<ReportFolder>
@@ -41,11 +45,10 @@ class Guard implements BeforeSave, BeforeRemove
         $name = trim((string) $entity->get('name'));
         $entity->set('name', $name);
 
-        $same = $this->entityManager->getRDBRepositoryByClass(ReportFolder::class)
-            ->where(['LOWER:(name)' => mb_strtolower($name), 'id!=' => $entity->getId() ?? ''])
-            ->findOne();
+        $this->lockedIds(['isSystem' => true]);
+        $same = $this->lockedIds(['LOWER:(name)' => mb_strtolower($name), 'id!=' => $entity->getId() ?? ''], 1);
 
-        if ($same) {
+        if ($same !== []) {
             throw Conflict::createWithBody('folderNameExists',
                 Body::create()->withMessageTranslation('folderNameExists', 'ReportFolder', ['name' => $name]));
         }
@@ -69,13 +72,33 @@ class Guard implements BeforeSave, BeforeRemove
 
         $this->rowLock->one(ReportFolder::ENTITY_TYPE, $entity->getId());
 
-        $count = $this->entityManager->getRDBRepositoryByClass(Report::class)
-            ->where(['folderId' => $entity->getId()])
-            ->count();
+        $count = count($this->lockedIds(['folderId' => $entity->getId()], null, Report::ENTITY_TYPE));
 
         if ($count > 0) {
             throw Conflict::createWithBody('folderNotEmpty',
                 Body::create()->withMessageTranslation('folderNotEmpty', 'ReportFolder', ['count' => (string) $count]));
         }
+    }
+
+    /**
+     * Ids of live records matching $where, read and locked with SELECT … FOR UPDATE (the latest committed rows).
+     *
+     * @param array<string|int, mixed> $where
+     * @return list<string>
+     */
+    private function lockedIds(array $where, ?int $limit = null, string $entityType = ReportFolder::ENTITY_TYPE): array
+    {
+        $builder = SelectBuilder::create()
+            ->from($entityType)
+            ->select(['id'])
+            ->where($where)
+            ->forUpdate();
+
+        if ($limit !== null) {
+            $builder->limit(0, $limit);
+        }
+
+        return array_map('strval', $this->entityManager->getQueryExecutor()->execute($builder->build())
+            ->fetchAll(PDO::FETCH_COLUMN));
     }
 }

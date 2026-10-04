@@ -61,7 +61,7 @@ define('itvolga:views/report/fields/calculations', ['itvolga:views/report/fields
 
         /** Inputs typed without a change event (Ctrl+S): read them into the state. */
         syncInputs() {
-            if (!this.element || !this.isEditMode()) {
+            if (!this.element || !this.isEditMode() || this.domStale) {
                 return;
             }
 

@@ -66,6 +66,9 @@ define('itvolga:views/report/fields/base', ['views/fields/base', 'itvolga:report
          * Stores a changed state: the model gets it at once (dependent parts and dynamic logic follow).
          */
         commit(reRender = true) {
+            // A row added or removed leaves the inputs stale until the re-render: the form calls fetch() on 'change'
+            // at once, and reading the old inputs by their old indexes would overwrite the next row.
+            this.domStale = reRender;
             this.trigger('change');
 
             if (reRender) {
@@ -88,6 +91,7 @@ define('itvolga:views/report/fields/base', ['views/fields/base', 'itvolga:report
 
         afterRender() {
             super.afterRender();
+            this.domStale = false;
 
             if (this.isEditMode() && this.element) {
                 this.initSearchSelects();
