@@ -72,11 +72,10 @@ class Guard implements BeforeSave, BeforeRemove
 
         $this->rowLock->one(ReportFolder::ENTITY_TYPE, $entity->getId());
 
-        $count = count($this->lockedIds(['folderId' => $entity->getId()], null, Report::ENTITY_TYPE));
-
-        if ($count > 0) {
+        // Reports of any owner keep the folder, but the answer does not tell how many: some may be private to others.
+        if ($this->lockedIds(['folderId' => $entity->getId()], 1, Report::ENTITY_TYPE) !== []) {
             throw Conflict::createWithBody('folderNotEmpty',
-                Body::create()->withMessageTranslation('folderNotEmpty', 'ReportFolder', ['count' => (string) $count]));
+                Body::create()->withMessageTranslation('folderNotEmpty', 'ReportFolder'));
         }
     }
 

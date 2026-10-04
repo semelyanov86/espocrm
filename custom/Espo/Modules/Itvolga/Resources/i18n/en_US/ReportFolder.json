@@ -23,6 +23,6 @@
     "messages": {
         "folderNameExists": "The folder '{name}' already exists.",
         "folderSystem": "The system folder cannot be removed.",
-        "folderNotEmpty": "The folder holds reports ({count}): move or remove them first."
+        "folderNotEmpty": "The folder holds reports: move or remove them first."
     }
 }

@@ -8,7 +8,6 @@
  */
 define('itvolga:views/report/result', ['view', 'ui/multi-select'], (View, MultiSelect) => {
 
-    const EMPTY = '__empty__';
 
     return class extends View {
 
@@ -98,8 +97,7 @@ define('itvolga:views/report/result', ['view', 'ui/multi-select'], (View, MultiS
 
         quickFilterValues() {
             return Object.entries(this.quick)
-                .map(([field, q]) => ({field: field, mode: q.mode, values: q.values.filter(v => v !== EMPTY),
-                    includeEmpty: q.values.includes(EMPTY)}))
+                .map(([field, q]) => ({field: field, mode: q.mode, values: q.values, includeEmpty: q.includeEmpty}))
                 .filter(q => q.values.length || q.includeEmpty);
         }
 
@@ -541,7 +539,7 @@ define('itvolga:views/report/result', ['view', 'ui/multi-select'], (View, MultiS
             box.innerHTML = '';
 
             list.forEach(filter => {
-                const state = this.quick[filter.field] || {mode: 'in', values: []};
+                const state = this.quick[filter.field] || {mode: 'in', values: [], includeEmpty: false};
                 const column = this.make('div', 'cell form-group col-sm-6');
                 column.appendChild(this.make('label', 'control-label', filter.label));
                 const row = this.make('div', 'input-group input-group-sm');
@@ -564,23 +562,34 @@ define('itvolga:views/report/result', ['view', 'ui/multi-select'], (View, MultiS
                 column.appendChild(modeBox);
                 box.appendChild(column);
 
-                const items = filter.options.map(option => ({
-                    value: option.empty ? EMPTY : String(option.v),
-                    text: option.f,
-                }));
-                const known = items.map(item => item.value);
-                const kept = state.values.filter(value => known.includes(String(value)));
+                // Options go to the widget under opaque ids ('e' — the empty item, 'v<n>' — a value): any text, also
+                // one looking like a marker or holding the delimiter, stays a value. Values stay strings; the server
+                // reads 'true'/'false' of a flag itself.
+                const values = {};
+                const items = filter.options.map((option, i) => {
+                    const id = option.empty ? 'e' : 'v' + i;
+
+                    if (!option.empty) {
+                        values[id] = String(option.v);
+                    }
+
+                    return {value: id, text: option.f};
+                });
+                const ids = Object.keys(values);
+                const keptValues = state.values.filter(value => ids.some(id => values[id] === value));
+                const keptEmpty = state.includeEmpty && filter.options.some(option => option.empty);
 
                 if (this.quick[filter.field]) {
-                    this.quick[filter.field].values = kept;
+                    this.quick[filter.field] = {mode: state.mode, values: keptValues, includeEmpty: keptEmpty};
                 }
 
-                MultiSelect.init(input, {items: items, delimiter: ':,:', values: kept.map(String)});
+                MultiSelect.init(input, {items: items, delimiter: ',', values: [
+                    ...ids.filter(id => keptValues.includes(values[id])), ...(keptEmpty ? ['e'] : [])]});
 
-                // Values stay strings: a text "false" is a text, the server reads 'true'/'false' of a flag itself.
                 const update = () => {
-                    const values = input.value ? input.value.split(':,:') : [];
-                    this.quick[filter.field] = {mode: mode.value, values: values};
+                    const chosen = input.value ? input.value.split(',') : [];
+                    this.quick[filter.field] = {mode: mode.value, values: chosen.filter(id => id !== 'e')
+                        .map(id => values[id]).filter(value => value !== undefined), includeEmpty: chosen.includes('e')};
                 };
 
                 // Selectize reports a change through jQuery only; a native listener would never hear it.

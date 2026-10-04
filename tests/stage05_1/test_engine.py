@@ -363,35 +363,39 @@ class MatrixTest(Case):
 
 
 class TextGroupCollationTest(Case):
-    """Two accounts of the city «Берлин» and «берлин»: the database groups them as one (utf8mb4_unicode_ci), and the
-    group finds both of its detail rows, lower levels and matrix cells (external review B8, 2026-10-04)."""
+    """Accounts of the cities «Берлин»/«берлин» and «😀»/«😁» (one group each under utf8mb4_unicode_ci) and «ẞ»/«ss»
+    (two groups): every group finds exactly its detail rows, lower levels and matrix cells, whatever the collation
+    folds (external review B8, rounds 3–4, 2026-10-04)."""
+
+    CITIES = ("Берлин", "берлин", "\U0001F600", "\U0001F601", "\u1E9E", "ss")
 
     @classmethod
     def setUpClass(cls):
         w = W()
-        for n, city in ((1, "Берлин"), (2, "берлин")):
+        for n, city in enumerate(cls.CITIES, start=1):
             w.create("Account", {"name": f"{w.tag} col-{n}", "billingAddressCity": city, "industry": "Banking"},
                      by="dir")
         cls.filters = all_of(cond("name", "startsWith", f"{w.tag} col"))
 
-    def test_details_levels_and_cells_of_a_case_folded_group(self):
+    def test_details_levels_and_cells_follow_the_database_groups(self):
         w = W()
         details = w.report("dir", "city details", type="summariesWithDetails", entityType="Account",
                            groups=[{"field": "billingAddressCity"}], aggregates=[{"function": "COUNT"}],
-                           columns=["name"], rowLimit=None, filters=self.filters)
+                           columns=["name"], rowLimit=None, groupLimit=None, filters=self.filters)
         tree = self.run_ok(details["id"])["tree"]
-        self.assertEqual([2], [n["count"] for n in tree])
-        self.assertEqual(2, len(tree[0]["rows"]))
+        self.assertEqual([1, 1, 2, 2], sorted(n["count"] for n in tree))
+        self.assertEqual([n["count"] for n in tree], [len(n["rows"]) for n in tree])
         levels = w.report("dir", "city levels", type="summaries", entityType="Account",
                           groups=[{"field": "billingAddressCity"}, {"field": "industry"}],
-                          aggregates=[{"function": "COUNT"}], filters=self.filters)
+                          aggregates=[{"function": "COUNT"}], groupLimit=None, filters=self.filters)
         tree = self.run_ok(levels["id"])["tree"]
-        self.assertEqual([(2, [2])], [(n["count"], [c["count"] for c in n["children"]]) for n in tree])
+        self.assertEqual([n["count"] for n in tree], [sum(c["count"] for c in n["children"]) for n in tree])
         matrix = w.report("dir", "city matrix", type="matrix", entityType="Account",
                           groups=[{"field": "billingAddressCity"}, {"field": "industry"}],
-                          aggregates=[{"function": "COUNT"}], filters=self.filters)
-        cells = self.run_ok(matrix["id"])["matrix"]["cells"]
-        self.assertEqual([[2]], [[c and c["count"] for c in line] for line in cells])
+                          aggregates=[{"function": "COUNT"}], groupLimit=None, filters=self.filters)
+        result = self.run_ok(matrix["id"])["matrix"]
+        self.assertEqual([r["count"] for r in result["rows"]],
+                         [sum(c["count"] for c in line if c) for line in result["cells"]])
 
 
 class MatrixCapTest(Case):

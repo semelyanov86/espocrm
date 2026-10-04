@@ -19,7 +19,7 @@
 | `M/Tools/Report/Format/` | форматирование значений в нотации пользователя |
 | `M/Tools/Report/Api/` | `PostRun`, `GetCatalog`, `GetFolderCounts`; маршруты — `M/Resources/routes.json` |
 | `M/Classes/Select/Where/{Related,FieldCompare,ReportDrillDown}.php`, `M/Resources/metadata/app/select.json` | собственные типы where-элементов `itvolgaRelated`, `itvolgaFieldCompare`, `itvolgaReport` |
-| `M/Classes/ORM/CountDistinct.php`, `M/Resources/metadata/app/orm.json` | функция ORM `ITVOLGA_COUNT_DISTINCT` |
+| `M/Classes/ORM/{CountDistinct,GroupToken}.php`, `M/Resources/metadata/app/orm.json` | функции ORM `ITVOLGA_COUNT_DISTINCT`, `ITVOLGA_GROUP_TOKEN` |
 | `M/Classes/Acl/Report/AccessChecker.php`, `M/Classes/Select/Report/**` | доступ к отчётам (запись и списки) |
 | `M/Hooks/Report/Definition.php`, `M/Hooks/ReportFolder/Guard.php`, `M/Repositories/{Report,ReportFolder}.php`, `M/Services/ReportFolder.php` | проверка определения при любом сохранении (в транзакции репозитория); правила папок; «надгробие» удалённой стандартной папки |
 | `M/Classes/ConsoleCommands/SetupReports.php`, `M/Tools/Report/Seed/StandardReports.php`, `M/Resources/metadata/app/itvolgaReports.json`, `M/Resources/reports/standard/*.json` | `itvolga-setup-reports`: папки и стандартные отчёты |
@@ -173,7 +173,9 @@ maxMatrixColumns}`. Ключи групп: дата — `YYYY-MM-DD`, недел
   HAVING их отсекли (D-91); «Всего записей» — по всем условиям. Нижние уровни, строки и ячейки ищутся по ключу в том
   виде, как его вернул SQL (десятичное `1.00000000`, флаг `0`), а не по показанному значению; ключ текста и
   перечисления сравнивается как в колонке БД (`utf8mb4_unicode_ci`, PAD SPACE: регистр, диакритика и хвостовые
-  пробелы не различаются — «Берлин» и «берлин» одна группа), в PHP — ключ сортировки ICU уровня PRIMARY.
+  пробелы не различаются — «Берлин» и «берлин» одна группа): каждый запрос берёт у БД токен группы
+  (`ITVOLGA_GROUP_TOKEN` — `WEIGHT_STRING` значения и вес пробела в его сортировке), PHP отбрасывает хвостовые веса
+  пробела и сравнивает токены; правила сортировки PHP не воспроизводит.
 - матрица — строки как уровень 1, колонки — значения второй группы (≤ 50, по порядку ключей), ячейки, итоги колонок
   и общий итог — отдельными запросами по показанным строкам; итог строки — агрегаты уровня 1. Если ячейки показанных
   строк не помещаются в потолок строк запуска, строк показывается меньше (`строк × колонок ≤ потолок`), колонки и общий

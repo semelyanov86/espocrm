@@ -74,7 +74,10 @@ class FolderTest(Case):
         w = W()
         other = folder("other")
         report = w.report("dir2", "private of dir2", entityType="Account", columns=["name"], folderId=other)
-        self.refused(w.client("dir").delete(f"ReportFolder/{other}"), 409, "folderNotEmpty")
+        refusal = w.client("dir").delete(f"ReportFolder/{other}")
+        self.refused(refusal, 409, "folderNotEmpty")
+        # The answer does not tell how many reports, private ones of others included (external review W3).
+        self.assertNotIn("count", json.dumps(refusal[1]))
         self.ok(w.client("dir2").put(f"Report/{report['id']}", {"folderId": None}))
         self.ok(w.client("dir").delete(f"ReportFolder/{other}"))
         w.forget("ReportFolder", other)

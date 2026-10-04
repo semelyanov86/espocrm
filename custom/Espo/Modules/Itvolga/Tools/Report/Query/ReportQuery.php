@@ -237,6 +237,20 @@ final class ReportQuery
     }
 
     /**
+     * Collation token of a text group key (ITVOLGA_GROUP_TOKEN, external review B8), or null when the key compares as
+     * SQL returns it (numbers, dates, periods, ids).
+     */
+    public function groupToken(GroupLevel $group): ?string
+    {
+        if ($group->granularity !== null ||
+            !in_array($group->field->family(), [FieldInfo::FAMILY_TEXT, FieldInfo::FAMILY_ENUM], true)) {
+            return null;
+        }
+
+        return 'ITVOLGA_GROUP_TOKEN:(' . $this->groupExpression($group) . ')';
+    }
+
+    /**
      * Aggregate expressions: COUNT is the number of distinct main records (D-90); a money aggregate also gives the
      * lowest and highest currency of its values, so mixed currencies are detected (D-94).
      *

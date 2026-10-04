@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Espo\Modules\Itvolga\Tools\Report\Run;
 
 use Closure;
-use Collator;
 use Espo\Modules\Itvolga\Tools\Finance\Decimal;
 use Espo\Modules\Itvolga\Tools\Report\Core\DecimalMath;
 use Espo\Modules\Itvolga\Tools\Report\Core\Definition\Aggregate;
@@ -36,8 +35,6 @@ use Espo\ORM\Query\SelectBuilder;
  */
 final class Assembler
 {
-    private ?Collator $collator = null;
-
     /**
      * @param Closure(Select): list<array<string, mixed>> $fetch
      */
@@ -385,6 +382,7 @@ final class Assembler
             $expression = $this->query->groupExpression($group);
             $select[] = [$expression, 'g' . $i];
             $groupBy[] = $expression;
+            $select = [...$select, ...$this->tokenSelect($group, 't' . $i)];
         }
 
         $builder = $this->query->base()
@@ -474,6 +472,7 @@ final class Assembler
             // The key as SQL returned it: lookups and restrictions use it, the display value may differ
             // (decimal '1.00000000' shows as '1', a flag '0' as false, '' as empty).
             'rawKey' => $key,
+            'token' => $row["t$level"] ?? null,
         ];
     }
 
@@ -608,7 +607,7 @@ final class Assembler
                 $path = [];
 
                 for ($i = 0; $i < $level - 1; $i++) {
-                    $path[] = $this->key($i, $row["g$i"] ?? null);
+                    $path[] = $this->key($row["g$i"] ?? null, $row["t$i"] ?? null);
                 }
 
                 $children[$level][implode("\x1F", $path)][] = $this->node($row, $level - 1);
@@ -619,7 +618,7 @@ final class Assembler
             $nodes = $this->sortNodes($nodes, $level - 1);
 
             foreach ($nodes as &$node) {
-                $nodePath = [...$path, $this->key($level - 1, $node['rawKey'])];
+                $nodePath = [...$path, $this->nodeKey($node)];
 
                 if ($level < $levels) {
                     $node['children'] = $build($children[$level + 1][implode("\x1F", $nodePath)] ?? [], $level + 1,
@@ -633,8 +632,7 @@ final class Assembler
         $result = [];
 
         foreach ($level1 as $node) {
-            $node['children'] = $build($children[2][$this->key(0, $node['rawKey'])] ?? [], 2,
-                [$this->key(0, $node['rawKey'])]);
+            $node['children'] = $build($children[2][$this->nodeKey($node)] ?? [], 2, [$this->nodeKey($node)]);
             $result[] = $node;
         }
 
@@ -652,7 +650,8 @@ final class Assembler
     private function attachDetails(array $level1, array $keys, array &$limits): array
     {
         $definition = $this->query->definition;
-        $select = [['id', 'id'], [$this->query->groupExpression($definition->groups[0]), 'gk']];
+        $select = [['id', 'id'], [$this->query->groupExpression($definition->groups[0]), 'gk'],
+            ...$this->tokenSelect($definition->groups[0], 'gt')];
 
         foreach ($definition->columns as $i => $column) {
             array_push($select, ...$this->selectField($column, "c$i"));
@@ -672,14 +671,14 @@ final class Assembler
         $byKey = [];
 
         foreach ($rows as $raw) {
-            $byKey[$this->key(0, $raw['gk'] ?? null)][] = $raw;
+            $byKey[$this->key($raw['gk'] ?? null, $raw['gt'] ?? null)][] = $raw;
         }
 
         $perGroup = $this->query->options->noLimit ? $this->maxRows : ($definition->rowLimit ?? $this->maxRows);
         $limits['rowLimitHit'] = false;
 
         foreach ($level1 as &$node) {
-            $groupRows = $byKey[$this->key(0, $node['rawKey'])] ?? [];
+            $groupRows = $byKey[$this->nodeKey($node)] ?? [];
 
             if (count($groupRows) > $perGroup) {
                 $limits['rowLimitHit'] = true;
@@ -715,9 +714,10 @@ final class Assembler
         $columnsHit = false;
 
         if ($rows !== []) {
-            $fetchColumns = function (array $rowKeys) use ($g1, $g2, &$limits): array {
+            $fetchColumns = function (array $rowKeys) use ($definition, $g1, $g2, &$limits): array {
                 $columnRows = $this->fetchCapped($this->query->base()
-                    ->select([[$g2, 'g1'], ...$this->selectAggregates()])
+                    ->select([[$g2, 'g1'], ...$this->tokenSelect($definition->groups[1], 't1'),
+                        ...$this->selectAggregates()])
                     ->group([$g2])
                     ->where($this->keyRestriction($g1, $rowKeys)), $this->maxRows, $limits);
                 $this->rememberKeysOf($columnRows, 1);
@@ -743,21 +743,23 @@ final class Assembler
             $columnKeys = array_map(fn ($node) => $node['rawKey'], $columns);
 
             $cellRows = $this->fetchCapped($this->query->base()
-                ->select([[$g1, 'g0'], [$g2, 'g1'], ...$this->selectAggregates()])
+                ->select([[$g1, 'g0'], [$g2, 'g1'], ...$this->tokenSelect($definition->groups[0], 't0'),
+                    ...$this->tokenSelect($definition->groups[1], 't1'), ...$this->selectAggregates()])
                 ->group([$g1, $g2])
                 ->where($this->keyRestriction($g1, $rowKeys))
                 ->where($this->keyRestriction($g2, $columnKeys)), $this->maxRows, $limits);
             $byKey = [];
 
             foreach ($cellRows as $row) {
-                $byKey[$this->key(0, $row['g0'] ?? null)][$this->key(1, $row['g1'] ?? null)] = $row;
+                $byKey[$this->key($row['g0'] ?? null, $row['t0'] ?? null)][$this->key($row['g1'] ?? null,
+                    $row['t1'] ?? null)] = $row;
             }
 
             foreach ($rows as $node) {
                 $line = [];
 
                 foreach ($columns as $column) {
-                    $row = $byKey[$this->key(0, $node['rawKey'])][$this->key(1, $column['rawKey'])] ?? null;
+                    $row = $byKey[$this->nodeKey($node)][$this->nodeKey($column)] ?? null;
                     $line[] = $row === null ? null : ['count' => (int) ($row['n'] ?? 0),
                         'values' => $this->aggregateCells($row)];
                 }
@@ -849,33 +851,48 @@ final class Assembler
     }
 
     /**
-     * Lookup key of a group value, equal for the values the database puts into one group: a text group compares as
-     * its column collation does (utf8mb4_unicode_ci, PAD SPACE: case, accents and trailing spaces do not count), so
-     * a record of «berlin» finds the group «Berlin» (external review B8). ICU root at primary strength stands in for
-     * the collation; other values compare as SQL returned them.
+     * Columns of the collation token of a text group (empty for other groups).
+     *
+     * @return list<array{string, string}>
      */
-    private function key(int $level, mixed $value): string
+    private function tokenSelect(GroupLevel $group, string $alias): array
+    {
+        $token = $this->query->groupToken($group);
+
+        return $token === null ? [] : [[$token, $alias]];
+    }
+
+    /**
+     * Lookup key of a group value, equal for the values the database puts into one group: a text group by its
+     * collation token ("<space weight>:<weights>" from ITVOLGA_GROUP_TOKEN, trailing space weights stripped as
+     * PAD SPACE compares), so a record of «berlin» finds the group «Berlin» (external review B8); other values as SQL
+     * returned them.
+     */
+    private function key(mixed $value, ?string $token): string
     {
         if ($value === null) {
             return "\x00";
         }
 
-        $group = $this->query->definition->groups[$level];
-
-        if ($group->granularity !== null ||
-            !in_array($group->field->family(), [FieldInfo::FAMILY_TEXT, FieldInfo::FAMILY_ENUM], true)) {
+        if ($token === null) {
             return (string) $value;
         }
 
-        if ($this->collator === null) {
-            $this->collator = new Collator('root');
-            $this->collator->setStrength(Collator::PRIMARY);
+        [$space, $weights] = array_pad(explode(':', $token, 2), 2, '');
+
+        while ($space !== '' && str_ends_with($weights, $space)) {
+            $weights = substr($weights, 0, -strlen($space));
         }
 
-        $text = rtrim((string) $value, ' ');
-        $sortKey = $this->collator->getSortKey($text);
+        return "\x01" . $weights;
+    }
 
-        return "\x01" . ($sortKey === false ? $text : $sortKey);
+    /**
+     * @param array<string, mixed> $node
+     */
+    private function nodeKey(array $node): string
+    {
+        return $this->key($node['rawKey'], $node['token']);
     }
 
     /**
@@ -885,7 +902,7 @@ final class Assembler
     private static function stripRaw(array $nodes): array
     {
         return array_map(function (array $node): array {
-            unset($node['raw'], $node['rawKey']);
+            unset($node['raw'], $node['rawKey'], $node['token']);
 
             if (isset($node['children'])) {
                 $node['children'] = self::stripRaw($node['children']);
