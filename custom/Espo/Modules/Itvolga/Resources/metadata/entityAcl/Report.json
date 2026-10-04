@@ -3,5 +3,13 @@
         "seedKey": {
             "readOnly": true
         }
+    },
+    "links": {
+        "sharedUsers": {
+            "readOnly": true
+        },
+        "sharedTeams": {
+            "readOnly": true
+        }
     }
 }

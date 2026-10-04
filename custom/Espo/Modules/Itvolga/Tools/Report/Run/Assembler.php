@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Espo\Modules\Itvolga\Tools\Report\Run;
 
 use Closure;
+use Collator;
 use Espo\Modules\Itvolga\Tools\Finance\Decimal;
 use Espo\Modules\Itvolga\Tools\Report\Core\DecimalMath;
 use Espo\Modules\Itvolga\Tools\Report\Core\Definition\Aggregate;
@@ -35,6 +36,8 @@ use Espo\ORM\Query\SelectBuilder;
  */
 final class Assembler
 {
+    private ?Collator $collator = null;
+
     /**
      * @param Closure(Select): list<array<string, mixed>> $fetch
      */
@@ -605,7 +608,7 @@ final class Assembler
                 $path = [];
 
                 for ($i = 0; $i < $level - 1; $i++) {
-                    $path[] = self::keyString($row["g$i"] ?? null);
+                    $path[] = $this->key($i, $row["g$i"] ?? null);
                 }
 
                 $children[$level][implode("\x1F", $path)][] = $this->node($row, $level - 1);
@@ -616,7 +619,7 @@ final class Assembler
             $nodes = $this->sortNodes($nodes, $level - 1);
 
             foreach ($nodes as &$node) {
-                $nodePath = [...$path, self::keyString($node['rawKey'])];
+                $nodePath = [...$path, $this->key($level - 1, $node['rawKey'])];
 
                 if ($level < $levels) {
                     $node['children'] = $build($children[$level + 1][implode("\x1F", $nodePath)] ?? [], $level + 1,
@@ -630,8 +633,8 @@ final class Assembler
         $result = [];
 
         foreach ($level1 as $node) {
-            $node['children'] = $build($children[2][self::keyString($node['rawKey'])] ?? [], 2,
-                [self::keyString($node['rawKey'])]);
+            $node['children'] = $build($children[2][$this->key(0, $node['rawKey'])] ?? [], 2,
+                [$this->key(0, $node['rawKey'])]);
             $result[] = $node;
         }
 
@@ -669,14 +672,14 @@ final class Assembler
         $byKey = [];
 
         foreach ($rows as $raw) {
-            $byKey[self::keyString($raw['gk'] ?? null)][] = $raw;
+            $byKey[$this->key(0, $raw['gk'] ?? null)][] = $raw;
         }
 
         $perGroup = $this->query->options->noLimit ? $this->maxRows : ($definition->rowLimit ?? $this->maxRows);
         $limits['rowLimitHit'] = false;
 
         foreach ($level1 as &$node) {
-            $groupRows = $byKey[self::keyString($node['rawKey'])] ?? [];
+            $groupRows = $byKey[$this->key(0, $node['rawKey'])] ?? [];
 
             if (count($groupRows) > $perGroup) {
                 $limits['rowLimitHit'] = true;
@@ -747,14 +750,14 @@ final class Assembler
             $byKey = [];
 
             foreach ($cellRows as $row) {
-                $byKey[self::keyString($row['g0'] ?? null)][self::keyString($row['g1'] ?? null)] = $row;
+                $byKey[$this->key(0, $row['g0'] ?? null)][$this->key(1, $row['g1'] ?? null)] = $row;
             }
 
             foreach ($rows as $node) {
                 $line = [];
 
                 foreach ($columns as $column) {
-                    $row = $byKey[self::keyString($node['rawKey'])][self::keyString($column['rawKey'])] ?? null;
+                    $row = $byKey[$this->key(0, $node['rawKey'])][$this->key(1, $column['rawKey'])] ?? null;
                     $line[] = $row === null ? null : ['count' => (int) ($row['n'] ?? 0),
                         'values' => $this->aggregateCells($row)];
                 }
@@ -845,9 +848,34 @@ final class Assembler
         return $result;
     }
 
-    private static function keyString(mixed $key): string
+    /**
+     * Lookup key of a group value, equal for the values the database puts into one group: a text group compares as
+     * its column collation does (utf8mb4_unicode_ci, PAD SPACE: case, accents and trailing spaces do not count), so
+     * a record of «berlin» finds the group «Berlin» (external review B8). ICU root at primary strength stands in for
+     * the collation; other values compare as SQL returned them.
+     */
+    private function key(int $level, mixed $value): string
     {
-        return $key === null ? "\x00" : (string) $key;
+        if ($value === null) {
+            return "\x00";
+        }
+
+        $group = $this->query->definition->groups[$level];
+
+        if ($group->granularity !== null ||
+            !in_array($group->field->family(), [FieldInfo::FAMILY_TEXT, FieldInfo::FAMILY_ENUM], true)) {
+            return (string) $value;
+        }
+
+        if ($this->collator === null) {
+            $this->collator = new Collator('root');
+            $this->collator->setStrength(Collator::PRIMARY);
+        }
+
+        $text = rtrim((string) $value, ' ');
+        $sortKey = $this->collator->getSortKey($text);
+
+        return "\x01" . ($sortKey === false ? $text : $sortKey);
     }
 
     /**

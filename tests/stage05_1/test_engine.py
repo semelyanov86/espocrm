@@ -362,6 +362,38 @@ class MatrixTest(Case):
         self.assertEqual((10, D("34477.39")), (result["grandTotal"]["count"], num(result["grandTotal"]["values"][1])))
 
 
+class TextGroupCollationTest(Case):
+    """Two accounts of the city «Берлин» and «берлин»: the database groups them as one (utf8mb4_unicode_ci), and the
+    group finds both of its detail rows, lower levels and matrix cells (external review B8, 2026-10-04)."""
+
+    @classmethod
+    def setUpClass(cls):
+        w = W()
+        for n, city in ((1, "Берлин"), (2, "берлин")):
+            w.create("Account", {"name": f"{w.tag} col-{n}", "billingAddressCity": city, "industry": "Banking"},
+                     by="dir")
+        cls.filters = all_of(cond("name", "startsWith", f"{w.tag} col"))
+
+    def test_details_levels_and_cells_of_a_case_folded_group(self):
+        w = W()
+        details = w.report("dir", "city details", type="summariesWithDetails", entityType="Account",
+                           groups=[{"field": "billingAddressCity"}], aggregates=[{"function": "COUNT"}],
+                           columns=["name"], rowLimit=None, filters=self.filters)
+        tree = self.run_ok(details["id"])["tree"]
+        self.assertEqual([2], [n["count"] for n in tree])
+        self.assertEqual(2, len(tree[0]["rows"]))
+        levels = w.report("dir", "city levels", type="summaries", entityType="Account",
+                          groups=[{"field": "billingAddressCity"}, {"field": "industry"}],
+                          aggregates=[{"function": "COUNT"}], filters=self.filters)
+        tree = self.run_ok(levels["id"])["tree"]
+        self.assertEqual([(2, [2])], [(n["count"], [c["count"] for c in n["children"]]) for n in tree])
+        matrix = w.report("dir", "city matrix", type="matrix", entityType="Account",
+                          groups=[{"field": "billingAddressCity"}, {"field": "industry"}],
+                          aggregates=[{"function": "COUNT"}], filters=self.filters)
+        cells = self.run_ok(matrix["id"])["matrix"]["cells"]
+        self.assertEqual([[2]], [[c and c["count"] for c in line] for line in cells])
+
+
 class MatrixCapTest(Case):
     """With the run cap at 4 rows, the 3 × 2 matrix of MatrixTest shows 2 rows: every shown cell is there, and the
     columns and the grand total are those of the shown rows (review finding of 2026-10-04: cells beyond the cap were

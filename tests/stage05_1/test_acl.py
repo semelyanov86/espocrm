@@ -123,6 +123,21 @@ class VisibilityTest(Case):
                     can_run = expected and user in READS_ACCOUNT
                     self.assertEqual(200 if can_run else 403, run(client, rid)[0], "run")
 
+    def test_the_sharing_lists_change_only_through_the_report(self):
+        """Link and unlink of the sharing relations bypass the save checks (a shared report with an empty list), so they
+        are closed from both sides, for administrators too (external review W2, 2026-10-04)."""
+        w = W()
+        rid = account_report("links", accessType="shared", sharedUsersIds=[w.uid["listed"]])
+        listed = w.uid["listed"]
+        self.assertEqual(403, w.admin.request("DELETE", f"Report/{rid}/sharedUsers", {"id": listed})[0])
+        self.assertEqual(403, w.admin.post(f"Report/{rid}/sharedTeams", {"id": S["team"]})[0])
+        self.assertEqual(403, w.admin.post(f"User/{w.uid['dir2']}/cSharedReports", {"id": rid})[0])
+        self.assertEqual(403, w.admin.post(f"Team/{S['team']}/cSharedReports", {"id": rid})[0])
+        self.assertEqual([listed], self.ok(w.admin.get(f"Report/{rid}"))["sharedUsersIds"])
+        # The report itself still changes its lists.
+        self.ok(w.client("owner").put(f"Report/{rid}", {"sharedUsersIds": [w.uid["dir2"]]}))
+        self.assertEqual([w.uid["dir2"]], self.ok(w.admin.get(f"Report/{rid}"))["sharedUsersIds"])
+
     def test_lists_of_a_report_count_only_while_it_is_shared(self):
         w = W()
         rid = account_report("switch", accessType="shared", sharedUsersIds=[w.uid["listed"]])
