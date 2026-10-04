@@ -173,6 +173,49 @@ class StatusTest(Case):
         self.assertEqual(["m4", "m3", "m2", "m1"], [r["id"] for r in saved["rows"]])
 
 
+class ReaderTest(Case):
+    """What readers who did not write a set see of it (external review, round 1)."""
+
+    @classmethod
+    def setUpClass(cls):
+        no_invoices = W().role("no invoices", {"ReportMetricSet": {"create": "no", "read": "all", "edit": "no",
+                                                                    "delete": "no"}})
+        W().user("noinv", role_ids=[no_invoices])
+        no_sets = W().role("no sets", {"Invoice": {"create": "no", "read": "all", "edit": "no", "delete": "no"},
+                                       "ReportMetricSet": {"create": "no", "read": "no", "edit": "no", "delete": "no"}})
+        W().user("nosets", role_ids=[no_sets])
+
+    def test_copied_conditions_are_shown_to_the_author_only(self):
+        where = [{"type": "startsWith", "attribute": "name", "value": W().tag},
+                 {"type": "equals", "attribute": "grandTotal", "value": "1234.56"}]
+        metric = self.make_set("readers", [preset_row("secret", where)])
+
+        def filter_row(by):
+            rows = self.ok(W().client(by).get(f"ReportMetricSet/{metric['id']}"))["rows"]
+            return next(r for r in rows if r["label"] == "secret")
+
+        self.assertEqual(where, filter_row("dir")["where"])
+        self.assertEqual(([], "мой фильтр"), (filter_row("dir2")["where"], filter_row("dir2")["filter"]["name"]))
+        self.assertEqual(([], None), (filter_row("noinv")["where"], filter_row("noinv")["filter"]["name"]))
+        listed = self.ok(W().client("noinv").get("ReportMetricSet", select="id,rows", maxSize=200))["list"]
+        self.assertTrue(all(r["where"] == [] for item in listed for r in item["rows"] if r["source"] == "filter"))
+
+        closed = self.values(metric["id"], by="noinv")["secret"]
+        self.assertEqual(("forbidden", None, [], None),
+                         (closed["status"], closed["value"], closed["where"], closed["filter"]["name"]))
+        # A reader who can build the source gets the conditions counted (for the drill-down).
+        self.assertEqual(where[0]["value"], self.values(metric["id"], by="dir2")["secret"]["where"][0]["value"])
+
+    def test_usage_mark_counts_only_readable_sets(self):
+        used = W().report("dir", "used by a set", type="tabular", entityType="Invoice", columns=["name"],
+                          accessType="public")
+        self.make_set("usage readers", [report_row("count", used["id"])])
+        params = {"where[0][type]": "equals", "where[0][attribute]": "id", "where[0][value]": used["id"]}
+        for by, expected in (("dir", True), ("nosets", False)):
+            status, payload, _ = W().client(by).get("Report", select="id,usedInMetrics", **params)
+            self.assertEqual((200, expected), (status, bool(payload["list"][0].get("usedInMetrics"))), by)
+
+
 class SaveTest(Case):
     def test_sources_are_checked_for_the_saving_user(self):
         summaries_report = W().report("dir", "summaries", type="summaries", entityType="Invoice",

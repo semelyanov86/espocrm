@@ -99,11 +99,32 @@ final class MetricSources
             $data = $row->toArray();
 
             if ($row->source === MetricRow::SOURCE_FILTER) {
-                $data['where'] = $this->filterQuery->forUser($row->where, $viewer);
+                // Conditions of a closed source are not shown: they may name values of closed fields or entities.
+                $data = $status === self::STATUS_OK ?
+                    ['where' => $this->filterQuery->forUser($row->where, $viewer)] + $data :
+                    $this->withoutConditions($data, $viewer);
             }
 
             return $data + ['status' => $status, 'value' => $value];
         }, $rows);
+    }
+
+    /**
+     * A filter row as a user who did not write the set sees it (D-111): without the copied conditions; the name of the
+     * filter only when the user may read the entity.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    public function withoutConditions(array $data, User $user): array
+    {
+        $data['where'] = [];
+
+        if (!$this->aclManager->checkScope($user, (string) $data['entityType'], 'read')) {
+            $data['filter']['name'] = null;
+        }
+
+        return $data;
     }
 
     /**

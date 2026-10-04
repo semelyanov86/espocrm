@@ -10,6 +10,7 @@ use Espo\Core\Utils\Config\ConfigWriter;
 use Espo\Core\Utils\Json;
 use Espo\Entities\DashboardTemplate;
 use Espo\Entities\Preferences;
+use Espo\Modules\Itvolga\Tools\FinanceDocument\RowLock;
 use Espo\Modules\Itvolga\Tools\Report\Core\Dashboard\DashboardPruner;
 use Espo\ORM\EntityManager;
 use Espo\ORM\Query\SelectBuilder;
@@ -18,8 +19,9 @@ use stdClass;
 
 /**
  * Removes the dashlets of a deleted key-metrics set from every dashboard (D-113): the users' preferences (rows whose
- * JSON mentions the set are changed under a lock of the row), the dashboard templates of the administrator and the default dashboard of the
- * settings. Other dashlets and options stay as they are.
+ * JSON mentions the set are changed under a lock of the row), the dashboard templates of the administrator (each under a
+ * lock of its row) and the default dashboard of the settings (a file: two deletions at the same moment may race there,
+ * a dashlet left over shows that its set is deleted). Other dashlets and options stay as they are.
  */
 final class DashletRemover
 {
@@ -30,6 +32,7 @@ final class DashletRemover
         private readonly EntityManager $entityManager,
         private readonly Config $config,
         private readonly ConfigWriter $configWriter,
+        private readonly RowLock $rowLock,
     ) {}
 
     /**
@@ -54,16 +57,14 @@ final class DashletRemover
             }
         }
 
-        foreach ($this->entityManager->getRDBRepository(DashboardTemplate::ENTITY_TYPE)->find() as $template) {
-            $result = DashboardPruner::prune(self::decode($template->get('layout')),
-                self::decode($template->get('dashletsOptions')), $isTarget);
+        $query = SelectBuilder::create()
+            ->from(DashboardTemplate::ENTITY_TYPE)
+            ->select(['id'])
+            ->build();
 
-            if ($result) {
-                $template->set(['layout' => self::encode($result[0]),
-                    'dashletsOptions' => self::encodeObject($result[1])]);
-                $this->entityManager->saveEntity($template);
-                $removed += count($result[2]);
-            }
+        foreach ($this->entityManager->getQueryExecutor()->execute($query)->fetchAll(PDO::FETCH_COLUMN) as $id) {
+            $removed += $this->entityManager->getTransactionManager()->run(fn () =>
+                $this->pruneTemplate((string) $id, $isTarget));
         }
 
         $result = DashboardPruner::prune(self::decode($this->config->get('dashboardLayout')),
@@ -77,6 +78,27 @@ final class DashletRemover
         }
 
         return $removed;
+    }
+
+    /**
+     * A dashboard template, read under a lock of its row (a save of the template or another cleanup waits).
+     *
+     * @param Closure(string, array<string, mixed>): bool $isTarget
+     */
+    private function pruneTemplate(string $id, Closure $isTarget): int
+    {
+        $template = $this->rowLock->one(DashboardTemplate::ENTITY_TYPE, $id);
+        $result = $template ? DashboardPruner::prune(self::decode($template->get('layout')),
+            self::decode($template->get('dashletsOptions')), $isTarget) : null;
+
+        if (!$template || !$result) {
+            return 0;
+        }
+
+        $template->set(['layout' => self::encode($result[0]), 'dashletsOptions' => self::encodeObject($result[1])]);
+        $this->entityManager->saveEntity($template);
+
+        return count($result[2]);
     }
 
     /**

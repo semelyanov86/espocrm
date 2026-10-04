@@ -137,6 +137,15 @@ define('itvolga:views/report/chart', ['view', 'lib!flotr2', 'lib!espo-funnel-cha
             (this.graphs || []).forEach(graph => graph.destroy());
             this.graphs = [];
             this.afterPointer = null;
+
+            // EspoFunnel keeps its tooltip in the document body until the mouse leaves a step.
+            const tooltip = this.funnel && this.funnel.tooltipElement;
+
+            if (tooltip && tooltip.parentNode) {
+                tooltip.parentNode.removeChild(tooltip);
+            }
+
+            this.funnel = null;
         }
 
         /** A click on the graph opens the records of the group under the mouse. */
@@ -501,7 +510,7 @@ define('itvolga:views/report/chart', ['view', 'lib!flotr2', 'lib!espo-funnel-cha
 
             const colors = steps.map((s, i) => this.colors[i % this.colors.length]);
 
-            new window.EspoFunnel.Funnel(this.box, {
+            this.funnel = new window.EspoFunnel.Funnel(this.box, {
                 colors: colors,
                 outlineColor: this.hoverColor,
                 callbacks: {

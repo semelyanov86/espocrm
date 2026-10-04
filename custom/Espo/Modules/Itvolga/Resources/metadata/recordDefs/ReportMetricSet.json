@@ -21,5 +21,13 @@
             "disabled": true
         }
     },
-    "exportDisabled": true
+    "exportDisabled": true,
+    "readLoaderClassNameList": [
+        "__APPEND__",
+        "Espo\\Modules\\Itvolga\\Classes\\FieldProcessing\\ReportMetricSet\\RowsLoader"
+    ],
+    "listLoaderClassNameList": [
+        "__APPEND__",
+        "Espo\\Modules\\Itvolga\\Classes\\FieldProcessing\\ReportMetricSet\\RowsLoader"
+    ]
 }
