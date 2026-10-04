@@ -10,6 +10,7 @@ use Espo\Core\Utils\Config\ConfigWriter;
 use Espo\Core\Utils\Json;
 use Espo\Entities\DashboardTemplate;
 use Espo\Entities\Preferences;
+use Espo\Modules\Itvolga\Entities\ReportFolder;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\RowLock;
 use Espo\Modules\Itvolga\Tools\Report\Core\Dashboard\DashboardPruner;
 use Espo\ORM\EntityManager;
@@ -20,8 +21,8 @@ use stdClass;
 /**
  * Removes the dashlets of a deleted key-metrics set from every dashboard (D-113): the users' preferences (rows whose
  * JSON mentions the set are changed under a lock of the row), the dashboard templates of the administrator (each under a
- * lock of its row) and the default dashboard of the settings (a file: two deletions at the same moment may race there,
- * a dashlet left over shows that its set is deleted). Other dashlets and options stay as they are.
+ * lock of its row) and the default dashboard of the settings (read again under the lock of the system report folder).
+ * Other dashlets and options stay as they are.
  */
 final class DashletRemover
 {
@@ -67,16 +68,31 @@ final class DashletRemover
                 $this->pruneTemplate((string) $id, $isTarget));
         }
 
+        return $removed + $this->entityManager->getTransactionManager()->run(fn () => $this->pruneSettings($isTarget));
+    }
+
+    /**
+     * The default dashboard of the settings (a file): read again and written under the lock of the system report folder
+     * row, so two cleanups do not write back each other's old copy (the folder guard orders its name checks on it too).
+     *
+     * @param Closure(string, array<string, mixed>): bool $isTarget
+     */
+    private function pruneSettings(Closure $isTarget): int
+    {
+        $this->rowLock->query(ReportFolder::ENTITY_TYPE)->where(['isSystem' => true])->findOne();
+        $this->config->update();
         $result = DashboardPruner::prune(self::decode($this->config->get('dashboardLayout')),
             self::decode($this->config->get('dashletsOptions')), $isTarget);
 
-        if ($result) {
-            $this->configWriter->set('dashboardLayout', self::encode($result[0]));
-            $this->configWriter->set('dashletsOptions', self::encodeObject($result[1]));
-            $this->configWriter->save();
-            $removed += count($result[2]);
+        if ($result === null) {
+            return 0;
         }
 
+        $this->configWriter->set('dashboardLayout', self::encode($result[0]));
+        $this->configWriter->set('dashletsOptions', self::encodeObject($result[1]));
+        $this->configWriter->save();
+
+        return count($result[2]);
         return $removed;
     }
 

@@ -295,6 +295,20 @@ define('itvolga:views/report/chart', ['view', 'lib!flotr2', 'lib!espo-funnel-cha
             return list;
         }
 
+        /**
+         * Labels of the slices of one pie: Flotr2 asks for them slice by slice in the order of the series and gives
+         * only floats (equal for distinct large decimals), so the exact text is taken by position.
+         */
+        sliceLabels(slices) {
+            let index = 0;
+
+            return (sum, value) => {
+                const slice = slices[index++];
+
+                return !slice || 100 * value / sum < 5 ? '' : this.pieLabel(slice);
+            };
+        }
+
         pieLabel(slice) {
             if (this.item.type === 'piePercent') {
                 return slice.point.share ? slice.point.share.f : '';
@@ -306,7 +320,6 @@ define('itvolga:views/report/chart', ['view', 'lib!flotr2', 'lib!espo-funnel-cha
         drawPie() {
             const points = this.item.series[0].points;
             const slices = this.slices(points, i => this.chart.categories[i].key.f);
-            const total = slices.reduce((sum, s) => sum + s.value, 0);
 
             if (!slices.length) {
                 this.message(this.translate('No data', 'labels', 'Report'));
@@ -322,11 +335,7 @@ define('itvolga:views/report/chart', ['view', 'lib!flotr2', 'lib!espo-funnel-cha
                 shadowSize: false,
                 HtmlText: false,
                 pie: {show: true, explode: 0, lineWidth: 1, fillOpacity: 1, sizeRatio: PIE_RATIO,
-                    labelFormatter: (sum, value) => {
-                        const slice = slices.find(s => s.value === value);
-
-                        return 100 * value / total < 5 || !slice ? '' : this.pieLabel(slice);
-                    }},
+                    labelFormatter: this.sliceLabels(slices)},
                 grid: {horizontalLines: false, verticalLines: false, outline: ''},
                 xaxis: {showLabels: false},
                 yaxis: {showLabels: false},
@@ -387,11 +396,7 @@ define('itvolga:views/report/chart', ['view', 'lib!flotr2', 'lib!espo-funnel-cha
                 shadowSize: false,
                 HtmlText: false,
                 pie: {show: true, explode: 0, lineWidth: 1, fillOpacity: 1, sizeRatio: ratio, startAngle: 0,
-                    labelFormatter: (sum, value) => {
-                        const slice = slices.find(s => s.value === value);
-
-                        return !labels || !slice || 100 * value / sum < 5 ? '' : this.pieLabel(slice);
-                    }},
+                    labelFormatter: labels ? this.sliceLabels(slices) : () => ''},
                 grid: {horizontalLines: false, verticalLines: false, outline: ''},
                 xaxis: {showLabels: false},
                 yaxis: {showLabels: false},

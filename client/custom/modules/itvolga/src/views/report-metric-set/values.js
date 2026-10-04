@@ -86,13 +86,15 @@ define('itvolga:views/report-metric-set/values', ['view'], (View) => {
 
                 if (row.source === 'report') {
                     link.href = '#Report/view/' + encodeURIComponent(row.reportId);
-                } else {
+                } else if (row.status === 'ok') {
                     link.setAttribute('role', 'button');
                     link.dataset.action = 'openFilter';
                     link.dataset.index = String(i);
                 }
 
-                labelCell.appendChild(link);
+                // A filter the viewer cannot build has no conditions here: no link to a list without them.
+                labelCell.appendChild(row.source === 'filter' && row.status !== 'ok' ?
+                    document.createTextNode(row.label) : link);
                 const valueCell = document.createElement('td');
                 valueCell.className = 'text-right';
                 valueCell.dataset.role = 'value';
@@ -119,7 +121,7 @@ define('itvolga:views/report-metric-set/values', ['view'], (View) => {
         openFilter(index) {
             const row = (this.rows || [])[index];
 
-            if (!row || row.source !== 'filter') {
+            if (!row || row.source !== 'filter' || row.status !== 'ok') {
                 return;
             }
 

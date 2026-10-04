@@ -138,13 +138,8 @@ define('itvolga:views/report-metric-set/fields/rows', ['itvolga:views/report/fie
                 this.listenToOnce(view, 'select', async model => {
                     const selected = Array.isArray(model) ? model[0] : model;
                     await this.loadReport(selected.id);
-                    const row = this.state[index];
-                    Object.assign(row, {reportId: selected.id, function: 'COUNT', column: null});
-
-                    if (!row.label) {
-                        row.label = this.reports[selected.id].name || selected.get('name');
-                    }
-
+                    // The label is the author's own: every reader of the set sees it, the report may be private.
+                    Object.assign(this.state[index], {reportId: selected.id, function: 'COUNT', column: null});
                     this.commit();
                 });
             });
