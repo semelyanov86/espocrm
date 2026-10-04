@@ -131,9 +131,12 @@ final class DefinitionParser
                 throw new DefinitionError('badQuickFilter', $path);
             }
 
+            // A JSON true/false only for a flag: elsewhere it would compare as 1/0, not as the chosen text.
+            $isFlag = $field->family() === FieldInfo::FAMILY_BOOL;
+
             foreach ($values as $value) {
                 if (!(is_string($value) && mb_strlen($value) <= WhereRules::MAX_TEXT || is_int($value) ||
-                    is_bool($value))) {
+                    is_bool($value) && $isFlag)) {
                     throw new DefinitionError('badQuickFilter', $path);
                 }
             }

@@ -34,6 +34,8 @@ define('itvolga:views/report/fields/base', ['views/fields/base', 'itvolga:report
             this.dependsOn.forEach(attribute => {
                 this.listenTo(this.model, 'change:' + attribute, () => {
                     if (this.isRendered()) {
+                        // Rows dropped here are re-rendered below: until then the inputs are stale (see commit()).
+                        this.domStale = true;
                         this.onDependencyChange(attribute);
                         this.reRender();
                     }
@@ -68,7 +70,8 @@ define('itvolga:views/report/fields/base', ['views/fields/base', 'itvolga:report
         commit(reRender = true) {
             // A row added or removed leaves the inputs stale until the re-render: the form calls fetch() on 'change'
             // at once, and reading the old inputs by their old indexes would overwrite the next row.
-            this.domStale = reRender;
+            // Only set here, cleared by afterRender: a dependency change may have set it already.
+            this.domStale = this.domStale || reRender;
             this.trigger('change');
 
             if (reRender) {

@@ -268,6 +268,15 @@ final class DefinitionParserTest extends TestCase
         $badRun(['maxSize' => 1000]);
         $badRun(['offset' => -1]);
         $badRun(['quickFilters' => [['field' => 'status', 'values' => [['nested']]]]]);
+        // A JSON boolean only for a flag; the text "false" of a text field stays a text (external review W1).
+        $badRun(['quickFilters' => [['field' => 'status', 'values' => [false]]]]);
+        [, $text] = $this->parser->parseRun($definition,
+            ['quickFilters' => [['field' => 'status', 'values' => ['false']]]]);
+        $this->assertSame(['false'], $text->quickFilters[0]->values);
+        $flags = $this->parser->parse(self::tabular(['quickFilters' => ['paid']]));
+        [, $flag] = $this->parser->parseRun($flags,
+            ['quickFilters' => [['field' => 'paid', 'values' => [true, 'false']]]]);
+        $this->assertSame([true, 'false'], $flag->quickFilters[0]->values);
         $this->assertThrows(FieldForbidden::class, fn () => $this->parser->parseRun($definition, ['filters' => [
             'type' => 'and', 'items' => [['field' => 'secretNote', 'where' => ['type' => 'isNull',
                 'attribute' => 'secretNote']]]]]));

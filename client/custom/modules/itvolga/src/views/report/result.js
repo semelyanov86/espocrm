@@ -117,7 +117,9 @@ define('itvolga:views/report/result', ['view', 'ui/multi-select'], (View, MultiS
             };
 
             if (conditions && conditions.isRendered()) {
-                body.filters = conditions.fetch().filters;
+                // A copy: the editor keeps its condition objects and may change them before the drill-down of this
+                // result, which must use the conditions the result was made with.
+                body.filters = JSON.parse(JSON.stringify(conditions.fetch().filters));
             }
 
             const generation = ++this.generation;
@@ -575,10 +577,10 @@ define('itvolga:views/report/result', ['view', 'ui/multi-select'], (View, MultiS
 
                 MultiSelect.init(input, {items: items, delimiter: ':,:', values: kept.map(String)});
 
+                // Values stay strings: a text "false" is a text, the server reads 'true'/'false' of a flag itself.
                 const update = () => {
                     const values = input.value ? input.value.split(':,:') : [];
-                    this.quick[filter.field] = {mode: mode.value, values: values.map(v => v === 'true' ? true :
-                        (v === 'false' ? false : v))};
+                    this.quick[filter.field] = {mode: mode.value, values: values};
                 };
 
                 // Selectize reports a change through jQuery only; a native listener would never hear it.

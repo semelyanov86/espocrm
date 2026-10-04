@@ -446,10 +446,11 @@ define('itvolga:views/report/fields/filters', ['itvolga:views/report/fields/base
                             return null;
                         }
 
-                        const result = {field: item.field, where: item.where};
+                        // Copies: the editor changes its condition objects in place (date comparison).
+                        const result = {field: item.field, where: JSON.parse(JSON.stringify(item.where))};
 
                         if (item.advanced) {
-                            result.advanced = item.advanced;
+                            result.advanced = JSON.parse(JSON.stringify(item.advanced));
                         }
 
                         return result;
