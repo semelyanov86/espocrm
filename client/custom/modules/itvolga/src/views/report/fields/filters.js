@@ -301,10 +301,18 @@ define('itvolga:views/report/fields/filters', ['itvolga:views/report/fields/base
             const value = where.value;
             const result = {type: type, value: value, data: {type: type}};
             const isEnum = field && field.family === 'enum';
+            const isLink = field && field.family === 'link';
 
             if (isEnum && (type === 'equals' || type === 'notEquals')) {
                 // The enum search view knows lists only: one value is a list of one.
                 result.data = {type: type === 'equals' ? 'anyOf' : 'noneOf', valueList: [value]};
+            } else if (isLink && (type === 'in' || type === 'notIn')) {
+                // The link search view has its own operators; names are not stored, ids stand in for them.
+                const ids = Array.isArray(value) ? value : [];
+                result.data = {type: type === 'in' ? 'isOneOf' : 'isNotOneOf', oneOfIdList: ids,
+                    oneOfNameHash: Object.fromEntries(ids.map(id => [id, id]))};
+            } else if (isLink && type === 'notEquals') {
+                result.data = {type: 'isNot', idValue: value, nameValue: value};
             } else if (type === 'in' || type === 'notIn') {
                 result.data = {type: type === 'in' ? 'anyOf' : 'noneOf', valueList: value,
                     oneOfIdList: value, oneOfNameHash: {}};

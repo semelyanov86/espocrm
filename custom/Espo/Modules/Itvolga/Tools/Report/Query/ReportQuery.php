@@ -203,6 +203,10 @@ final class ReportQuery
                 'type' => $this->attribute($field, $name . 'Type')],
             'currency' => ['value' => $this->attribute($field, $name),
                 'currency' => $this->attribute($field, $name . 'Currency')],
+            // A date-only value keeps its calendar date apart; the moment column holds the start of the day or, for
+            // an end, of the next one in the system time zone (external review B14).
+            'datetimeOptional' => ['value' => $this->attribute($field, $name),
+                'date' => $this->attribute($field, $name . 'Date')],
             default => ['value' => $this->attribute($field, $name)],
         };
     }
@@ -213,7 +217,8 @@ final class ReportQuery
      */
     public function groupExpression(GroupLevel $group): string
     {
-        $value = $this->valueExpressions($group->field)['value'];
+        $values = $this->valueExpressions($group->field);
+        $value = $values['value'];
 
         if ($group->granularity === null) {
             // A text '' and NULL are one empty group, as in drill-down and quick filters.
@@ -223,6 +228,10 @@ final class ReportQuery
 
         if ($group->field->family() === FieldInfo::FAMILY_DATETIME) {
             $value = "TZ:($value, {$this->context->offsetHours()})";
+
+            if (isset($values['date'])) {
+                $value = "IF:(IS_NOT_NULL:({$values['date']}), {$values['date']}, $value)";
+            }
         }
 
         return match ($group->granularity) {

@@ -437,6 +437,27 @@ class EmptyNumberGroupTest(Case):
         self.assertEqual((200, {zero}), drill_down(client, "Product", report["id"], [zero_key]))
 
 
+class OptionalDateTimeTest(Case):
+    """A task due 2026-10-04 without a time stores the next midnight of the system time zone as the moment: the report
+    shows and groups its calendar date, as core lists do (external review B14, 2026-10-04)."""
+
+    def test_a_date_only_value_keeps_its_day(self):
+        w = W()
+        w.create("Task", {"name": f"{w.tag} due date", "dateEndDate": "2026-10-04", "status": "Not Started",
+                          "assignedUserId": w.uid["dir"]}, by="dir")
+        filters = all_of(cond("name", "equals", f"{w.tag} due date"))
+        groups = w.report("dir", "due groups", type="summaries", entityType="Task",
+                          groups=[{"field": "dateEnd", "granularity": "day"}], aggregates=[{"function": "COUNT"}],
+                          filters=filters)
+        self.assertEqual(["2026-10-04"], [n["key"]["v"] for n in self.run_ok(groups["id"])["tree"]])
+        months = w.report("dir", "due months", type="summaries", entityType="Task",
+                          groups=[{"field": "dateEnd", "granularity": "month"}], aggregates=[{"function": "COUNT"}],
+                          filters=filters)
+        self.assertEqual(["2026-10"], [n["key"]["v"] for n in self.run_ok(months["id"])["tree"]])
+        table = w.report("dir", "due table", entityType="Task", columns=["name", "dateEnd"], filters=filters)
+        self.assertEqual("2026-10-04", self.run_ok(table["id"])["rows"][0]["cells"][1]["v"])
+
+
 class MatrixCapTest(Case):
     """With the run cap at 4 rows, the 3 × 2 matrix of MatrixTest shows 2 rows: every shown cell is there, and the
     columns and the grand total are those of the shown rows (review finding of 2026-10-04: cells beyond the cap were

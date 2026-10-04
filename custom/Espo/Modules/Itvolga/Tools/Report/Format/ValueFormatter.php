@@ -113,6 +113,11 @@ final class ValueFormatter
                 return ['v' => (string) $value, 'f' => $this->date((string) $value)];
 
             case FieldInfo::FAMILY_DATETIME:
+                // A date-only value of an optional date-time shows its calendar date, as core lists do.
+                if (is_string($raw['date'] ?? null) && $raw['date'] !== '') {
+                    return ['v' => $raw['date'], 'f' => $this->date($raw['date'])];
+                }
+
                 return ['v' => (string) $value, 'f' => $this->dateTime((string) $value)];
 
             case FieldInfo::FAMILY_LINK:

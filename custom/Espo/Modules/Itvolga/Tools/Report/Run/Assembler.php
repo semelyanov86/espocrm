@@ -95,7 +95,7 @@ final class Assembler
     private static function readField(array $row, string $prefix): array
     {
         return ['value' => $row[$prefix . 'v'] ?? null, 'currency' => $row[$prefix . 'c'] ?? null,
-            'type' => $row[$prefix . 't'] ?? null];
+            'type' => $row[$prefix . 't'] ?? null, 'date' => $row[$prefix . 'd'] ?? null];
     }
 
     /**
