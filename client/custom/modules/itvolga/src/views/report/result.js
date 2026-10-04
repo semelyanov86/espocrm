@@ -44,7 +44,8 @@ define('itvolga:views/report/result', ['view', 'ui/multi-select'], (View, MultiS
             this.maxSize = 50;
             this.generation = 0;
             this.quick = {};
-            this.quickTexts = {};
+            // Dictionaries without a prototype: a value such as '__proto__' is a plain key.
+            this.quickTexts = Object.create(null);
             this.conditionsModel = this.model.clone();
 
             this.addActionHandler('run', () => this.run(true));
@@ -568,8 +569,8 @@ define('itvolga:views/report/result', ['view', 'ui/multi-select'], (View, MultiS
                 // reads 'true'/'false' of a flag itself.
                 // A chosen value the new conditions no longer produce stays chosen (with its last text): the shown
                 // selection is the one the result was made with.
-                const texts = this.quickTexts[filter.field] = this.quickTexts[filter.field] || {};
-                const values = {};
+                const texts = this.quickTexts[filter.field] = this.quickTexts[filter.field] || Object.create(null);
+                const values = Object.create(null);
                 const items = filter.options.map((option, i) => {
                     const id = option.empty ? 'e' : 'v' + i;
 

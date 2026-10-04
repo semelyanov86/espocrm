@@ -279,7 +279,7 @@ define('itvolga:views/report/fields/filters', ['itvolga:views/report/fields/base
                     selector: `[data-condition="${node.$id}"]`,
                     model: model,
                     name: field.field,
-                    params: node.advanced || (node.where ? this.advancedFromWhere(node.where) : undefined),
+                    params: node.advanced || (node.where ? this.advancedFromWhere(node.where, field) : undefined),
                     viewName: this.viewNameFor(field) || undefined,
                 }, view => {
                     view.render();
@@ -296,12 +296,16 @@ define('itvolga:views/report/fields/filters', ['itvolga:views/report/fields/base
          * UI state of a stored condition without one (a seeded condition): the search state the core field views read
          * for the common shapes; anything else starts empty in the view and stays stored until the user changes it.
          */
-        advancedFromWhere(where) {
+        advancedFromWhere(where, field) {
             const type = where.type;
             const value = where.value;
             const result = {type: type, value: value, data: {type: type}};
+            const isEnum = field && field.family === 'enum';
 
-            if (type === 'in' || type === 'notIn') {
+            if (isEnum && (type === 'equals' || type === 'notEquals')) {
+                // The enum search view knows lists only: one value is a list of one.
+                result.data = {type: type === 'equals' ? 'anyOf' : 'noneOf', valueList: [value]};
+            } else if (type === 'in' || type === 'notIn') {
                 result.data = {type: type === 'in' ? 'anyOf' : 'noneOf', valueList: value,
                     oneOfIdList: value, oneOfNameHash: {}};
             } else if (type === 'equals' && /Id$/.test(where.attribute || '')) {

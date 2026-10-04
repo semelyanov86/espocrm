@@ -57,6 +57,8 @@ class Definition implements BeforeSave
                     throw self::badRequest('readOnlyAfterCreate', ['field' => $attribute]);
                 }
             }
+
+            $this->takeCommitted($entity);
         }
 
         $this->checkOwner($entity);
@@ -99,19 +101,29 @@ class Definition implements BeforeSave
         }
     }
 
-    private function checkAccess(CoreEntity $entity): void
+    /**
+     * Saves of one report wait for each other (a lock of its row in the save transaction), and what this save does not
+     * change — definition parts, the access type — is taken from the row as committed now, so the checks below see
+     * the report that will be stored: two partial saves cannot together store sorting by a removed column (external
+     * review B12) or a shared report without anybody (W5; the sharing lists are read in checkAccess).
+     */
+    private function takeCommitted(CoreEntity $entity): void
     {
-        if (!$entity->isNew()) {
-            // Saves of one report wait for each other, and what this save does not change — the access type, a
-            // sharing list — is taken as committed now: concurrent saves cannot leave a shared report without
-            // anybody (external review W5).
-            $current = $this->rowLock->one(Report::ENTITY_TYPE, $entity->getId());
+        $current = $this->rowLock->one(Report::ENTITY_TYPE, $entity->getId());
 
-            if ($current && !$entity->isAttributeChanged('accessType')) {
-                $entity->set('accessType', $current->get('accessType'));
-            }
+        if (!$current) {
+            return;
         }
 
+        foreach ([...Report::DEFINITION_ATTRIBUTES, 'accessType'] as $attribute) {
+            if (!$entity->isAttributeChanged($attribute)) {
+                $entity->set($attribute, $current->get($attribute));
+            }
+        }
+    }
+
+    private function checkAccess(CoreEntity $entity): void
+    {
         $accessType = $entity->get('accessType') ?: Report::ACCESS_PRIVATE;
         $entity->set('accessType', $accessType);
         $lists = [
