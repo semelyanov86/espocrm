@@ -810,6 +810,13 @@ final class Assembler
 
         foreach ($this->query->definition->quickFilters as $field) {
             $expression = $this->query->valueExpressions($field)['value'];
+
+            // A text that the column collation finds equal to '' (spaces, a no-break space) is the empty item, as
+            // the quick filter compares it.
+            if (in_array($field->family(), [FieldInfo::FAMILY_TEXT, FieldInfo::FAMILY_ENUM], true)) {
+                $expression = "NULLIF:($expression, '')";
+            }
+
             $rows = $this->fetch($this->query->base([])
                 ->select([[$expression, 'v']])
                 ->group([$expression])

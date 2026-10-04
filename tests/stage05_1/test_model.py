@@ -56,6 +56,32 @@ class Case(unittest.TestCase):
 
 
 class FolderTest(Case):
+    def test_deleted_folders_are_not_restored(self):
+        """The row a removed standard folder leaves is not restored past the name check (external review B9)."""
+        w = W()
+        fid = folder("tombstone")
+        sql(f"UPDATE report_folder SET seed_key='{w.tag}-tomb' WHERE id='{fid}'")
+        try:
+            self.ok(w.admin.delete(f"ReportFolder/{fid}"))
+            w.forget("ReportFolder", fid)
+            self.assertEqual([["1"]], sql(f"SELECT deleted FROM report_folder WHERE id='{fid}'"))
+            self.refused(w.admin.post("ReportFolder/action/restoreDeleted", {"id": fid}), 403, "folderRestoreDisabled")
+            self.assertEqual([["1"]], sql(f"SELECT deleted FROM report_folder WHERE id='{fid}'"))
+        finally:
+            sql(f"DELETE FROM report_folder WHERE id='{fid}' AND deleted=1")
+
+    def test_a_restored_report_of_a_removed_folder_goes_to_general(self):
+        """Delete a report, then its emptied folder, then restore the report: it lands in «Общие» (review W7)."""
+        w = W()
+        fid = folder("gone")
+        report = w.report("dir", "restored", entityType="Account", columns=["name"], folderId=fid)
+        self.ok(w.client("dir").delete(f"Report/{report['id']}"))
+        self.ok(w.client("dir").delete(f"ReportFolder/{fid}"))
+        w.forget("ReportFolder", fid)
+        self.ok(w.admin.post("Report/action/restoreDeleted", {"id": report["id"]}))
+        general = sql("SELECT id FROM report_folder WHERE is_system=1 AND deleted=0")[0][0]
+        self.assertEqual(general, self.ok(w.admin.get(f"Report/{report['id']}"))["folderId"])
+
     def test_the_system_folder_is_never_deleted(self):
         self.refused(W().admin.delete(f"ReportFolder/{S['general']}"), 403, "folderSystem")
         self.assertEqual([["0", "1"]], sql(f"SELECT deleted, is_system FROM report_folder WHERE id='{S['general']}'"))

@@ -482,10 +482,28 @@ final class DefinitionParser
         }
 
         $result = [];
+        // Ids stay with their calculation (labels refer to them): a valid unique "k<n>" is kept, others get a free one.
+        $ids = [];
+
+        foreach ($list as $i => $item) {
+            $given = is_array($item) ? ($item['id'] ?? null) : null;
+
+            if (is_string($given) && preg_match('/^k[1-9]\d{0,2}$/', $given) && !in_array($given, $ids, true)) {
+                $ids[$i] = $given;
+            }
+        }
+
+        foreach (array_keys($list) as $i) {
+            for ($n = 1; !isset($ids[$i]); $n++) {
+                if (!in_array('k' . $n, $ids, true)) {
+                    $ids[$i] = 'k' . $n;
+                }
+            }
+        }
 
         foreach ($list as $i => $item) {
             $path = "calculations[$i]";
-            $id = 'k' . ($i + 1);
+            $id = $ids[$i];
             $label = is_array($item) ? trim((string) ($item['label'] ?? '')) : '';
 
             if ($label === '' || mb_strlen($label) > self::MAX_LABEL_LENGTH) {

@@ -38,8 +38,8 @@ define('itvolga:views/report/fields/labels', ['itvolga:views/report/fields/base'
             }
 
             if (type === 'tabular') {
-                (this.model.get('calculations') || []).forEach((c, i) => result.push({key: 'k:k' + (i + 1),
-                    standard: c.label || ('k' + (i + 1))}));
+                (this.model.get('calculations') || []).forEach((c, i) => result.push({
+                    key: 'k:' + (c.id || 'k' + (i + 1)), standard: c.label || ('k' + (i + 1))}));
             }
 
             return result;

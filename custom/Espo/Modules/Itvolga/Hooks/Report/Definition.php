@@ -20,7 +20,9 @@ use Espo\Modules\Itvolga\Tools\Report\Schema\SchemaFactory;
 use Espo\ORM\Entity;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\RowLock;
 use Espo\ORM\EntityManager;
+use Espo\ORM\Query\SelectBuilder;
 use Espo\ORM\Repository\Option\SaveOptions;
+use PDO;
 
 /**
  * Every save of a report — API, console, seed, mass update (D-101), also one that changes no definition part: the
@@ -113,14 +115,40 @@ class Definition implements BeforeSave
             return;
         }
 
-        $users = $entity->has('sharedUsersIds') || $entity->isNew() ? ($entity->get('sharedUsersIds') ?? []) :
-            $entity->getLinkMultipleIdList('sharedUsers');
-        $teams = $entity->has('sharedTeamsIds') || $entity->isNew() ? ($entity->get('sharedTeamsIds') ?? []) :
-            $entity->getLinkMultipleIdList('sharedTeams');
+        if (!$entity->isNew()) {
+            // Saves of one report wait for each other; a list this save does not change is read as committed now,
+            // so two saves emptying one list each cannot leave a shared report without anybody (external review W5).
+            $this->rowLock->one(Report::ENTITY_TYPE, $entity->getId());
+        }
+
+        $users = $entity->isNew() || $entity->isAttributeChanged('sharedUsersIds') ?
+            ($entity->get('sharedUsersIds') ?? []) :
+            $this->committedIds('ReportSharedUser', 'userId', $entity->getId());
+        $teams = $entity->isNew() || $entity->isAttributeChanged('sharedTeamsIds') ?
+            ($entity->get('sharedTeamsIds') ?? []) :
+            $this->committedIds('ReportSharedTeam', 'teamId', $entity->getId());
 
         if ($users === [] && $teams === []) {
             throw self::badRequest('sharedNeedsList', []);
         }
+    }
+
+    /**
+     * Ids of a sharing list as committed now (a locking read of the relation table).
+     *
+     * @return list<string>
+     */
+    private function committedIds(string $relation, string $column, string $reportId): array
+    {
+        $query = SelectBuilder::create()
+            ->from($relation)
+            ->select([$column])
+            ->where(['reportId' => $reportId])
+            ->forUpdate()
+            ->build();
+
+        return array_map('strval',
+            $this->entityManager->getQueryExecutor()->execute($query)->fetchAll(PDO::FETCH_COLUMN));
     }
 
     /**

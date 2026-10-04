@@ -15,8 +15,8 @@ import time
 import unittest
 from decimal import ROUND_HALF_UP
 
-from fixture import (D, World, all_of, cond, drill_down, espo_console, label, must, num, period_key, reference_data, run,
-                     sql)
+from fixture import (D, World, all_of, cond, drill_down, espo_console, label, must, num, period_key, reference_data,
+                     run, sql)
 
 S = {}
 SUM_ALL = D("34477.39")
@@ -398,6 +398,25 @@ class TextGroupCollationTest(Case):
                          [sum(c["count"] for c in line if c) for line in result["cells"]])
 
 
+class QuickFilterEmptyTextTest(Case):
+    """A city of a single no-break space equals '' under the column collation: it is the empty item of the quick
+    filter, not an option that matches nothing (external review W8, 2026-10-04)."""
+
+    def test_a_blank_text_is_the_empty_item(self):
+        w = W()
+        account = w.create("Account", {"name": f"{w.tag} nbsp", "billingAddressCity": "\u00a0"}, by="dir")["id"]
+        stored = sql(f"SELECT HEX(billing_address_city) FROM account WHERE id='{account}'")[0][0]
+        if stored != "C2A0":
+            self.skipTest("the core sanitizer changed the value")
+        report = w.report("dir", "blank city", entityType="Account", columns=["name"],
+                          quickFilters=["billingAddressCity"], filters=all_of(cond("name", "equals", f"{w.tag} nbsp")))
+        options = self.run_ok(report["id"])["quickFilters"][0]["options"]
+        self.assertEqual([None], [o["v"] for o in options])
+        self.assertTrue(options[0].get("empty"))
+        empty = [{"field": "billingAddressCity", "mode": "in", "values": [], "includeEmpty": True}]
+        self.assertEqual(1, self.run_ok(report["id"], quickFilters=empty)["recordCount"])
+
+
 class MatrixCapTest(Case):
     """With the run cap at 4 rows, the 3 × 2 matrix of MatrixTest shows 2 rows: every shown cell is there, and the
     columns and the grand total are those of the shown rows (review finding of 2026-10-04: cells beyond the cap were
@@ -440,8 +459,9 @@ class CalculationReferenceTest(Case):
 
     def test_a_shared_reference_keeps_every_operand(self):
         report = W().report("dir", "calc refs", entityType="InvoiceItem", columns=["quantity", "unitPrice", "amount"],
-                            calculations=[{"label": "q+p", "expression": "{quantity} + {unitPrice}", "functions": ["SUM"]},
-                                          {"label": "q+a", "expression": "{quantity} + {amount}", "functions": ["SUM"]}],
+                            calculations=[
+                                {"label": "q+p", "expression": "{quantity} + {unitPrice}", "functions": ["SUM"]},
+                                {"label": "q+a", "expression": "{quantity} + {amount}", "functions": ["SUM"]}],
                             filters=all_of(cond("invoice.name", "startsWith", W().tag, attribute="name")))
         totals = self.run_ok(report["id"])["calculationTotals"]
         # Ten lines: quantities 14.5, unit prices 29876.17, amounts 34477.39.

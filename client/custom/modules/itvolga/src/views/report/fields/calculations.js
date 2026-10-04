@@ -36,7 +36,9 @@ define('itvolga:views/report/fields/calculations', ['itvolga:views/report/fields
 
             this.addActionHandler('addItem', () => {
                 this.syncInputs();
-                this.state.push({label: '', expression: '', functions: []});
+                // A calculation keeps its id for good: header labels refer to it ("k:<id>").
+                const used = this.state.map(item => Number(String(item.id || '').slice(1)) || 0);
+                this.state.push({id: 'k' + (Math.max(0, ...used) + 1), label: '', expression: '', functions: []});
                 this.commit();
             });
 

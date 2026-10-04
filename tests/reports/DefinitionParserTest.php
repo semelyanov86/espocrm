@@ -151,6 +151,20 @@ final class DefinitionParserTest extends TestCase
         $this->assertSame('items', $tabular->manyLink);
     }
 
+    public function testCalculationIdsStayWithTheirCalculation(): void
+    {
+        // B removed A ("k1") and keeps "k2" with its label; a new one and a duplicate get free ids (external review W6).
+        $calc = fn (string $label, ?string $id) => ['id' => $id, 'label' => $label, 'expression' => '{grandTotal}',
+            'functions' => []];
+        $attributes = $this->parser->parse(self::tabular([
+            'calculations' => [$calc('B', 'k2'), $calc('C', null), $calc('D', 'k2'), $calc('E', 'bad')],
+            'labels' => ['k:k2' => 'Title B', 'k:k1' => 'Title C'],
+        ]))->toAttributes();
+
+        $this->assertSame(['k2', 'k1', 'k3', 'k4'], array_column($attributes['calculations'], 'id'));
+        $this->assertSame(['k:k2' => 'Title B', 'k:k1' => 'Title C'], (array) $attributes['labels']);
+    }
+
     public function testCalculationErrorsCarryPositionAndLabel(): void
     {
         $error = $this->assertThrows(DefinitionError::class, fn () => $this->parser->parse(self::tabular([

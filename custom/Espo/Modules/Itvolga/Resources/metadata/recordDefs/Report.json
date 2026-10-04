@@ -18,5 +18,6 @@
             "disabled": true
         }
     },
-    "exportDisabled": true
+    "exportDisabled": true,
+    "deletedRestorerClassName": "Espo\\Modules\\Itvolga\\Classes\\Record\\Report\\Restorer"
 }
