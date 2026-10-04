@@ -1,0 +1,49 @@
+{
+    "seedKey": "leads-by-campaign-details",
+    "folder": "campaigns",
+    "name": {
+        "ru": "Лиды по кампаниям с детализацией",
+        "en": "Leads by campaign with details"
+    },
+    "description": {
+        "ru": "Количество лидов по кампаниям с детализацией статусов, источников и дат создания.",
+        "en": "Lead counts by campaign with status, source and creation date details."
+    },
+    "type": "summariesWithDetails",
+    "entityType": "Lead",
+    "definition": {
+        "columns": [
+            "name",
+            "status",
+            "source",
+            "createdAt"
+        ],
+        "sorting": [],
+        "rowLimit": 20,
+        "groups": [
+            {
+                "field": "campaign",
+                "granularity": null,
+                "direction": "asc"
+            }
+        ],
+        "aggregates": [
+            {
+                "function": "COUNT",
+                "link": null,
+                "field": null
+            }
+        ],
+        "groupSort": null,
+        "groupLimit": 20,
+        "totals": [],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": []
+        },
+        "havingFilters": [],
+        "quickFilters": [],
+        "labels": {}
+    }
+}

@@ -1,0 +1,7 @@
+{
+    "accessControlFilterClassNameMap": {
+        "mandatory": "Espo\\Modules\\Itvolga\\Classes\\Select\\Report\\AccessControlFilters\\Mandatory",
+        "onlyOwn": "Espo\\Modules\\Itvolga\\Classes\\Select\\Report\\AccessControlFilters\\OnlyOwn",
+        "onlyTeam": "Espo\\Modules\\Itvolga\\Classes\\Select\\Report\\AccessControlFilters\\OnlyTeam"
+    }
+}

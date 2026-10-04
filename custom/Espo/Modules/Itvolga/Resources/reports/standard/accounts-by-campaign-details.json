@@ -1,0 +1,49 @@
+{
+    "seedKey": "accounts-by-campaign-details",
+    "folder": "campaigns",
+    "name": {
+        "ru": "Контрагенты по кампаниям с детализацией",
+        "en": "Accounts by campaign with details"
+    },
+    "description": {
+        "ru": "Количество контрагентов по кампаниям с детализацией типов, отраслей и дат создания.",
+        "en": "Account counts by campaign with type, industry and creation date details."
+    },
+    "type": "summariesWithDetails",
+    "entityType": "Account",
+    "definition": {
+        "columns": [
+            "name",
+            "type",
+            "industry",
+            "createdAt"
+        ],
+        "sorting": [],
+        "rowLimit": 20,
+        "groups": [
+            {
+                "field": "campaign",
+                "granularity": null,
+                "direction": "asc"
+            }
+        ],
+        "aggregates": [
+            {
+                "function": "COUNT",
+                "link": null,
+                "field": null
+            }
+        ],
+        "groupSort": null,
+        "groupLimit": 20,
+        "totals": [],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": []
+        },
+        "havingFilters": [],
+        "quickFilters": [],
+        "labels": {}
+    }
+}

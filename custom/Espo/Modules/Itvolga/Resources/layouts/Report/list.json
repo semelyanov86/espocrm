@@ -1,0 +1,27 @@
+[
+    {
+        "name": "name",
+        "link": true,
+        "width": 24
+    },
+    {
+        "name": "type",
+        "width": 11
+    },
+    {
+        "name": "entityType",
+        "width": 12
+    },
+    {
+        "name": "folder",
+        "width": 12
+    },
+    {
+        "name": "assignedUser",
+        "width": 9
+    },
+    {
+        "name": "description",
+        "notSortable": true
+    }
+]

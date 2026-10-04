@@ -16,7 +16,9 @@
         "ActItem": "Позиция акта",
         "LegalEntity": "Юрлицо",
         "Payment": "Платёж",
-        "PaymentAllocation": "Распределение платежа"
+        "PaymentAllocation": "Распределение платежа",
+        "Report": "Отчёт",
+        "ReportFolder": "Папка отчётов"
     },
     "scopeNamesPlural": {
         "Vendor": "Поставщики",
@@ -35,7 +37,9 @@
         "ActItem": "Позиции актов",
         "LegalEntity": "Юрлица",
         "Payment": "Платежи",
-        "PaymentAllocation": "Распределения платежей"
+        "PaymentAllocation": "Распределения платежей",
+        "Report": "Отчёты",
+        "ReportFolder": "Папки отчётов"
     },
     "labels": {
         "Finance": "Финансы",
@@ -117,5 +121,22 @@
     },
     "tabs": {
         "Finance": "Финансы"
+    },
+    "options": {
+        "dateSearchRanges": {
+            "yesterday": "Вчера",
+            "tomorrow": "Завтра",
+            "currentWeek": "Эта неделя",
+            "lastWeek": "Прошлая неделя",
+            "nextWeek": "Следующая неделя",
+            "nextQuarter": "Следующий квартал",
+            "nextYear": "Следующий год",
+            "xDaysAgo": "Ровно X дней назад",
+            "inXDays": "Ровно через X дней"
+        },
+        "searchRanges": {
+            "isCurrentUser": "Текущий пользователь",
+            "isNotCurrentUser": "Не текущий пользователь"
+        }
     }
 }

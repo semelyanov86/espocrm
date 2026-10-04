@@ -16,7 +16,9 @@
         "ActItem": "Act Item",
         "LegalEntity": "Legal Entity",
         "Payment": "Payment",
-        "PaymentAllocation": "Payment Allocation"
+        "PaymentAllocation": "Payment Allocation",
+        "Report": "Report",
+        "ReportFolder": "Report Folder"
     },
     "scopeNamesPlural": {
         "Vendor": "Vendors",
@@ -35,7 +37,9 @@
         "ActItem": "Act Items",
         "LegalEntity": "Legal Entities",
         "Payment": "Payments",
-        "PaymentAllocation": "Payment Allocations"
+        "PaymentAllocation": "Payment Allocations",
+        "Report": "Reports",
+        "ReportFolder": "Report Folders"
     },
     "labels": {
         "Finance": "Finance",
@@ -53,5 +57,22 @@
         "financeConversionSourceMissing": "The source {source} was removed — reload the page.",
         "financeRestoreItemDenied": "A line is restored only together with its document: add the removed line to the document's table again.",
         "financeNumberReadOnly": "The number of a saved document or payment does not change: a new one gets it from the counter, an imported one keeps the Vtiger number."
+    },
+    "options": {
+        "dateSearchRanges": {
+            "yesterday": "Yesterday",
+            "tomorrow": "Tomorrow",
+            "currentWeek": "This Week",
+            "lastWeek": "Last Week",
+            "nextWeek": "Next Week",
+            "nextQuarter": "Next Quarter",
+            "nextYear": "Next Year",
+            "xDaysAgo": "Exactly X Days Ago",
+            "inXDays": "In Exactly X Days"
+        },
+        "searchRanges": {
+            "isCurrentUser": "Current User",
+            "isNotCurrentUser": "Not Current User"
+        }
     }
 }

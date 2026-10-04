@@ -1,4 +1,4 @@
-# Модель EspoCRM (этапы 03, 04.2–04.6)
+# Модель EspoCRM (этапы 03, 04.2–04.6, 05.1)
 
 Проверено на стенде 2026-09-30 (EspoCRM 10.0.9), финансовые документы — 2026-10-01, счета и платежи — 2026-10-02, акты и сквозной сценарий — 2026-10-03. Источник истины — метаданные модуля; этот файл их описывает. Сверка с картой: колонки `espo_check` в `field-map.csv` (952 строки — ok: 630 этапа 03, 151 этапа 04.2, 65 этапа 04.3, 47 этапа 04.4, 59 этапа 04.5) и `relations.csv` (197 связей: 140, 19, 17, 11, 10), `task model:check`; покрытие финансовых полей и связей — `finance-coverage.md` (генерируется, этап 04.6). Решения — D-38…D-44, D-50…D-76.
 
@@ -31,10 +31,12 @@
 | `…/EntryPoints/ItvolgaPrint.php`, `…/Tools/FinancePrint/`, `…/Tools/Finance/Printing/` | печатные формы (этап 05, D-79): `?entryPoint=itvolgaPrint` → `PrintService` (реестр `printForms`, доступ, транзакция чтения) → `PrintData` (запись, строки с единицами, юрлицо, контрагент) → `Presenter` (чистое ядро: `Formatter`, `AmountInWords`) → `CodeTemplate` → Dompdf ядра |
 | `…/Resources/printForms/`, `…/Resources/fonts/`, `…/metadata/app/pdfEngines.json` | HTML/CSS форм (счёт, акт, ПКО, КП, заказ), шрифт Liberation Sans и его регистрация (D-82) |
 | `client/custom/modules/itvolga/src/handlers/finance/print-form.js` | кнопка «Печать» карточек `Invoice`, `Act`, `Payment` (только приходы), `Quote`, `SalesOrder` |
+| `…/Tools/Report/` (`Core/` — чистое ядро), `…/Classes/Select/Where/{Related,FieldCompare,ReportDrillDown}.php`, `…/Classes/ORM/CountDistinct.php`, `…/Classes/Acl/Report/`, `…/Classes/Select/Report/`, `…/Hooks/Report/`, `…/Hooks/ReportFolder/`, `…/Repositories/{Report,ReportFolder}.php`, `…/Services/ReportFolder.php`, `…/Classes/ConsoleCommands/SetupReports.php`, `…/Resources/reports/standard/`, `…/metadata/app/{itvolgaReports,select,orm}.json` | модуль отчётов (этап 05.1, D-84…D-104): движок, свои типы where-элементов, `COUNT(DISTINCT)`, доступ к отчётам, проверка определения, папки, стандартные отчёты — `reports.md` |
+| `client/custom/modules/itvolga/src/{report,views/report,handlers/report}/` | конструктор, страница результата, список с папками, детализация, перенос в папку |
 | `scripts/model/` | сверка модели с картой (в том числе реестр печатных форм и умолчание условий), генератор словаря значений, покрытие финансов |
 | `tests/stage03/`, `tests/stage04/`, `tests/stage05/` | приёмочные тесты API и PDF, помощники UI-сценариев |
 
-Развёртывание на стенд: `task model:apply` (clear-cache — в том числе кэш шрифтов PDF, rebuild, роли, юрлицо и счётчики номеров, оплата документов, отметка времени клиента). Тесты: `task test:stage03`, `task test:stage04`, `task test:stage05`, `task test:finance`.
+Развёртывание на стенд: `task model:apply` (clear-cache — в том числе кэш шрифтов PDF, rebuild, роли, юрлицо и счётчики номеров, оплата документов, папки и стандартные отчёты, отметка времени клиента). Тесты: `task test:stage03`, `task test:stage04`, `task test:stage05`, `task test:stage05.1`, `task test:finance`, `task test:reports`.
 
 ## Служебные поля (D-41)
 
@@ -80,6 +82,15 @@
 
 Сквозной сценарий (этап 04.6, D-73…D-76, `finance-contract.md` §18): «Создать заказ/счёт/акт» копируют и команды источника (`DocumentConverter` загружает поля linkMultiple — до исправления форма получала пустые команды); номер сохранённого документа или платежа меняет только импорт (`Hooks/Common/FinanceNumberGuard`, `financeNumberReadOnly`); смена статуса или типа платежа и его удаление требуют права чтения каждого документа платежа (как правка строк, D-63); панели «Заказы»/«Счета» предложения и «Счета» заказа — только просмотр, у контрагента, контакта и сделки на панелях документов нет «Выбрать»/«Отвязать» (создание остаётся).
 
+## Отчёты (этап 05.1, D-84…D-104)
+
+| Сущность | Поля | Связи |
+|---|---|---|
+| Report | `name`, `description`, `type` (табличный, сводный, сводный с детализацией, матрица; после создания не меняется), `entityType` (не меняется), `accessType` (личный, публичный, по списку), лимиты `rowLimit`/`groupLimit`, JSON-части определения (`columns`, `sorting`, `groups`, `aggregates`, `groupSort`, `totals`, `calculations`, `filters`, `havingFilters`, `quickFilters`, `labels`), `seedKey` | `folder` → ReportFolder, `assignedUser` (владелец), `sharedUsers` → User, `sharedTeams` → Team (обратные `cSharedReports` у User и Team, без панелей) |
+| ReportFolder | `name` (уникально), `description`, `isSystem` («Общие»), `assignedUser`, `seedKey`; CategoryTree без вложенности | `reports` |
+
+Сущности, доступные отчётам, — по флагу `scopes.<E>.itvolgaReports` (`true` у строк документов, распределений и ContactAccess, `"admin"` у User, Team, журналов, `false` у Report и ReportFolder) и `object`. Контракт — `reports.md`.
+
 ## Справочники (D-38, утверждены — Q-32)
 
 Опции enum и подписи сгенерированы из настроенных списков Vtiger и подписей SalesPlatform (`task model:value-maps -- <приватный срез>`); словарь `vtigerValueMap/<Entity>.json` задаёт для каждого поля соответствие «значение Vtiger → ключ EspoCRM» по источникам (`Leads.leadstatus`, `Events.eventstatus`, `PBXManager.callstatus` …). Тест проверяет, что каждое значение источника попадает в опцию. Общие списки: `Lead.industry` ← `Account.industry`, `Lead.cRating` ← `Account.cRating`, `Contact.cLeadSource`/`Opportunity.leadSource` ← `Lead.source` (`optionsReference`).
@@ -98,6 +109,8 @@
 | Project, ProjectTask | чтение all | чтение all | — | чтение team |
 | VtigerArchive | чтение all | — | — | — |
 | ContactAccess | только с ролью «Доступы» (создание, чтение, правка, удаление: all) |||||
+| Report | создание, чтение team (свои, публичные, адресованные пользователю или его команде), правка и удаление own | то же | то же | то же |
+| ReportFolder | создание, чтение all, правка и удаление own | то же | то же | то же |
 | Quote, SalesOrder, Invoice, Act, Payment | all | — | — | — |
 | QuoteItem, SalesOrderItem, InvoiceItem, ActItem, PaymentAllocation, LegalEntity | чтение all (позиции — по доступу к документу, распределения — к платежу; запись позиций и распределений — никому) | — | — | — |
 
@@ -105,4 +118,4 @@
 
 ## Отложено
 
-Quote, SalesOrder, позиции и LegalEntity — этап 04.2 (§14); Invoice и InvoiceItem — этап 04.3 (§15); Payment, PaymentAllocation и оплата документов — этап 04.4 (§16); Act, ActItem и `Invoice.act` — этап 04.5 (§17); сквозной сценарий — этап 04.6 (§18); печатные формы — этап 05 (§19, `print-forms.md`); расчётное ядро — `Tools/Finance/`, этап 04.1 (D-45); живая телефония и импорт истории звонков — 07.x; импорт данных — 06.x.
+Графики, дашлеты и ключевые показатели — этап 05.2; экспорт, печать и рассылка отчётов — 05.3 (`reports.md`). Quote, SalesOrder, позиции и LegalEntity — этап 04.2 (§14); Invoice и InvoiceItem — этап 04.3 (§15); Payment, PaymentAllocation и оплата документов — этап 04.4 (§16); Act, ActItem и `Invoice.act` — этап 04.5 (§17); сквозной сценарий — этап 04.6 (§18); печатные формы — этап 05 (§19, `print-forms.md`); расчётное ядро — `Tools/Finance/`, этап 04.1 (D-45); живая телефония и импорт истории звонков — 07.x; импорт данных — 06.x.

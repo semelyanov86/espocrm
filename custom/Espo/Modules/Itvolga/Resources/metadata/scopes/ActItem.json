@@ -19,5 +19,6 @@
     "notifications": false,
     "object": false,
     "type": "Base",
-    "stream": false
+    "stream": false,
+    "itvolgaReports": true
 }

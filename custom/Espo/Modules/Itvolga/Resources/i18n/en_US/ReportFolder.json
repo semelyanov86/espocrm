@@ -1,0 +1,28 @@
+{
+    "fields": {
+        "name": "Name",
+        "description": "Description",
+        "isSystem": "System",
+        "assignedUser": "Owner",
+        "parent": "Parent",
+        "createdAt": "Created At",
+        "modifiedAt": "Modified At",
+        "createdBy": "Created By",
+        "modifiedBy": "Modified By"
+    },
+    "links": {
+        "reports": "Reports",
+        "assignedUser": "Owner",
+        "parent": "Parent",
+        "children": "Children"
+    },
+    "labels": {
+        "Create ReportFolder": "Create Folder",
+        "Manage Folders": "Folders"
+    },
+    "messages": {
+        "folderNameExists": "The folder '{name}' already exists.",
+        "folderSystem": "The system folder cannot be removed.",
+        "folderNotEmpty": "The folder holds reports ({count}): move or remove them first."
+    }
+}

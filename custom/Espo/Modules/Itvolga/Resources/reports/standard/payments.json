@@ -1,0 +1,55 @@
+{
+    "seedKey": "payments",
+    "folder": "invoices",
+    "name": {
+        "ru": "Платежи",
+        "en": "Payments"
+    },
+    "description": {
+        "ru": "Список всех платежей с суммой, плательщиком, статусом, направлением и способом оплаты.",
+        "en": "All payments with amount, payer, status, direction and payment method."
+    },
+    "type": "tabular",
+    "entityType": "Payment",
+    "definition": {
+        "columns": [
+            "datePaid",
+            "number",
+            "payer",
+            "amount",
+            "status",
+            "direction",
+            "method"
+        ],
+        "sorting": [
+            {
+                "column": "datePaid",
+                "direction": "desc"
+            }
+        ],
+        "rowLimit": null,
+        "groups": [],
+        "aggregates": [],
+        "groupSort": null,
+        "groupLimit": null,
+        "totals": [
+            {
+                "column": "amount",
+                "functions": [
+                    "SUM"
+                ]
+            }
+        ],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": []
+        },
+        "havingFilters": [],
+        "quickFilters": [
+            "direction",
+            "status"
+        ],
+        "labels": {}
+    }
+}

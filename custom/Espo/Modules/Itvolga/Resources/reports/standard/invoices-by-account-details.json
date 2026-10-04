@@ -1,0 +1,67 @@
+{
+    "seedKey": "invoices-by-account-details",
+    "folder": "invoices",
+    "name": {
+        "ru": "Счета по контрагентам с детализацией",
+        "en": "Invoices by account with details"
+    },
+    "description": {
+        "ru": "Количество и сумма счетов по контрагентам с детализацией дат, статусов и оплаты.",
+        "en": "Invoice counts and totals by account with dates, statuses and paid amounts."
+    },
+    "type": "summariesWithDetails",
+    "entityType": "Invoice",
+    "charts": [
+        {
+            "type": "bar",
+            "aggregate": "SUM:grandTotal"
+        }
+    ],
+    "definition": {
+        "columns": [
+            "number",
+            "dateInvoiced",
+            "dateDue",
+            "status",
+            "grandTotal",
+            "paidAmount"
+        ],
+        "sorting": [
+            {
+                "column": "dateInvoiced",
+                "direction": "desc"
+            }
+        ],
+        "rowLimit": 20,
+        "groups": [
+            {
+                "field": "account",
+                "granularity": null,
+                "direction": "asc"
+            }
+        ],
+        "aggregates": [
+            {
+                "function": "COUNT",
+                "link": null,
+                "field": null
+            },
+            {
+                "function": "SUM",
+                "link": null,
+                "field": "grandTotal"
+            }
+        ],
+        "groupSort": null,
+        "groupLimit": 20,
+        "totals": [],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": []
+        },
+        "havingFilters": [],
+        "quickFilters": [],
+        "labels": {}
+    }
+}

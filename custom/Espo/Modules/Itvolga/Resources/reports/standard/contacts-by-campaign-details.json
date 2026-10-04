@@ -1,0 +1,49 @@
+{
+    "seedKey": "contacts-by-campaign-details",
+    "folder": "campaigns",
+    "name": {
+        "ru": "Контакты по кампаниям с детализацией",
+        "en": "Contacts by campaign with details"
+    },
+    "description": {
+        "ru": "Количество контактов по кампаниям с детализацией контрагентов, электронной почты и дат создания.",
+        "en": "Contact counts by campaign with account, email address and creation date details."
+    },
+    "type": "summariesWithDetails",
+    "entityType": "Contact",
+    "definition": {
+        "columns": [
+            "name",
+            "account",
+            "emailAddress",
+            "createdAt"
+        ],
+        "sorting": [],
+        "rowLimit": 20,
+        "groups": [
+            {
+                "field": "campaign",
+                "granularity": null,
+                "direction": "asc"
+            }
+        ],
+        "aggregates": [
+            {
+                "function": "COUNT",
+                "link": null,
+                "field": null
+            }
+        ],
+        "groupSort": null,
+        "groupLimit": 20,
+        "totals": [],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": []
+        },
+        "havingFilters": [],
+        "quickFilters": [],
+        "labels": {}
+    }
+}

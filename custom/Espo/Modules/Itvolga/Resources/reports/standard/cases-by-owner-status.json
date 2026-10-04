@@ -1,0 +1,55 @@
+{
+    "seedKey": "cases-by-owner-status",
+    "folder": "cases",
+    "name": {
+        "ru": "Обращения по ответственному и статусу",
+        "en": "Cases by assigned user and status"
+    },
+    "description": {
+        "ru": "Количество обращений по ответственным и статусам.",
+        "en": "Case counts grouped by assigned user and status."
+    },
+    "type": "summaries",
+    "entityType": "Case",
+    "charts": [
+        {
+            "type": "line",
+            "aggregate": "COUNT"
+        }
+    ],
+    "definition": {
+        "columns": [],
+        "sorting": [],
+        "rowLimit": 20,
+        "groups": [
+            {
+                "field": "assignedUser",
+                "granularity": null,
+                "direction": "asc"
+            },
+            {
+                "field": "status",
+                "granularity": null,
+                "direction": "asc"
+            }
+        ],
+        "aggregates": [
+            {
+                "function": "COUNT",
+                "link": null,
+                "field": null
+            }
+        ],
+        "groupSort": null,
+        "groupLimit": 20,
+        "totals": [],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": []
+        },
+        "havingFilters": [],
+        "quickFilters": [],
+        "labels": {}
+    }
+}

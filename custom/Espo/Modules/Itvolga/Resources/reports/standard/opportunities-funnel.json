@@ -1,0 +1,55 @@
+{
+    "seedKey": "opportunities-funnel",
+    "folder": "opportunities",
+    "name": {
+        "ru": "Воронка по стадиям",
+        "en": "Funnel by stage"
+    },
+    "description": {
+        "ru": "Количество и сумма сделок на каждой стадии воронки.",
+        "en": "Opportunity counts and amounts at each funnel stage."
+    },
+    "type": "summaries",
+    "entityType": "Opportunity",
+    "charts": [
+        {
+            "type": "funnel",
+            "aggregate": "SUM:amount"
+        }
+    ],
+    "definition": {
+        "columns": [],
+        "sorting": [],
+        "rowLimit": 20,
+        "groups": [
+            {
+                "field": "stage",
+                "granularity": null,
+                "direction": "asc"
+            }
+        ],
+        "aggregates": [
+            {
+                "function": "COUNT",
+                "link": null,
+                "field": null
+            },
+            {
+                "function": "SUM",
+                "link": null,
+                "field": "amount"
+            }
+        ],
+        "groupSort": null,
+        "groupLimit": 20,
+        "totals": [],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": []
+        },
+        "havingFilters": [],
+        "quickFilters": [],
+        "labels": {}
+    }
+}

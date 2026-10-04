@@ -1,0 +1,12 @@
+{
+    "links": {
+        "cSharedReports": {
+            "type": "hasMany",
+            "entity": "Report",
+            "relationName": "reportSharedTeam",
+            "foreign": "sharedTeams",
+            "readOnly": true,
+            "layoutRelationshipsDisabled": true
+        }
+    }
+}

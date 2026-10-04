@@ -1,0 +1,28 @@
+{
+    "fields": {
+        "name": "Название",
+        "description": "Описание",
+        "isSystem": "Системная",
+        "assignedUser": "Владелец",
+        "parent": "Родитель",
+        "createdAt": "Создана",
+        "modifiedAt": "Изменена",
+        "createdBy": "Создал",
+        "modifiedBy": "Изменил"
+    },
+    "links": {
+        "reports": "Отчёты",
+        "assignedUser": "Владелец",
+        "parent": "Родитель",
+        "children": "Вложенные"
+    },
+    "labels": {
+        "Create ReportFolder": "Создать папку",
+        "Manage Folders": "Папки"
+    },
+    "messages": {
+        "folderNameExists": "Папка «{name}» уже есть.",
+        "folderSystem": "Системную папку нельзя удалить.",
+        "folderNotEmpty": "В папке есть отчёты ({count}): сначала переместите или удалите их."
+    }
+}

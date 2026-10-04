@@ -1,0 +1,147 @@
+{
+    "fields": {
+        "name": {
+            "type": "varchar",
+            "maxLength": 100,
+            "required": true,
+            "pattern": "$noBadCharacters"
+        },
+        "description": {
+            "type": "text"
+        },
+        "isSystem": {
+            "type": "bool",
+            "readOnly": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "assignedUser": {
+            "type": "link",
+            "required": true,
+            "view": "views/fields/assigned-user"
+        },
+        "seedKey": {
+            "type": "varchar",
+            "maxLength": 100,
+            "readOnly": true,
+            "utility": true,
+            "layoutDetailDisabled": true,
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true,
+            "duplicateIgnore": true
+        },
+        "order": {
+            "type": "int",
+            "minValue": 1,
+            "utility": true,
+            "layoutDetailDisabled": true
+        },
+        "createdAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "modifiedAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "createdBy": {
+            "type": "link",
+            "readOnly": true,
+            "view": "views/fields/user"
+        },
+        "modifiedBy": {
+            "type": "link",
+            "readOnly": true,
+            "view": "views/fields/user"
+        },
+        "parent": {
+            "type": "link",
+            "readOnly": true,
+            "utility": true,
+            "layoutDetailDisabled": true,
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true
+        },
+        "childList": {
+            "type": "jsonArray",
+            "notStorable": true,
+            "utility": true,
+            "orderDisabled": true
+        }
+    },
+    "links": {
+        "createdBy": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "modifiedBy": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "assignedUser": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "parent": {
+            "type": "belongsTo",
+            "foreign": "children",
+            "entity": "ReportFolder"
+        },
+        "children": {
+            "type": "hasMany",
+            "foreign": "parent",
+            "entity": "ReportFolder",
+            "readOnly": true,
+            "layoutRelationshipsDisabled": true
+        },
+        "reports": {
+            "type": "hasMany",
+            "foreign": "folder",
+            "entity": "Report",
+            "readOnly": true
+        }
+    },
+    "collection": {
+        "orderBy": "name",
+        "order": "asc"
+    },
+    "indexes": {
+        "seedKey": {
+            "type": "unique",
+            "columns": [
+                "seedKey"
+            ]
+        },
+        "name": {
+            "columns": [
+                "name",
+                "deleted"
+            ]
+        }
+    },
+    "additionalTables": {
+        "ReportFolderPath": {
+            "attributes": {
+                "id": {
+                    "type": "id",
+                    "dbType": "integer",
+                    "len": 11,
+                    "autoincrement": true,
+                    "unique": true
+                },
+                "ascendorId": {
+                    "type": "foreignId",
+                    "index": true
+                },
+                "descendorId": {
+                    "type": "foreignId",
+                    "index": true
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,55 @@
+{
+    "seedKey": "opportunities-by-account-details",
+    "folder": "opportunities",
+    "name": {
+        "ru": "Сделки по контрагентам с детализацией",
+        "en": "Opportunities by account with details"
+    },
+    "description": {
+        "ru": "Количество и сумма сделок по контрагентам с детализацией сделок.",
+        "en": "Opportunity counts and amounts by account with individual opportunity details."
+    },
+    "type": "summariesWithDetails",
+    "entityType": "Opportunity",
+    "definition": {
+        "columns": [
+            "name",
+            "stage",
+            "amount",
+            "closeDate",
+            "assignedUser"
+        ],
+        "sorting": [],
+        "rowLimit": 20,
+        "groups": [
+            {
+                "field": "account",
+                "granularity": null,
+                "direction": "asc"
+            }
+        ],
+        "aggregates": [
+            {
+                "function": "COUNT",
+                "link": null,
+                "field": null
+            },
+            {
+                "function": "SUM",
+                "link": null,
+                "field": "amount"
+            }
+        ],
+        "groupSort": null,
+        "groupLimit": 20,
+        "totals": [],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": []
+        },
+        "havingFilters": [],
+        "quickFilters": [],
+        "labels": {}
+    }
+}

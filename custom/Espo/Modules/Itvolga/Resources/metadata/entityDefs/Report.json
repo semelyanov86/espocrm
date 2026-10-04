@@ -1,0 +1,321 @@
+{
+    "fields": {
+        "name": {
+            "type": "varchar",
+            "maxLength": 150,
+            "required": true,
+            "pattern": "$noBadCharacters"
+        },
+        "description": {
+            "type": "text",
+            "rowsMin": 2
+        },
+        "folder": {
+            "type": "link",
+            "view": "views/fields/link-category-tree"
+        },
+        "type": {
+            "type": "enum",
+            "options": [
+                "tabular",
+                "summaries",
+                "summariesWithDetails",
+                "matrix"
+            ],
+            "default": "tabular",
+            "required": true,
+            "readOnlyAfterCreate": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "entityType": {
+            "type": "varchar",
+            "maxLength": 100,
+            "required": true,
+            "readOnlyAfterCreate": true,
+            "view": "itvolga:views/report/fields/entity-type",
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true
+        },
+        "accessType": {
+            "type": "enum",
+            "options": [
+                "private",
+                "public",
+                "shared"
+            ],
+            "default": "private",
+            "required": true,
+            "layoutMassUpdateDisabled": true
+        },
+        "sharedUsers": {
+            "type": "linkMultiple",
+            "view": "views/fields/link-multiple",
+            "maxCount": 50,
+            "layoutMassUpdateDisabled": true,
+            "layoutListDisabled": true,
+            "layoutFiltersDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true
+        },
+        "sharedTeams": {
+            "type": "linkMultiple",
+            "view": "views/fields/link-multiple",
+            "maxCount": 50,
+            "layoutMassUpdateDisabled": true,
+            "layoutListDisabled": true,
+            "layoutFiltersDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true
+        },
+        "columns": {
+            "type": "jsonArray",
+            "view": "itvolga:views/report/fields/columns",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true,
+            "inlineEditDisabled": true
+        },
+        "sorting": {
+            "type": "jsonArray",
+            "view": "itvolga:views/report/fields/sorting",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true,
+            "inlineEditDisabled": true
+        },
+        "rowLimit": {
+            "type": "int",
+            "min": 1,
+            "max": 5000,
+            "default": 20,
+            "disableFormatting": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true
+        },
+        "groups": {
+            "type": "jsonArray",
+            "view": "itvolga:views/report/fields/groups",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true,
+            "inlineEditDisabled": true
+        },
+        "aggregates": {
+            "type": "jsonArray",
+            "view": "itvolga:views/report/fields/aggregates",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true,
+            "inlineEditDisabled": true
+        },
+        "groupSort": {
+            "type": "jsonObject",
+            "view": "itvolga:views/report/fields/group-sort",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true,
+            "inlineEditDisabled": true
+        },
+        "groupLimit": {
+            "type": "int",
+            "min": 1,
+            "max": 1000,
+            "default": 20,
+            "disableFormatting": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true
+        },
+        "totals": {
+            "type": "jsonArray",
+            "view": "itvolga:views/report/fields/totals",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true,
+            "inlineEditDisabled": true
+        },
+        "calculations": {
+            "type": "jsonArray",
+            "view": "itvolga:views/report/fields/calculations",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true,
+            "inlineEditDisabled": true
+        },
+        "filters": {
+            "type": "jsonObject",
+            "view": "itvolga:views/report/fields/filters",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true,
+            "inlineEditDisabled": true
+        },
+        "havingFilters": {
+            "type": "jsonArray",
+            "view": "itvolga:views/report/fields/having-filters",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true,
+            "inlineEditDisabled": true
+        },
+        "quickFilters": {
+            "type": "jsonArray",
+            "view": "itvolga:views/report/fields/quick-filters",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true,
+            "inlineEditDisabled": true
+        },
+        "labels": {
+            "type": "jsonObject",
+            "view": "itvolga:views/report/fields/labels",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true,
+            "inlineEditDisabled": true
+        },
+        "seedKey": {
+            "type": "varchar",
+            "maxLength": 100,
+            "readOnly": true,
+            "utility": true,
+            "layoutDetailDisabled": true,
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true,
+            "duplicateIgnore": true
+        },
+        "createdAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "modifiedAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "createdBy": {
+            "type": "link",
+            "readOnly": true,
+            "view": "views/fields/user"
+        },
+        "modifiedBy": {
+            "type": "link",
+            "readOnly": true,
+            "view": "views/fields/user"
+        },
+        "assignedUser": {
+            "type": "link",
+            "required": true,
+            "view": "views/fields/assigned-user"
+        }
+    },
+    "links": {
+        "folder": {
+            "type": "belongsTo",
+            "entity": "ReportFolder",
+            "foreign": "reports"
+        },
+        "createdBy": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "modifiedBy": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "assignedUser": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "sharedUsers": {
+            "type": "hasMany",
+            "entity": "User",
+            "relationName": "reportSharedUser",
+            "layoutRelationshipsDisabled": true,
+            "foreign": "cSharedReports"
+        },
+        "sharedTeams": {
+            "type": "hasMany",
+            "entity": "Team",
+            "relationName": "reportSharedTeam",
+            "layoutRelationshipsDisabled": true,
+            "foreign": "cSharedReports"
+        }
+    },
+    "collection": {
+        "orderBy": "name",
+        "order": "asc",
+        "textFilterFields": [
+            "name",
+            "description"
+        ]
+    },
+    "indexes": {
+        "seedKey": {
+            "type": "unique",
+            "columns": [
+                "seedKey"
+            ]
+        },
+        "name": {
+            "columns": [
+                "name",
+                "deleted"
+            ]
+        },
+        "assignedUser": {
+            "columns": [
+                "assignedUserId",
+                "deleted"
+            ]
+        }
+    }
+}

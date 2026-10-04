@@ -58,7 +58,12 @@ class SetupAcl implements Command
         'Team' => ['read' => 'all'],
         'DocumentFolder' => ['create' => 'no', 'read' => 'all', 'edit' => 'no', 'delete' => 'no'],
         'KnowledgeBaseCategory' => ['create' => 'no', 'read' => 'all', 'edit' => 'no', 'delete' => 'no'],
+        // Reports (stage 05.1, D-87): own, public and shared-with-me/my-team reports; edit and delete — the owner.
+        'Report' => self::REPORT,
+        'ReportFolder' => ['create' => 'yes', 'read' => 'all', 'edit' => 'own', 'delete' => 'own'],
     ];
+
+    private const REPORT = ['create' => 'yes', 'read' => 'team', 'edit' => 'own', 'delete' => 'own'];
 
     private const PERMISSIONS = [
         'assignmentPermission' => 'all',
@@ -76,7 +81,7 @@ class SetupAcl implements Command
         'lockPermission' => 'no',
     ];
 
-    public const TABS = ['Vendor', 'Product', 'Quote', 'SalesOrder', 'Invoice', 'Act', 'Payment', 'Project',
+    public const TABS = ['Vendor', 'Product', 'Quote', 'SalesOrder', 'Invoice', 'Act', 'Payment', 'Report', 'Project',
         'ProjectTask', 'VtigerArchive', 'ContactAccess'];
 
     /** Finance scopes (stages 04.2–04.5): closed to every role that does not list them. */
@@ -158,9 +163,12 @@ class SetupAcl implements Command
         }
 
         // Granted explicitly to the people who administer remote access (D-06); combined with a working role.
+        // Reports for «Доступы» (D-87): reading only — public reports and those shared with the user personally.
         $result['Доступы'] = [
             'data' => ['ContactAccess' => ['create' => 'yes', 'read' => 'all', 'edit' => 'all', 'delete' => 'all',
-                'stream' => 'no']],
+                'stream' => 'no'],
+                'Report' => ['create' => 'no', 'read' => 'own', 'edit' => 'no', 'delete' => 'no'],
+                'ReportFolder' => ['create' => 'no', 'read' => 'all', 'edit' => 'no', 'delete' => 'no']],
             'permissions' => array_map(fn () => 'not-set', self::PERMISSIONS),
         ];
 

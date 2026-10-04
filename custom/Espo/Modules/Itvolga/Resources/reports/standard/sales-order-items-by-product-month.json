@@ -1,0 +1,54 @@
+{
+    "seedKey": "sales-order-items-by-product-month",
+    "folder": "offers",
+    "name": {
+        "ru": "Заказанные товары по месяцам",
+        "en": "Products ordered by month"
+    },
+    "description": {
+        "ru": "Количество и сумма позиций заказов по товарам и месяцам создания заказов.",
+        "en": "Sales order item quantities and amounts by product and order creation month."
+    },
+    "type": "matrix",
+    "entityType": "SalesOrderItem",
+    "definition": {
+        "columns": [],
+        "sorting": [],
+        "rowLimit": 20,
+        "groups": [
+            {
+                "field": "product",
+                "granularity": null,
+                "direction": "asc"
+            },
+            {
+                "field": "salesOrder.createdAt",
+                "granularity": "month",
+                "direction": "asc"
+            }
+        ],
+        "aggregates": [
+            {
+                "function": "SUM",
+                "link": null,
+                "field": "quantity"
+            },
+            {
+                "function": "SUM",
+                "link": null,
+                "field": "amount"
+            }
+        ],
+        "groupSort": null,
+        "groupLimit": 20,
+        "totals": [],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": []
+        },
+        "havingFilters": [],
+        "quickFilters": [],
+        "labels": {}
+    }
+}

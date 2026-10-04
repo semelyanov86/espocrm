@@ -1,0 +1,49 @@
+{
+    "seedKey": "leads-by-region-details",
+    "folder": "leads",
+    "name": {
+        "ru": "Лиды по региону с детализацией",
+        "en": "Leads by region with details"
+    },
+    "description": {
+        "ru": "Количество лидов по регионам с детализацией компаний, статусов и ответственных.",
+        "en": "Lead counts by region with company, status and assigned user details."
+    },
+    "type": "summariesWithDetails",
+    "entityType": "Lead",
+    "definition": {
+        "columns": [
+            "name",
+            "accountName",
+            "status",
+            "assignedUser"
+        ],
+        "sorting": [],
+        "rowLimit": 20,
+        "groups": [
+            {
+                "field": "addressState",
+                "granularity": null,
+                "direction": "asc"
+            }
+        ],
+        "aggregates": [
+            {
+                "function": "COUNT",
+                "link": null,
+                "field": null
+            }
+        ],
+        "groupSort": null,
+        "groupLimit": 20,
+        "totals": [],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": []
+        },
+        "havingFilters": [],
+        "quickFilters": [],
+        "labels": {}
+    }
+}

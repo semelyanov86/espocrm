@@ -1,0 +1,60 @@
+{
+    "seedKey": "opportunities-stage-by-account",
+    "folder": "opportunities",
+    "name": {
+        "ru": "Сделки: стадия × контрагент",
+        "en": "Opportunities: stage × account"
+    },
+    "description": {
+        "ru": "Количество и сумма сделок на пересечении стадий и контрагентов.",
+        "en": "Opportunity counts and amounts in a matrix of stages and accounts."
+    },
+    "type": "matrix",
+    "entityType": "Opportunity",
+    "charts": [
+        {
+            "type": "bar",
+            "aggregate": "SUM:amount"
+        }
+    ],
+    "definition": {
+        "columns": [],
+        "sorting": [],
+        "rowLimit": 20,
+        "groups": [
+            {
+                "field": "stage",
+                "granularity": null,
+                "direction": "asc"
+            },
+            {
+                "field": "account",
+                "granularity": null,
+                "direction": "asc"
+            }
+        ],
+        "aggregates": [
+            {
+                "function": "COUNT",
+                "link": null,
+                "field": null
+            },
+            {
+                "function": "SUM",
+                "link": null,
+                "field": "amount"
+            }
+        ],
+        "groupSort": null,
+        "groupLimit": 20,
+        "totals": [],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": []
+        },
+        "havingFilters": [],
+        "quickFilters": [],
+        "labels": {}
+    }
+}

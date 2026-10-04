@@ -1,0 +1,23 @@
+{
+    "entity": true,
+    "layouts": false,
+    "tab": false,
+    "acl": true,
+    "aclPortal": false,
+    "aclLevelList": [
+        "all",
+        "team",
+        "own",
+        "no"
+    ],
+    "module": "Itvolga",
+    "customizable": false,
+    "importable": false,
+    "notifications": false,
+    "type": "CategoryTree",
+    "stream": false,
+    "categoryParentEntityType": "Report",
+    "categoryField": "folder",
+    "showNavigationPanel": true,
+    "itvolgaReports": false
+}

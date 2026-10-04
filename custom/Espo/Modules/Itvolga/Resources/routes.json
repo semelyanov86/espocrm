@@ -13,5 +13,25 @@
         "route": "/FinanceDocument/:entityType/:id/convertTo/:targetEntityType",
         "method": "get",
         "actionClassName": "Espo\\Modules\\Itvolga\\Tools\\FinanceDocument\\Api\\GetConvert"
+    },
+    {
+        "route": "/Report/catalog",
+        "method": "get",
+        "actionClassName": "Espo\\Modules\\Itvolga\\Tools\\Report\\Api\\GetCatalog"
+    },
+    {
+        "route": "/Report/catalog/:entityType",
+        "method": "get",
+        "actionClassName": "Espo\\Modules\\Itvolga\\Tools\\Report\\Api\\GetCatalog"
+    },
+    {
+        "route": "/Report/folderCounts",
+        "method": "get",
+        "actionClassName": "Espo\\Modules\\Itvolga\\Tools\\Report\\Api\\GetFolderCounts"
+    },
+    {
+        "route": "/Report/:id/run",
+        "method": "post",
+        "actionClassName": "Espo\\Modules\\Itvolga\\Tools\\Report\\Api\\PostRun"
     }
 ]

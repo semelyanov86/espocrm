@@ -1,0 +1,179 @@
+[
+    {
+        "name": "basics",
+        "label": "Basics",
+        "tabLabel": "$label:Basics",
+        "rows": [
+            [
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "type"
+                }
+            ],
+            [
+                {
+                    "name": "entityType"
+                },
+                {
+                    "name": "folder"
+                }
+            ],
+            [
+                {
+                    "name": "description",
+                    "fullWidth": true
+                }
+            ]
+        ]
+    },
+    {
+        "name": "grouping",
+        "label": "Grouping",
+        "tabBreak": true,
+        "tabLabel": "$label:Grouping",
+        "rows": [
+            [
+                {
+                    "name": "groups",
+                    "fullWidth": true,
+                    "noLabel": false
+                }
+            ],
+            [
+                {
+                    "name": "aggregates",
+                    "fullWidth": true,
+                    "noLabel": false
+                }
+            ],
+            [
+                {
+                    "name": "groupSort"
+                },
+                {
+                    "name": "groupLimit"
+                }
+            ]
+        ]
+    },
+    {
+        "name": "columnsPanel",
+        "label": "Columns",
+        "tabBreak": true,
+        "tabLabel": "$label:Columns",
+        "rows": [
+            [
+                {
+                    "name": "columns",
+                    "fullWidth": true,
+                    "noLabel": false
+                }
+            ],
+            [
+                {
+                    "name": "sorting",
+                    "fullWidth": true,
+                    "noLabel": false
+                }
+            ],
+            [
+                {
+                    "name": "rowLimit"
+                },
+                false
+            ]
+        ]
+    },
+    {
+        "name": "calculationsPanel",
+        "label": "Calculations",
+        "tabBreak": true,
+        "tabLabel": "$label:Calculations",
+        "rows": [
+            [
+                {
+                    "name": "totals",
+                    "fullWidth": true,
+                    "noLabel": false
+                }
+            ],
+            [
+                {
+                    "name": "calculations",
+                    "fullWidth": true,
+                    "noLabel": false
+                }
+            ]
+        ]
+    },
+    {
+        "name": "filtersPanel",
+        "label": "Filters",
+        "tabBreak": true,
+        "tabLabel": "$label:Filters",
+        "rows": [
+            [
+                {
+                    "name": "filters",
+                    "fullWidth": true,
+                    "noLabel": false
+                }
+            ],
+            [
+                {
+                    "name": "havingFilters",
+                    "fullWidth": true,
+                    "noLabel": false
+                }
+            ],
+            [
+                {
+                    "name": "quickFilters",
+                    "fullWidth": true,
+                    "noLabel": false
+                }
+            ]
+        ]
+    },
+    {
+        "name": "labelsPanel",
+        "label": "Labels",
+        "tabBreak": true,
+        "tabLabel": "$label:Labels",
+        "rows": [
+            [
+                {
+                    "name": "labels",
+                    "fullWidth": true,
+                    "noLabel": false
+                }
+            ]
+        ]
+    },
+    {
+        "name": "access",
+        "label": "Access",
+        "tabBreak": true,
+        "tabLabel": "$label:Access",
+        "rows": [
+            [
+                {
+                    "name": "assignedUser"
+                },
+                {
+                    "name": "accessType"
+                }
+            ],
+            [
+                {
+                    "name": "sharedUsers"
+                },
+                {
+                    "name": "sharedTeams"
+                }
+            ]
+        ]
+    }
+]

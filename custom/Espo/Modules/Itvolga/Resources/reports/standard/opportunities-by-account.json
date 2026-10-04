@@ -1,0 +1,58 @@
+{
+    "seedKey": "opportunities-by-account",
+    "folder": "opportunities",
+    "name": {
+        "ru": "Сделки по контрагентам",
+        "en": "Opportunities by account"
+    },
+    "description": {
+        "ru": "Количество и сумма сделок по контрагентам в порядке убывания суммы.",
+        "en": "Opportunity counts and amounts by account in descending order of amount."
+    },
+    "type": "summaries",
+    "entityType": "Opportunity",
+    "charts": [
+        {
+            "type": "pie",
+            "aggregate": "SUM:amount"
+        }
+    ],
+    "definition": {
+        "columns": [],
+        "sorting": [],
+        "rowLimit": 20,
+        "groups": [
+            {
+                "field": "account",
+                "granularity": null,
+                "direction": "asc"
+            }
+        ],
+        "aggregates": [
+            {
+                "function": "COUNT",
+                "link": null,
+                "field": null
+            },
+            {
+                "function": "SUM",
+                "link": null,
+                "field": "amount"
+            }
+        ],
+        "groupSort": {
+            "aggregate": "SUM:amount",
+            "direction": "desc"
+        },
+        "groupLimit": 20,
+        "totals": [],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": []
+        },
+        "havingFilters": [],
+        "quickFilters": [],
+        "labels": {}
+    }
+}

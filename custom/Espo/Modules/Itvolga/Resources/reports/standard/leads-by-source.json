@@ -1,0 +1,44 @@
+{
+    "seedKey": "leads-by-source",
+    "folder": "leads",
+    "name": {
+        "ru": "Лиды по источнику",
+        "en": "Leads by source"
+    },
+    "description": {
+        "ru": "Количество лидов из каждого источника.",
+        "en": "Lead counts for each source."
+    },
+    "type": "summaries",
+    "entityType": "Lead",
+    "definition": {
+        "columns": [],
+        "sorting": [],
+        "rowLimit": 20,
+        "groups": [
+            {
+                "field": "source",
+                "granularity": null,
+                "direction": "asc"
+            }
+        ],
+        "aggregates": [
+            {
+                "function": "COUNT",
+                "link": null,
+                "field": null
+            }
+        ],
+        "groupSort": null,
+        "groupLimit": 20,
+        "totals": [],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": []
+        },
+        "havingFilters": [],
+        "quickFilters": [],
+        "labels": {}
+    }
+}

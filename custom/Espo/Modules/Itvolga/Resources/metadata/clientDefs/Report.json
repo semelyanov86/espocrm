@@ -1,0 +1,30 @@
+{
+    "controller": "controllers/record",
+    "iconClass": "fas fa-chart-bar",
+    "views": {
+        "list": "itvolga:views/report/list"
+    },
+    "recordViews": {
+        "edit": "itvolga:views/report/record/edit",
+        "detail": "itvolga:views/report/record/detail"
+    },
+    "quickCreateDisabled": true,
+    "mergeDisabled": true,
+    "exportDisabled": true,
+    "massActionList": [
+        "__APPEND__",
+        "moveToFolder"
+    ],
+    "massActionDefs": {
+        "moveToFolder": {
+            "handler": "itvolga:handlers/report/move-to-folder",
+            "acl": "edit",
+            "label": "Move to Folder",
+            "actionFunction": "process"
+        }
+    },
+    "filterList": [],
+    "boolFilterList": [
+        "onlyMy"
+    ]
+}

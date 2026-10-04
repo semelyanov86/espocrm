@@ -1,0 +1,23 @@
+[
+    {
+        "label": "",
+        "rows": [
+            [
+                {
+                    "name": "name"
+                },
+                {
+                    "name": "type"
+                }
+            ],
+            [
+                {
+                    "name": "entityType"
+                },
+                {
+                    "name": "folder"
+                }
+            ]
+        ]
+    }
+]

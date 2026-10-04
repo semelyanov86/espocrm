@@ -1,0 +1,13 @@
+{
+    "fields": {
+        "isSystem": {
+            "readOnly": true
+        },
+        "seedKey": {
+            "readOnly": true
+        },
+        "parent": {
+            "readOnly": true
+        }
+    }
+}

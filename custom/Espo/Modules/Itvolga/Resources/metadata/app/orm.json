@@ -1,0 +1,9 @@
+{
+    "platforms": {
+        "Mysql": {
+            "functionConverterClassNameMap": {
+                "ITVOLGA_COUNT_DISTINCT": "Espo\\Modules\\Itvolga\\Classes\\ORM\\CountDistinct"
+            }
+        }
+    }
+}

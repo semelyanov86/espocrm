@@ -38,5 +38,13 @@
             "entity",
             "id"
         ]
+    },
+    "itvolgaSetupReports": {
+        "className": "Espo\\Modules\\Itvolga\\Classes\\ConsoleCommands\\SetupReports",
+        "listed": true,
+        "allowedFlags": [
+            "dryRun"
+        ],
+        "allowedOptions": []
     }
 }

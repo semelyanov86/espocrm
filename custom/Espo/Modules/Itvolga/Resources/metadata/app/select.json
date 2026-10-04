@@ -1,0 +1,7 @@
+{
+    "whereItemConverterClassNameMap": {
+        "itvolgaRelated": "Espo\\Modules\\Itvolga\\Classes\\Select\\Where\\Related",
+        "itvolgaFieldCompare": "Espo\\Modules\\Itvolga\\Classes\\Select\\Where\\FieldCompare",
+        "itvolgaReport": "Espo\\Modules\\Itvolga\\Classes\\Select\\Where\\ReportDrillDown"
+    }
+}

@@ -1,0 +1,205 @@
+# Модуль отчётов (этапы 05.1–05.3)
+
+Собственный открытый модуль «Отчёты» — аналог расширения Vtiger Reports 4 You (поведение, не код; код Reports 4 You
+закрытый, Advanced Pack EspoCRM не используется). Решения — D-84…D-104, вопросы — Q-50…Q-53. Этот файл — контракт
+модели, хранимого JSON, API, доступа, движка и сида; проверено на стенде 2026-10-04 (EspoCRM 10.0.9).
+
+Подэтапы: **05.1** — модель, конструктор, движок, доступ, стандартные отчёты (этот файл); 05.2 — графики, дашлеты,
+ключевые показатели; 05.3 — экспорт (CSV, XLSX, PDF; ODS не нужен — уточнение владельца 2026-10-04), печать, рассылка по расписанию (разделы появятся в своих подэтапах).
+
+## 1. Где код
+
+| Путь (`M` = `custom/Espo/Modules/Itvolga`, `C` = `client/custom/modules/itvolga/src`) | Что |
+|---|---|
+| `M/Resources/metadata/{scopes,entityDefs,clientDefs,recordDefs,aclDefs,selectDefs,entityAcl,logicDefs}/Report*.json`, `M/Resources/layouts/Report*/` | сущности `Report`, `ReportFolder` |
+| `M/Tools/Report/Core/` | чистое ядро без контейнера: `Definition/` (разбор и правила определения, `Schema` — порт метаданных и ACL), `Calculation/` (язык расчётов), `Filter/` (относительные периоды, перевод условий в where ядра), `Result/KeyOrder`, `Format/`, `Access/SharingPolicy`, `DecimalMath`; тесты — `tests/reports/` (`task test:reports`) |
+| `M/Tools/Report/Schema/` | `MetadataSchema` — модель глазами пользователя (метаданные + ACL), `SchemaFactory` |
+| `M/Tools/Report/Query/ReportQuery.php` | запросы отчёта через `SelectBuilderFactory` и ORM |
+| `M/Tools/Report/Run/` | `ReportRunner` (запуск), `Assembler` (запросы и сборка по типам), `Labels` |
+| `M/Tools/Report/Format/` | форматирование значений в нотации пользователя |
+| `M/Tools/Report/Api/` | `PostRun`, `GetCatalog`, `GetFolderCounts`; маршруты — `M/Resources/routes.json` |
+| `M/Classes/Select/Where/{Related,FieldCompare,ReportDrillDown}.php`, `M/Resources/metadata/app/select.json` | собственные типы where-элементов `itvolgaRelated`, `itvolgaFieldCompare`, `itvolgaReport` |
+| `M/Classes/ORM/CountDistinct.php`, `M/Resources/metadata/app/orm.json` | функция ORM `ITVOLGA_COUNT_DISTINCT` |
+| `M/Classes/Acl/Report/AccessChecker.php`, `M/Classes/Select/Report/**` | доступ к отчётам (запись и списки) |
+| `M/Hooks/Report/Definition.php`, `M/Hooks/ReportFolder/Guard.php`, `M/Repositories/{Report,ReportFolder}.php`, `M/Services/ReportFolder.php` | проверка определения при любом сохранении (в транзакции репозитория); правила папок; «надгробие» удалённой стандартной папки |
+| `M/Classes/ConsoleCommands/SetupReports.php`, `M/Tools/Report/Seed/StandardReports.php`, `M/Resources/metadata/app/itvolgaReports.json`, `M/Resources/reports/standard/*.json` | `itvolga-setup-reports`: папки и стандартные отчёты |
+| `C/report/catalog.js`, `C/views/report/fields/*.js`, `C/views/report/filter/*.js` | конструктор: каталог полей, редакторы частей определения, условия |
+| `C/views/report/record/{edit,detail}.js`, `C/views/report/result.js`, `C/views/report/list.js`, `C/views/report/modals/drill-down.js`, `C/handlers/report/move-to-folder.js` | конструктор-форма, страница результата, список с папками, детализация, перенос в папку |
+
+## 2. Модель и хранимый JSON
+
+`Report` (type `Base`, без ленты): `name` (обязательно, не уникально), `description`, `folder` → `ReportFolder`,
+`type` (`tabular` | `summaries` | `summariesWithDetails` | `matrix`; после создания не меняется), `entityType`
+(основная сущность; после создания не меняется), `assignedUser` (владелец), `accessType` (`private` | `public` |
+`shared`), `sharedUsers` (→ User), `sharedTeams` (→ Team), лимиты `rowLimit` (1…5000, умолчание 20, пусто = все) и
+`groupLimit` (1…1000, умолчание 20, пусто = все), `seedKey` (стандартный отчёт; не копируется при дублировании) и JSON-
+части определения. Канонический вид JSON записывает хук сохранения (`Definition::toAttributes`).
+
+| Часть | Формат | Где |
+|---|---|---|
+| `columns` | `["name", "account.name", "grandTotal"]` — ссылки на поля, без повторов, ≤ 40 | tabular, summariesWithDetails (≥ 1) |
+| `sorting` | `[{"column": <колонка>, "direction": "asc"\|"desc"}]`, ≤ 5 | там же |
+| `groups` | `[{"field": <ссылка>, "granularity": "day"\|"week"\|"month"\|"quarter"\|"halfYear"\|"year"\|null, "direction": "asc"\|"desc"}]`; гранулярность — только у дат (умолчание `day`) | summaries 1–3, summariesWithDetails 1, matrix 2 (второй — ось колонок) |
+| `aggregates` | `[{"function": "COUNT", "link": null, "field": null}, {"function": "SUM"\|"AVG"\|"MIN"\|"MAX", "link": <связь>\|null, "field": <числовое поле>}]`, ≤ 20; ключ — `COUNT` / `SUM:grandTotal` / `SUM:items.amount` | сводные типы (≥ 1) |
+| `groupSort` | `{"aggregate": <ключ агрегата>, "direction": …}` или `null` | сводные |
+| `totals` | `[{"column": <числовая колонка>, "functions": ["SUM","AVG","MIN","MAX"]}]` | tabular |
+| `calculations` | `[{"id": "k1", "label": "…", "expression": "{grandTotal} - {paidAmount}", "functions": [...]}]`, ≤ 10 | tabular |
+| `filters` | дерево: группа `{"type": "and"\|"or", "items": [...]}`, условие `{"field": <ссылка>, "where": <where-элемент ядра над атрибутами сущности поля>, "advanced": <состояние интерфейса>}`; глубина ≤ 4, узлов ≤ 100 | все |
+| `havingFilters` | `[{"aggregate": <ключ>, "operator": "equals"\|"notEquals"\|"greaterThan"\|"lessThan"\|"greaterThanOrEquals"\|"lessThanOrEquals"\|"between", "value": "1500.5"\|["10","20"]}]`, ≤ 10, по И | сводные |
+| `quickFilters` | `["status", "account"]` — поля основной сущности или связи «к одному» (текст, перечисление, флаг, ссылка, целое), ≤ 10 | все |
+| `labels` | `{"c:<колонка>": "…", "g:<уровень 1..3>": "…", "a:<ключ агрегата>": "…", "k:<id расчёта>": "…"}`; пустая подпись — стандартная | все |
+
+**Ссылки на поля.** `field` — поле основной сущности, `link.field` — поле сущности на одной связи (`belongsTo`,
+`hasMany`, `hasChildren`, `manyMany`, включая `assignedUser`, `teams`, строки документов `items`). Доступность поля
+определяет `MetadataSchema` (§4).
+
+**Где-элементы условий** (`Core/Definition/WhereRules.php`): типы штатного поиска EspoCRM по семейству поля (строки:
+equals, notEquals, like, startsWith, endsWith, contains, notContains, in, notIn, isNull, isNotNull; перечисления и
+ссылки: equals, notEquals, in, notIn, isNull, isNotNull; числа: сравнения, between, пусто; флаги: isTrue/isFalse;
+множественные: arrayAnyOf…; linkMultiple: linkedWith…; даты: on, before, after, between, ever, isNull, isNotNull),
+вложенные and/or над тем же полем (так их строят поисковые представления ядра) и типы модуля: относительные периоды
+(today, yesterday, tomorrow, past, future, lastSevenDays, current/last/nextWeek, current/last/nextMonth,
+current/last/nextQuarter, current/last/nextYear, current/lastFiscalYear, current/lastFiscalQuarter), N дней
+(lastXDays, nextXDays, olderThanXDays, afterXDays, xDaysAgo, inXDays; N = 0…3650), «текущий пользователь»
+(isCurrentUser, isNotCurrentUser — у ссылок на User), сравнение двух дат основной сущности (`compareField`,
+value `{"operator", "field"}`; в where ядра — `itvolgaFieldCompare`: оба операнда проверяются по запретам полей и
+атрибутов, служебные атрибуты вроде `dateStartDate` не принимаются). Атрибут — только атрибут самого поля; значения проверяются по форме (числа и даты —
+строгие шаблоны). `advanced` сервер не читает (≤ 4 КБ).
+
+**Язык расчётов** (`Core/Calculation/Parser.php`): десятичные числа, ссылки `{колонка}` на выбранные числовые колонки,
+`+ - * /`, унарный минус, скобки, `round(x, n)` (n 0…8); длина ≤ 500, вложенность ≤ 20. Вычисление — `Decimal`
+(bcmath): деление — 8 знаков с округлением от нуля, деление на ноль и пустой операнд дают пусто. Ошибка разбора —
+сообщение с позицией.
+
+**Правила типов** (`DefinitionParser`): части, не используемые типом, должны быть пусты (конструктор отправляет их
+пустыми); не больше одной связи «ко многим» в колонках, группах и агрегатах, и при ней SUM/AVG/MIN/MAX, итоги и итоги
+расчётов — только по полям этой связи (D-90).
+
+`ReportFolder` (type `CategoryTree`, плоский: `parent` всегда пуст): `name` (уникально среди живых, без учёта
+регистра), `description`, `assignedUser`, `isSystem` (только «Общие»), `seedKey`. Системную папку удалить нельзя (403),
+папку с отчётами — нельзя (409, проверка под блокировкой строки папки). Сохранение отчёта идёт в транзакции
+(`Repositories/Report`): папку нового или перенесённого отчёта хук читает с блокировкой, и она держится до записи отчёта,
+поэтому удаляемая одновременно папка либо видит отчёт (409), либо уже удалена для сохранения (400 `folderNotFound`).
+Ядро удаляет папку-категорию физически; у стандартной папки (`seedKey`) `Repositories/ReportFolder` оставляет мягко
+удалённую строку, чтобы сид её не воскрешал (§7).
+
+## 3. API
+
+| Запрос | Ответ |
+|---|---|
+| `POST /Report/:id/run` `{offset?, maxSize? (1…200, 50), filters? (дерево как §2 — заменяет сохранённые условия на один запуск), quickFilters? [{"field", "mode": "in"\|"notIn", "values": [...], "includeEmpty": bool}], noLimit? (05.3), withQuickFilterOptions? (true)}` | результат (ниже); 404 — нет отчёта, 403 — нет доступа к отчёту, сущности или полю, 400 — неверные параметры |
+| `GET /Report/catalog` | `{"list": [{"entityType", "label"}]}` — сущности, доступные пользователю |
+| `GET /Report/catalog/:entityType` | `{"entityType", "fields": [...], "links": [{"link", "kind": "one"\|"many", "entityType", "label", "fields": [...]}]}`; поле: `ref, field, label, type, family, entityType, foreignEntityType, column, group, sort, aggregate, filter, quickFilter, date, operators` |
+| `GET /Report/folderCounts` | `{"total": n, "folders": {"<folderId>": n}}` — отчёты, которые пользователь может читать |
+| штатный `PUT /Report/:id` | сохранение, в том числе «Сохранить условия» (`filters`) |
+| штатный список с `where=[{"type": "itvolgaReport", "attribute": "id", "value": "<JSON {id, path, filters?, quickFilters?}>"}]` | детализация группы (§6) |
+
+**Результат.** Ячейка — `{"v": <сырое: числа строками, COUNT — целое, даты ISO, id>, "f": <текст>, "id"?, "et"?
+(запись по ссылке), "cur"? (валюта), "mixed"? (разные валюты)}`. Общие поля: `id, name, type, entityType,
+recordCount` (записи основной сущности по условиям), `rowCount` (строки соединения), `columns[{key, field, label,
+fieldType, numeric}]`, `groups[{key, field, label, granularity}]`, `aggregates[{key, function, field, label}]`,
+`quickFilters[{field, label, options[{v, f, empty?}], truncated}]`, `limits{…, maxRows}`. По типам: tabular —
+`calculations[{key,label}]`, `rows[{id, cells[], calc[]}]`, `totals{"c:<ref>": {SUM: ячейка…}}`,
+`calculationTotals{"k:k1": {...}}`, `offset, maxSize, availableRows`, `limits{rowLimit, rowLimitHit, capHit,
+calculationsCapped}`; сводные — `tree[{key, count, values[], children?, rows?}]`, `grandTotal{count, values[]}`,
+`limits{groupLimit, groupCount, groupLimitHit, capHit, rowLimit, rowLimitHit?}`; матрица — `matrix{rows[узел],
+columns[узел], cells[строка][колонка] → {count, values[]}|null}`, `grandTotal`, `limits{…, matrixColumnsHit,
+maxMatrixColumns}`. Ключи групп: дата — `YYYY-MM-DD`, неделя — `YYYY/W` (ISO), месяц — `YYYY-MM`, квартал — `YYYY_Q`,
+полугодие — `YYYY_H`, год — `YYYY`; ссылка — id; пусто — `null`.
+
+## 4. Доступ
+
+**Отчёт** (D-87): `private` — владелец и администраторы при любом уровне чтения (фильтр `mandatory`, так что уровень
+`all` личные отчёты не открывает); `public` — каждый с правом чтения scope `Report`; `shared` — уровень `own`:
+пользователи списка, `team`: и члены команд списка, `all`: все. Владелец читает свои отчёты при уровне не `no`.
+Править и удалять — владелец и администратор (уровень правки — только как «право вообще»). Не-администратор не создаёт
+отчёт на чужое имя и не меняет владельца. `shared` требует непустого списка; у других типов списки очищаются. Правило
+— `Core/Access/SharingPolicy` (проверка записи) и `Classes/Select/Report/SharedReports` (тот же смысл в SQL).
+Роли (`itvolga-setup-acl`): рабочие — `Report` create, read `team`, edit/delete `own`; `ReportFolder` create, read
+`all`, edit/delete `own`; «Доступы» — `Report` только read `own` (публичные и адресованные лично), `ReportFolder` read.
+Вкладка «Отчёты» — после «Платежи».
+
+**Данные отчёта** (D-89, D-99), независимо от конструктора — при каждом сохранении и запуске:
+- сущность — `scopes.*.entity && object` или флаг `scopes.<E>.itvolgaReports: true` (строки документов,
+  распределения, `ContactAccess`), `"admin"` — только администраторам (User, Team, журналы), `false` — никогда (Report,
+  ReportFolder); нет права чтения — 403;
+- поле — без технических (`disabled`, `utility`, `directAccessDisabled`, нехранимые — кроме вычисляемых ORM у основной
+  сущности: имя персоны, e-mail, телефон; `password`, JSON, `address` целиком (его части — обычные поля), `foreign`,
+  `currencyConverted`, файлы); у связанной сущности — только хранимые колонки (без имени персоны, e-mail, телефона,
+  linkMultiple, linkParent); поле, связь или атрибут под запретом ACL — 403 в любом месте (колонки, группы, агрегаты,
+  сортировка, итоги, расчёты через колонки, условия, разовые условия, HAVING через агрегат, быстрые фильтры);
+- записи основной сущности — фильтр доступа ядра (`withStrictAccessControl` + where-проверка ядра);
+- связанные записи — LEFT JOIN по типу сущности с `deleted = 0` и подзапросом читаемых пользователем id в ON (у
+  many-many — и у промежуточной таблицы), в том числе у администратора (обязательные фильтры ядра: системный
+  пользователь, суперадминистратор): скрытая запись выглядит как отсутствующая, строк не добавляет; условие по
+  связанному полю — `itvolgaRelated`: EXISTS по доступным связанным записям через строгий построитель ядра связанной
+  сущности (её полевой ACL, фильтр доступа, преобразование дат);
+- имена ссылок — как в списках ядра (без ACL, в том числе удалённых записей).
+Пароль `ContactAccess.anydeskPassword` не участвует никогда (тип `password`); остальные поля `ContactAccess` — только
+ролям с доступом к сущности.
+
+## 5. Движок
+
+Запуск (`ReportRunner::run(Report, параметры, User)`; пользователь — параметр, для 05.2/05.3): определение заново
+разбирается схемой пользователя, разовые условия и быстрые фильтры проверяются тем же парсером; все запросы — в одной
+транзакции чтения; ничего не пишется, результат не кэшируется (D-95).
+
+- `eligible` — id записей основной сущности: `SelectBuilderFactory->create()->from(E)->forUser(u)
+  ->withStrictAccessControl()->withWhere(перевод условий)`; относительные периоды вычислены модулем в поясе
+  запускающего (Preferences, иначе настройки; D-92), даты — календарные, даты-время — `dateTime` + `timeZone`, ядро
+  переводит местные сутки в UTC.
+- `base` — ORM-запрос основной сущности с `id IN eligible` (фильтры доступа ядра не смешиваются с группировкой), JOIN
+  связей полей отчёта (§4), быстрые фильтры по показанному значению (скрытая или отсутствующая связанная запись — пусто,
+  у текстов пусто = NULL или '').
+- выражения: значение поля (ссылка — id, деньги — сумма и валюта), ключ группы (текст и перечисление —
+  `NULLIF:(значение, '')`: NULL и '' — одна пустая группа, как в детализации и быстрых фильтрах; `DAY:`, `WEEK_1:`, `MONTH:`,
+  `QUARTER:`, `YEAR:`, полугодие — `CONCAT:(YEAR:, '_', IF:(MONTH_NUMBER: ≤ 6, '1', '2'))`; у дат-времени — `TZ:` со
+  смещением пояса на момент запуска), агрегаты (`ITVOLGA_COUNT_DISTINCT:(id)`, SUM/AVG/MIN/MAX; у денег — MIN/MAX
+  валюты для пометки «разные валюты»).
+- tabular — страница строк (сортировка по колонкам — перечисления по порядку опций, ссылки основной сущности по имени
+  — и по id), счётчики, итоги колонок SQL по всем строкам условий (D-96), расчёты по строкам в PHP и их итоги по
+  строкам условий до потолка (пометка `calculationsCapped`).
+- сводные — запрос на каждый уровень (`GROUP BY` выражений ключей, `HAVING` на уровне 1), сортировка групп и лимит —
+  в PHP по всем группам уровня 1 до потолка 1000 (`KeyOrder`: периоды хронологически, перечисления по опциям, ссылки
+  по имени, тексты по сопоставлению языка, пустое последним; при `groupSort` — по агрегату); нижние уровни, строки
+  детализации (лимит строк — на группу, D-97) и «Итого» — по показанным группам уровня 1, когда лимит, потолок или
+  HAVING их отсекли (D-91); «Всего записей» — по всем условиям. Нижние уровни, строки и ячейки ищутся по ключу в том
+  виде, как его вернул SQL (десятичное `1.00000000`, флаг `0`), а не по показанному значению.
+- матрица — строки как уровень 1, колонки — значения второй группы (≤ 50, по порядку ключей), ячейки, итоги колонок
+  и общий итог — отдельными запросами по показанным строкам; итог строки — агрегаты уровня 1. Если ячейки показанных
+  строк не помещаются в потолок строк запуска, строк показывается меньше (`строк × колонок ≤ потолок`), колонки и общий
+  итог пересчитываются по оставшимся строкам, `capHit` — пометка «ограничено» (D-104); пропавших ячеек нет.
+- варианты быстрых фильтров — значения поля по условиям отчёта без выбранных быстрых фильтров (≤ 200, пусто —
+  отдельный пункт).
+
+## 6. Интерфейс
+
+Список — штатный список с панелью папок (`views/list-with-categories` над `ReportFolder`): поиск по папкам, «Все
+отчёты», счётчики, массовые «Переместить в папку», массовое обновление папки и удаление (экспорт определений выключен);
+открытие отчёта — сразу результат, «Редактировать» открывает конструктор (правки «на месте» в сводке нет). Конструктор — форма
+записи со вкладками-шагами (Основное; Группировка и агрегаты; Колонки и сортировка; Расчёты; Фильтры; Подписи; Доступ),
+шаги, не нужные типу, скрыты `logicDefs`; кнопки «Сохранить и показать», «Сохранить», «Отмена»; «Дублировать» —
+штатное, копия получает суффикс «(копия)», владельца-автора и доступ «личный». Условия — группы И/ИЛИ с условиями на
+полях основной и связанных сущностей (штатный `views/search/filter` на модели сущности поля; даты и ссылки на
+пользователей — с дополнительными периодами и «текущим пользователем»), «Сравнение дат». Страница результата — панель
+«Сведения об отчёте» (по кнопке), «Условия» (тот же редактор на копии отчёта: «Сформировать» — разово, «Сохранить
+условия» — в отчёт), быстрые фильтры, счётчики и пометки об ограничениях, таблица типа отчёта; кнопка у группы
+открывает штатный список её записей (`itvolgaReport`). Только штатные классы EspoCRM, без собственных стилей.
+
+## 7. Стандартные отчёты
+
+`task espo -- itvolga-setup-reports` (часть `task model:apply`): папки и отчёты реестра `app.itvolgaReports`
+(29 манифестов — адаптация образцов Reports 4 You и трёх собственных отчётов production). Только вставка по
+`seedKey`: существующий ключ — даже у удалённого или изменённого пользователем отчёта или папки — пропускается (D-100;
+новые стандартные отчёты удалённой папки попадают в «Общие»); отчёт по
+выключенной сущности пропускается с сообщением; владелец — первый активный администратор, доступ публичный; каждый
+отчёт сохраняется через ORM и проверяется хуком определения. Манифест: `seedKey`, `folder`, `name {ru,en}`,
+`description {ru,en}`, `type`, `entityType`, `definition` (части §2), `charts` (для 05.2, сейчас не используется).
+`task model:check` проверяет реестр, манифесты и ссылки на поля.
+
+## 8. Ограничения и не реализуется
+
+Не больше одной связи «ко многим» на отчёт (D-90); сравнение дат — только полей основной сущности; группировка по
+связанному полю-ссылке сортируется по имени только в пределах загруженных групп; фиксированное смещение пояса при
+группировке дат-времени (в часовых поясах РФ переходов нет); отчёты Custom SQL / custom PHP, экспорт в путь на сервере,
+почасовая рассылка, XML-экспорт, карты и внешние сервисы графиков — не реализуются (D-103).

@@ -1,0 +1,60 @@
+{
+    "seedKey": "invoices-by-account-status",
+    "folder": "invoices",
+    "name": {
+        "ru": "Счета по контрагенту и статусу",
+        "en": "Invoices by account and status"
+    },
+    "description": {
+        "ru": "Количество и сумма счетов по контрагентам и статусам.",
+        "en": "Invoice counts and totals grouped by account and status."
+    },
+    "type": "summaries",
+    "entityType": "Invoice",
+    "charts": [
+        {
+            "type": "horizontalBar",
+            "aggregate": "SUM:grandTotal"
+        }
+    ],
+    "definition": {
+        "columns": [],
+        "sorting": [],
+        "rowLimit": 20,
+        "groups": [
+            {
+                "field": "account",
+                "granularity": null,
+                "direction": "asc"
+            },
+            {
+                "field": "status",
+                "granularity": null,
+                "direction": "asc"
+            }
+        ],
+        "aggregates": [
+            {
+                "function": "COUNT",
+                "link": null,
+                "field": null
+            },
+            {
+                "function": "SUM",
+                "link": null,
+                "field": "grandTotal"
+            }
+        ],
+        "groupSort": null,
+        "groupLimit": 20,
+        "totals": [],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": []
+        },
+        "havingFilters": [],
+        "quickFilters": [],
+        "labels": {}
+    }
+}

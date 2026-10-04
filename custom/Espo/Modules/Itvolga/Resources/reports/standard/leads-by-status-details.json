@@ -1,0 +1,56 @@
+{
+    "seedKey": "leads-by-status-details",
+    "folder": "leads",
+    "name": {
+        "ru": "Лиды по статусу с детализацией",
+        "en": "Leads by status with details"
+    },
+    "description": {
+        "ru": "Количество лидов по статусам с детализацией компаний, источников и ответственных.",
+        "en": "Lead counts by status with company, source and assigned user details."
+    },
+    "type": "summariesWithDetails",
+    "entityType": "Lead",
+    "charts": [
+        {
+            "type": "bar",
+            "aggregate": "COUNT"
+        }
+    ],
+    "definition": {
+        "columns": [
+            "name",
+            "accountName",
+            "source",
+            "assignedUser",
+            "createdAt"
+        ],
+        "sorting": [],
+        "rowLimit": 20,
+        "groups": [
+            {
+                "field": "status",
+                "granularity": null,
+                "direction": "asc"
+            }
+        ],
+        "aggregates": [
+            {
+                "function": "COUNT",
+                "link": null,
+                "field": null
+            }
+        ],
+        "groupSort": null,
+        "groupLimit": 20,
+        "totals": [],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": []
+        },
+        "havingFilters": [],
+        "quickFilters": [],
+        "labels": {}
+    }
+}

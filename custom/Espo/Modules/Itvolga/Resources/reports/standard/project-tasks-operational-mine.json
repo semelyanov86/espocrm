@@ -1,0 +1,81 @@
+{
+    "seedKey": "project-tasks-operational-mine",
+    "folder": "projects",
+    "name": {
+        "ru": "Оперативные задачи ответственного",
+        "en": "My operational tasks"
+    },
+    "description": {
+        "ru": "Нефинальные оперативные задачи текущего пользователя с приоритетами, датами начала и итогами часов.",
+        "en": "Current user operational tasks in non-final statuses with priorities, start dates and hour totals."
+    },
+    "type": "tabular",
+    "entityType": "ProjectTask",
+    "definition": {
+        "columns": [
+            "project",
+            "name",
+            "type",
+            "status",
+            "priority",
+            "dateStart",
+            "hours"
+        ],
+        "sorting": [],
+        "rowLimit": null,
+        "groups": [],
+        "aggregates": [],
+        "groupSort": null,
+        "groupLimit": null,
+        "totals": [
+            {
+                "column": "hours",
+                "functions": [
+                    "SUM",
+                    "AVG",
+                    "MIN",
+                    "MAX"
+                ]
+            }
+        ],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": [
+                {
+                    "field": "type",
+                    "where": {
+                        "type": "in",
+                        "attribute": "type",
+                        "value": [
+                            "operative"
+                        ]
+                    }
+                },
+                {
+                    "field": "assignedUser",
+                    "where": {
+                        "type": "isCurrentUser",
+                        "attribute": "assignedUserId"
+                    }
+                },
+                {
+                    "field": "status",
+                    "where": {
+                        "type": "in",
+                        "attribute": "status",
+                        "value": [
+                            "",
+                            "Open",
+                            "In Progress",
+                            "Deferred"
+                        ]
+                    }
+                }
+            ]
+        },
+        "havingFilters": [],
+        "quickFilters": [],
+        "labels": {}
+    }
+}

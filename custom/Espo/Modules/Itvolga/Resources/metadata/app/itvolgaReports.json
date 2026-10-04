@@ -1,0 +1,94 @@
+{
+    "comment": "Report module (stage 05.1, reports.md §8): folders and standard reports created by itvolga-setup-reports (insert-only by seedKey). Manifests: Resources/reports/standard/<name>.json.",
+    "folders": [
+        {
+            "seedKey": "general",
+            "isSystem": true,
+            "name": {
+                "ru": "Общие",
+                "en": "General"
+            }
+        },
+        {
+            "seedKey": "opportunities",
+            "name": {
+                "ru": "Сделки",
+                "en": "Opportunities"
+            }
+        },
+        {
+            "seedKey": "leads",
+            "name": {
+                "ru": "Лиды",
+                "en": "Leads"
+            }
+        },
+        {
+            "seedKey": "invoices",
+            "name": {
+                "ru": "Счета и платежи",
+                "en": "Invoices and payments"
+            }
+        },
+        {
+            "seedKey": "offers",
+            "name": {
+                "ru": "Коммерческие предложения и заказы",
+                "en": "Quotes and sales orders"
+            }
+        },
+        {
+            "seedKey": "cases",
+            "name": {
+                "ru": "Обращения",
+                "en": "Cases"
+            }
+        },
+        {
+            "seedKey": "projects",
+            "name": {
+                "ru": "Проекты",
+                "en": "Projects"
+            }
+        },
+        {
+            "seedKey": "campaigns",
+            "onlyIfEntity": "Campaign",
+            "name": {
+                "ru": "Кампании",
+                "en": "Campaigns"
+            }
+        }
+    ],
+    "standardReports": [
+        "opportunities-by-owner-details",
+        "opportunities-by-account-details",
+        "opportunities-by-account",
+        "opportunities-by-stage-account",
+        "opportunities-stage-by-account",
+        "opportunities-funnel",
+        "quotes-by-account-details",
+        "leads-by-status-details",
+        "leads-by-source-details",
+        "leads-by-owner-details",
+        "leads-by-region-details",
+        "leads-by-status",
+        "leads-by-status-source",
+        "leads-by-source",
+        "leads-by-source-account-owner",
+        "invoices-by-account",
+        "invoices-by-account-status",
+        "invoices-by-account-details",
+        "invoice-items-by-product-month",
+        "invoice-items-by-year",
+        "sales-order-items-by-product-month",
+        "cases-by-owner-status",
+        "cases-by-owner-month",
+        "leads-by-campaign-details",
+        "contacts-by-campaign-details",
+        "accounts-by-campaign-details",
+        "payments",
+        "project-tasks-by-project",
+        "project-tasks-operational-mine"
+    ]
+}

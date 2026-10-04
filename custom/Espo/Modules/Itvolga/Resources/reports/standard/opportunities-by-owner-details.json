@@ -1,0 +1,66 @@
+{
+    "seedKey": "opportunities-by-owner-details",
+    "folder": "opportunities",
+    "name": {
+        "ru": "Сделки по ответственным с детализацией",
+        "en": "Opportunities by assigned user with details"
+    },
+    "description": {
+        "ru": "Количество и сумма сделок по ответственным с детализацией сделок.",
+        "en": "Opportunity counts and amounts by assigned user with individual opportunity details."
+    },
+    "type": "summariesWithDetails",
+    "entityType": "Opportunity",
+    "charts": [
+        {
+            "type": "pie",
+            "aggregate": "SUM:amount"
+        }
+    ],
+    "definition": {
+        "columns": [
+            "name",
+            "account",
+            "stage",
+            "amount",
+            "closeDate"
+        ],
+        "sorting": [
+            {
+                "column": "closeDate",
+                "direction": "desc"
+            }
+        ],
+        "rowLimit": 20,
+        "groups": [
+            {
+                "field": "assignedUser",
+                "granularity": null,
+                "direction": "asc"
+            }
+        ],
+        "aggregates": [
+            {
+                "function": "COUNT",
+                "link": null,
+                "field": null
+            },
+            {
+                "function": "SUM",
+                "link": null,
+                "field": "amount"
+            }
+        ],
+        "groupSort": null,
+        "groupLimit": 20,
+        "totals": [],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": []
+        },
+        "havingFilters": [],
+        "quickFilters": [],
+        "labels": {}
+    }
+}

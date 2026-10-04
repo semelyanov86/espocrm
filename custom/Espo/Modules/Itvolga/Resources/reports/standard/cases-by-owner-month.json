@@ -1,0 +1,63 @@
+{
+    "seedKey": "cases-by-owner-month",
+    "folder": "cases",
+    "name": {
+        "ru": "Обращения по ответственному и месяцам",
+        "en": "Cases by assigned user and month"
+    },
+    "description": {
+        "ru": "Количество обращений по ответственным и месяцам создания.",
+        "en": "Case counts by assigned user and creation month."
+    },
+    "type": "matrix",
+    "entityType": "Case",
+    "charts": [
+        {
+            "type": "line",
+            "aggregate": "COUNT"
+        },
+        {
+            "type": "bar",
+            "aggregate": "COUNT"
+        },
+        {
+            "type": "bar",
+            "aggregate": "COUNT"
+        }
+    ],
+    "definition": {
+        "columns": [],
+        "sorting": [],
+        "rowLimit": 20,
+        "groups": [
+            {
+                "field": "assignedUser",
+                "granularity": null,
+                "direction": "asc"
+            },
+            {
+                "field": "createdAt",
+                "granularity": "month",
+                "direction": "asc"
+            }
+        ],
+        "aggregates": [
+            {
+                "function": "COUNT",
+                "link": null,
+                "field": null
+            }
+        ],
+        "groupSort": null,
+        "groupLimit": 20,
+        "totals": [],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": []
+        },
+        "havingFilters": [],
+        "quickFilters": [],
+        "labels": {}
+    }
+}

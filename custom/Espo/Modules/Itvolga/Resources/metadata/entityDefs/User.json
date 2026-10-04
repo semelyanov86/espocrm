@@ -32,5 +32,15 @@
                 "vtigerId"
             ]
         }
+    },
+    "links": {
+        "cSharedReports": {
+            "type": "hasMany",
+            "entity": "Report",
+            "relationName": "reportSharedUser",
+            "foreign": "sharedUsers",
+            "readOnly": true,
+            "layoutRelationshipsDisabled": true
+        }
     }
 }

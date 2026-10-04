@@ -1,0 +1,50 @@
+{
+    "seedKey": "invoice-items-by-year",
+    "folder": "invoices",
+    "name": {
+        "ru": "Количество товаров по годам",
+        "en": "Product quantities by year"
+    },
+    "description": {
+        "ru": "Количество товаров в позициях счетов по годам выставления счетов.",
+        "en": "Product quantities in invoice items by invoice year."
+    },
+    "type": "summaries",
+    "entityType": "InvoiceItem",
+    "charts": [
+        {
+            "type": "line",
+            "aggregate": "SUM:quantity"
+        }
+    ],
+    "definition": {
+        "columns": [],
+        "sorting": [],
+        "rowLimit": 20,
+        "groups": [
+            {
+                "field": "invoice.dateInvoiced",
+                "granularity": "year",
+                "direction": "asc"
+            }
+        ],
+        "aggregates": [
+            {
+                "function": "SUM",
+                "link": null,
+                "field": "quantity"
+            }
+        ],
+        "groupSort": null,
+        "groupLimit": 20,
+        "totals": [],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": []
+        },
+        "havingFilters": [],
+        "quickFilters": [],
+        "labels": {}
+    }
+}

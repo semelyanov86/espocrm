@@ -421,6 +421,75 @@ def check_default_terms(model):
     return True, f"ok: умолчание termsAndConditions ({', '.join(TERMS_ENTITIES)})"
 
 
+REPORT_DIR = "custom/Espo/Modules/Itvolga/Resources/reports/standard"
+REPORT_TYPES = {"tabular", "summaries", "summariesWithDetails", "matrix"}
+REPORT_PARTS = {"columns", "sorting", "rowLimit", "groups", "aggregates", "groupSort", "groupLimit", "totals",
+                "calculations", "filters", "havingFilters", "quickFilters", "labels"}
+REPORT_FIELDS = REPORT_PARTS | {"name", "type", "entityType", "folder", "accessType", "sharedUsers", "sharedTeams",
+                                "assignedUser", "seedKey"}
+
+
+def report_ref_exists(model, entity, ref):
+    """`field` of the entity or `link.field` one link away (the column ids of reports, reports.md §2)."""
+    if "." not in ref:
+        return model.field(entity, ref) is not None
+    link, field = ref.split(".", 1)
+    target = (model.link(entity, link) or {}).get("entity")
+    return bool(target) and model.field(target, field) is not None
+
+
+def check_reports(model):
+    """Stage 05.1: the report entities and the registry of standard reports (app.itvolgaReports) — folders with unique
+    keys and one system folder, each manifest present, its seedKey = file name, folder known, type valid, every field
+    reference existing in the model (the server checks ACL and the type rules again when it seeds)."""
+    problems = []
+    for name in sorted(REPORT_FIELDS):
+        if model.field("Report", name) is None:
+            problems.append(f"Report: нет поля {name}")
+    if model.load("scopes").get("ReportFolder", {}).get("type") != "CategoryTree":
+        problems.append("ReportFolder не CategoryTree")
+    if "ReportFolderPath" not in model.entity_defs.get("ReportFolder", {}).get("additionalTables", {}):
+        problems.append("нет таблицы ReportFolderPath")
+    registry = model.load("app").get("itvolgaReports", {})
+    folders = registry.get("folders", [])
+    keys = [f.get("seedKey") for f in folders]
+    if len(keys) != len(set(keys)) or sum(1 for f in folders if f.get("isSystem")) != 1:
+        problems.append("папки: ключи повторяются или системная папка не одна")
+    seeds = registry.get("standardReports", [])
+    if len(seeds) != len(set(seeds)):
+        problems.append("стандартные отчёты повторяются")
+    for name in seeds:
+        path = model.repo / REPORT_DIR / f"{name}.json"
+        if not path.is_file():
+            problems.append(f"{name}: нет манифеста")
+            continue
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        entity = manifest.get("entityType")
+        definition = manifest.get("definition", {})
+        if manifest.get("seedKey") != name or manifest.get("folder") not in keys or \
+                manifest.get("type") not in REPORT_TYPES or entity not in model.entity_defs or \
+                set(definition) - REPORT_PARTS:
+            problems.append(f"{name}: ключ, папка, тип, сущность или разделы")
+            continue
+        refs = list(definition.get("columns", [])) + list(definition.get("quickFilters", []))
+        refs += [g["field"] for g in definition.get("groups", [])]
+        refs += [(a["link"] + "." if a.get("link") else "") + a["field"] for a in definition.get("aggregates", [])
+                 if a.get("field")]
+
+        def walk(node):
+            for item in node.get("items", []):
+                if "items" in item:
+                    walk(item)
+                else:
+                    refs.append(item["field"])
+
+        walk(definition.get("filters") or {"items": []})
+        problems += [f"{name}: нет поля {ref}" for ref in refs if not report_ref_exists(model, entity, ref)]
+    if problems:
+        return False, "ОШИБКА: " + "; ".join(problems[:20])
+    return True, f"ok: отчёты — папок {len(folders)}, стандартных отчётов {len(seeds)}"
+
+
 def check_relation_row(model, row):
     fate = row.get("fate", "")
     target = row.get("target_link", "")
@@ -535,6 +604,9 @@ def main():
                 na += 1
         failures += bad
         print(f"{name}: ok {ok}, failed {bad}, not applicable {na}")
+    res, text = check_reports(model)
+    print(f"reports (stage 05.1): {text}")
+    failures += 0 if res else 1
     sys.exit(1 if failures else 0)
 
 

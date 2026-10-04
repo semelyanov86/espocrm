@@ -1,0 +1,58 @@
+{
+    "seedKey": "invoices-by-account",
+    "folder": "invoices",
+    "name": {
+        "ru": "Счета по контрагентам",
+        "en": "Invoices by account"
+    },
+    "description": {
+        "ru": "Количество и сумма счетов по контрагентам в порядке убывания суммы.",
+        "en": "Invoice counts and totals by account in descending order of total."
+    },
+    "type": "summaries",
+    "entityType": "Invoice",
+    "charts": [
+        {
+            "type": "bar",
+            "aggregate": "SUM:grandTotal"
+        }
+    ],
+    "definition": {
+        "columns": [],
+        "sorting": [],
+        "rowLimit": 20,
+        "groups": [
+            {
+                "field": "account",
+                "granularity": null,
+                "direction": "asc"
+            }
+        ],
+        "aggregates": [
+            {
+                "function": "COUNT",
+                "link": null,
+                "field": null
+            },
+            {
+                "function": "SUM",
+                "link": null,
+                "field": "grandTotal"
+            }
+        ],
+        "groupSort": {
+            "aggregate": "SUM:grandTotal",
+            "direction": "desc"
+        },
+        "groupLimit": 20,
+        "totals": [],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": []
+        },
+        "havingFilters": [],
+        "quickFilters": [],
+        "labels": {}
+    }
+}

@@ -1,0 +1,56 @@
+{
+    "seedKey": "leads-by-owner-details",
+    "folder": "leads",
+    "name": {
+        "ru": "Лиды по ответственному с детализацией",
+        "en": "Leads by assigned user with details"
+    },
+    "description": {
+        "ru": "Количество лидов по ответственным с детализацией компаний, статусов и источников.",
+        "en": "Lead counts by assigned user with company, status and source details."
+    },
+    "type": "summariesWithDetails",
+    "entityType": "Lead",
+    "charts": [
+        {
+            "type": "bar",
+            "aggregate": "COUNT"
+        }
+    ],
+    "definition": {
+        "columns": [
+            "name",
+            "accountName",
+            "status",
+            "source",
+            "createdAt"
+        ],
+        "sorting": [],
+        "rowLimit": 20,
+        "groups": [
+            {
+                "field": "assignedUser",
+                "granularity": null,
+                "direction": "asc"
+            }
+        ],
+        "aggregates": [
+            {
+                "function": "COUNT",
+                "link": null,
+                "field": null
+            }
+        ],
+        "groupSort": null,
+        "groupLimit": 20,
+        "totals": [],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": []
+        },
+        "havingFilters": [],
+        "quickFilters": [],
+        "labels": {}
+    }
+}

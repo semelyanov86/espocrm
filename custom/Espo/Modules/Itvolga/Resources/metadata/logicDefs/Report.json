@@ -1,0 +1,97 @@
+{
+    "fields": {
+        "groupSort": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "notEquals",
+                        "attribute": "type",
+                        "value": "tabular"
+                    }
+                ]
+            }
+        },
+        "groupLimit": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "notEquals",
+                        "attribute": "type",
+                        "value": "tabular"
+                    }
+                ]
+            }
+        },
+        "havingFilters": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "notEquals",
+                        "attribute": "type",
+                        "value": "tabular"
+                    }
+                ]
+            }
+        },
+        "sharedUsers": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "equals",
+                        "attribute": "accessType",
+                        "value": "shared"
+                    }
+                ]
+            }
+        },
+        "sharedTeams": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "equals",
+                        "attribute": "accessType",
+                        "value": "shared"
+                    }
+                ]
+            }
+        }
+    },
+    "panels": {
+        "grouping": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "notEquals",
+                        "attribute": "type",
+                        "value": "tabular"
+                    }
+                ]
+            }
+        },
+        "columnsPanel": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "in",
+                        "attribute": "type",
+                        "value": [
+                            "tabular",
+                            "summariesWithDetails"
+                        ]
+                    }
+                ]
+            }
+        },
+        "calculationsPanel": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "equals",
+                        "attribute": "type",
+                        "value": "tabular"
+                    }
+                ]
+            }
+        }
+    }
+}

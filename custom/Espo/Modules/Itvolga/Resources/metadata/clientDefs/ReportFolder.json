@@ -1,0 +1,18 @@
+{
+    "controller": "controllers/record-tree",
+    "collection": "collections/tree",
+    "isExpandedByDefault": true,
+    "menu": {
+        "list": {
+            "buttons": [
+                {
+                    "label": "Reports",
+                    "link": "#Report",
+                    "acl": "read",
+                    "style": "default",
+                    "aclScope": "Report"
+                }
+            ]
+        }
+    }
+}

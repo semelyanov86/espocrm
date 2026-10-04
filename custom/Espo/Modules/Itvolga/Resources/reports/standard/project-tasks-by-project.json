@@ -1,0 +1,56 @@
+{
+    "seedKey": "project-tasks-by-project",
+    "folder": "projects",
+    "name": {
+        "ru": "Задачи проектов по проектам",
+        "en": "Project tasks by project"
+    },
+    "description": {
+        "ru": "Список всех задач по проектам с ответственными, статусами и итогами часов.",
+        "en": "All project tasks with assigned users, statuses and hour totals."
+    },
+    "type": "tabular",
+    "entityType": "ProjectTask",
+    "definition": {
+        "columns": [
+            "project",
+            "name",
+            "status",
+            "assignedUser",
+            "hours"
+        ],
+        "sorting": [
+            {
+                "column": "project",
+                "direction": "asc"
+            }
+        ],
+        "rowLimit": null,
+        "groups": [],
+        "aggregates": [],
+        "groupSort": null,
+        "groupLimit": null,
+        "totals": [
+            {
+                "column": "hours",
+                "functions": [
+                    "SUM",
+                    "AVG",
+                    "MIN",
+                    "MAX"
+                ]
+            }
+        ],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": []
+        },
+        "havingFilters": [],
+        "quickFilters": [
+            "project",
+            "status"
+        ],
+        "labels": {}
+    }
+}

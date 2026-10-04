@@ -1,0 +1,50 @@
+{
+    "seedKey": "leads-by-status",
+    "folder": "leads",
+    "name": {
+        "ru": "Лиды по статусу",
+        "en": "Leads by status"
+    },
+    "description": {
+        "ru": "Количество лидов в каждом статусе.",
+        "en": "Lead counts for each status."
+    },
+    "type": "summaries",
+    "entityType": "Lead",
+    "charts": [
+        {
+            "type": "pie",
+            "aggregate": "COUNT"
+        }
+    ],
+    "definition": {
+        "columns": [],
+        "sorting": [],
+        "rowLimit": 20,
+        "groups": [
+            {
+                "field": "status",
+                "granularity": null,
+                "direction": "asc"
+            }
+        ],
+        "aggregates": [
+            {
+                "function": "COUNT",
+                "link": null,
+                "field": null
+            }
+        ],
+        "groupSort": null,
+        "groupLimit": 20,
+        "totals": [],
+        "calculations": [],
+        "filters": {
+            "type": "and",
+            "items": []
+        },
+        "havingFilters": [],
+        "quickFilters": [],
+        "labels": {}
+    }
+}

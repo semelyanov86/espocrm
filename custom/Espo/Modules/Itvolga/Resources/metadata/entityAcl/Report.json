@@ -1,0 +1,7 @@
+{
+    "fields": {
+        "seedKey": {
+            "readOnly": true
+        }
+    }
+}

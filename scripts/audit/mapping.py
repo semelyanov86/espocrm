@@ -676,6 +676,11 @@ ORGANIZATION_EXCLUDED = {
 
 # Non-module tables: (regex, category, fate, target)
 TABLE_RULES = [
+    # Stage 05.1 (reports.md): the definitions of Vtiger Reports and Reports 4 You are not migrated — the own report module
+    # replaces both; production has 0 Reports 4 You reports and 27 Vtiger ones (25 defaults), replaced by the seed.
+    (r"^(vtiger_(report|reportmodules|selectquery|selectquery_seq|selectcolumn|relcriteria|relcriteria_grouping|reportfilters|reportsortcol|reportsummary|reportdatefilter|reportfolder)|its4you_reports4you.*)$",
+     "отчёты", "заменено модулем отчётов: определения не переносятся, раздел наполняют стандартные отчёты сида "
+     "(решение владельца 2026-10-03, D-84)", "Report/ReportFolder (модуль отчётов, этап 05.1)"),
     (r"_seq$", "последовательность", "не переносится: счётчики EspoCRM свои; следующий номер документов задаётся настройкой нумерации", "—"),
     (r"^vtiger_(crmentityrel|seactivityrel|cntactivityrel|salesmanactivityrel|salesmanattachmentsrel|senotesrel|seattachmentsrel|contpotentialrel|freetagged_objects|invitees)$",
      "связь", "переносится как связь (см. relations.csv)", "links EspoCRM"),
@@ -691,8 +696,6 @@ TABLE_RULES = [
      "метаданные/настройки Vtiger", "не переносится: используется как источник проектирования модели и настроек", "—"),
     (r"^vtiger_(customview|cvadvfilter|cvadvfilter_grouping|cvcolumnlist|cvstdfilter)$", "фильтры списков",
      "не переносится автоматически: ключевые фильтры воссоздаются вручную", "—"),
-    (r"^vtiger_(report|reportmodules|selectquery|selectcolumn|relcriteria|relcriteria_grouping|reportfilters|reportsortcol|reportsummary|reportdatefilter|reportfolder)$",
-     "отчёты", "не переносится: отчёты не нужны (решение владельца, Q-16)", "—"),
     (r"^com_vtiger_workflow", "workflows", "не переносится как данные: логика реализуется собственными hooks/formula по decisions.md", "—"),
     (r"^vtiger_cron_task$", "планировщик", "не переносится: задачи EspoCRM Scheduled Jobs", "—"),
     # Stage 05 (print-forms.md): the source templates are a specification, not data — the forms are module code.
