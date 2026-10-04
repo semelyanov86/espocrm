@@ -59,6 +59,13 @@ define('itvolga:views/report/charts', ['view'], (View) => {
                     height: this.height,
                 });
 
+                // Removed while the chart view was loading: the late child goes too (it holds a window listener).
+                if (this.isRemoved()) {
+                    view.remove();
+
+                    return;
+                }
+
                 this.listenTo(view, 'drill-down', path => this.trigger('drill-down', path));
                 await view.render();
             }

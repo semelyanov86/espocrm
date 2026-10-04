@@ -2,7 +2,7 @@
     "view": "itvolga:views/dashlets/report-metrics",
     "aclScope": "ReportMetricSet",
     "options": {
-        "view": "views/dashlets/options/base",
+        "view": "itvolga:views/dashlets/options/source",
         "fields": {
             "title": {
                 "type": "varchar",

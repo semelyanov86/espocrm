@@ -97,10 +97,8 @@ def create():
         {"id": "itvReport", "name": "Report", "x": 0, "y": 0, "width": 2, "height": 4},
         {"id": "itvMetrics", "name": "ReportMetrics", "x": 2, "y": 0, "width": 2, "height": 4},
     ]}]
-    options = {"itvReport": {"title": "Счета по статусам", "reportId": reports["byStatus"],
-                             "reportName": f"{TAG} Счета по статусам", "mode": ""},
-               "itvMetrics": {"title": "Ключевые показатели", "metricSetId": metric["id"],
-                              "metricSetName": f"{TAG} показатели"}}
+    options = {"itvReport": {"title": "Счета по статусам", "reportId": reports["byStatus"], "mode": ""},
+               "itvMetrics": {"title": "Ключевые показатели", "metricSetId": metric["id"]}}
     base.must(admin.put(f"Preferences/{manager}", {"dashboardLayout": layout, "dashletsOptions": options}))
     print(json.dumps({"reports": reports, "metricSet": metric["id"]}, indent=2))
 

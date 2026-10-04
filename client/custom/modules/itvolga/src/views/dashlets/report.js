@@ -156,6 +156,12 @@ define('itvolga:views/dashlets/report', ['views/dashlets/abstract/base', 'itvolg
                     height: height,
                 });
 
+                if (this.isRemoved()) {
+                    view.remove();
+
+                    return;
+                }
+
                 this.listenTo(view, 'drill-down', path => this.drillDown(path));
                 await view.render();
 

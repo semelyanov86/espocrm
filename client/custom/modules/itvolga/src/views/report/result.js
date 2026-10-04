@@ -236,6 +236,12 @@ define('itvolga:views/report/result', ['view', 'ui/multi-select', 'itvolga:repor
                 chart: chart,
             });
 
+            if (this.isRemoved()) {
+                view.remove();
+
+                return;
+            }
+
             this.listenTo(view, 'drill-down', path => this.drillDown(path));
             await view.render();
         }
