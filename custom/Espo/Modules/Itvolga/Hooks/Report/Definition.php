@@ -103,7 +103,8 @@ class Definition implements BeforeSave
 
     /**
      * Saves of one report wait for each other (a lock of its row in the save transaction), and the save is rebased on
-     * the row as committed now: what it does not change — definition parts, the access type, the sharing lists — is
+     * the row as committed now: what it does not change — definition parts, the access type, the owner, the sharing
+     * lists, the mailing and its runtime written by the job (D-122) — is
      * taken from that row, and the fetched values become the committed ones, so the checks below see the report that
      * will be stored and the core writes exactly what differs from it (external review B12, B13, W5, W13).
      */
@@ -117,7 +118,8 @@ class Definition implements BeforeSave
 
         $committed = [];
 
-        foreach ([...Report::DEFINITION_ATTRIBUTES, 'accessType'] as $attribute) {
+        foreach ([...Report::DEFINITION_ATTRIBUTES, 'accessType', 'assignedUserId', ...Report::MAILING_ATTRIBUTES] as
+            $attribute) {
             $committed[$attribute] = $current->get($attribute);
         }
 

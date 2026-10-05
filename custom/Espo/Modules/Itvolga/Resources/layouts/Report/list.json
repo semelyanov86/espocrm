@@ -10,6 +10,11 @@
         "notSortable": true
     },
     {
+        "name": "mailingNextRunAt",
+        "width": 3,
+        "notSortable": true
+    },
+    {
         "name": "type",
         "width": 11
     },

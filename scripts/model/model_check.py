@@ -429,6 +429,11 @@ REPORT_FIELDS = REPORT_PARTS | {"name", "type", "entityType", "folder", "accessT
                                 "assignedUser", "seedKey", "usedInMetrics"}
 CHART_TYPES = {"bar", "stackedBar", "horizontalBar", "stackedHorizontalBar", "line", "pie", "piePercent", "funnel"}
 REPORT_DASHLETS = {"Report": "Report", "ReportMetrics": "ReportMetricSet"}
+MAILING_FIELDS = {"mailing": "jsonObject", "mailingSettings": "jsonObject", "mailingNextRunAt": "datetime",
+                  "mailingLastRunAt": "datetime", "mailingLastResult": "jsonObject"}
+MAILING_ACL = {"mailing": {"internal"}, "mailingSettings": {"readOnly"}, "mailingNextRunAt": {"readOnly"},
+               "mailingLastRunAt": {"internal", "readOnly"}, "mailingLastResult": {"internal", "readOnly"}}
+MAILING_JOB = "ItvolgaReportMailing"
 
 
 def report_ref_exists(model, entity, ref):
@@ -491,10 +496,11 @@ def check_reports(model):
         problems += [f"{name}: {p}" for p in report_chart_problems(manifest)]
         charted += bool((definition.get("charts") or {}).get("items"))
     problems += report_metric_problems(model)
+    problems += report_mailing_problems(model)
     if problems:
         return False, "ОШИБКА: " + "; ".join(problems[:20])
     return True, (f"ok: отчёты — папок {len(folders)}, стандартных отчётов {len(seeds)} (с графиками {charted}), "
-                  f"дашлеты {', '.join(sorted(REPORT_DASHLETS))}")
+                  f"дашлеты {', '.join(sorted(REPORT_DASHLETS))}, рассылка {MAILING_JOB}")
 
 
 def report_chart_problems(manifest):
@@ -533,6 +539,32 @@ def report_metric_problems(model):
     for dashlet, scope in REPORT_DASHLETS.items():
         if dashlets.get(dashlet, {}).get("aclScope") != scope:
             problems.append(f"дашлет {dashlet}: нет или не тот aclScope")
+    return problems
+
+
+def report_mailing_problems(model):
+    """Stage 05.3 (D-121, D-122, D-124): the mailing fields of Report — the stored part write-only (`internal`: never in
+    an API answer or a filter), the runtime read-only, none copied by a duplicate — the loader of what a reader sees
+    (also after an update), the index of due reports and the scheduled job with its class."""
+    problems = []
+    acl = model.load("entityAcl").get("Report", {}).get("fields", {})
+    for name, kind in MAILING_FIELDS.items():
+        field = model.field("Report", name) or {}
+        if field.get("type") != kind or not field.get("duplicateIgnore"):
+            problems.append(f"Report: поле рассылки {name}")
+        if not MAILING_ACL[name] <= {k for k, v in acl.get(name, {}).items() if v}:
+            problems.append(f"Report: доступ к полю {name}")
+    if model.entity_defs.get("Report", {}).get("indexes", {}).get("mailingNextRunAt", {}).get("columns") != \
+            ["mailingNextRunAt", "deleted"]:
+        problems.append("Report: нет индекса mailingNextRunAt")
+    record = model.load("recordDefs").get("Report", {})
+    if not any(c.endswith("\\MailingLoader") for c in record.get("readLoaderClassNameList", [])) or \
+            not record.get("loadAdditionalFieldsAfterUpdate"):
+        problems.append("Report: загрузчик mailingSettings")
+    job = model.load("app").get("scheduledJobs", {}).get(MAILING_JOB, {})
+    path = (job.get("jobClassName") or "").replace("Espo\\Modules\\Itvolga\\", "custom/Espo/Modules/Itvolga/")
+    if job.get("scheduling") != "*/15 * * * *" or not (model.repo / (path.replace("\\", "/") + ".php")).is_file():
+        problems.append(f"задание {MAILING_JOB}: расписание или класс")
     return problems
 
 
@@ -651,7 +683,7 @@ def main():
         failures += bad
         print(f"{name}: ok {ok}, failed {bad}, not applicable {na}")
     res, text = check_reports(model)
-    print(f"reports (stages 05.1–05.2): {text}")
+    print(f"reports (stages 05.1–05.3): {text}")
     failures += 0 if res else 1
     sys.exit(1 if failures else 0)
 

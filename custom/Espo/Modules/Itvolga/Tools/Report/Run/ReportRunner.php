@@ -93,15 +93,23 @@ final class ReportRunner
      * The checked definition of a report with the one-off parameters of a run, as the given user may run it.
      *
      * @param array<string, mixed> $raw
+     * @param bool $allRows every row within the limits in one result (files, print, letters — 05.3, D-116); the API
+     *   page of the request is ignored
+     * @param list<FieldInfo> $extraFields fields to join for generate-for discovery (distinctUserIds)
      */
-    public function prepare(Report $report, array $raw, User $user): ReportQuery
+    public function prepare(Report $report, array $raw, User $user, bool $allRows = false,
+        array $extraFields = []): ReportQuery
     {
         $parser = new DefinitionParser($this->schemaFactory->create($user));
         $definition = $parser->parse(self::attributes($report));
         [$definition, $options] = $parser->parseRun($definition, $raw);
 
+        if ($allRows) {
+            $options = $options->withAllRows($this->maxRows());
+        }
+
         return new ReportQuery($definition, $options, $user, $this->runContext($user), $this->selectBuilderFactory,
-            $this->entityManager->getDefs());
+            $this->entityManager->getDefs(), $extraFields);
     }
 
     /**
@@ -135,7 +143,18 @@ final class ReportRunner
      */
     public function run(Report $report, array $raw, User $user): array
     {
-        $query = $this->prepare($report, $raw, $user);
+        return $this->execute($this->prepare($report, $raw, $user), $report);
+    }
+
+    /**
+     * The result of a prepared run, for the user of the query (his ACL, language and notation). The caller loads the
+     * report readable for whom it must be and runs this in a reading transaction, as for run().
+     *
+     * @return array<string, mixed>
+     */
+    public function execute(ReportQuery $query, Report $report): array
+    {
+        $user = $query->user;
         [$assembler, $context, $formatter, $labels, $order] = $this->tools($query, $user);
 
         $counts = $this->fetch($query->base()->select([['ITVOLGA_COUNT_DISTINCT:(id)', 'records'],
@@ -156,11 +175,12 @@ final class ReportRunner
             ReportType::MATRIX => $assembler->matrix(),
         };
 
-        // Charts are made of the assembled result, no query of their own (D-105).
-        $charts = (new ChartBuilder($order, $context->numbers, fn (Aggregate $a) => $labels->aggregate($a),
-            fn (Aggregate $a, string $function, Decimal $value, ?string $currency) =>
-                self::progressCell($formatter, $context->numbers, $a, $function, $value, $currency)))
-            ->build($query->definition, $result);
+        // Charts are made of the assembled result, no query of their own (D-105); files and letters have none.
+        $charts = $query->options->allRows ? null :
+            (new ChartBuilder($order, $context->numbers, fn (Aggregate $a) => $labels->aggregate($a),
+                fn (Aggregate $a, string $function, Decimal $value, ?string $currency) =>
+                    self::progressCell($formatter, $context->numbers, $a, $function, $value, $currency)))
+                ->build($query->definition, $result);
 
         if ($charts !== null) {
             $result['charts'] = $charts;
@@ -195,6 +215,37 @@ final class ReportRunner
         $aggregate = MetricRules::aggregate($query->definition, $function, $column);
 
         return $this->tools($query, $user)[0]->overall([$aggregate])[0];
+    }
+
+    /**
+     * Users found in user-link fields over the records of the report's conditions (no quick filters, no limits, no
+     * HAVING) — the recipients of a mailing «generate for» (D-122), with the ACL of the query's user (the owner): a
+     * related record he may not read gives no user. The query must be prepared with the fields as extra fields.
+     *
+     * @param list<FieldInfo> $fields
+     * @return list<string> ids, at most $max + 1 (one more tells the overflow)
+     */
+    public function distinctUserIds(ReportQuery $query, array $fields, int $max): array
+    {
+        $ids = [];
+
+        foreach ($fields as $field) {
+            $expression = $query->valueExpressions($field)['value'];
+            $rows = $this->fetch($query->base([])
+                ->select([[$expression, 'u']])
+                ->where([$expression . '!=' => null])
+                ->group([$expression])
+                ->order($expression)
+                ->limit(0, $max + 1)
+                ->build());
+
+            foreach ($rows as $row) {
+                $ids[(string) $row['u']] = true;
+            }
+        }
+
+        // Keys like '1' turn into integers in a PHP array.
+        return array_slice(array_map('strval', array_keys($ids)), 0, $max + 1);
     }
 
     /**

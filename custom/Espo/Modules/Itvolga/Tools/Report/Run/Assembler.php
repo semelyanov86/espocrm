@@ -172,12 +172,15 @@ final class Assembler
             'columns' => array_map(fn (FieldInfo $f) => ['key' => 'c:' . $f->ref->toString(),
                 'field' => $f->ref->toString(), 'label' => $this->labels->column($f), 'fieldType' => $f->type,
                 'numeric' => $f->isNumeric()], $definition->columns),
+            // fieldType of groups and aggregates (05.3): files type their cells and add currency columns by it, so an
+            // empty result has the same columns as a full one.
             'groups' => array_map(fn (GroupLevel $g, int $i) => ['key' => 'g:' . ($i + 1),
                 'field' => $g->field->ref->toString(), 'label' => $this->labels->group($i, $g),
-                'granularity' => $g->granularity?->value], $definition->groups, array_keys($definition->groups)),
+                'granularity' => $g->granularity?->value, 'fieldType' => $g->field->type], $definition->groups,
+                array_keys($definition->groups)),
             'aggregates' => array_map(fn (Aggregate $a) => ['key' => 'a:' . $a->key(), 'function' => $a->function,
-                'field' => $a->field?->ref->toString(), 'label' => $this->labels->aggregate($a)],
-                $definition->aggregates),
+                'field' => $a->field?->ref->toString(), 'label' => $this->labels->aggregate($a),
+                'fieldType' => $a->field?->type], $definition->aggregates),
         ];
     }
 

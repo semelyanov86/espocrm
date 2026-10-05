@@ -5,6 +5,23 @@
         },
         "usedInMetrics": {
             "readOnly": true
+        },
+        "mailing": {
+            "internal": true
+        },
+        "mailingSettings": {
+            "readOnly": true
+        },
+        "mailingNextRunAt": {
+            "readOnly": true
+        },
+        "mailingLastRunAt": {
+            "internal": true,
+            "readOnly": true
+        },
+        "mailingLastResult": {
+            "internal": true,
+            "readOnly": true
         }
     },
     "links": {

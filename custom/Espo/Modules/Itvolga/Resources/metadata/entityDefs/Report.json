@@ -243,6 +243,80 @@
             "customizationDisabled": true,
             "inlineEditDisabled": true
         },
+        "mailing": {
+            "type": "jsonObject",
+            "view": "itvolga:views/report/fields/mailing",
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true,
+            "inlineEditDisabled": true,
+            "duplicateIgnore": true
+        },
+        "mailingSettings": {
+            "type": "jsonObject",
+            "notStorable": true,
+            "readOnly": true,
+            "utility": true,
+            "layoutDetailDisabled": true,
+            "filterDisabled": true,
+            "orderDisabled": true,
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true,
+            "inlineEditDisabled": true,
+            "duplicateIgnore": true
+        },
+        "mailingNextRunAt": {
+            "type": "datetime",
+            "readOnly": true,
+            "view": "itvolga:views/report/fields/mailing-next-run",
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true,
+            "inlineEditDisabled": true,
+            "duplicateIgnore": true
+        },
+        "mailingLastRunAt": {
+            "type": "datetime",
+            "readOnly": true,
+            "utility": true,
+            "layoutDetailDisabled": true,
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true,
+            "inlineEditDisabled": true,
+            "duplicateIgnore": true
+        },
+        "mailingLastResult": {
+            "type": "jsonObject",
+            "readOnly": true,
+            "utility": true,
+            "layoutDetailDisabled": true,
+            "layoutListDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDetailSmallDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "customizationDisabled": true,
+            "inlineEditDisabled": true,
+            "duplicateIgnore": true
+        },
         "usedInMetrics": {
             "type": "bool",
             "notStorable": true,
@@ -354,6 +428,12 @@
         "assignedUser": {
             "columns": [
                 "assignedUserId",
+                "deleted"
+            ]
+        },
+        "mailingNextRunAt": {
+            "columns": [
+                "mailingNextRunAt",
                 "deleted"
             ]
         }

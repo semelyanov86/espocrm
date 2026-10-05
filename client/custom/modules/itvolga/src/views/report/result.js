@@ -340,6 +340,34 @@ define('itvolga:views/report/result', ['view', 'ui/multi-select', 'itvolga:repor
             });
         }
 
+        /**
+         * Export or print of the shown result: the conditions it was made with (one-off filters, quick filters), not
+         * the page.
+         */
+        async openOutput(viewName) {
+            const last = this.lastRun || {};
+            let view;
+
+            try {
+                view = await this.createView('output', viewName, {
+                    reportId: this.model.id,
+                    params: {filters: last.filters ?? null, quickFilters: last.quickFilters || []},
+                    maxRows: this.result && this.result.limits ? this.result.limits.maxRows : null,
+                });
+            } catch (e) {
+                // A refused print view is reported by the core error handler.
+                return;
+            }
+
+            if (this.isRemoved()) {
+                view.remove();
+
+                return;
+            }
+
+            await view.render();
+        }
+
         drillDown(path) {
             this.createView('drillDown', 'itvolga:views/report/modals/drill-down', {
                 reportId: this.model.id,

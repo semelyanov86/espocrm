@@ -192,6 +192,21 @@
         ]
     },
     {
+        "name": "mailingPanel",
+        "label": "Mailing",
+        "tabBreak": true,
+        "tabLabel": "$label:Mailing",
+        "rows": [
+            [
+                {
+                    "name": "mailing",
+                    "fullWidth": true,
+                    "noLabel": true
+                }
+            ]
+        ]
+    },
+    {
         "name": "dashboardPanel",
         "label": "Dashboard",
         "tabBreak": true,

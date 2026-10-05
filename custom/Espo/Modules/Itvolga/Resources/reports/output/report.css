@@ -1,0 +1,16 @@
+/* PDF and print view of a report result (stage 05.3, D-119): the table as on the screen, neutral, black on white. */
+body { font-family: "DejaVu Sans", sans-serif; font-size: 8pt; color: #000; }
+h1 { font-size: 12pt; margin: 0 0 2mm 0; }
+.meta { margin: 0 0 2mm 0; }
+.note { margin: 0 0 1mm 0; font-style: italic; }
+.no-data { font-style: italic; }
+table.report { width: 100%; border-collapse: collapse; margin-top: 2mm; }
+table.report th, table.report td { border: 0.5pt solid #777; padding: 1pt 3pt; vertical-align: top; text-align: left;
+    word-wrap: break-word; }
+table.report th { font-weight: bold; }
+table.report .r { text-align: right; white-space: nowrap; }
+table.report .c { text-align: center; }
+table.report .w { font-style: italic; }
+table.report tr.group th, table.report tr.group td, table.report tfoot th, table.report tfoot td { font-weight: bold; }
+table.report thead { display: table-header-group; }
+table.report tr { page-break-inside: avoid; }

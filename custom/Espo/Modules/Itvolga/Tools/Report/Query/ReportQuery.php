@@ -40,6 +40,10 @@ final class ReportQuery
     private array $aliases = [];
     private ?Select $eligible = null;
 
+    /**
+     * @param list<FieldInfo> $extraFields fields joined although the definition does not show them (the user links
+     *   of a mailing «generate for», D-122)
+     */
     public function __construct(
         public readonly Definition $definition,
         public readonly RunOptions $options,
@@ -47,6 +51,7 @@ final class ReportQuery
         public readonly RunContext $context,
         private readonly SelectBuilderFactory $selectBuilderFactory,
         private readonly Defs $defs,
+        private readonly array $extraFields = [],
     ) {
         foreach ($this->usedFields() as $field) {
             if ($field->ref->link !== null) {
@@ -68,6 +73,7 @@ final class ReportQuery
             ...array_values(array_filter(array_map(fn (Aggregate $a) => $a->field, $definition->aggregates))),
             ...$definition->quickFilters,
             ...array_filter([$definition->dashboard->filterField]),
+            ...$this->extraFields,
         ];
     }
 

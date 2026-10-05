@@ -30,9 +30,24 @@
         "actionClassName": "Espo\\Modules\\Itvolga\\Tools\\Report\\Api\\GetFolderCounts"
     },
     {
+        "route": "/Report/mailingPreview",
+        "method": "post",
+        "actionClassName": "Espo\\Modules\\Itvolga\\Tools\\Report\\Api\\PostMailingPreview"
+    },
+    {
         "route": "/Report/:id/run",
         "method": "post",
         "actionClassName": "Espo\\Modules\\Itvolga\\Tools\\Report\\Api\\PostRun"
+    },
+    {
+        "route": "/Report/:id/export",
+        "method": "post",
+        "actionClassName": "Espo\\Modules\\Itvolga\\Tools\\Report\\Api\\PostExport"
+    },
+    {
+        "route": "/Report/:id/printView",
+        "method": "post",
+        "actionClassName": "Espo\\Modules\\Itvolga\\Tools\\Report\\Api\\PostPrintView"
     },
     {
         "route": "/ReportMetricSet/:id/values",

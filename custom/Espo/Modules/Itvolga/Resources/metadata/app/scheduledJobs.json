@@ -1,0 +1,7 @@
+{
+    "ItvolgaReportMailing": {
+        "name": "Report Mailing",
+        "jobClassName": "Espo\\Modules\\Itvolga\\Jobs\\ReportMailing",
+        "scheduling": "*/15 * * * *"
+    }
+}

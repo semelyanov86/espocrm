@@ -25,6 +25,7 @@ define('itvolga:views/report/record/detail', ['views/record/detail'], (DetailVie
                     [{name: 'columns'}, {name: 'sorting'}],
                     [{name: 'filters', fullWidth: true}],
                     [{name: 'charts'}, {name: 'dashboard'}],
+                    [{name: 'mailing', fullWidth: true}],
                     [{name: 'description', fullWidth: true}],
                 ],
             },
@@ -33,8 +34,43 @@ define('itvolga:views/report/record/detail', ['views/record/detail'], (DetailVie
         setup() {
             super.setup();
 
+            // Added to the beginning one by one: «Сформировать», «Экспорт», «Печать».
+            if (this.canExport()) {
+                this.addButton({name: 'printReport', label: 'Print Report', style: 'default'}, true);
+                this.addButton({name: 'exportReport', label: 'Export Report', style: 'default'}, true);
+            }
+
             this.addButton({name: 'runReport', label: 'Run', style: 'default'}, true);
             this.hidePanel('info');
+        }
+
+        /**
+         * Export and print need the export permission of the role (D-116, D-119), like the core list export; the server
+         * checks it again.
+         */
+        canExport() {
+            if (this.getUser().isAdmin()) {
+                return true;
+            }
+
+            return !this.getConfig().get('exportDisabled') &&
+                this.getAcl().getPermissionLevel('exportPermission') === 'yes';
+        }
+
+        actionExportReport() {
+            const result = this.getView('bottom');
+
+            if (result) {
+                result.openOutput('itvolga:views/report/modals/export');
+            }
+        }
+
+        actionPrintReport() {
+            const result = this.getView('bottom');
+
+            if (result) {
+                result.openOutput('itvolga:views/report/modals/print');
+            }
         }
 
         actionRunReport() {

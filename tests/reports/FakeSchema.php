@@ -27,7 +27,7 @@ final class FakeSchema implements Schema
             'secretNote' => 'varchar', 'number' => 'varchar', 'paid' => 'bool', 'cTags' => 'multiEnum',
         ],
         'Account' => ['name' => 'varchar', 'industry' => 'enum', 'cEmployees' => 'int', 'secretInn' => 'varchar',
-            'createdAt' => 'datetime'],
+            'createdAt' => 'datetime', 'assignedUser' => 'link:User'],
         'InvoiceItem' => ['quantity' => 'decimal', 'amount' => 'currency', 'product' => 'link:Product',
             'name' => 'varchar'],
         'Contact' => ['name' => 'personName', 'lastName' => 'varchar'],

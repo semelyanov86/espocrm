@@ -23,5 +23,10 @@
     "listLoaderClassNameList": [
         "__APPEND__",
         "Espo\\Modules\\Itvolga\\Classes\\FieldProcessing\\Report\\MetricUsageLoader"
-    ]
+    ],
+    "readLoaderClassNameList": [
+        "__APPEND__",
+        "Espo\\Modules\\Itvolga\\Classes\\FieldProcessing\\Report\\MailingLoader"
+    ],
+    "loadAdditionalFieldsAfterUpdate": true
 }

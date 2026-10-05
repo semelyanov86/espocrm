@@ -27,9 +27,11 @@ task test:finance                          # тесты расчётного я�
 task test:stage04                          # приёмочные тесты финансовых документов, платежей, актов и сквозной цепочки на стенде (этапы 04.2–04.6)
 task finance:coverage                      # пересобрать docs/migration/finance-coverage.md (покрытие финансовых полей и связей, этап 04.6)
 task test:stage05                          # приёмочные тесты печатных форм (PDF) на стенде (этап 05)
-task test:reports                          # юнит-тесты ядра отчётов без стенда (этапы 05.1–05.2)
+task test:reports                          # юнит-тесты ядра отчётов без стенда (этапы 05.1–05.3)
 task test:stage05.1                        # приёмочные тесты модуля отчётов на стенде (этап 05.1)
 task test:stage05.2                        # приёмочные тесты графиков, дашлетов и ключевых показателей на стенде (этап 05.2)
+task test:stage05.3                        # приёмочные тесты экспорта, печати, рассылки и фоновой выгрузки на стенде (этап 05.3)
+task espo -- run-job ItvolgaReportMailing  # принудительный запуск рассылки отчётов (срок — mailing_next_run_at)
 ```
 
 - `docs/migration/field-map.csv` и `relations.csv` **не редактировать вручную**: правила — `scripts/audit/mapping.py`, генерация — `scripts/audit/build_maps.py` из приватного прогона.
@@ -72,6 +74,7 @@ task test:stage05.2                        # приёмочные тесты г�
 - Особенности 2026-10-02 (этап 04.4): клавиатурный ввод в поле автодополнения (выбор ответственного) отключил вкладку от расширения — ссылки выбирать в окне выбора кликом, суммы задавать через DOM с событием `change`; Ctrl+S проверяется синтетическим `KeyboardEvent("keydown", {code: "KeyS", key: "s", ctrlKey: true, bubbles: true})` на поле формы (ядро сохраняет форму «тихо», без событий `change`); `page.screenshot` всей страницы работал, `locator.screenshot` фоновой вкладки упирался в тайм-аут.
 - Особенности 2026-10-03 (этап 05): Chrome может быть не запущен — запустить `google-chrome --profile-directory=Default &`, затем `playwriter session new`; бинарь — `~/.nvm/versions/node/*/bin/playwriter`, если нет в PATH. Вкладка, которую открывает «Печать» (`window.open`), и встроенный просмотрщик PDF расширению недоступны (`context.pages()` их не видит, `goto` на PDF отсоединяет страницу) — в браузере проверять пункт меню и запрос (`fetch` из страницы: статус и `Content-Type`), внешний вид — растром PDF (`pdftoppm`) из `tests/stage05/ui_fixture.py render`.
 - Особенности 2026-10-04 (этап 05.2): открытое модальное окно ядра искать по `getComputedStyle(m).display !== "none"` (у окна с `position: fixed` `offsetParent` всегда `null`); по графику Flotr2 кликать `page.mouse.click` в координатах холста (рамка контейнера `[data-role="chart"]`); опции дашлетов для проверок удобно задавать из страницы `fetch` `PUT api/v1/Preferences/<id>` своего пользователя.
+- Особенности 2026-10-05 (этап 05.3): содержимое `iframe` (окно «Печать» отчёта, `srcdoc`) читать через `page.evaluate` и `iframe.contentDocument` — `locator.contentFrame()` возвращает FrameLocator без `evaluate`; `window.print` внутри перехватывать заглушкой до клика; вкладки-шаги конструктора отчёта искать `getByRole("button", {name: "…", exact: true})`; `page.goto` стенда иногда дольше 30 с — задавать `timeout: 45000`.
 - Пример проверки состояния модели клиента — `tests/stage03/ui_password_model_check.js`.
 
 ## metaswarm
