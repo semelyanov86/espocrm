@@ -52,6 +52,7 @@ def setUpModule():
     world.user("gone", role_ids=[own])
     world.user("noexp", role_ids=[no_export])
     world.user("sender", role_ids=[own])
+    world.user("selfonly", role_ids=[world.role("only himself", {**OWN, "User": {"read": "own", "edit": "own"}})])
     ok(world.admin.put(f"User/{world.uid['dir2']}", {"teamsIds": [team]}), "team of dir2")
     S["team"] = team
     S["addr"] = {key: letters.give_address(key) for key in ("dir", "dir2", "own1", "own2", "blind", "gone", "leaving",
@@ -188,6 +189,15 @@ class SettingsTest(Case):
             self.assertEqual(0, holder.wait(timeout=60), holder.stderr.read())
         self.refused(result, 403)
         self.assertEqual([["NULL", "NULL"]], sql(f"SELECT mailing, mailing_next_run_at FROM report WHERE id = '{rid}'"))
+
+    def test_recipient_names_are_those_the_editor_reads(self):
+        """An editor sees in `mailingSettings` the names of chosen users he may read; another chosen id (a save checks
+        only that it exists) gives «(нет доступа)», not the name (external review 05.3 B5)."""
+        report = W().report("selfonly", "имена получателей", entityType="Invoice", columns=["name"],
+                            mailing={**mailing(users=[W().uid["dir"], W().uid["selfonly"]]), "enabled": False})
+        names = ok(W().client("selfonly").get(f"Report/{report['id']}"))["mailingSettings"]["names"]["users"]
+        own_name = ok(W().admin.get(f"User/{W().uid['selfonly']}"))["name"]
+        self.assertEqual({W().uid["dir"]: "(нет доступа)", W().uid["selfonly"]: own_name}, names)
 
     def test_refusals(self):
         dir_ = W().client("dir")

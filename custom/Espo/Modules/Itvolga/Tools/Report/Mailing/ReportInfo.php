@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Espo\Modules\Itvolga\Tools\Report\Mailing;
 
-use Espo\Core\AclManager;
-use Espo\Core\Select\SelectBuilderFactory;
 use Espo\Entities\User;
 use Espo\Modules\Itvolga\Entities\Report;
 use Espo\Modules\Itvolga\Tools\Report\Core\Info\ConditionText;
@@ -13,7 +11,6 @@ use Espo\Modules\Itvolga\Tools\Report\Core\Mailing\MailingSettings;
 use Espo\Modules\Itvolga\Tools\Report\Format\FormatContext;
 use Espo\Modules\Itvolga\Tools\Report\Query\ReportQuery;
 use Espo\Modules\Itvolga\Tools\Report\Run\Labels;
-use Espo\ORM\EntityManager;
 
 /**
  * «Сведения об отчёте» of a letter (reports.md §13, D-124) for the user the report was run for — the owner for a
@@ -24,10 +21,8 @@ use Espo\ORM\EntityManager;
 final class ReportInfo
 {
     public function __construct(
-        private readonly EntityManager $entityManager,
-        private readonly SelectBuilderFactory $selectBuilderFactory,
         private readonly MailingClock $clock,
-        private readonly AclManager $aclManager,
+        private readonly ReadableNames $readableNames,
     ) {}
 
     /**
@@ -42,7 +37,7 @@ final class ReportInfo
         $field = fn (string $name) => $language->translate($name, 'fields', 'Report');
         $label = fn (string $name) => $language->translateLabel($name, 'labels', 'Report');
         $words = new LanguageConditionWords($context, new Labels($language, $definition), $definition->entityType,
-            $query->user, $this->selectBuilderFactory, $this->entityManager, $this->aclManager);
+            $query->user, $this->readableNames);
         $join = fn (array $items, string $glue) => implode($glue, array_map(fn ($i) => (string) $i['label'], $items));
 
         $lines = [
@@ -100,15 +95,9 @@ final class ReportInfo
      */
     private function ownerName(Report $report, User $reader, string $noAccess): string
     {
-        $ownerId = $report->get('assignedUserId');
-        $owner = $ownerId ? $this->entityManager->getRDBRepositoryByClass(User::class)->getById((string) $ownerId) : null;
+        $ownerId = (string) $report->get('assignedUserId');
 
-        if (!$owner) {
-            return '';
-        }
-
-        return $this->aclManager->checkEntityRead($reader, $owner) &&
-            !in_array('name', $this->aclManager->getScopeForbiddenFieldList($reader, User::ENTITY_TYPE), true) ?
-            (string) $owner->get('name') : $noAccess;
+        return $ownerId === '' ? '' :
+            ($this->readableNames->of($reader, User::ENTITY_TYPE, [$ownerId])[$ownerId] ?? $noAccess);
     }
 }

@@ -58,7 +58,7 @@ class ReportMailing implements JobDataLess
             }
 
             try {
-                $this->runtime->finish($id, $outcome);
+                $this->runtime->finish($id, $outcome, $now);
             } catch (Throwable $e) {
                 $this->log->error("Report mailing $id: outcome not saved: " . $e::class);
             }

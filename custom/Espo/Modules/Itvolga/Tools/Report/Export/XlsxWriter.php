@@ -101,8 +101,9 @@ final class XlsxWriter
     }
 
     /**
-     * A number written with a fraction keeps at least two decimals in the view (money), more when it has them; an
-     * integer has the general format. The value of the cell is not rounded.
+     * A number written with a fraction keeps at least two decimals in the view (money), all it has when more (at most
+     * 15 significant digits, SheetNumber; external review 05.3 W7); an integer has the general format. The value of the
+     * cell is not rounded.
      */
     private static function numberFormat(string $decimal): ?string
     {
@@ -112,7 +113,7 @@ final class XlsxWriter
             return null;
         }
 
-        $scale = max(2, min(8, strlen(rtrim(substr($decimal, $dot + 1), '0'))));
+        $scale = max(2, strlen(rtrim(substr($decimal, $dot + 1), '0')));
 
         return '#,##0.' . str_repeat('0', $scale);
     }

@@ -31,7 +31,7 @@
 | `C/views/report/{chart,charts}.js`, `C/views/report/fields/{charts,dashboard}.js` | 05.2: графики (Flotr2, EspoFunnel), шаги 7 «Графики» и 10 «Дашборд» конструктора |
 | `M/Resources/metadata/dashlets/{Report,ReportMetrics}.json`, `C/views/dashlets/{report,report-metrics}.js` | 05.2: дашлеты «Отчёт» и «Ключевые показатели» (§10, §11) |
 | `M/Tools/Report/Core/Export/` (`FlatSheet`, `CsvWriter`, `SheetNumber`, `ScreenHtml`, `CellText`, `LimitNotes`, `ExportRequest`), `M/Tools/Report/Export/` (`ExportService`, `ExportAccess`, `ReportFiles`, `XlsxWriter`, `ReportPdfTemplate`, `AttachmentStore`), `M/Tools/Report/Api/{PostExport,PostPrintView}.php`, `M/Resources/reports/output/report.css`, `C/views/report/modals/{export,print}.js` | 05.3: экспорт и печать (§12) |
-| `M/Tools/Report/Core/Mailing/` (`MailingSettings`, `MailingSettingsParser`, `Schedule`, `LetterBody`, `DiscoveryFilters`), `M/Tools/Report/Core/Info/` (`ConditionText`), `M/Tools/Report/Mailing/` (`MailingRuntime`, `MailingProcessor`, `Recipients`, `Letters`, `LetterSender`, `ReportInfo`, `MailingClock`, `LanguageConditionWords`), `M/Hooks/Report/Mailing.php`, `M/Classes/FieldProcessing/Report/MailingLoader.php`, `M/Jobs/{ReportMailing,ReportExport}.php`, `M/Resources/metadata/app/scheduledJobs.json`, `M/Tools/Report/Seed/MailingJob.php`, `M/Tools/Report/Api/PostMailingPreview.php`, `C/views/report/fields/{mailing,mailing-next-run}.js` | 05.3: рассылка и фоновая выгрузка (§13, §14) |
+| `M/Tools/Report/Core/Mailing/` (`MailingSettings`, `MailingSettingsParser`, `Schedule`, `LetterBody`, `DiscoveryFilters`), `M/Tools/Report/Core/Info/` (`ConditionText`), `M/Tools/Report/Mailing/` (`MailingRuntime`, `MailingProcessor`, `Recipients`, `Letters`, `LetterSender`, `ReportInfo`, `MailingClock`, `LanguageConditionWords`, `ReadableNames`), `M/Hooks/Report/Mailing.php`, `M/Classes/FieldProcessing/Report/MailingLoader.php`, `M/Jobs/{ReportMailing,ReportExport}.php`, `M/Resources/metadata/app/scheduledJobs.json`, `M/Tools/Report/Seed/MailingJob.php`, `M/Tools/Report/Api/PostMailingPreview.php`, `C/views/report/fields/{mailing,mailing-next-run}.js` | 05.3: рассылка и фоновая выгрузка (§13, §14) |
 | `M/Resources/metadata/*/ReportMetricSet.json`, `M/Hooks/ReportMetricSet/{Guard,RemoveDashlets}.php`, `M/Repositories/ReportMetricSet.php`, `M/Tools/Report/Core/Metric/`, `M/Tools/Report/Metric/{FilterQuery,MetricSources}.php`, `M/Tools/Report/Api/GetMetricValues.php`, `M/Tools/Report/Core/Dashboard/DashboardPruner.php`, `M/Tools/Report/Dashboard/DashletRemover.php`, `M/Classes/FieldProcessing/Report/MetricUsageLoader.php`, `C/views/report-metric-set/`, `C/views/report/fields/used-in-metrics.js` | 05.2: наборы ключевых показателей, их значения, очистка дашлетов, значок в списке отчётов (§11) |
 
 ## 2. Модель и хранимый JSON
@@ -264,7 +264,8 @@ maxMatrixColumns}`. Узлы групп и колонок матрицы нес�
 «сформировать для» — не больше 200 пользователей за попытку; письма — записи `Email`, их видят роли с чтением всей почты
 (D-123); вложения писем ядро само не чистит (растут с рассылками); таблица «как на экране» реализована дважды
 (`result-table.js` и `ScreenHtml`); при ошибке SMTP ядро пишет в журнал сервера текст ответа сервера (может содержать
-адрес получателя; D-124).
+адрес получателя; D-124); ссылка уведомления фоновой выгрузки недоступна пользователю с закрытым на уровне полей
+`Email.attachments` (D-125).
 
 ## 9. Графики (05.2)
 
@@ -321,11 +322,11 @@ notes[], unavailable}]}`. Точка — ячейка таблицы (`v`, `f`, 
 ## 12. Экспорт и печать (05.3)
 
 Кнопки «Экспорт» и «Печать» в шапке отчёта — только при праве роли «Экспорт» (`exportPermission = yes`; при
-`exportDisabled` — только администраторам); сервер проверяет право и чтение отчёта сам (D-116). Окно экспорта: формат
-(XLSX, CSV, PDF), данные — «данные отчёта» (лимиты отчёта) или «все записи» (без них, до потолка запуска; D-120),
-«в фоне» (§14). Файл и печать делаются из условий показанного результата (разовые условия и быстрые фильтры, не
-страница): один запуск всех строк (`ReportRunner::prepare(allRows)` + `execute`) в транзакции чтения, правами
-пользователя (его ACL, язык, пояс, нотация).
+`exportDisabled` — только администраторам); сервер проверяет право, чтение отчёта и открытое поле его названия сам
+(D-116). Окно экспорта: формат (XLSX, CSV, PDF), данные — «данные отчёта» (лимиты отчёта) или «все записи» (без них,
+до потолка запуска; D-120), «в фоне» (§14). Файл и печать делаются из условий показанного результата (разовые условия
+и быстрые фильтры, не страница): один запуск всех строк (`ReportRunner::prepare(allRows)` + `execute`) в транзакции
+чтения, правами пользователя (его ACL, язык, пояс, нотация).
 
 - CSV и XLSX — плоский лист `Core/Export/FlatSheet` (D-117, D-118): табличный — колонки, расчёты, блок итогов;
   сводный — строки групп с повтором ключей родителей и «Итого»; с детализацией — «группа | агрегаты | колонки»;
@@ -353,7 +354,8 @@ notes[], unavailable}]}`. Точка — ячейка таблицы (`v`, `f`, 
 запуск — заново при изменении расписания, его включения или владельца. Смена владельца (только администратор)
 без правки рассылки в том же сохранении рассылку выключает: права нового владельца не отдаются получателям прежнего.
 Поле `internal`: API его не отдаёт и не фильтрует; `mailingSettings` (`MailingLoader`, в том числе в ответе на
-сохранение) — редактору целиком с именами и последней попыткой, остальным читателям — расписание и форматы (D-124). В «Сведениях об отчёте» — сводка рассылки.
+сохранение) — редактору целиком с читаемыми им именами получателей и последней попыткой, остальным читателям —
+расписание и форматы (D-124). В «Сведениях об отчёте» — сводка рассылки.
 
 Задание `ItvolgaReportMailing` (каждые 15 минут; D-122): отчёты со сроком ≤ сейчас → «захват» (под блокировкой строки
 срок перечитывается и сдвигается) → `MailingProcessor` → итог `mailingLastResult` `{"status": ok|partial|failed|skipped,

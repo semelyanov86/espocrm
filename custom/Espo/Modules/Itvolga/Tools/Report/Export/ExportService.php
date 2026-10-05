@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Espo\Modules\Itvolga\Tools\Report\Export;
 
+use Espo\Core\AclManager;
+use Espo\Core\Exceptions\Error\Body;
 use Espo\Core\Exceptions\Forbidden;
 use Espo\Core\Exceptions\NotFound;
 use Espo\Core\Job\JobSchedulerFactory;
@@ -30,7 +32,27 @@ final class ExportService
         private readonly ExportAccess $access,
         private readonly EntityManager $entityManager,
         private readonly JobSchedulerFactory $jobSchedulerFactory,
+        private readonly AclManager $aclManager,
     ) {}
+
+    /**
+     * The report a user exports or prints: read access, and its name open to him at the field level — the name goes
+     * into the file name, the print title and the letter of a background export (external review 05.3 B6).
+     *
+     * @throws Forbidden
+     * @throws NotFound
+     */
+    public function readable(string $reportId, User $user): Report
+    {
+        $report = $this->runner->loadReadable($reportId, $user);
+
+        if (in_array('name', $this->aclManager->getScopeForbiddenFieldList($user, Report::ENTITY_TYPE), true)) {
+            throw Forbidden::createWithBody('exportForbidden',
+                Body::create()->withMessageTranslation('exportForbidden', 'Report'));
+        }
+
+        return $report;
+    }
 
     /**
      * @param array<string, mixed> $raw
@@ -42,7 +64,7 @@ final class ExportService
     {
         $request = ExportRequest::parse($raw, ReportFiles::FORMATS);
         $this->access->assert($user);
-        $report = $this->runner->loadReadable($reportId, $user);
+        $report = $this->readable($reportId, $user);
 
         if ($request->background) {
             // The definition and the conditions are checked now, so a mistake is answered at once.
@@ -79,7 +101,7 @@ final class ExportService
     {
         $request = ExportRequest::parse($raw, []);
         $this->access->assert($user);
-        $report = $this->runner->loadReadable($reportId, $user);
+        $report = $this->readable($reportId, $user);
 
         return $this->files->printView($this->result($report, $request->runParams, $user), $user,
             (string) $report->get('name'));

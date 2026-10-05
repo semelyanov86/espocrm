@@ -7,24 +7,28 @@ namespace Espo\Modules\Itvolga\Classes\FieldProcessing\Report;
 use Espo\Core\Acl;
 use Espo\Core\FieldProcessing\Loader;
 use Espo\Core\FieldProcessing\Loader\Params;
+use Espo\Core\Utils\Language;
 use Espo\Entities\Team;
 use Espo\Entities\User;
 use Espo\Modules\Itvolga\Tools\Report\Core\Mailing\MailingSettingsParser;
+use Espo\Modules\Itvolga\Tools\Report\Mailing\ReadableNames;
 use Espo\ORM\Entity;
-use Espo\ORM\EntityManager;
 use Throwable;
 
 /**
  * `mailingSettings` of a read report (D-124): the stored mailing is `internal` — never in an API answer, never in a
  * filter — and this is what a reader sees of it. Who may edit the report (the owner, an administrator) gets the whole
- * part with the names of the chosen users and teams and the last attempt; any other reader — when the letters go and
- * in which formats, without recipients, addresses, subject or text.
+ * part with the names of the chosen users and teams he may read (others — «(нет доступа)», external review 05.3 B5)
+ * and the last attempt; any other reader — when the letters go and in which formats, without recipients, addresses,
+ * subject or text.
  */
 class MailingLoader implements Loader
 {
     public function __construct(
         private Acl $acl,
-        private EntityManager $entityManager,
+        private User $user,
+        private ReadableNames $readableNames,
+        private Language $language,
     ) {}
 
     public function process(Entity $entity, Params $params): void
@@ -63,13 +67,12 @@ class MailingLoader implements Loader
      */
     private function names(string $entityType, array $ids): object
     {
+        $readable = $this->readableNames->of($this->user, $entityType, $ids);
+        $noAccess = $this->language->translateLabel('noAccessRecord', 'labels', 'Report');
         $names = [];
 
-        if ($ids !== []) {
-            foreach ($this->entityManager->getRDBRepository($entityType)->select(['id', 'name'])
-                ->where(['id' => $ids])->find() as $record) {
-                $names[$record->getId()] = (string) $record->get('name');
-            }
+        foreach ($ids as $id) {
+            $names[$id] = $readable[$id] ?? $noAccess;
         }
 
         return (object) $names;

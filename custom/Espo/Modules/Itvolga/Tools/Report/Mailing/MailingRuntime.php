@@ -81,23 +81,28 @@ final class MailingRuntime
     }
 
     /**
+     * The outcome of the attempt claimed at `$claimedAt` — only while it is the last one: a slow attempt does not
+     * overwrite the outcome of a later one (a new schedule claimed meanwhile; external review 05.3 W6).
+     *
      * @param array<string, mixed> $result outcome of the attempt (codes and counts only)
      */
-    public function finish(string $id, array $result): void
+    public function finish(string $id, array $result, DateTimeImmutable $claimedAt): void
     {
-        $this->update($id, ['mailingLastResult' => Json::encode($result)]);
+        $this->update($id, ['mailingLastResult' => Json::encode($result)],
+            ['mailingLastRunAt' => $claimedAt->format('Y-m-d H:i:s')]);
     }
 
     /**
      * @param array<string, mixed> $values
+     * @param array<string, mixed> $where
      */
-    private function update(string $id, array $values): void
+    private function update(string $id, array $values, array $where = []): void
     {
         $this->entityManager->getQueryExecutor()->execute($this->entityManager->getQueryBuilder()
             ->update()
             ->in(Report::ENTITY_TYPE)
             ->set($values)
-            ->where(['id' => $id])
+            ->where(['id' => $id] + $where)
             ->build());
     }
 }

@@ -4,15 +4,11 @@ declare(strict_types=1);
 
 namespace Espo\Modules\Itvolga\Tools\Report\Mailing;
 
-use Espo\Core\AclManager;
-use Espo\Core\Select\SelectBuilderFactory;
 use Espo\Entities\User;
 use Espo\Modules\Itvolga\Tools\Report\Core\Definition\FieldInfo;
 use Espo\Modules\Itvolga\Tools\Report\Core\Info\ConditionWords;
 use Espo\Modules\Itvolga\Tools\Report\Format\FormatContext;
 use Espo\Modules\Itvolga\Tools\Report\Run\Labels;
-use Espo\ORM\EntityManager;
-use PDO;
 use Throwable;
 
 /**
@@ -27,9 +23,7 @@ final class LanguageConditionWords implements ConditionWords
         private readonly Labels $labels,
         private readonly string $entityType,
         private readonly User $reader,
-        private readonly SelectBuilderFactory $selectBuilderFactory,
-        private readonly EntityManager $entityManager,
-        private readonly AclManager $aclManager,
+        private readonly ReadableNames $readableNames,
     ) {}
 
     private function label(string $label): string
@@ -75,8 +69,8 @@ final class LanguageConditionWords implements ConditionWords
 
         if (in_array($family, [FieldInfo::FAMILY_LINK, FieldInfo::FAMILY_LINK_MULTIPLE], true) &&
             $field->foreignEntityType !== null) {
-            $names = $this->names($field->foreignEntityType, array_map('strval', array_filter($values,
-                fn ($v) => is_string($v) && $v !== '')));
+            $names = $this->readableNames->of($this->reader, $field->foreignEntityType, array_values(array_map('strval',
+                array_filter($values, fn ($v) => is_string($v) && $v !== ''))));
 
             return array_map(fn ($v) => $names[(string) $v] ?? $this->label('noAccessRecord'), $values);
         }
@@ -101,43 +95,5 @@ final class LanguageConditionWords implements ConditionWords
 
             return $value;
         }, $values);
-    }
-
-    /**
-     * Names of the records the reader may read, when their name field is not closed to him (external review 05.3 B4).
-     *
-     * @param list<string> $ids
-     * @return array<string, string>
-     */
-    private function names(string $entityType, array $ids): array
-    {
-        if ($ids === [] || !$this->entityManager->hasRepository($entityType) ||
-            in_array('name', $this->aclManager->getScopeForbiddenFieldList($this->reader, $entityType), true)) {
-            return [];
-        }
-
-        try {
-            $query = $this->selectBuilderFactory
-                ->create()
-                ->from($entityType)
-                ->forUser($this->reader)
-                ->withStrictAccessControl()
-                ->buildQueryBuilder()
-                ->select(['id', 'name'])
-                ->where(['id' => array_values(array_unique($ids))])
-                ->order([])
-                ->build();
-
-            $names = [];
-
-            foreach ($this->entityManager->getQueryExecutor()->execute($query)->fetchAll(PDO::FETCH_ASSOC) as $row) {
-                $names[(string) $row['id']] = (string) $row['name'];
-            }
-
-            return $names;
-        } catch (Throwable) {
-            // No access to the entity at all: no names.
-            return [];
-        }
     }
 }

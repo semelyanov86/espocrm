@@ -17,7 +17,6 @@ use Espo\Modules\Itvolga\Tools\Report\Format\FormatContextFactory;
 use Espo\Modules\Itvolga\Tools\Report\Mailing\Letters;
 use Espo\Modules\Itvolga\Tools\Report\Mailing\LetterSender;
 use Espo\Modules\Itvolga\Tools\Report\Mailing\Recipients;
-use Espo\Modules\Itvolga\Tools\Report\Run\ReportRunner;
 use Espo\ORM\EntityManager;
 use Throwable;
 
@@ -33,7 +32,6 @@ class ReportExport implements Job
 {
     public function __construct(
         private EntityManager $entityManager,
-        private ReportRunner $runner,
         private ExportAccess $access,
         private ExportService $exportService,
         private ReportFiles $files,
@@ -72,7 +70,7 @@ class ReportExport implements Job
                 throw new \RuntimeException('Refused.');
             }
 
-            $report = $this->runner->loadReadable((string) $data->get('reportId'), $user);
+            $report = $this->exportService->readable((string) $data->get('reportId'), $user);
             [$query, $result] = $this->exportService->run($report, $runParams, $user);
             $file = $this->files->build($result, $user, $format, (string) $report->get('name'));
         } catch (Throwable) {

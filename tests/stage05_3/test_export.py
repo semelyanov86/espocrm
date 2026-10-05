@@ -34,6 +34,10 @@ def setUpModule():
     no_export = world.role("no export", NO_EXPORT)
     sql(f"UPDATE role SET export_permission = 'no' WHERE id = '{no_export}'")
     world.user("noexp", role_ids=[no_export])
+    # Exports and reads reports, but not their names (field level).
+    nameless = world.role("nameless", NO_EXPORT, field_data={"Report": {"name": {"read": "no", "edit": "no"}}})
+    sql(f"UPDATE role SET export_permission = 'yes' WHERE id = '{nameless}'")
+    world.user("nameless", role_ids=[nameless])
     S["ref"] = reference_data(world)
     tag = world.tag
     S["tabular"] = world.report("dir", "Счета итоги", type="tabular", entityType="Invoice",
@@ -208,6 +212,15 @@ class AccessTest(Case):
         self.refused(export(noexp, S["tabular"]["id"], "csv"), 403, "exportForbidden")
         self.refused(noexp.request("POST", f"Report/{S['tabular']['id']}/printView", {}), 403, "exportForbidden")
         self.refused(export(noexp, S["tabular"]["id"], "csv", background=True), 403, "exportForbidden")
+
+    def test_a_closed_report_name_is_not_exported(self):
+        """The name goes into the file name, the print title and a background letter: closed to the user at the
+        field level — no export or print (external review 05.3 B6)."""
+        nameless = W().client("nameless")
+        self.assertEqual(200, run(nameless, S["tabular"]["id"])[0], "the report itself is readable")
+        self.refused(export(nameless, S["tabular"]["id"], "csv"), 403, "exportForbidden")
+        self.refused(nameless.request("POST", f"Report/{S['tabular']['id']}/printView", {}), 403, "exportForbidden")
+        self.refused(export(nameless, S["tabular"]["id"], "csv", background=True), 403, "exportForbidden")
 
     def test_report_access_and_bad_requests(self):
         dir2 = W().client("dir2")
