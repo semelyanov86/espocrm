@@ -116,6 +116,18 @@ def dec(value):
 
 
 # --- mailing ---------------------------------------------------------------------------------------------------------
+def hold_report_row(report_id, seconds, then_sql):
+    """A concurrent transaction: locks the report row, waits, runs `then_sql` and commits — a save that reaches the row
+    meanwhile waits for it and then sees the committed change (a race made deterministic)."""
+    from espo import DB_NAME, MYSQL_SOCKET
+    script = (f"START TRANSACTION; SELECT id FROM report WHERE id = '{report_id}' FOR UPDATE; DO SLEEP({seconds}); "
+              f"{then_sql}; COMMIT;")
+    holder = subprocess.Popen(["sudo", "-n", "mysql", f"--socket={MYSQL_SOCKET}", "-N", "-B", DB_NAME, "-e", script],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    time.sleep(1)
+    return holder
+
+
 def due(report_id):
     """Moves the next run of a report to the past (the job takes it at its next run)."""
     sql(f"UPDATE report SET mailing_next_run_at = '2000-01-01 00:00:00' WHERE id = '{report_id}'")

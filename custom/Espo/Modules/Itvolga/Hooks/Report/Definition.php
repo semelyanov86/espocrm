@@ -99,6 +99,13 @@ class Definition implements BeforeSave
         if ($entity->isNew() ? $owner !== $this->user->getId() : $entity->isAttributeChanged('assignedUserId')) {
             throw new Forbidden('Only an administrator gives a report to another owner.');
         }
+
+        // The fetched owner is the committed one (the save is rebased under the row lock): a report given away while
+        // this save waited for its row is no longer the user's to edit — else his mailing would run with the rights of
+        // the new owner (external review 05.3 B1).
+        if (!$entity->isNew() && $entity->getFetched('assignedUserId') !== $this->user->getId()) {
+            throw new Forbidden('The report has another owner now.');
+        }
     }
 
     /**

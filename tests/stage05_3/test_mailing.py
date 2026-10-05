@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from output import (JOB, REPO, SUM_ALL, D, Letters, World, all_of, cond, csv_rows, dec, download, due, espo_console,
-                    label, mail_fixture, ok, reference_data, run_job, runtime, sql)
+                    hold_report_row, label, mail_fixture, ok, reference_data, run_job, runtime, sql)
 
 S = {}
 OWN = {"Invoice": {"create": "no", "read": "own", "edit": "no", "delete": "no"}, "Account": {"read": "all"},
@@ -175,6 +175,19 @@ class SettingsTest(Case):
         ok(W().admin.put(f"Report/{rid}", {"assignedUserId": W().uid["dir"], "mailing": mailing(emails=[S["ext"]])}))
         self.assertIsNotNone(runtime(rid)["next"])
         self.assertTrue(ok(W().client("dir").get(f"Report/{rid}"))["mailingSettings"]["enabled"])
+
+    def test_a_report_given_away_during_a_save_is_not_saved(self):
+        """The owner's save passes the access check, then waits for the row while an administrator gives the report
+        away: under the lock the committed owner is not the user any more — 403, no mailing with the new owner's rights
+        (external review 05.3 B1)."""
+        rid = W().report("dir", "гонка владельца", entityType="Invoice", columns=["name"])["id"]
+        holder = hold_report_row(rid, 3, f"UPDATE report SET assigned_user_id = '{W().uid['dir2']}' WHERE id = '{rid}'")
+        try:
+            result = W().client("dir").put(f"Report/{rid}", {"mailing": mailing(emails=[S["ext"]])})
+        finally:
+            self.assertEqual(0, holder.wait(timeout=60), holder.stderr.read())
+        self.refused(result, 403)
+        self.assertEqual([["NULL", "NULL"]], sql(f"SELECT mailing, mailing_next_run_at FROM report WHERE id = '{rid}'"))
 
     def test_refusals(self):
         dir_ = W().client("dir")

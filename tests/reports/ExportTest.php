@@ -208,7 +208,10 @@ final class ExportTest extends TestCase
         $this->assertSame("'=1+1", CellText::safe('=1+1'));
         $this->assertSame("'  @x", CellText::safe('  @x'));
         $this->assertSame("'\tx", CellText::safe("\tx"));
-        $this->assertSame('-12.5', CellText::safe('-12.5'));
+        // A numeric text too: numbers are number cells, a text keeps its sign and zeros (external review 05.3 W1).
+        $this->assertSame("'-12.5", CellText::safe('-12.5'));
+        $this->assertSame("'+00123", CellText::safe('+00123'));
+        $this->assertSame('00123', CellText::safe('00123'));
         $this->assertSame('Обычный текст', CellText::safe('Обычный текст'));
 
         $this->assertSame('Счета_ итоги _2026_.csv', CellText::fileName('Счета: итоги "2026"', 'csv'));

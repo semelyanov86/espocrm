@@ -14,12 +14,13 @@ final class CellText
 
     /**
      * A text cell with a leading apostrophe when a spreadsheet would read it as a formula: it starts with = + - @ (also
-     * after spaces) or with a tab or a carriage return. A plain number stays as it is — the rule of the core export
-     * (Tools/Export/Processor/Util), extended to the control characters.
+     * after spaces) or with a tab or a carriage return (D-117). Unlike the core export a numeric text is no exception:
+     * numbers are number cells and never come here, and a text like «+00123» would lose its sign and zeros (external
+     * review 05.3 W1).
      */
     public static function safe(string $value): string
     {
-        if ($value === '' || is_numeric($value)) {
+        if ($value === '') {
             return $value;
         }
 
