@@ -8,8 +8,8 @@ failure without the report's name and no file.
 import time
 import unittest
 
-from output import (SUM_ALL, Letters, World, all_of, csv_rows, dec, download, export, label, ok, reference_data,
-                    run_cron, sql)
+from output import (SUM_ALL, Letters, World, all_of, cond, csv_rows, dec, download, export, label, ok,
+                    reference_data, run_cron, sql)
 
 S = {}
 
@@ -24,8 +24,15 @@ def setUpModule():
     world.user("dir", roles=["Директор"])
     world.user("dir2", roles=["Директор"])
     world.user("plain", role_ids=[world.role("plain", {"Account": {"read": "all"}})])
+    # Exports; reads contacts but not their names, and no user but himself.
+    narrow = world.role("narrow", {"Invoice": {"read": "all"}, "Account": {"read": "all"}, "Contact": {"read": "all"},
+                                   "User": {"read": "own", "edit": "own"}},
+                        field_data={"Contact": {"name": {"read": "no", "edit": "no"}}})
+    sql(f"UPDATE role SET export_permission = 'yes' WHERE id = '{narrow}'")
+    world.user("narrow", role_ids=[narrow])
     S["addr"] = letters.give_address("dir")
-    reference_data(world)
+    S["narrow"] = letters.give_address("narrow")
+    S["ref"] = reference_data(world)
     S["report"] = world.report("dir", "в фоне", type="tabular", entityType="Invoice", columns=["name", "grandTotal"],
                                rowLimit=2, accessType="public", filters=all_of(world.name_filter()),
                                quickFilters=["status"])
@@ -87,6 +94,28 @@ class BackgroundTest(unittest.TestCase):
         status, data, _ = download(W().client("dir2"), attachment_id)
         records = [r for r in csv_rows(data)[1:] if r and r[0].startswith(W().tag)]
         self.assertEqual(2, len(records), "the quick filter of the request")
+
+    def test_letter_names_only_what_the_requester_reads(self):
+        """«Сведения об отчёте» in the letter name the owner and the records of the conditions only when the requester
+        may read them and their name field (external review 05.3 B3, B4); the owner reading all sees them."""
+        contact = ok(W().admin.get(f"Contact/{S['ref']['c1']}"))["name"]
+        owner = ok(W().admin.get(f"User/{W().uid['dir']}"))["name"]
+        report = W().report("dir", "сведения", type="tabular", entityType="Invoice", columns=["name"],
+                            accessType="public", filters=all_of(W().name_filter(), cond(
+                                "contact", "in", [S["ref"]["c1"]], attribute="contactId")))
+        bodies = {}
+        for key, address in (("dir", S["addr"]), ("narrow", S["narrow"])):
+            before = len(L().notifications(key))
+            ok(export(W().client(key), report["id"], "csv", background=True))
+            wait_notifications(key, before + 1)
+            letters = [letter for letter in L().read(report["name"]) if letter["to"] == address]
+            self.assertEqual(1, len(letters), key)
+            bodies[key] = letters[0]["body"]
+        self.assertIn(contact, bodies["dir"])
+        self.assertIn(owner, bodies["dir"])
+        self.assertNotIn(contact, bodies["narrow"])
+        self.assertNotIn(owner, bodies["narrow"])
+        self.assertEqual(2, bodies["narrow"].count("(нет доступа)"), "the owner and the contact")
 
     def test_refused_when_the_access_is_gone(self):
         before = len(L().notifications("dir"))

@@ -430,6 +430,7 @@ define('itvolga:views/report/fields/mailing', ['itvolga:views/report/fields/base
 
                 try {
                     const response = await Espo.Ajax.postRequest('Report/mailingPreview', {
+                        id: this.model.id || null,
                         assignedUserId: this.model.get('assignedUserId'),
                         mailing: {enabled: true, frequency: schedule.frequency, time: schedule.time,
                             weekday: schedule.weekday, day: schedule.day, month: schedule.month,

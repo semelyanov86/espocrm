@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Espo\Modules\Itvolga\Tools\Report\Mailing;
 
+use Espo\Core\AclManager;
 use Espo\Core\Select\SelectBuilderFactory;
 use Espo\Entities\User;
 use Espo\Modules\Itvolga\Tools\Report\Core\Definition\FieldInfo;
@@ -16,8 +17,8 @@ use Throwable;
 
 /**
  * Words of the condition text for one reader (D-124): his language; option labels; dates in his format; names of the
- * records in the conditions only when he may read them (the access filter of the core for him), others — «(нет
- * доступа)».
+ * records in the conditions only when he may read them and their name field (the access filter of the core and the
+ * field level for him), others — «(нет доступа)».
  */
 final class LanguageConditionWords implements ConditionWords
 {
@@ -28,6 +29,7 @@ final class LanguageConditionWords implements ConditionWords
         private readonly User $reader,
         private readonly SelectBuilderFactory $selectBuilderFactory,
         private readonly EntityManager $entityManager,
+        private readonly AclManager $aclManager,
     ) {}
 
     private function label(string $label): string
@@ -102,14 +104,15 @@ final class LanguageConditionWords implements ConditionWords
     }
 
     /**
-     * Names of the records the reader may read.
+     * Names of the records the reader may read, when their name field is not closed to him (external review 05.3 B4).
      *
      * @param list<string> $ids
      * @return array<string, string>
      */
     private function names(string $entityType, array $ids): array
     {
-        if ($ids === [] || !$this->entityManager->hasRepository($entityType)) {
+        if ($ids === [] || !$this->entityManager->hasRepository($entityType) ||
+            in_array('name', $this->aclManager->getScopeForbiddenFieldList($this->reader, $entityType), true)) {
             return [];
         }
 

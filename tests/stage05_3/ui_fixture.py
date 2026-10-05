@@ -4,9 +4,9 @@
   python3 tests/stage05_3/ui_fixture.py create   → the users and records of the stage-05.1 fixture, e-mail addresses of
                                                    the managers, reports of every type and reports with mailings;
                                                    passwords → <private>/ui-users.env (600)
-  python3 tests/stage05_3/ui_fixture.py delete   → removes the letters, files and notifications of the fixture (and
-                                                   the export files the admin made while it existed), its reports,
-                                                   records, team and users
+  python3 tests/stage05_3/ui_fixture.py delete   → removes the letters, files and notifications of the fixture, its
+                                                   reports, records, team and users (export in the browser as a fixture
+                                                   user: files of other users, the admin too, are not touched)
 
 <private> is /data/itvolga/espo-private/stand/evidence/stage05.3 (UI_FIXTURE_DIR overrides it), mode 700. Users are
 those of tests/stage05_1/ui_fixture.py: synth-rep-manager and -manager2 (Директор, export allowed; addresses
@@ -60,10 +60,8 @@ def no_export_user(admin, state):
 
 
 def create():
-    since = sql("SELECT UTC_TIMESTAMP()")[0][0]
     base.create()
     state = json.loads(base.STATE.read_text(encoding="utf-8"))
-    state["since"] = since
     admin = Client(*admin_credentials())
     no_export_user(admin, state)
     for key, address in ADDRESSES.items():
@@ -115,10 +113,6 @@ def purge_letters(state):
         "JOIN email_address a ON a.id = x.email_address_id WHERE a.lower LIKE 'synth-rep-%@example.com'")]
     attachments = [r[0] for r in sql(f"SELECT id FROM attachment WHERE role = 'Export File' AND "
                                      f"created_by_id IN {in_users}")] if user_ids else []
-    if state.get("since"):  # files the admin exported in the browser check
-        attachments += [r[0] for r in sql(
-            "SELECT a.id FROM attachment a JOIN user u ON u.id = a.created_by_id WHERE a.role = 'Export File' "
-            f"AND u.user_name = 'admin' AND a.created_at >= '{state['since']}'")]
     notifications = [r[0] for r in sql(f"SELECT id FROM notification WHERE user_id IN {in_users}")] if user_ids else []
     php = subprocess.run(["bash", "-c", f"source {REPO}/scripts/stand/lib.sh && echo $PHP_BIN"], capture_output=True,
                          text=True, check=True).stdout.strip()

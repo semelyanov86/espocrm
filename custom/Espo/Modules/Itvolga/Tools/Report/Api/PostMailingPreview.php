@@ -13,16 +13,21 @@ use Espo\Core\Exceptions\BadRequest;
 use Espo\Core\Exceptions\Forbidden;
 use Espo\Core\Utils\Json;
 use Espo\Entities\User;
+use Espo\Modules\Itvolga\Entities\Report;
 use Espo\Modules\Itvolga\Tools\Report\Core\Definition\DefinitionError;
+use Espo\Modules\Itvolga\Tools\Report\Core\Mailing\MailingSettings;
 use Espo\Modules\Itvolga\Tools\Report\Core\Mailing\MailingSettingsParser;
 use Espo\Modules\Itvolga\Tools\Report\Format\FormatContextFactory;
 use Espo\Modules\Itvolga\Tools\Report\Mailing\MailingClock;
+use Espo\ORM\EntityManager;
+use Throwable;
 
 /**
- * POST /Report/mailingPreview {mailing, assignedUserId?} — the next run of a mailing being edited (step 9 of the builder,
- * D-121), computed by the same schedule as the save: the wall clock of the owner (only an administrator names another
- * owner). Answer: {nextRunAt: UTC|null, text: in the user's notation with the owner's time zone} or {error: translated}
- * for settings the save would refuse. Nothing is written.
+ * POST /Report/mailingPreview {mailing, assignedUserId?, id?} — the next run of a mailing being edited (step 9 of the
+ * builder, D-121), by the rule of the save: the stored slot of a report the user may edit when its schedule and owner
+ * stay (an anchor of every two weeks — external review 05.3 W3), else the first slot by the wall clock of the owner
+ * (only an administrator names another owner). Answer: {nextRunAt: UTC|null, text: in the user's notation with the
+ * owner's time zone} or {error: translated} for settings the save would refuse. Nothing is written.
  */
 class PostMailingPreview implements Action
 {
@@ -31,6 +36,7 @@ class PostMailingPreview implements Action
         private Acl $acl,
         private MailingClock $clock,
         private FormatContextFactory $formatContextFactory,
+        private EntityManager $entityManager,
     ) {}
 
     public function process(Request $request): Response
@@ -62,11 +68,37 @@ class PostMailingPreview implements Action
                 'error' => $context->language->translateLabel($e->key, 'messages', 'Report')]);
         }
 
-        $next = $this->clock->first($settings, $ownerId);
+        $next = $this->stored($raw['id'] ?? null, $settings, $ownerId) ?? $this->clock->first($settings, $ownerId);
         $text = $next === null ? null : $context->dateTime->convertSystemDateTime($next,
             $this->clock->zone($ownerId)->getName(), $context->dateFormat . ' ' . $context->timeFormat,
             $context->languageCode) . ' (' . $this->clock->zone($ownerId)->getName() . ')';
 
         return ResponseComposer::json(['nextRunAt' => $next, 'text' => $text, 'error' => null]);
+    }
+
+    /**
+     * The slot a save would keep (Hooks/Report/Mailing): same owner, same enabled schedule, a stored next run.
+     */
+    private function stored(mixed $id, ?MailingSettings $settings, string $ownerId): ?string
+    {
+        if (!is_string($id) || $id === '' || !$settings?->enabled) {
+            return null;
+        }
+
+        $report = $this->entityManager->getRDBRepositoryByClass(Report::class)->getById($id);
+
+        if (!$report || !$this->acl->checkEntityEdit($report) || $report->get('assignedUserId') !== $ownerId) {
+            return null;
+        }
+
+        try {
+            $before = MailingSettingsParser::parse($report->get('mailing'));
+        } catch (Throwable) {
+            return null;
+        }
+
+        $next = $report->get('mailingNextRunAt');
+
+        return $before?->schedule() === $settings->schedule() && is_string($next) ? $next : null;
     }
 }

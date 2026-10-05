@@ -232,6 +232,13 @@ class SettingsTest(Case):
         ok(dir_.put(f"Report/{report['id']}", {"mailing": mailing(emails=[S["ext"]], subject="Итоги",
                                                                   **cases[-1])}))
         self.assertEqual(anchored, runtime(report["id"])["next"])
+        # The preview of the report shows the slot its save would keep, and a new one for a changed schedule (W3).
+        kept = mailing(emails=[S["ext"]], **cases[-1])
+        preview = ok(dir_.request("POST", "Report/mailingPreview", {"mailing": kept, "id": report["id"]}))
+        self.assertEqual(anchored, preview["nextRunAt"])
+        changed = {**kept, "time": "11:00"}
+        preview = ok(dir_.request("POST", "Report/mailingPreview", {"mailing": changed, "id": report["id"]}))
+        self.assertEqual(local_slot(changed, datetime.now(timezone.utc)), preview["nextRunAt"])
         ok(dir_.put(f"Report/{report['id']}", {"mailing": {**mailing(emails=[S["ext"]]), "enabled": False}}))
         self.assertIsNone(runtime(report["id"])["next"])
         refused = ok(dir_.request("POST", "Report/mailingPreview", {"mailing": mailing(time="7:00")}))
