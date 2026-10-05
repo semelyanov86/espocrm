@@ -1,0 +1,12 @@
+{
+    "scriptList": [
+        "__APPEND__",
+        "client/custom/modules/itvolga/lib/branding.js"
+    ],
+    "cssList": [
+        "__APPEND__",
+        "client/custom/modules/itvolga/css/branding.css"
+    ],
+    "favicon": "client/custom/modules/itvolga/img/favicon.svg",
+    "faviconAlternate": "client/custom/modules/itvolga/img/favicon.ico"
+}

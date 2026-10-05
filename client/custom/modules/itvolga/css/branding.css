@@ -1,0 +1,349 @@
+/*
+ * Login page of the company (D-127, itvolga:views/login). Loaded on every page (metadata app.client.cssList), so every
+ * rule is scoped to the page's own root `.itv-login` and its footer `.itv-login-footer`.
+ *
+ * Two columns: a navy brand panel — the logo for dark backgrounds, one line about the system and a mosaic of the
+ * logo's four colours, denser towards the lower right corner — and the form on a plain column at the right.
+ */
+
+body > .itv-login,
+body > .itv-login-footer {
+    --itv-side: clamp(400px, 38vw, 600px);
+    --itv-brand: #191a5c;
+    --itv-surface: #ffffff;
+    --itv-field: #ffffff;
+    --itv-ink: #28288c;
+    --itv-ink-strong: #1e1e70;
+    --itv-on-ink: #ffffff;
+    --itv-text: #16173a;
+    --itv-muted: #5c5e7d;
+    --itv-line: #9093ae;
+    --itv-focus: #0485f3;
+    --itv-error: #c81e2c;
+}
+
+body > .itv-login[data-dark],
+body > .itv-login-footer[data-dark] {
+    --itv-surface: #14152b;
+    --itv-field: #1d1f3a;
+    --itv-ink: #dcddf6;
+    --itv-ink-strong: #ffffff;
+    --itv-on-ink: #14152b;
+    --itv-text: #e6e7f5;
+    --itv-muted: #a2a4c3;
+    --itv-line: #6a6d97;
+    --itv-focus: #4aa8ff;
+    --itv-error: #ff6b74;
+}
+
+/* The application keeps a top indent for its navigation bar; the login page has none and fills the window. Phones:
+   100vh is the viewport with the browser bars hidden and scrolls an empty page, 100svh is the visible one. */
+body:has(> .itv-login) {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100svh;
+    padding-top: 0;
+    background-color: #ffffff;
+}
+
+body:has(> .itv-login[data-dark]) {
+    background-color: #14152b;
+}
+
+body > .itv-login {
+    flex: 1 0 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--itv-side);
+    background: var(--itv-surface);
+    color: var(--itv-text);
+}
+
+/* Brand panel */
+
+.itv-login__brand {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 48px clamp(32px, 4.5vw, 72px) 56px;
+    background: var(--itv-brand);
+    color: #ffffff;
+}
+
+.itv-login__mosaic {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    width: 100%;
+    height: 100%;
+}
+
+.itv-login__mosaic .t-b { fill: #0485f3; }
+.itv-login__mosaic .t-r { fill: #f62636; }
+.itv-login__mosaic .t-g { fill: #079f56; }
+.itv-login__mosaic .t-y { fill: #fab00a; }
+.itv-login__mosaic .t-n1 { fill: #ffffff; fill-opacity: 0.035; }
+.itv-login__mosaic .t-n2 { fill: #ffffff; fill-opacity: 0.06; }
+.itv-login__mosaic .t-n3 { fill: #ffffff; fill-opacity: 0.09; }
+
+.itv-login__logo {
+    display: block;
+    width: auto;
+    height: 52px;
+}
+
+.itv-login__tagline {
+    max-width: 12em;
+    margin: clamp(48px, 16vh, 160px) 0 0;
+    font-size: clamp(28px, 2.6vw, 44px);
+    line-height: 1.12;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: #ffffff;
+}
+
+/* The mosaic assembles once, in a wave from the lower right corner; a few coloured tiles then breathe slowly. */
+@media (prefers-reduced-motion: no-preference) {
+    .itv-login__mosaic .t {
+        transform-box: fill-box;
+        transform-origin: center;
+        animation: itv-login-tile 0.5s cubic-bezier(0.16, 1, 0.3, 1) var(--d) both;
+    }
+
+    .itv-login__mosaic .t-pulse {
+        animation:
+            itv-login-tile 0.5s cubic-bezier(0.16, 1, 0.3, 1) var(--d) both,
+            itv-login-breathe 7s ease-in-out calc(var(--d) + 1.5s) infinite;
+    }
+
+    .itv-login__mosaic .t-pulse[data-p="1"] { animation-duration: 0.5s, 9s; }
+    .itv-login__mosaic .t-pulse[data-p="2"] { animation-duration: 0.5s, 11s; }
+}
+
+@keyframes itv-login-tile {
+    from {
+        opacity: 0;
+        transform: scale(0.4);
+    }
+}
+
+@keyframes itv-login-breathe {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* Form column */
+
+.itv-login__side {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 40px 96px;
+}
+
+.itv-login__panel {
+    width: 100%;
+    max-width: 380px;
+}
+
+.itv-login .itv-login__title {
+    margin: 0 0 8px;
+    font-size: 28px;
+    line-height: 34px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--itv-text);
+}
+
+.itv-login__hint {
+    margin: 0 0 32px;
+    font-size: 14px;
+    line-height: 20px;
+    color: var(--itv-muted);
+}
+
+.itv-login .panel-body {
+    padding: 0;
+}
+
+.itv-login .form-group {
+    margin-bottom: 18px;
+}
+
+.itv-login #login .cell label {
+    display: block;
+    margin: 0 0 6px;
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 500;
+    color: var(--itv-text);
+}
+
+.itv-login .form-control {
+    height: 48px;
+    padding: 0 14px;
+    font-size: 15px;
+    color: var(--itv-text);
+    background-color: var(--itv-field);
+    border: 1px solid var(--itv-line);
+    border-radius: 8px;
+    box-shadow: none;
+    transition: border-color 0.12s ease-out, box-shadow 0.12s ease-out;
+}
+
+.itv-login .form-control:focus {
+    border-color: var(--itv-ink);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--itv-focus) 28%, transparent);
+    outline: none;
+}
+
+.itv-login .has-error .form-control,
+.itv-login .has-error .form-control:focus {
+    border-color: var(--itv-error);
+}
+
+.itv-login .has-error .form-control:focus {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--itv-error) 25%, transparent);
+}
+
+.itv-login [data-role=password-input-container] input {
+    padding-right: 48px;
+}
+
+.itv-login [data-role=password-input-container] a[data-action=toggleShowPassword] {
+    top: 0;
+    right: 0;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--itv-muted);
+}
+
+.itv-login [data-role=password-input-container] a[data-action=toggleShowPassword]:hover {
+    color: var(--itv-text);
+}
+
+.itv-login__actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    margin-top: 28px;
+}
+
+.itv-login .btn.itv-login__submit {
+    width: 100%;
+    height: 48px;
+    padding: 0 24px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--itv-on-ink);
+    background: var(--itv-ink);
+    border: 0;
+    border-radius: 8px;
+    box-shadow: none;
+    transition: background-color 0.12s ease-out;
+}
+
+.itv-login .btn.itv-login__submit:hover,
+.itv-login .btn.itv-login__submit:focus,
+.itv-login .btn.itv-login__submit:active {
+    color: var(--itv-on-ink);
+    background: var(--itv-ink-strong);
+    box-shadow: none;
+}
+
+.itv-login .btn.itv-login__submit:focus-visible,
+.itv-login .form-control:focus-visible,
+.itv-login a[role=button]:focus-visible {
+    outline: 2px solid var(--itv-focus);
+    outline-offset: 2px;
+}
+
+.itv-login .btn.itv-login__submit.disabled,
+.itv-login .btn.itv-login__submit[disabled] {
+    opacity: 0.6;
+    cursor: progress;
+}
+
+.itv-login .btn-link[data-action=passwordChangeRequest] {
+    align-self: center;
+    color: var(--itv-ink);
+}
+
+/* Footer: at the bottom of the form column, without the side-menu indent of the application. */
+
+body > footer.itv-login-footer {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: var(--itv-side);
+    height: auto;
+    max-height: none;
+    margin: 0;
+    background: transparent;
+}
+
+body > footer.itv-login-footer > p.credit {
+    padding: 16px 24px;
+    line-height: 18px;
+    text-align: center;
+    color: var(--itv-muted);
+}
+
+body > footer.itv-login-footer > p.credit a,
+body > footer.itv-login-footer > p.credit a:hover,
+body > footer.itv-login-footer > p.credit a:visited {
+    color: var(--itv-muted);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+/* Narrow windows: the brand panel becomes a band above the form, the footer follows the form. */
+@media (max-width: 900px) {
+    body > .itv-login {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto 1fr;
+    }
+
+    /* The band takes the room the form and the footer (about 480 px) leave, instead of empty space below the form;
+       on short screens it shrinks first. */
+    .itv-login__brand {
+        min-height: clamp(140px, calc(100svh - 480px), 340px);
+        padding: 24px 20px;
+    }
+
+    /* The band shows the dense corner of the mosaic: the logo gets a calm field on the left. */
+    .itv-login__brand::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background: linear-gradient(90deg, var(--itv-brand) 40%, transparent 85%);
+    }
+
+    .itv-login__logo {
+        height: 44px;
+    }
+
+    .itv-login__tagline {
+        display: none;
+    }
+
+    .itv-login__side {
+        align-items: flex-start;
+        padding: 32px 20px 24px;
+    }
+
+    body > footer.itv-login-footer {
+        position: static;
+        width: auto;
+        background: var(--itv-surface);
+    }
+}

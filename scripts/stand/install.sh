@@ -294,6 +294,9 @@ step_espo() {
         espo_cmd config:set currencyList "[\"$ESPO_CURRENCY\"]" --type=json
         espo_cmd config:set decimalMark "$ESPO_DECIMAL_MARK"
         espo_cmd config:set thousandSeparator "$ESPO_THOUSAND_SEPARATOR"
+        espo_cmd config:set applicationName "$ESPO_APPLICATION_NAME"
+        espo_cmd config:set theme "$ESPO_THEME"
+        espo_cmd config:set avatarsDisabled true --type=bool
         espo_cmd populate-scheduled-jobs >/dev/null
         espo_cmd config:set jobRunInParallel true --type=bool
         # Extensions are never installed from the UI in this project (no paid packages, D-03).
