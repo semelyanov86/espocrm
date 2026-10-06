@@ -1,6 +1,7 @@
 /*
- * Login page of the company (D-127, itvolga:views/login). Loaded on every page (metadata app.client.cssList), so every
- * rule is scoped to the page's own root `.itv-login` and its footer `.itv-login-footer`.
+ * Login page of the company (D-127, itvolga:views/login) and its second steps (D-128: the code of the core methods,
+ * the security key). Loaded on every page (metadata app.client.cssList), so every rule is scoped to the page's own root
+ * `.itv-login` and its footer `.itv-login-footer` — and the security-key setup dialog to `.itv-security-key-setup`.
  *
  * Two columns: a navy brand panel — the logo for dark backgrounds, one line about the system and a mosaic of the
  * logo's four colours, denser towards the lower right corner — and the form on a plain column at the right.
@@ -122,6 +123,18 @@ body > .itv-login {
 
     .itv-login__mosaic .t-pulse[data-p="1"] { animation-duration: 0.5s, 9s; }
     .itv-login__mosaic .t-pulse[data-p="2"] { animation-duration: 0.5s, 11s; }
+
+    /* The second step follows the assembled first one: no second wave, the coloured tiles only breathe. */
+    .itv-login[data-step] .itv-login__mosaic .t {
+        animation: none;
+    }
+
+    .itv-login[data-step] .itv-login__mosaic .t-pulse {
+        animation: itv-login-breathe 7s ease-in-out 1.5s infinite;
+    }
+
+    .itv-login[data-step] .itv-login__mosaic .t-pulse[data-p="1"] { animation-duration: 9s; }
+    .itv-login[data-step] .itv-login__mosaic .t-pulse[data-p="2"] { animation-duration: 11s; }
 }
 
 @keyframes itv-login-tile {
@@ -272,9 +285,60 @@ body > .itv-login {
     cursor: progress;
 }
 
-.itv-login .btn-link[data-action=passwordChangeRequest] {
+.itv-login .btn-link[data-action=passwordChangeRequest],
+.itv-login .btn-link[data-action=backToLogin] {
     align-self: center;
     color: var(--itv-ink);
+}
+
+/* Second steps (D-128): a card with a security key drawn in the logo's colours — its touch spot pulses while the
+   browser waits for a touch — and the status line beside it. */
+
+.itv-login__key-card {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    min-height: 104px;
+    padding: 16px 20px;
+    border: 1px solid color-mix(in srgb, var(--itv-ink) 18%, transparent);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--itv-ink) 6%, var(--itv-surface));
+}
+
+.itv-login__key {
+    flex: 0 0 auto;
+    width: 64px;
+    height: 64px;
+}
+
+.itv-login__key-body { fill: var(--itv-brand); }
+.itv-login__key-plug { fill: var(--itv-line); }
+.itv-login__key-touch { fill: #fab00a; }
+
+body > .itv-login[data-dark] .itv-login__key-body { fill: var(--itv-ink); }
+
+@media (prefers-reduced-motion: no-preference) {
+    .itv-login__key-card[data-state=waiting] .itv-login__key-touch {
+        transform-box: fill-box;
+        transform-origin: center;
+        animation: itv-login-touch 1.4s ease-in-out infinite;
+    }
+}
+
+@keyframes itv-login-touch {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.3); opacity: 0.65; }
+}
+
+.itv-login__status {
+    margin: 0;
+    font-size: 14px;
+    line-height: 20px;
+    color: var(--itv-text);
+}
+
+.itv-login__status[data-kind=error] {
+    color: var(--itv-error);
 }
 
 /* Footer: at the bottom of the form column, without the side-menu indent of the application. */
@@ -346,4 +410,25 @@ body > footer.itv-login-footer > p.credit a:visited {
         width: auto;
         background: var(--itv-surface);
     }
+}
+
+/* Security-key setup dialog (D-128): the keys registered in this setup, each with a name. */
+
+.itv-security-key-setup .list-group {
+    margin: 16px 0 12px;
+}
+
+.itv-security-key-setup__key {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.itv-security-key-setup__key .form-control {
+    flex: 1 1 auto;
+}
+
+.itv-security-key-setup__status {
+    min-height: 20px;
+    margin: 12px 0 0;
 }

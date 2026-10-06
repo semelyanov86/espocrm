@@ -77,7 +77,16 @@
         "financeAllocationAmount": "Сумма",
         "financeAllocationRequired": "Строка {line}: выберите документ и укажите сумму.",
         "financeAllocationInvalid": "Строка {line}: неверная сумма.",
-        "financeAllocationDuplicate": "Строка {line}: этот документ уже есть в распределении."
+        "financeAllocationDuplicate": "Строка {line}: этот документ уже есть в распределении.",
+        "itvolgaSecurityKeyUse": "Подтвердить ключом",
+        "itvolgaSecurityKeyRetry": "Повторить",
+        "itvolgaSecurityKeyAdd": "Добавить ключ",
+        "itvolgaSecurityKeyName": "Название ключа",
+        "itvolgaSecurityKeyNamePlaceholder": "Например, основной или запасной",
+        "itvolgaSecurityKeyN": "Ключ {n}",
+        "itvolgaSecurityKeyRemove": "Убрать",
+        "itvolgaSecurityKeyPrimary": "Основной",
+        "itvolgaSecurityKeyBackup": "Запасной"
     },
     "messages": {
         "financeFloat": "{place}: число нужно передать строкой (числа с плавающей точкой не принимаются).",
@@ -119,7 +128,22 @@
         "financeConversionLinked": "{source} уже связан с другим документом «{target}» — откройте его из карточки, новый не создаётся.",
         "financeConversionSourceMissing": "Исходный документ «{source}» удалён — обновите страницу.",
         "financeRestoreItemDenied": "Позиция восстанавливается только вместе с документом: удалённую строку добавьте в таблицу документа заново.",
-        "financeNumberReadOnly": "Номер сохранённого документа или платежа не меняется: новый получает номер из счётчика, импортированный хранит номер Vtiger."
+        "financeNumberReadOnly": "Номер сохранённого документа или платежа не меняется: новый получает номер из счётчика, импортированный хранит номер Vtiger.",
+        "itvolgaSecurityKeyTouch": "Вставьте ключ безопасности и коснитесь его.",
+        "itvolgaSecurityKeyWaiting": "Ждём касания ключа…",
+        "itvolgaSecurityKeyCancelled": "Ключ не подтверждён: время истекло или действие отменено.",
+        "itvolgaSecurityKeyRejected": "Ключ не принят. Попробуйте ещё раз или используйте другой зарегистрированный ключ.",
+        "itvolgaSecurityKeyTooManyAttempts": "Слишком много неудачных попыток. Подождите несколько минут и войдите снова.",
+        "itvolgaSecurityKeyInsecure": "Здесь браузер не может обратиться к ключу безопасности: нужен защищённый адрес (HTTPS) и браузер с поддержкой ключей (WebAuthn).",
+        "itvolgaSecurityKeyError": "Не удалось обратиться к ключу безопасности.",
+        "itvolgaSecurityKeyNone": "Для вашей учётной записи не зарегистрировано ни одного ключа безопасности. Обратитесь к администратору: он отключит двухфакторную аутентификацию, после входа по паролю зарегистрируйте ключи заново.",
+        "itvolgaSecurityKeySetupIntro": "Вставьте ключ, нажмите «Добавить ключ» и коснитесь его. Сразу добавьте и запасной ключ: если потерять все ключи, восстановить вход сможет только администратор.",
+        "itvolgaSecurityKeyResetNote": "Прежние ключи удалены. Добавьте все ключи, которыми будете пользоваться.",
+        "itvolgaSecurityKeyAlreadyAdded": "Этот ключ уже добавлен.",
+        "itvolgaSecurityKeyMax": "Можно добавить не больше {max} ключей.",
+        "itvolgaSecurityKeyNeedOne": "Добавьте хотя бы один ключ.",
+        "itvolgaSecurityKeySetupFailed": "Ключи не сохранены: проверка не прошла или время на настройку истекло. Добавьте ключи заново.",
+        "itvolgaSecurityKeySetupUnknown": "Не удалось проверить, сохранены ли ключи. Закройте окно и откройте «Безопасность» снова: если 2FA включена, ключи сохранены."
     },
     "tabs": {
         "Finance": "Финансы"

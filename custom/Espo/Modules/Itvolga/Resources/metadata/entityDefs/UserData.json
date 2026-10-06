@@ -1,0 +1,9 @@
+{
+    "fields": {
+        "cSecurityKeys": {
+            "type": "jsonArray",
+            "readOnly": true,
+            "customizationDisabled": true
+        }
+    }
+}

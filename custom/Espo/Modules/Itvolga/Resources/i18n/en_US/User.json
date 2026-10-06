@@ -1,0 +1,5 @@
+{
+    "messages": {
+        "auth2FARequired": "You need to set up two-factor authentication. Choose the method in the next window: an authenticator app on your phone (for example, Google Authenticator) or a security key (YubiKey), if the administrator allows it."
+    }
+}

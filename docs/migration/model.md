@@ -35,10 +35,11 @@
 | `…/Tools/Report/Core/{Chart,Metric,Dashboard}/`, `…/Tools/Report/{Metric,Dashboard}/`, `…/Tools/Report/Api/GetMetricValues.php`, `…/Hooks/ReportMetricSet/`, `…/Repositories/ReportMetricSet.php`, `…/Classes/FieldProcessing/Report/MetricUsageLoader.php`, `…/metadata/dashlets/{Report,ReportMetrics}.json` | графики, дашлеты «Отчёт» и «Ключевые показатели», наборы показателей (этап 05.2, D-105…D-115) — `reports.md` §9–§11 |
 | `…/Tools/Report/Core/{Export,Info,Mailing}/`, `…/Tools/Report/{Export,Mailing}/`, `…/Tools/Report/Api/{PostExport,PostPrintView,PostMailingPreview}.php`, `…/Hooks/Report/Mailing.php`, `…/Classes/FieldProcessing/Report/MailingLoader.php`, `…/Jobs/{ReportMailing,ReportExport}.php`, `…/metadata/app/scheduledJobs.json`, `…/Tools/Report/Seed/MailingJob.php`, `…/Resources/reports/output/report.css` | экспорт CSV/XLSX/PDF, печать, рассылка по расписанию и фоновая выгрузка (этап 05.3, D-116…D-126) — `reports.md` §12–§14 |
 | `client/custom/modules/itvolga/src/{report,views/report,handlers/report}/` | конструктор, страница результата, список с папками, детализация, перенос в папку |
+| `…/Tools/SecurityKey/` (`Core/` — чистое ядро WebAuthn), `…/Hooks/UserData/ClearSecurityKeys.php`, `…/metadata/app/{authentication2FAMethods,config}.json`, `client/custom/modules/itvolga/src/{security-key,login-response}.js`, `…/src/views/{login,login-second-step,login-security-key}.js`, `…/src/views/login/brand.js`, `…/src/views/user-security/modals/security-key.js` | второй фактор «Ключ безопасности (YubiKey)» и фирменный второй шаг входа (вне этапов, D-128…D-132) — `security-key.md` |
 | `scripts/model/` | сверка модели с картой (в том числе реестр печатных форм и умолчание условий), генератор словаря значений, покрытие финансов |
 | `tests/stage03/`, `tests/stage04/`, `tests/stage05/` | приёмочные тесты API и PDF, помощники UI-сценариев |
 
-Развёртывание на стенд: `task model:apply` (clear-cache — в том числе кэш шрифтов PDF, rebuild, роли, юрлицо и счётчики номеров, оплата документов, папки и стандартные отчёты, отметка времени клиента). Тесты: `task test:stage03`, `task test:stage04`, `task test:stage05`, `task test:stage05.1`, `task test:finance`, `task test:reports`.
+Развёртывание на стенд: `task model:apply` (clear-cache — в том числе кэш шрифтов PDF, rebuild, роли, юрлицо и счётчики номеров, оплата документов, папки и стандартные отчёты, отметка времени клиента). Тесты: `task test:stage03`, `task test:stage04`, `task test:stage05`, `task test:stage05.1`, `task test:finance`, `task test:reports`, `task test:security-key`, `task test:security-key-stand`.
 
 ## Служебные поля (D-41)
 
@@ -59,6 +60,7 @@
 | KnowledgeBaseArticle | `cTags` | `name` до 500 символов, опции `status` | `cDocuments` |
 | Document | `cExternalUrl` | `file` необязателен и без ограничения типов, `publishDate` необязательна | `cCases`, `cKnowledgeBaseArticles`, `cProjects`, `cProjectTasks`, `cVtigerArchives`, `cPayments` |
 | User | `cPhoneExtension` | — | — |
+| UserData | `cSecurityKeys` (JSON ключей безопасности, только чтение, D-129) | — | — |
 | Email, Note, DocumentFolder, Attachment | только служебные поля | — | — |
 | ActionHistoryRecord | — | действие `reveal` («Показ пароля») | — |
 

@@ -1,0 +1,10 @@
+{
+    "ItvolgaSecurityKey": {
+        "settings": {
+            "isAvailable": true
+        },
+        "userApplyView": "itvolga:views/user-security/modals/security-key",
+        "loginClassName": "Espo\\Modules\\Itvolga\\Tools\\SecurityKey\\SecurityKeyLogin",
+        "userSetupClassName": "Espo\\Modules\\Itvolga\\Tools\\SecurityKey\\SecurityKeyUserSetup"
+    }
+}

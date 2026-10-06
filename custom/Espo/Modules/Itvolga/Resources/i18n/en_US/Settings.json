@@ -1,0 +1,7 @@
+{
+    "options": {
+        "auth2FAMethodList": {
+            "ItvolgaSecurityKey": "Security key (YubiKey)"
+        }
+    }
+}

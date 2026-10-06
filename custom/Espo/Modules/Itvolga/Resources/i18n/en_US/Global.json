@@ -48,7 +48,16 @@
         "financePlaceLine": "Line {line}",
         "financePlaceLineField": "Line {line}, “{field}”",
         "financePlaceField": "“{field}”",
-        "financePlaceDocument": "Document"
+        "financePlaceDocument": "Document",
+        "itvolgaSecurityKeyUse": "Use security key",
+        "itvolgaSecurityKeyRetry": "Try again",
+        "itvolgaSecurityKeyAdd": "Add key",
+        "itvolgaSecurityKeyName": "Key name",
+        "itvolgaSecurityKeyNamePlaceholder": "For example, primary or backup",
+        "itvolgaSecurityKeyN": "Key {n}",
+        "itvolgaSecurityKeyRemove": "Remove",
+        "itvolgaSecurityKeyPrimary": "Primary",
+        "itvolgaSecurityKeyBackup": "Backup"
     },
     "messages": {
         "financeRejected": "{place}: value not accepted.",
@@ -58,7 +67,22 @@
         "financeConversionLinked": "The {source} is already linked to another {target} — open it instead; a new one is not created.",
         "financeConversionSourceMissing": "The source {source} was removed — reload the page.",
         "financeRestoreItemDenied": "A line is restored only together with its document: add the removed line to the document's table again.",
-        "financeNumberReadOnly": "The number of a saved document or payment does not change: a new one gets it from the counter, an imported one keeps the Vtiger number."
+        "financeNumberReadOnly": "The number of a saved document or payment does not change: a new one gets it from the counter, an imported one keeps the Vtiger number.",
+        "itvolgaSecurityKeyTouch": "Insert your security key and touch it.",
+        "itvolgaSecurityKeyWaiting": "Waiting for a touch of the key…",
+        "itvolgaSecurityKeyCancelled": "The key was not confirmed: the time ran out or the action was cancelled.",
+        "itvolgaSecurityKeyRejected": "The key was not accepted. Try again or use another registered key.",
+        "itvolgaSecurityKeyTooManyAttempts": "Too many failed attempts. Wait a few minutes and sign in again.",
+        "itvolgaSecurityKeyInsecure": "The browser cannot reach a security key here: a secure address (HTTPS) and a browser with security key support (WebAuthn) are required.",
+        "itvolgaSecurityKeyError": "Could not reach the security key.",
+        "itvolgaSecurityKeyNone": "No security key is registered for your account. Ask the administrator to turn two-factor authentication off, sign in with your password and register your keys again.",
+        "itvolgaSecurityKeySetupIntro": "Insert a key, press \"Add key\" and touch it. Add a backup key as well: if all keys are lost, only the administrator can restore your sign-in.",
+        "itvolgaSecurityKeyResetNote": "Your previous keys were removed. Add all keys you are going to use.",
+        "itvolgaSecurityKeyAlreadyAdded": "This key has already been added.",
+        "itvolgaSecurityKeyMax": "No more than {max} keys can be added.",
+        "itvolgaSecurityKeyNeedOne": "Add at least one key.",
+        "itvolgaSecurityKeySetupFailed": "The keys were not saved: the check failed or the setup time ran out. Add the keys again.",
+        "itvolgaSecurityKeySetupUnknown": "Could not check whether the keys were saved. Close the window and open Security again: if 2FA is on, the keys were saved."
     },
     "options": {
         "dateSearchRanges": {

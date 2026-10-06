@@ -1,0 +1,8 @@
+{
+    "params": {
+        "itvolgaSecurityKeyRpId": {
+            "level": "system",
+            "readOnly": true
+        }
+    }
+}
