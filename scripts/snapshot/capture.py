@@ -17,7 +17,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import codec
-from common import (SOURCE_HOST, SSH_OPTS, SnapshotError, log, mib, sha256_file, ssh_argv, write_json,
+from common import (FILE_PART_NAMES, SOURCE_HOST, SSH_OPTS, SnapshotError, log, mib, sha256_file, ssh_argv, write_json,
                     write_private)
 
 HERE = Path(__file__).resolve().parent
@@ -31,6 +31,7 @@ FILE_PARTS = [
     {"name": "cdr-csv", "root": "/var/log/asterisk/cdr-csv", "paths": ["."], "boundary": False},
     {"name": "monitor", "root": "/var/spool/asterisk/monitor", "paths": ["."], "boundary": True},
 ]
+assert tuple(p["name"] for p in FILE_PARTS) == FILE_PART_NAMES
 ALLOWED_STATEMENT = re.compile(
     r"^(SET SESSION (TRANSACTION READ ONLY|TRANSACTION ISOLATION LEVEL REPEATABLE READ|time_zone='\+00:00'|"
     r"net_write_timeout=\d+)|START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY|COMMIT|"
@@ -216,7 +217,7 @@ def capture_db(mysql, planned, staging):
             if len(body) != 1:
                 raise SnapshotError(f"{args[0]}.{args[1]}: unexpected DDL output")
             ddl = codec.fields(body[0])[1]
-            if not codec.single_create_table(ddl, args[1]):
+            if not codec.single_create_table(ddl, args[1], catalogues[args[0]]["tables"][args[1]]["engine"]):
                 raise SnapshotError(f"{args[0]}.{args[1]}: DDL is not a single CREATE TABLE statement")
             write_private(staging / "db" / args[0] / "ddl" / f"{args[1]}.sql", ddl + "\n")
         elif kind == "rows":

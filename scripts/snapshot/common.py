@@ -29,6 +29,7 @@ STAND_LIB = REPO / "scripts" / "stand" / "lib.sh"
 FORMAT = "itvolga-vtiger-snapshot"
 FORMAT_VERSION = 1
 SOURCE_SCHEMAS = ("vtiger7", "asteriskcdrdb")
+FILE_PART_NAMES = ("vtiger", "cdr-csv", "monitor")     # a full snapshot has exactly these parts
 
 ID_RE = re.compile(r"^\d{8}T\d{6}$")
 NAME_RE = re.compile(r"^[A-Za-z0-9_]+$")          # schema, table and column names we accept

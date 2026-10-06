@@ -23,7 +23,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 import codec
-from common import (FORMAT, FORMAT_VERSION, REPO, TEMP_DB_RE, Mysql, SnapshotError, log, read_json,
+from common import (FILE_PART_NAMES, FORMAT, FORMAT_VERSION, REPO, SOURCE_SCHEMAS, TEMP_DB_RE, Mysql, SnapshotError, log, read_json,
                     sha256_file, tool_identity, write_json, write_private)
 
 AUDIT = REPO / "scripts" / "audit"
@@ -129,23 +129,35 @@ def check_files(snapdir, manifest, checks):
 
 # --- contract ------------------------------------------------------------------------------------
 
-def check_contract(manifest, tables, checks):
+def check_contract(snapdir, manifest, tables, checks, full):
     """Everything from the snapshot that later becomes SQL text or a path: schema names, sql_mode,
-    charsets, column classes, file names. A resealed but altered snapshot must not reach the root client."""
+    charsets, engines, column classes, file names; for a full verification also the composition
+    (both source databases, all file parts, every table with its DDL and rows). A resealed but altered
+    snapshot must not reach the root client, nor pass as complete."""
     db = manifest["db"]
     bad = []
     if not codec.safe_sql_mode(manifest.get("source", {}).get("sql_mode")):
         bad.append("sql_mode")
+    if full and (sorted(db["schemas"]) != sorted(SOURCE_SCHEMAS)
+                 or sorted(manifest.get("files", {})) != sorted(FILE_PART_NAMES)):
+        bad.append("composition")
+    if db.get("tables") != sum(len(t) for t in tables.values()):
+        bad.append("table count")
     for s in db["schemas"]:
         cs = db.get("schema_charsets", {}).get(s, ["", ""])
         if not (codec.NAME_RE.match(s) and len(cs) == 2 and all(codec.NAME_RE.match(x or "") for x in cs)):
             bad.append(f"schema {s}")
             continue
+        ddl = {p.name[:-4] for p in (snapdir / "db" / s / "ddl").glob("*.sql")}
+        rows = {p.name[:-7] for p in (snapdir / "db" / s / "rows").glob("*.hex.gz")}
+        if not tables[s] or not (set(tables[s]) == ddl == rows):
+            bad.append(f"schema {s} files")
         for t, meta in tables[s].items():
-            if not (codec.NAME_RE.match(t) and meta.get("ddl_file") == f"ddl/{t}.sql"
-                    and meta.get("rows_file") == f"rows/{t}.hex.gz" and codec.valid_columns(meta.get("columns"))):
+            if not (codec.NAME_RE.match(t) and meta.get("engine") in codec.ENGINES
+                    and meta.get("ddl_file") == f"ddl/{t}.sql" and meta.get("rows_file") == f"rows/{t}.hex.gz"
+                    and codec.valid_columns(meta.get("columns"))):
                 bad.append(f"{s}.{t}")
-    checks.add("V0", "контракт манифеста и tables.json (sql_mode, имена, классы и кодировки колонок, пути)", not bad,
+    checks.add("V0", "контракт: состав, sql_mode, имена, движки, классы и кодировки колонок, пути", not bad,
                {"problems": len(bad), "bad": bad[:20]})
     return not bad
 
@@ -202,13 +214,19 @@ class TempDatabases:
         return name
 
     def drop_all(self):
+        """Every name is dropped independently: a failed drop or a failed journal write (full disk)
+        never stops the cleanup of the next database."""
         left = []
         for name in self.created:
             try:
                 drop(name, self.logdir / "restore.log")
-                self._journal("dropped", name)
-            except SnapshotError:
+            except Exception:  # noqa: BLE001 — keep dropping the others; reported by name below
                 left.append(name)
+                continue
+            try:
+                self._journal("dropped", name)
+            except OSError:
+                log(f"journal not updated for the dropped {name}")
         self.created = []
         return left
 
@@ -258,7 +276,7 @@ def restore_sql(snapdir, schema, tables, sql_mode):
            "SET SESSION sql_generate_invisible_primary_key=0;\nSET NAMES utf8mb4;\nSET autocommit=0;\n").encode()
     for table, meta in tables.items():
         ddl = (snapdir / "db" / schema / meta["ddl_file"]).read_text(encoding="utf-8").rstrip("\n")
-        if not codec.single_create_table(ddl, table):
+        if not codec.single_create_table(ddl, table, meta["engine"]):
             raise SnapshotError(f"{schema}.{table}: DDL is not a single CREATE TABLE statement; not restored")
         yield (ddl + ";\n").encode("utf-8")
     for table, meta in tables.items():
@@ -579,14 +597,14 @@ def verify(snapdir, root, restore=True, completeness=True, report_dir=None):
     logdir.mkdir()
     checks = Checks()
     report = {"snapshot": manifest["id"], "started_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-              "restore": restore, "completeness": completeness and restore}
+              "restore": restore, "completeness": False}
     report["seal_digest"] = check_seal(snapdir, checks)
     inventories = check_files(snapdir, manifest, checks)
     db = manifest["db"]
     if not all(isinstance(s, str) and codec.NAME_RE.match(s) for s in db["schemas"]):
         raise SnapshotError("bad schema name in MANIFEST.json")
     tables = {s: read_json(snapdir / "db" / s / "tables.json") for s in db["schemas"]}
-    if check_contract(manifest, tables, checks):
+    if check_contract(snapdir, manifest, tables, checks, full=completeness and restore):
         for s in db["schemas"]:
             check_rows(snapdir, s, tables[s], checks)
     tempdbs = {"created": 0, "dropped": 0}
@@ -612,6 +630,7 @@ def verify(snapdir, root, restore=True, completeness=True, report_dir=None):
                 names[s] = name
             tempdbs["created"] = len(temp.created)
             completeness = completeness and checks.status() != "fail"
+            report["completeness"] = completeness and sorted(names) == sorted(SOURCE_SCHEMAS)
             if completeness and "vtiger7" in names:
                 log("completeness: audit SQL and map builders on the restored copy")
                 auditdir = report_dir / "audit"

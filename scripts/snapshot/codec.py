@@ -140,15 +140,27 @@ def catalogue_sql(schema, marker):
     ])
 
 
-def single_create_table(ddl, table):
+# Words allowed in a DDL outside literals and identifiers: the keywords and type names SHOW CREATE TABLE
+# printed for the source (all 785 tables, 2026-10-06) plus the codec's other types. Anything else —
+# another engine (MERGE … UNION=(other_db.t) would let the restore INSERT into another database),
+# partitions, foreign keys, generated columns, data/index directories — is refused, not interpreted.
+DDL_WORDS = {"CREATE", "TABLE", "NOT", "NULL", "DEFAULT", "AUTO_INCREMENT", "PRIMARY", "UNIQUE", "KEY", "USING",
+             "BTREE", "ENGINE", "InnoDB", "MyISAM", "CHARACTER", "SET", "CHARSET", "COLLATE", "COMMENT",
+             "ROW_FORMAT", "COMPACT", "DYNAMIC", "ON", "UPDATE", "CURRENT_TIMESTAMP", "unsigned",
+             *STRING, *BINARY, *EXACT, *TEMPORAL, *CHARSETS}
+COLLATION_RE = re.compile(r"(?:latin1|utf8mb3|utf8mb4|ascii)_[a-z0-9_]+")
+
+
+def single_create_table(ddl, table, engine):
     """The DDL of a table is executed as MySQL root on the stand: accept exactly one
-    `CREATE TABLE `<table>` (` statement. A character scan (not regexes: a quote inside a comment must
-    not open a literal) allows string literals ('…', "…" with '' and backslash escapes) and backtick
-    identifiers; outside them any comment (/* -- #), `;` (a second statement) or backslash (mysql
-    client commands such as \\! run a shell) is refused. SHOW CREATE TABLE prints no comments."""
-    if not ddl.startswith(f"CREATE TABLE `{table}` ("):
+    `CREATE TABLE `<table>` (` statement of the expected engine. A character scan (not regexes: a
+    quote inside a comment must not open a literal) skips string literals ('…', "…" with '' and
+    backslash escapes) and backtick identifiers; outside them a comment (/* -- #), `;` (a second
+    statement) or backslash (mysql client commands such as \\! run a shell) is refused, and only the
+    words of DDL_WORDS, collation names and numbers may appear."""
+    if engine not in ENGINES or not ddl.startswith(f"CREATE TABLE `{table}` ("):
         return False
-    i, n = 0, len(ddl)
+    outside, i, n = [], 0, len(ddl)
     while i < n:
         ch = ddl[i]
         if ch in "'\"`":
@@ -165,11 +177,18 @@ def single_create_table(ddl, table):
                     break
                 else:
                     i += 1
+            outside.append(" ")
         elif ch in ";\\#" or ddl.startswith("/*", i) or ddl.startswith("--", i):
             return False
         else:
+            outside.append(ch)
             i += 1
-    return True
+    body = "".join(outside)
+    if not re.fullmatch(r"[A-Za-z0-9_\s(),=]*", body):
+        return False
+    words = re.findall(r"[A-Za-z_][A-Za-z0-9_]*", body)
+    return (all(w in DDL_WORDS or COLLATION_RE.fullmatch(w) for w in words)
+            and re.findall(r"\bENGINE\s*=\s*(\w+)", body) == [engine])
 
 
 def unescape(field):

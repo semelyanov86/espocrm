@@ -156,21 +156,26 @@ class RoundTrip(unittest.TestCase):
 
     def test_8_second_statement_in_ddl_is_not_executed(self):
         canary = f"vtsnap_canary_{secrets.token_hex(3)}"
-        stand_sql(f"SET SESSION sql_log_bin=0;\nCREATE DATABASE `{canary}`;\n")
+        stand_sql(f"SET SESSION sql_log_bin=0;\nCREATE DATABASE `{canary}`;\n"
+                  f"CREATE TABLE `{canary}`.victim LIKE `{SOURCE}`.t_num;\nALTER TABLE `{canary}`.victim ENGINE=MyISAM;\n")
         self.addCleanup(stand_sql, f"SET SESSION sql_log_bin=0;\nDROP DATABASE IF EXISTS `{canary}`;\n")
         path = self.snap / "db" / SOURCE / "ddl" / "t_num.sql"
         original = path.read_bytes()
         plain = original.rstrip(b"\n") + f";\nDROP DATABASE `{canary}`\n".encode()
         # a quote inside a comment must not hide the second statement (review of 2026-10-06)
         hidden = original.replace(b") ENGINE", f" /* ' */);\nDROP DATABASE `{canary}`;\n-- '\n) ENGINE".encode(), 1)
+        # another engine: MERGE over a table of another database would receive the restore INSERTs (review round 2)
+        merge = original.replace(b"ENGINE=InnoDB", f"ENGINE=MRG_MYISAM UNION=(`{canary}`.`victim`) INSERT_METHOD=LAST".encode(), 1)
+        self.assertNotEqual(merge, original)
         try:
-            for n, payload in enumerate((plain, hidden)):
+            for n, payload in enumerate((plain, hidden, merge)):
                 path.unlink()
                 path.write_bytes(payload)
                 verify.write_seal(self.snap)                # the seal no longer protects: the DDL rule must
                 _report, st = self.run_verify(f"verify-ddl-{n}")
                 self.assertEqual((st["V1"], st["V3"], st["V4"], st["V5"]), ("pass", "pass", "fail", "pass"))
                 self.assertEqual(stand_sql(f"SHOW DATABASES LIKE '{canary}';\n"), [canary.encode()])
+                self.assertEqual(stand_sql(f"SELECT COUNT(*) FROM `{canary}`.victim;\n"), [b"0"])
         finally:
             path.unlink()
             path.write_bytes(original)
@@ -242,6 +247,27 @@ class RoundTrip(unittest.TestCase):
         self.assertIn("FileNotFoundError", err.getvalue())
         self.assertNotIn("synthetic-client-name", err.getvalue())
         self.assertNotIn("storage", err.getvalue())
+
+    def test_12_partial_composition_is_not_complete(self):
+        """A full verification demands both source databases and all file parts (review round 2)."""
+        report = verify.verify(self.snap, ROOT, completeness=True, report_dir=ROOT / "verify-full")
+        st = {c["id"]: c for c in report["checks"]}
+        self.assertEqual(st["V0"]["status"], "fail")
+        self.assertIn("composition", st["V0"]["counts"]["bad"])
+        self.assertEqual((report["tempdbs"]["created"], report["completeness"]), (0, False))
+
+    def test_13_cleanup_survives_a_failed_journal(self):
+        temp = verify.TempDatabases(ROOT, ROOT / "logs13")
+        names = [temp.create(SOURCE, "utf8mb4", "utf8mb4_0900_ai_ci") for _ in range(2)]
+
+        def full_disk(state, name, original=temp._journal):
+            if state == "dropped":
+                raise OSError(28, "No space left on device")
+            original(state, name)
+
+        temp._journal = full_disk
+        self.assertEqual(temp.drop_all(), [])
+        self.assertEqual(verify.existing(names, ROOT / "test.log"), [])
 
     def test_7_root_inside_git_is_refused(self):
         with self.assertRaises(capture.SnapshotError):
