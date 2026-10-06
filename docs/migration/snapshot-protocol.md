@@ -3,9 +3,9 @@
 Сгенерирован `task snapshot:protocol -- 20261006T201216` (`scripts/snapshot/snapshot.py`). Только счётчики, размеры и идентификаторы схемы; значений строк, имён файлов и реквизитов нет. Формат, границы, права и очистка — `docs/migration/snapshot.md`.
 
 - Снимок: `20261006T201216`, формат `itvolga-vtiger-snapshot` v1; печать (sha256 файла SHA256SUMS): `6d8542fd8cc161797cb325d530d7f64b1c9b24b9e60cae8883f6f324e2e5ed1e`.
-- Код выгрузки: `4fd6fcb86e0b`, незакоммиченных файлов инструмента 0, sha256 исходников `c8fa4f1bc015c4aa285ea9c04bc550d1225c0d641255107713cc4b1fd12ae37e`; код проверки: `4fd6fcb86e0b`, незакоммиченных 0, sha256 исходников `c8fa4f1bc015c4aa285ea9c04bc550d1225c0d641255107713cc4b1fd12ae37e`.
+- Код выгрузки: `4fd6fcb86e0b`, незакоммиченных файлов инструмента 0, sha256 исходников `c8fa4f1bc015c4aa285ea9c04bc550d1225c0d641255107713cc4b1fd12ae37e`; код проверки: `ad36b0750af7`, незакоммиченных 0, sha256 исходников `ad22d574dd0636ff38f175fcbcfb2a950816b71eae49893920f3635c35e287d9`.
 - Источник: MySQL 8.4.11, `time_zone=SYSTEM` (`CEST`), `sql_mode=ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION`.
-- Проверка: `2026-10-06T18:14:16Z` … `2026-10-06T18:14:27Z` — **пройдена**.
+- Проверка: `2026-10-06T18:27:18Z` … `2026-10-06T18:27:28Z` — **пройдена**.
 
 ## Границы согласованности
 
@@ -37,7 +37,7 @@
 | V2.cdr-csv | файлы части cdr-csv = опись (размер, sha256) | пройдена | extra 0, files 1, mismatch 0, missing 0 |
 | V2.monitor | файлы части monitor = опись (размер, sha256) | пройдена | extra 0, files 174, mismatch 0, missing 0 |
 | V2.vtiger | файлы части vtiger = опись (размер, sha256) | пройдена | extra 0, files 266, mismatch 0, missing 0 |
-| V0 | контракт манифеста и tables.json (sql_mode, имена, классы и кодировки колонок, пути) | пройдена | problems 0 |
+| V0 | контракт: состав, sql_mode, имена, движки, классы и кодировки колонок, пути | пройдена | problems 0 |
 | V3.vtiger7 | строки vtiger7: формат, порядок, число и дайджест = данные сервера | пройдена | bad_tables 0, rows 197076, tables 784 |
 | V3.asteriskcdrdb | строки asteriskcdrdb: формат, порядок, число и дайджест = данные сервера | пройдена | bad_tables 0, rows 115, tables 1 |
 | V4.vtiger7 | восстановленная копия vtiger7: схема, число строк, дайджесты и счётчики колонок | пройдена | differ 0, schema_equal 1, tables 784 |
