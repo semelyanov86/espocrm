@@ -24,7 +24,7 @@ from pathlib import Path
 
 import codec
 from common import (FORMAT, FORMAT_VERSION, REPO, TEMP_DB_RE, Mysql, SnapshotError, log, read_json,
-                    sha256_file, write_json, write_private)
+                    sha256_file, tool_identity, write_json, write_private)
 
 AUDIT = REPO / "scripts" / "audit"
 MAPS = REPO / "docs" / "migration"
@@ -127,6 +127,29 @@ def check_files(snapdir, manifest, checks):
     return inventories
 
 
+# --- contract ------------------------------------------------------------------------------------
+
+def check_contract(manifest, tables, checks):
+    """Everything from the snapshot that later becomes SQL text or a path: schema names, sql_mode,
+    charsets, column classes, file names. A resealed but altered snapshot must not reach the root client."""
+    db = manifest["db"]
+    bad = []
+    if not codec.safe_sql_mode(manifest.get("source", {}).get("sql_mode")):
+        bad.append("sql_mode")
+    for s in db["schemas"]:
+        cs = db.get("schema_charsets", {}).get(s, ["", ""])
+        if not (codec.NAME_RE.match(s) and len(cs) == 2 and all(codec.NAME_RE.match(x or "") for x in cs)):
+            bad.append(f"schema {s}")
+            continue
+        for t, meta in tables[s].items():
+            if not (codec.NAME_RE.match(t) and meta.get("ddl_file") == f"ddl/{t}.sql"
+                    and meta.get("rows_file") == f"rows/{t}.hex.gz" and codec.valid_columns(meta.get("columns"))):
+                bad.append(f"{s}.{t}")
+    checks.add("V0", "контракт манифеста и tables.json (sql_mode, имена, классы и кодировки колонок, пути)", not bad,
+               {"problems": len(bad), "bad": bad[:20]})
+    return not bad
+
+
 # --- rows ----------------------------------------------------------------------------------------
 
 def read_lines(path):
@@ -227,6 +250,8 @@ def journal_leftovers(root, errlog):
 
 
 def restore_sql(snapdir, schema, tables, sql_mode):
+    if not codec.safe_sql_mode(sql_mode) or not all(codec.valid_columns(m["columns"]) for m in tables.values()):
+        raise SnapshotError(f"{schema}: snapshot contract check failed; not restored")
     mode = ",".join(m for m in (sql_mode, "NO_AUTO_VALUE_ON_ZERO") if m)
     yield (f"SET SESSION sql_log_bin=0;\nSET SESSION sql_mode='{mode}';\n"
            "SET SESSION time_zone='+00:00';\nSET SESSION foreign_key_checks=0;\nSET SESSION unique_checks=0;\n"
@@ -558,13 +583,17 @@ def verify(snapdir, root, restore=True, completeness=True, report_dir=None):
     report["seal_digest"] = check_seal(snapdir, checks)
     inventories = check_files(snapdir, manifest, checks)
     db = manifest["db"]
+    if not all(isinstance(s, str) and codec.NAME_RE.match(s) for s in db["schemas"]):
+        raise SnapshotError("bad schema name in MANIFEST.json")
     tables = {s: read_json(snapdir / "db" / s / "tables.json") for s in db["schemas"]}
-    for s in db["schemas"]:
-        check_rows(snapdir, s, tables[s], checks)
+    if check_contract(manifest, tables, checks):
+        for s in db["schemas"]:
+            check_rows(snapdir, s, tables[s], checks)
     tempdbs = {"created": 0, "dropped": 0}
     if restore and checks.status() == "fail":
-        # Never execute the SQL of a snapshot that failed its seal, files or rows: it runs as MySQL root.
-        checks.add("V4", "восстановление не выполнялось: печать, файлы или строки не сошлись", False, {"skipped": 1})
+        # Never execute the SQL of a snapshot that failed its contract, seal, files or rows: it runs as MySQL root.
+        checks.add("V4", "восстановление не выполнялось: контракт, печать, файлы или строки не сошлись", False,
+                   {"skipped": 1})
     elif restore:
         with TempDatabases(root, logdir) as temp:
             names = {}
@@ -599,6 +628,7 @@ def verify(snapdir, root, restore=True, completeness=True, report_dir=None):
             tempdbs["dropped"] = tempdbs["created"] - len(left)
             checks.add("V5", "временные базы стенда удалены (по точному имени)", not left,
                        {"created": tempdbs["created"], "dropped": tempdbs["dropped"]})
+    report["tool"] = tool_identity()
     report.update(status=checks.status(), checks=checks.items, tempdbs=tempdbs,
                   finished_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
     write_json(report_dir / "report.json", report)

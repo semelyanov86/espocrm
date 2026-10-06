@@ -24,6 +24,13 @@ CHARSETS = {"latin1", "utf8mb3", "utf8mb4", "ascii"}
 ENGINES = {"InnoDB", "MyISAM"}            # MyISAM is outside the read view: checked as a stable window
 SEP = "CHAR(9 USING utf8mb4)"
 
+# sql_mode tokens under which the DDL scan and the restore literals mean what MySQL executes:
+# no NO_BACKSLASH_ESCAPES / ANSI_QUOTES / ANSI (they change how quotes and backslashes are read).
+SAFE_SQL_MODES = {"ERROR_FOR_DIVISION_BY_ZERO", "NO_ENGINE_SUBSTITUTION", "STRICT_TRANS_TABLES", "STRICT_ALL_TABLES",
+                  "NO_ZERO_DATE", "NO_ZERO_IN_DATE", "ONLY_FULL_GROUP_BY", "NO_AUTO_VALUE_ON_ZERO",
+                  "ALLOW_INVALID_DATES", "NO_UNSIGNED_SUBTRACTION"}
+CLASSES = ("string", "binary", "exact", "temporal")
+
 TOKEN_RE = re.compile(rb"^(?:N|(?:[0-9A-F]{2})*)$")
 EXACT_RE = re.compile(rb"^-?[0-9]+(?:\.[0-9]+)?$")
 TEMPORAL_RE = re.compile(rb"^-?[0-9]{1,4}[-:0-9 .]*$")
@@ -35,6 +42,18 @@ def classify(col):
         if dt in types:
             return cls
     return None
+
+
+def safe_sql_mode(mode):
+    return isinstance(mode, str) and all(t in SAFE_SQL_MODES for t in mode.split(",") if t)
+
+
+def valid_columns(cols):
+    """Column metadata read back from a snapshot goes into SQL: re-check it against the codec."""
+    return bool(cols) and all(
+        isinstance(c.get("name"), str) and NAME_RE.match(c["name"]) and c.get("class") in CLASSES
+        and classify({"data_type": c.get("data_type")}) == c["class"]
+        and (c["class"] != "string" or c.get("charset") in CHARSETS) for c in cols)
 
 
 def ident(name):

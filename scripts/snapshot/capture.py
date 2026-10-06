@@ -106,8 +106,8 @@ def plan(mysql, schemas, logdir):
     keys = ["version", "time_zone", "system_time_zone", "sql_mode", "lower_case_table_names", "max_allowed_packet",
             "transaction_isolation", "innodb_strict_mode", "explicit_defaults_for_timestamp", "log_bin", "gtid_mode"]
     server = dict(zip(keys, got[("server",)][0]))
-    if not re.fullmatch(r"[A-Z_,]*", server["sql_mode"]):
-        raise SnapshotError("unexpected sql_mode format")
+    if not codec.safe_sql_mode(server["sql_mode"]):
+        raise SnapshotError("source sql_mode outside the supported set (snapshot.md, «Формат»)")
     catalogues = {}
     for s in schemas:
         cat = codec.parse_catalogue(got[("catalogue", "plan", s)][1])

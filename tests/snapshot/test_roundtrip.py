@@ -4,7 +4,9 @@ temporary database, same count/digest SQL) → negative controls. No production 
 
     task test:snapshot
 """
+import contextlib
 import gzip
+import io
 import secrets
 import shutil
 import subprocess
@@ -78,7 +80,7 @@ class RoundTrip(unittest.TestCase):
         self.assertEqual(tables["t_my"]["consistency"], "stable-window")
         report, st = self.run_verify("verify-ok")
         self.assertEqual(report["status"], "pass", report["checks"])
-        self.assertEqual(st, {"V1": "pass", "V3": "pass", "V4": "pass", "V5": "pass"})
+        self.assertEqual(st, {"V0": "pass", "V1": "pass", "V3": "pass", "V4": "pass", "V5": "pass"})
         self.assertEqual(verify.journal_leftovers(ROOT, ROOT / "test.log"), [])
 
     def test_2_tampered_byte_breaks_the_seal(self):
@@ -190,6 +192,56 @@ class RoundTrip(unittest.TestCase):
             self.assertNotIn(b"name", r.stderr)
         finally:
             (tree / "secret-name-dir").chmod(0o700)
+
+    def test_10_altered_contract_never_reaches_sql(self):
+        """sql_mode and column charsets from a resealed snapshot are checked before any SQL (review 2026-10-06)."""
+        manifest_path = self.snap / "MANIFEST.json"
+        tables_path = self.snap / "db" / SOURCE / "tables.json"
+        originals = {manifest_path: manifest_path.read_bytes(), tables_path: tables_path.read_bytes()}
+        mode_ok = verify.read_json(manifest_path)["source"]["sql_mode"]
+        try:
+            for name, path, change in (
+                    ("mode-injection", manifest_path, lambda m: m["source"].update(sql_mode=mode_ok + "';DROP DATABASE x;'")),
+                    ("mode-backslash", manifest_path, lambda m: m["source"].update(sql_mode=mode_ok + ",NO_BACKSLASH_ESCAPES")),
+                    ("charset", tables_path, lambda t: t["t_str"]["columns"][1].update(charset="latin1 X'' ; DROP"))):
+                for p, data in originals.items():
+                    p.unlink()
+                    p.write_bytes(data)
+                obj = verify.read_json(path)
+                change(obj)
+                path.unlink()
+                write_json(path, obj)
+                verify.write_seal(self.snap)
+                report, st = self.run_verify(f"verify-{name}")
+                self.assertEqual((st["V0"], st["V1"], st["V4"]), ("fail", "pass", "fail"), name)
+                self.assertEqual(report["tempdbs"]["created"], 0, name)
+        finally:
+            for p, data in originals.items():
+                p.unlink()
+                p.write_bytes(data)
+            verify.write_seal(self.snap)
+
+    def test_11_unexpected_error_prints_no_file_name(self):
+        """A foreign exception may carry a file name; even if saving its traceback fails, the console
+        gets the exception type only (review of 2026-10-06)."""
+        def boom(_args):
+            raise FileNotFoundError(2, "No such file", "/srv/storage/synthetic-client-name.pdf")
+
+        def no_space(*_a, **_k):
+            raise OSError(28, "No space left on device")
+
+        saved = (snapshot.cmd_list, snapshot.write_private, sys.argv)
+        err = io.StringIO()
+        try:
+            snapshot.cmd_list, snapshot.write_private, sys.argv = boom, no_space, ["snapshot.py", "list"]
+            with contextlib.redirect_stderr(err):
+                code = snapshot.main()
+        finally:
+            snapshot.cmd_list, snapshot.write_private, sys.argv = saved
+        self.assertEqual(code, 1)
+        self.assertIn("FileNotFoundError", err.getvalue())
+        self.assertNotIn("synthetic-client-name", err.getvalue())
+        self.assertNotIn("storage", err.getvalue())
 
     def test_7_root_inside_git_is_refused(self):
         with self.assertRaises(capture.SnapshotError):

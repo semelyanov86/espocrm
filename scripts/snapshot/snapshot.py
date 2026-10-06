@@ -25,8 +25,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import capture  # noqa: E402
 import verify  # noqa: E402
 from common import (FORMAT, FORMAT_VERSION, ID_RE, REPO, SNAPSHOT_ROOT, SOURCE_HOST, SOURCE_SCHEMAS,  # noqa: E402
-                    TEMP_DB_RE, Mysql, SnapshotError, ensure_root, git_head, log, mib, read_json, root_lock,
-                    write_json, write_private)
+                    TEMP_DB_RE, Mysql, SnapshotError, ensure_root, log, mib, read_json, root_lock,
+                    tool_identity, write_json, write_private)
 
 
 def _terminate(signum, _frame):
@@ -38,7 +38,6 @@ def local_iso(epoch):
 
 
 def build_manifest(sid, planned, db, files):
-    head, dirty = git_head()
     server = planned["server"]
     db = dict(db, begin_local=local_iso(db["begin_epoch"]),
               schema_charsets={s: [c["objects"]["charset"], c["objects"]["collation"]]
@@ -46,7 +45,7 @@ def build_manifest(sid, planned, db, files):
     return {
         "format": FORMAT, "format_version": FORMAT_VERSION, "id": sid,
         "created_local": local_iso(time.time()),
-        "tool": {"git_head": head, "dirty_tool_files": dirty},
+        "tool": tool_identity(),
         "source": {"host": SOURCE_HOST, "mysql_version": server["version"], "time_zone": server["time_zone"],
                    "system_time_zone": server["system_time_zone"], "sql_mode": server["sql_mode"],
                    "lower_case_table_names": server["lower_case_table_names"], "log_bin": server["log_bin"],
@@ -197,7 +196,12 @@ def render_protocol(snapdir, m, rep):
         "",
         f"- Снимок: `{m['id']}`, формат `{m['format']}` v{m['format_version']}; печать (sha256 файла SHA256SUMS): "
         f"`{rep['seal_digest']}`.",
-        f"- Код: `{m['tool']['git_head'][:12]}`; источник: MySQL {m['source']['mysql_version']}, "
+        f"- Код выгрузки: `{m['tool']['git_head'][:12]}`, незакоммиченных файлов инструмента "
+        f"{m['tool']['dirty_tool_files']}, sha256 исходников `{m['tool'].get('sources_sha256', '—')}`; "
+        f"код проверки: `{rep.get('tool', {}).get('git_head', '—')[:12]}`, незакоммиченных "
+        f"{rep.get('tool', {}).get('dirty_tool_files', '—')}, sha256 исходников "
+        f"`{rep.get('tool', {}).get('sources_sha256', '—')}`.",
+        f"- Источник: MySQL {m['source']['mysql_version']}, "
         f"`time_zone={m['source']['time_zone']}` (`{m['source']['system_time_zone']}`), `sql_mode={m['source']['sql_mode']}`.",
         f"- Проверка: `{rep['started_utc']}` … `{rep['finished_utc']}` — **{STATUS_RU[rep['status']]}**.",
         "",
@@ -288,11 +292,16 @@ def main():
     except KeyboardInterrupt:
         log("interrupted")
         return 130
-    except Exception as e:  # noqa: BLE001 — messages of foreign exceptions may quote source values
-        dest = SNAPSHOT_ROOT / "failures" / f"{args.cmd}-{time.strftime('%Y%m%dT%H%M%S')}.txt"
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        write_private(dest, traceback.format_exc())
-        log(f"ERROR: unexpected {type(e).__name__}; traceback (private): {dest}")
+    except Exception as e:  # noqa: BLE001 — messages of foreign exceptions may quote source values or file names
+        where = ""
+        try:
+            dest = SNAPSHOT_ROOT / "failures" / f"{args.cmd}-{time.strftime('%Y%m%dT%H%M%S')}.txt"
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            write_private(dest, traceback.format_exc())
+            where = f"; traceback (private): {dest}"
+        except Exception:  # noqa: BLE001 — never let the chained message reach the console
+            pass
+        log(f"ERROR: unexpected {type(e).__name__}{where}")
         return 1
 
 

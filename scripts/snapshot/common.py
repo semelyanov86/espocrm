@@ -121,11 +121,21 @@ def sha256_file(path):
     return h.hexdigest()
 
 
-def git_head():
+TOOL_SOURCES = ("scripts/snapshot", "scripts/audit")
+
+
+def tool_identity():
+    """Which code made or checked a snapshot: Git HEAD, uncommitted changes of the tool, and the sha256 of
+    the tool sources themselves (reproducible even when the run used uncommitted code)."""
     head = subprocess.run(["git", "-C", str(REPO), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
-    dirty = subprocess.run(["git", "-C", str(REPO), "status", "--porcelain", "--", "scripts/snapshot", "scripts/audit"],
+    dirty = subprocess.run(["git", "-C", str(REPO), "status", "--porcelain", "--", *TOOL_SOURCES],
                            capture_output=True, text=True).stdout.splitlines()
-    return head, len(dirty)
+    h = hashlib.sha256()
+    for base in TOOL_SOURCES:
+        for path in sorted((REPO / base).rglob("*")):
+            if path.is_file() and path.suffix in (".py", ".sql") and "__pycache__" not in path.parts:
+                h.update(f"{path.relative_to(REPO)}\0{sha256_file(path)}\n".encode())
+    return {"git_head": head, "dirty_tool_files": len(dirty), "sources_sha256": h.hexdigest()}
 
 
 # --- MySQL clients ------------------------------------------------------------------------------
