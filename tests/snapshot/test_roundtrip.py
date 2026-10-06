@@ -18,6 +18,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "scripts" / "snapshot"))
 import capture  # noqa: E402
+import codec  # noqa: E402
 import snapshot  # noqa: E402
 import verify  # noqa: E402
 from common import Mysql, write_json  # noqa: E402
@@ -268,6 +269,29 @@ class RoundTrip(unittest.TestCase):
         temp._journal = full_disk
         self.assertEqual(temp.drop_all(), [])
         self.assertEqual(verify.existing(names, ROOT / "test.log"), [])
+
+    def test_14_audit_inputs_are_plain_identifiers(self):
+        """gen_sql.py interpolates vtiger_field values into SQL run as root: only identifiers pass (review round 3)."""
+        audit = ROOT / "audit14"
+        audit.mkdir()
+        (audit / "03_columns.tsv").write_text("TABLE_NAME\tCOLUMN_NAME\tDATA_TYPE\nvtiger_tab\tname\tvarchar\n")
+        (audit / "04_tables.tsv").write_text("TABLE_NAME\nvtiger_tab\n")
+        (audit / "05_primary_keys.tsv").write_text("TABLE_NAME\tpk\nvtiger_tab\ttabid,name\n")
+        head = "tabid\tmodule\tfieldid\ttablename\tcolumnname\tfieldname\tuitype\n"
+        (audit / "02_fields.tsv").write_text(head + "1\tAccounts\t1\tvtiger_account\taccountname\taccountname\t2\n")
+        self.assertTrue(verify.audit_inputs_safe(audit))
+        (audit / "02_fields.tsv").write_text(
+            head + "1\tAccounts\t1\tvtiger_account\tx\tx';SET GLOBAL general_log=ON;SELECT 'x\t2\n")
+        self.assertFalse(verify.audit_inputs_safe(audit))
+
+    def test_15_engine_and_journal_edge_cases(self):
+        ddl = "CREATE TABLE `t` (\n  `a` int\n) ENGINE=InnoDB"
+        self.assertTrue(codec.single_create_table(ddl, "t", "InnoDB"))
+        self.assertFalse(codec.single_create_table(ddl + " ENGINE='MyISAM'", "t", "InnoDB"))  # review round 3
+        root = ROOT / "journal15"
+        root.mkdir()
+        (root / "tempdbs.journal").write_text("created\tvtsnap_20990101t000000_abcdef_x\ndropp")  # torn last line
+        self.assertEqual(verify.journal_leftovers(root, ROOT / "test.log"), [])
 
     def test_7_root_inside_git_is_refused(self):
         with self.assertRaises(capture.SnapshotError):

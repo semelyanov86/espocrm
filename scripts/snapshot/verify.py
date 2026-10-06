@@ -208,9 +208,9 @@ class TempDatabases:
         if not (TEMP_DB_RE.match(name) and codec.NAME_RE.match(charset) and codec.NAME_RE.match(collation)):
             raise SnapshotError("bad temporary database name or charset")
         self._journal("created", name)
+        self.created.append(name)   # before CREATE: a lost reply after a successful CREATE is still dropped
         Mysql.stand().lines(f"SET SESSION sql_log_bin=0;\nCREATE DATABASE `{name}` CHARACTER SET {charset} "
                             f"COLLATE {collation};\n", self.logdir / "restore.log")
-        self.created.append(name)
         return name
 
     def drop_all(self):
@@ -235,14 +235,16 @@ class TempDatabases:
 
     def __exit__(self, *exc):
         left = self.drop_all()
-        if left and exc[0] is None:
-            raise SnapshotError(f"temporary databases not dropped: {', '.join(left)}")
+        if left:
+            log(f"ERROR: temporary databases not dropped (task snapshot:delete -- <name> --yes): {', '.join(left)}")
+            if exc[0] is None:
+                raise SnapshotError(f"temporary databases not dropped: {', '.join(left)}")
 
 
 def drop(name, errlog):
     if not TEMP_DB_RE.match(name):
         raise SnapshotError("refusing to drop a database that is not a snapshot temporary database")
-    Mysql.stand().lines(f"SET SESSION sql_log_bin=0;\nDROP DATABASE `{name}`;\n", errlog)
+    Mysql.stand().lines(f"SET SESSION sql_log_bin=0;\nDROP DATABASE IF EXISTS `{name}`;\n", errlog)
     if existing([name], errlog):
         raise SnapshotError(f"temporary database {name} still exists")
 
@@ -261,9 +263,10 @@ def journal_leftovers(root, errlog):
     if not journal.exists():
         return []
     state = {}
-    for line in journal.read_text(encoding="ascii").splitlines():
-        st, name = line.split("\t")
-        state[name] = st
+    for line in journal.read_text(encoding="ascii", errors="replace").splitlines():
+        st, _, name = line.partition("\t")
+        if st in ("created", "dropped") and TEMP_DB_RE.match(name):   # a torn last line (full disk) is skipped
+            state[name] = st
     return existing([n for n, st in state.items() if st == "created"], errlog)
 
 
@@ -342,6 +345,23 @@ GENERATED = [("table-counts", "10_table_counts.tsv", None), ("column-counts", "1
              ("table-live-counts", "15_table_live_counts.raw", None), ("max-lengths", "42_max_lengths.raw", None)]
 
 
+SAFE_AUDIT_VALUE = re.compile(r"^[A-Za-z0-9_]+$")
+AUDIT_INPUTS = {"02_fields.tsv": ("module", "tablename", "columnname", "fieldname", "uitype"),
+                "03_columns.tsv": ("TABLE_NAME", "COLUMN_NAME", "DATA_TYPE"),
+                "04_tables.tsv": ("TABLE_NAME",), "05_primary_keys.tsv": ("TABLE_NAME", "pk")}
+
+
+def audit_inputs_safe(auditdir):
+    """gen_sql.py writes these values into SQL string literals unescaped, and the generated SQL runs as
+    MySQL root on the stand: a value of a (resealed, altered) vtiger_field row could carry a statement.
+    Every value must be a plain identifier (true for all 1275 fields of the source, 2026-10-06)."""
+    for name, cols in AUDIT_INPUTS.items():
+        for row in parse_tsv_with_header(auditdir / name):
+            if not all(SAFE_AUDIT_VALUE.match((row.get(c) or "").replace(",", "_")) for c in cols):
+                return False
+    return True
+
+
 def run_audit(dbname, auditdir, started_at, logdir):
     """The steps of scripts/audit/run-audit.sh that the map builders read, on the restored copy."""
     client = Mysql.stand(database=dbname, headers=True, raw=True)
@@ -354,6 +374,8 @@ def run_audit(dbname, auditdir, started_at, logdir):
 
     for name in AUDIT_SQL[:5]:
         run((AUDIT / "sql" / f"{name}.sql").read_text(encoding="utf-8"), f"{name}.tsv")
+    if not audit_inputs_safe(auditdir):
+        raise SnapshotError("module/field/table names outside [A-Za-z0-9_]: generated audit SQL not run")
     for mode, out, drop_prefix in GENERATED:
         sql = subprocess.run([sys.executable, "-I", str(AUDIT / "gen_sql.py"), mode, str(auditdir)],
                              capture_output=True, text=True, check=True).stdout
@@ -634,8 +656,12 @@ def verify(snapdir, root, restore=True, completeness=True, report_dir=None):
             if completeness and "vtiger7" in names:
                 log("completeness: audit SQL and map builders on the restored copy")
                 auditdir = report_dir / "audit"
-                maps = run_audit(names["vtiger7"], auditdir, db["begin_local"], logdir)
-                check_maps(maps, tables["vtiger7"], parse_tsv_with_header(auditdir / "01_tabs.tsv"), checks, report)
+                try:
+                    maps = run_audit(names["vtiger7"], auditdir, db["begin_local"], logdir)
+                    check_maps(maps, tables["vtiger7"], parse_tsv_with_header(auditdir / "01_tabs.tsv"), checks,
+                               report)
+                except SnapshotError as e:  # our own message: no values
+                    checks.add("C0", f"аудит копии не выполнен: {e}", False)
                 begin_ns = int(float(db["begin_epoch"]) * 1e9)
                 check_attachments(names["vtiger7"], inventories.get("vtiger", {}), begin_ns, report_dir, logdir,
                                   checks, report)

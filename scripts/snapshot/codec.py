@@ -187,7 +187,7 @@ def single_create_table(ddl, table, engine):
     if not re.fullmatch(r"[A-Za-z0-9_\s(),=]*", body):
         return False
     words = re.findall(r"[A-Za-z_][A-Za-z0-9_]*", body)
-    return (all(w in DDL_WORDS or COLLATION_RE.fullmatch(w) for w in words)
+    return (all(w in DDL_WORDS or COLLATION_RE.fullmatch(w) for w in words) and words.count("ENGINE") == 1
             and re.findall(r"\bENGINE\s*=\s*(\w+)", body) == [engine])
 
 
