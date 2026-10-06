@@ -104,6 +104,8 @@ Restore (`restore.sh`):
 
 Хранение backup не ограничено — лишние удалять вручную из `/data/itvolga/espo-private/stand/backups/`.
 
+Проверка защищённого снимка (этап 06.1, `docs/migration/snapshot.md`) на время работы создаёт на MySQL стенда временные базы `vtsnap_<время>_<hex>_<схема>` с данными production: имена — в журнале `snapshots/tempdbs.journal`, все сессии с `sql_log_bin=0`, удаление — по точному имени сразу после проверки. В backup стенда они не входят; `task stand:restore` и `stand:restore-cleanup` их не трогают; `uninstall --purge` удаляет их вместе с каталогом данных. Оставшуюся после аварии базу показывает `task snapshot:list`, удаляет `task snapshot:delete -- vtsnap_… --yes`.
+
 ## Удаление и установка с нуля
 
 ```bash

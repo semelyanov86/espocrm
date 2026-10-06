@@ -24,6 +24,12 @@
 
 Каталоги приложения: `storage/` 247 файлов / 104 МБ, `test/` 1463 файла / 16 МБ (логотипы, `templates_c`, mosaico, маркеры лицензий `*.vte`), `vendor/` 1162 файла / 7.3 МБ, `cache/` 8.5 МБ, `logs/` 3.6 МБ.
 
+**Перепроверено 2026-10-06 (этап 06.1, `evidence.md`).**
+- `vtiger7`: 781 таблица InnoDB и 3 MyISAM (`vte_duplicate_check_merge_setting`, `vtiger_import_1`, `vtiger_spcompany_seq`); latin1 — 8 таблиц; внешних ключей, представлений и триггеров нет; без первичного ключа — 268 таблиц.
+- Сервер MySQL: `log_bin=1`, `gtid_mode=OFF`.
+- `asteriskcdrdb.cdr` — InnoDB.
+- В защищённом снимке `20261006T192211`: 785 таблиц, 197 190 строк; файлы Vtiger — 266 (`storage/` 247, `test/logo` 11, `test/upload` 8).
+
 ## 2. Модули с данными
 
 Все модули, где есть хоть одна запись (живая или удалённая). `presence=1` — модуль скрыт/выключен в Vtiger, но данные есть.

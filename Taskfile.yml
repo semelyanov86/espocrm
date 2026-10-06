@@ -190,6 +190,37 @@ tasks:
     cmds:
       - scripts/audit/sync-vtiger-src.sh
 
+  # --- protected source snapshot (stage 06.1, docs/migration/snapshot.md) -----------------------
+  snapshot:create:
+    desc: Read-only snapshot of Vtiger (DB, files, telephony) into the private directory, verified before publishing
+    cmds:
+      - python3 scripts/snapshot/snapshot.py create {{.CLI_ARGS}}
+
+  snapshot:verify:
+    desc: Verify a snapshot (-- <id> [--no-restore]); restores into a temporary stand database and drops it
+    cmds:
+      - python3 scripts/snapshot/snapshot.py verify {{.CLI_ARGS}}
+
+  snapshot:list:
+    desc: List snapshots, incomplete runs and leftover temporary databases
+    cmds:
+      - python3 scripts/snapshot/snapshot.py list
+
+  snapshot:delete:
+    desc: Delete one snapshot, incomplete run or leftover temporary database by exact name (-- <name> --yes)
+    cmds:
+      - python3 scripts/snapshot/snapshot.py delete {{.CLI_ARGS}}
+
+  snapshot:protocol:
+    desc: Write the anonymised protocol docs/migration/snapshot-protocol.md (-- <id>)
+    cmds:
+      - python3 scripts/snapshot/snapshot.py protocol {{.CLI_ARGS}}
+
+  test:snapshot:
+    desc: Snapshot codec round trip on the stand MySQL (synthetic source, no production)
+    cmds:
+      - python3 -m unittest discover -s tests/snapshot -v
+
   check:secrets:
     desc: Scan files that would be committed for secrets and personal data
     cmds:

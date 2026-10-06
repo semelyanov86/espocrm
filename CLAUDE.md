@@ -34,6 +34,10 @@ task test:stage05.3                        # приёмочные тесты э�
 task espo -- run-job ItvolgaReportMailing  # принудительный запуск рассылки отчётов (срок — mailing_next_run_at)
 task test:security-key                     # юнит-тесты ядра проверки ключа безопасности (WebAuthn) без стенда
 task test:security-key-stand               # приёмочные тесты ключа безопасности на стенде (настройка, вход, сброс, восстановление)
+task snapshot:create                       # защищённый снимок источника (этап 06.1): read-only выгрузка БД и файлов, проверка, публикация
+task snapshot:verify -- <id>               # повторная проверка снимка (временная база стенда создаётся и удаляется)
+task snapshot:list | snapshot:delete -- <id> --yes | snapshot:protocol -- <id>
+task test:snapshot                         # тест кодека снимка на стенде (синтетика, без production)
 ```
 
 - `docs/migration/field-map.csv` и `relations.csv` **не редактировать вручную**: правила — `scripts/audit/mapping.py`, генерация — `scripts/audit/build_maps.py` из приватного прогона.
