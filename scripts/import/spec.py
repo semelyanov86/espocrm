@@ -316,6 +316,8 @@ class Context:
             ("Products", "vtiger_products.productname"), ("Services", "vtiger_service.servicename"))
             for r in data.get(m, [])}
         self.attachments_of = attachment_owners(data)
+        self.attachment_names = {int(r["vtiger_attachments.attachmentsid"]): r.get("vtiger_attachments.name")
+                                 for r in data.get("vtiger_attachments", [])}
         self.rows_of_email = {}
 
     def dt(self, value):
@@ -418,8 +420,7 @@ class Currency(Rule):
         if T.is_empty(raw):
             return
         if raw.strip() != "1":
-            op.column(self.cols[0], "error:currency_unknown")
-            return
+            raise T.TransformError("currency_unknown")  # the record is held: its money is never written as RUB
         op.column(self.cols[0], "mapped", *sorted(a for a in op.attributes if a.endswith("Currency")))
 
 
@@ -527,17 +528,22 @@ class NotApplicable(Rule):
 
 class FileName(Rule):
     """The file name column of a record whose file is an attachment of its own (Contact photo, User avatar): with the
-    attachment in the source the file arrives by its Attachment operation (`linked`); a name without a file is an
-    accepted loss (D-23), the name kept in vtigerData. A file field is never cleared by the import (stage 06.3)."""
+    attachment of the same name in the source the file arrives by its Attachment operation (`linked`); another name
+    is kept in vtigerData and counted (`file_name_differs`, a finding); a name without a file is an accepted loss
+    (D-23), the name kept in vtigerData. A file field is never cleared by the import (stage 06.3)."""
 
     def apply(self, op, row, ctx):
         raw = self.value(row)
         if T.is_empty(raw):
             return
-        if ctx.attachments_of.get((op.entityType, op.vtigerId)):
+        attached = ctx.attachments_of.get((op.entityType, op.vtigerId))
+        if not attached:
+            op.column(self.cols[0], "not_applicable:D-23", op.archive(self.cols[0].split(".")[1], raw))
+        elif raw in {ctx.attachment_names.get(a) for a in attached}:
             op.column(self.cols[0], "linked", self.attr)
         else:
-            op.column(self.cols[0], "not_applicable:D-23", op.archive(self.cols[0].split(".")[1], raw))
+            ctx.flags["file_name_differs"] += 1
+            op.column(self.cols[0], "archived", op.archive(self.cols[0].split(".")[1], raw))
 
 
 class Phones(Rule):

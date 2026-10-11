@@ -210,6 +210,7 @@ def _execute(rundir, logdir, fields, uitypes, snapshot_dir, source_db, files, on
 
 
 DOCUMENT_TABLES = {"Quote": "quote", "SalesOrder": "sales_order", "Act": "act", "Invoice": "invoice"}
+FINDING_FLAGS = ("external_url_invalid", "file_name_differs")  # D-153; photo/avatar name ≠ its attachment's
 FINANCE_TYPES = ("Quote", "QuoteItem", "SalesOrder", "SalesOrderItem", "Act", "ActItem", "Invoice", "InvoiceItem",
                  "Payment", "PaymentAllocation")
 
@@ -562,6 +563,8 @@ def reconcile(plan, applied, checked, census, fields, key_range, check_only, lin
                 findings[outcome.split(":")[0]] += n
     findings["records_held"] = len(plan.held)
     findings["relation_module_mismatch"] = sum(n for k, n in plan.flags.items() if k.startswith("mismatch_rel:"))
+    for flag in FINDING_FLAGS:  # values kept in vtigerData that the planner could not carry as they are
+        findings[flag] = plan.flags.get(flag, 0)
     findings["missing_in_source"] = sum(i["missing_in_source"] for i in inventory.values())
 
     status = "fail" if problems else ("findings" if any(findings.values()) else "pass")

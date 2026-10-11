@@ -10,6 +10,7 @@ use Espo\ORM\EntityManager;
 use Espo\ORM\Query\SelectBuilder;
 use Espo\ORM\Util;
 use stdClass;
+use Throwable;
 
 /**
  * Writer of the Vtiger import (stages 06.2–06.3, docs/migration/import.md). One operation = the desired state of one
@@ -68,8 +69,17 @@ class RecordWriter
         }
 
         if ($type === 'Attachment') {
-            return $check ? $this->attachments->check($op) :
-                $this->entityManager->getTransactionManager()->run(fn () => $this->attachments->write($op, $blob));
+            if ($check) {
+                return $this->attachments->check($op);
+            }
+
+            try {
+                return $this->entityManager->getTransactionManager()->run(fn () => $this->attachments->write($op, $blob));
+            } catch (Throwable $e) {
+                $this->attachments->discardUncommitted(); // the transaction is over: its record decides the file
+
+                throw $e;
+            }
         }
 
         if ($check) {

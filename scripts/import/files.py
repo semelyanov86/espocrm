@@ -67,19 +67,18 @@ def resolve(attachment_rows, crm, files):
 
 
 def chunk_lines(files, rel, size):
-    """The stdin lines carrying a file: {"seq": n, "data": base64}. The writer checks size and sha256 against the
-    sealed inventory; a file that changed after the snapshot is refused there."""
+    """The stdin lines carrying a file: {"seq": n, "data": base64}, exactly chunk_count(size) of them whatever the file
+    holds now, so the next operation is never read as a frame. The writer checks size and sha256 against the sealed
+    inventory: a shorter file is refused there; a longer one stops the run after its frames."""
     import json
     with files.open(rel) as fh:
-        seq = 0
-        while True:
-            block = fh.read(CHUNK)
-            if not block and seq > 0:
-                break
+        left = size
+        for seq in range(chunk_count(size)):
+            block = fh.read(min(CHUNK, left)) if left > 0 else b""
+            left -= len(block)
             yield (json.dumps({"seq": seq, "data": base64.b64encode(block).decode("ascii")}) + "\n").encode()
-            seq += 1
-            if not block:
-                break
+        if fh.read(1):
+            raise verify.SnapshotError("a file of the snapshot is longer than its sealed inventory")
 
 
 def chunk_count(size):

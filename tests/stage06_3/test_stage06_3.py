@@ -48,7 +48,7 @@ ONLY = ",".join(m for m in spec.SCOPE if m != "OrganizationDetails")  # never th
 
 U_ADMIN, U_SALES = VT + 1, VT + 2
 A1, C1, C2, O1, V1, S1, P1 = VT + 101, VT + 201, VT + 202, VT + 401, VT + 301, VT + 311, VT + 312
-Q1, SO1, ACT1, I1, I2 = VT + 501, VT + 502, VT + 503, VT + 504, VT + 505
+Q1, SO1, ACT1, I1, I2, I3 = VT + 501, VT + 502, VT + 503, VT + 504, VT + 505, VT + 506  # I3: added by test_12
 L1, L2, L3, L4, L5, L6, L7 = (VT + 601 + i for i in range(7))
 PAY1, PAY2, PAY3, PAY4, PAY5 = (VT + 701 + i for i in range(5))
 FD, D1, D2, D3 = VT + 801, VT + 811, VT + 812, VT + 813
@@ -703,6 +703,59 @@ class Stage063(unittest.TestCase):
         row.update({line + "quantity": "3.000", line + "listprice": "1234.56000000", line + "discount_amount": None,
                     line + "discount_percent": "12.5"})
         self.assertEqual(spec_finance.exact_net(row), "3240.72000000")
+
+    def test_12_item_moved_out_of_a_recalculated_document_stays(self):
+        """The source moves a line of the invoice recalculated in EspoCRM (test_04) to a new invoice: the line stays
+        in its recalculated document (protected), the new invoice is imported."""
+        source_sql("\n".join(document("Invoice", I3, ("vtiger_invoice", "invoiceid"),
+                                       header("invoice_no", "С-9003", invoicestatus="Created", invoicedate="2024-03-01",
+                                              balance="120.00000000", subtotal="120.00000000",
+                                              pre_tax_total="120.00000000", total="120.00000000", region_id=0),
+                                       [], "vtiger_invoicebillads", "vtiger_invoiceshipads",
+                                       ("vtiger_invoicecf", "invoiceid")))
+                   + f"\nUPDATE vtiger_inventoryproductrel SET id = {I3} WHERE lineitem_id = {L4};")
+        report, recs, _ = self.run_import()
+        self.assertEqual(report["problems"], {}, report.get("problem_columns"))
+        self.assertEqual(recs[f"InvoiceItem:{L4}"]["check"], "protected")
+        self.assertEqual(one(f"SELECT invoice_id FROM invoice_item WHERE vtiger_id = {L4}")[0], self.id_of("invoice", I1))
+        self.assertIsNotNone(self.id_of("invoice", I3))
+
+    def test_13_payment_only_run(self):
+        """`--only SPPayments`: allocations wait for their documents, yet the allocation measures of the source and of
+        the plan are equal (the waiting allocation carries its amount)."""
+        report, recs, _ = self.run_import(only="SPPayments")
+        self.assertEqual(report["problems"], {}, report.get("problem_columns"))
+        self.assertEqual(report["aggregates"]["reader"]["unequal"], 0)
+        self.assertTrue(recs[f"PaymentAllocation:{PAY1}"]["held"])
+
+    def test_14_file_name_and_link_findings(self):
+        """A photo whose name differs from its attachment's keeps the source name in vtigerData; an external link that
+        is not a URL is kept too — both are findings (D-150, D-153)."""
+        source_sql(f"UPDATE vtiger_contactdetails SET imagename = 'renamed.png' WHERE contactid = {C1};\n"
+                   f"UPDATE vtiger_notes SET filename = 'not a link' WHERE notesid = {D2};")
+        report, recs, _ = self.run_import()
+        self.assertEqual(report["problems"], {}, report.get("problem_columns"))
+        self.assertEqual(report["findings"].get("file_name_differs"), 1)
+        self.assertEqual(report["findings"].get("external_url_invalid"), 1)
+        data = json.loads(one(f"SELECT vtiger_data FROM contact WHERE vtiger_id = {C1}")[0])
+        self.assertEqual(data["imagename"], "renamed.png")
+        self.assertIsNotNone(one(f"SELECT c_photo_id FROM contact WHERE vtiger_id = {C1}")[0])
+
+    def test_15_file_frames_and_unknown_currency(self):
+        """Without the stand: a file always arrives in its declared number of frames (shorter — the writer refuses
+        its size; longer — the run stops after them); an unknown currency holds the record."""
+        root = Path(tempfile.mkdtemp(dir=ROOT))
+        (root / "f").write_bytes(b"abcdefghij")
+        files = importer.F.DirectoryFiles(root)
+        frames = list(importer.F.chunk_lines(files, b"f", importer.F.CHUNK + 5))
+        self.assertEqual(len(frames), 2)
+        frames = importer.F.chunk_lines(files, b"f", 5)
+        self.assertEqual(len(json.loads(next(frames))["data"]), 8)              # 5 bytes in base64
+        with self.assertRaises(verify.SnapshotError):
+            next(frames)
+        with self.assertRaises(spec.T.TransformError):
+            spec.Currency("vtiger_invoice.currency_id").apply(spec.Op("Invoice", 1, "Invoice"),
+                                                              {"vtiger_invoice.currency_id": "2"}, None)
 
 
 def load_tests(loader, tests, pattern):

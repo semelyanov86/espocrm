@@ -257,6 +257,8 @@ def build_allocation(payment, row, links, ctx):
     op = S.Op("PaymentAllocation", payment.vtigerId, "SPPayments")
     op.links["payment"] = ["Payment", payment.vtigerId]
     op.vtigerData["category"] = category
+    op.attributes.update(amount=payment.attributes["amount"], amountCurrency="RUB", source=SOURCE_OF[category],
+                         sourceConflict=category == "conflict_rel_other_invoice")  # also of one that waits (aggregates)
     if status != "ok":  # the document is not part of this run (--only): the allocation waits for it
         outcome = "deferred" if status == "deferred" else f"error:target_{status}"
         op.pending, op.skip = ("deferred", None) if status == "deferred" else (None, outcome)
@@ -267,8 +269,6 @@ def build_allocation(payment, row, links, ctx):
         return op
     op.links["invoice"] = list(resolved) if setype == "Invoice" else None
     op.links["salesOrder"] = list(resolved) if setype == "SalesOrder" else None
-    op.attributes.update(amount=payment.attributes["amount"], amountCurrency="RUB", source=SOURCE_OF[category],
-                         sourceConflict=category == "conflict_rel_other_invoice")
     if has_related:
         op.column(col, "linked", f"{entity_link}Id")
     for link in links:

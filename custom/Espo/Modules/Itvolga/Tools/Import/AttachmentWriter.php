@@ -7,7 +7,6 @@ use Espo\Core\ORM\Repository\Option\SaveOption;
 use Espo\Core\Utils\Id\RecordIdGenerator;
 use Espo\ORM\EntityManager;
 use stdClass;
-use Throwable;
 
 /**
  * Imported files (stage 06.3, import.md «Файлы»): one operation per file — the Attachment record, its owner and its
@@ -33,6 +32,9 @@ class AttachmentWriter
         'Email' => ['attachments' => 'multiple'],
     ];
     private const STORAGE = 'EspoUploadDir';
+
+    /** @var ?array{string, string} id and file of a new attachment whose record is not committed yet */
+    private ?array $uncommitted = null;
 
     public function __construct(
         private EntityManager $entityManager,
@@ -87,6 +89,8 @@ class AttachmentWriter
      */
     public function write(stdClass $op, ?Blob $blob): array
     {
+        $this->uncommitted = null;
+
         if (!$blob) {
             throw new ImportError('file_bytes_missing');
         }
@@ -123,27 +127,20 @@ class AttachmentWriter
         } else {
             $this->blobs->place($blob, $path);
             $placed = true;
+            $this->uncommitted = $isNew ? [$attachment->getId(), $path] : null;
         }
 
         $pointer = $kind === 'single' && $owner->get($field . 'Id') !== $attachment->getId();
 
-        try {
-            if ($isNew || $diff['changed']) {
-                $this->entityManager->saveEntity($attachment, [SaveOption::IMPORT => true, SaveOption::SILENT => true,
-                    SaveOption::NO_NOTIFICATIONS => true]);
-            }
+        if ($isNew || $diff['changed']) {
+            $this->entityManager->saveEntity($attachment, [SaveOption::IMPORT => true, SaveOption::SILENT => true,
+                SaveOption::NO_NOTIFICATIONS => true]);
+        }
 
-            if ($pointer) { // a direct update: the core file saver would remove the attachment it replaces
-                $this->entityManager->getQueryExecutor()->execute($this->entityManager->getQueryBuilder()->update()
-                    ->in($owner->getEntityType())->set([$field . 'Id' => $attachment->getId()])
-                    ->where(['id' => $owner->getId()])->build());
-            }
-        } catch (Throwable $e) {
-            if ($placed && $isNew) {
-                @unlink($path);
-            }
-
-            throw $e;
+        if ($pointer) { // a direct update: the core file saver would remove the attachment it replaces
+            $this->entityManager->getQueryExecutor()->execute($this->entityManager->getQueryBuilder()->update()
+                ->in($owner->getEntityType())->set([$field . 'Id' => $attachment->getId()])
+                ->where(['id' => $owner->getId()])->build());
         }
 
         $changed = array_merge($diff['changed'], $placed ? ['file'] : [], $pointer ? ["owner.{$field}Id"] : []);
@@ -154,6 +151,21 @@ class AttachmentWriter
 
         return ['status' => $status, 'id' => $attachment->getId(), 'changed' => $changed,
             'file' => $placed ? 'written' : 'equal', 'unresolved' => []];
+    }
+
+    /**
+     * After the transaction of write() failed — a save or the COMMIT itself: the file placed for a new attachment is
+     * removed unless its record is in the database (a COMMIT that failed on the way may have succeeded); a file that
+     * cannot be checked stays (the error is reported, the next run finds it by the record or not at all).
+     */
+    public function discardUncommitted(): void
+    {
+        [$id, $path] = $this->uncommitted ?? [null, null];
+        $this->uncommitted = null;
+
+        if ($id !== null && !$this->entityManager->getRDBRepository('Attachment')->getById($id)) {
+            @unlink($path);
+        }
     }
 
     /**

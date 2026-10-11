@@ -101,6 +101,18 @@ class FinanceRules
             if ($this->isRecalculated($owner)) {
                 return ['status' => 'protected', 'reason' => 'recalculated_in_target', 'id' => $id];
             }
+
+            // An item the source moves to another document leaves its current one: never out of a recalculated
+            // document (its row is locked like the requested one; a removed document no longer protects anything).
+            $current = $stored?->get($itemOf->parentLink . 'Id');
+
+            if ($current && $current !== $owner->getId()) {
+                $previous = $this->rowLock->one($itemOf->entityType, $current);
+
+                if ($previous && $this->isRecalculated($previous)) {
+                    return ['status' => 'protected', 'reason' => 'recalculated_in_target', 'id' => $id];
+                }
+            }
         }
 
         if ($payment = $this->types->findPaymentByAllocation($type)) {
