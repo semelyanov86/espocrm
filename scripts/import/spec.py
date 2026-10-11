@@ -132,7 +132,8 @@ SOURCES = {
     "Calendar": Source("Calendar", ("vtiger_activity", "activityid"), setype="Calendar",
                        where=" AND `vtiger_activity`.activitytype = 'Task'"),
     "Events": Source("Events", ("vtiger_activity", "activityid"), setype="Calendar",
-                     where=" AND `vtiger_activity`.activitytype NOT IN ('Task', 'Emails')"),
+                     where=" AND (`vtiger_activity`.activitytype IS NULL "
+                           "OR `vtiger_activity`.activitytype NOT IN ('Task', 'Emails'))"),  # NULL: an error record
 }
 # Plain tables read whole (no crmentity): users and the link tables.
 TABLES = ("vtiger_users", "vtiger_user2role", "vtiger_users2group", "vtiger_groups", "vtiger_crmentityrel",
@@ -160,6 +161,7 @@ class Op:
     vtigerData: dict = field(default_factory=dict)
     outcomes: list = field(default_factory=list)   # (kind 'f'|'r', key, outcome, verify attrs)
     keep: set = field(default_factory=set)          # single links left untouched (target of a later stage, deferred)
+    kept_ids: dict = field(default_factory=dict)    # link → source crmid of the untouched target
     pending: str = None                             # the whole record waits for a stage (comment on a FAQ)
     skip: str = None                                # the record is not imported (reason code)
 
@@ -485,13 +487,10 @@ def link_ref(op, ctx, key, link, crmid, kind="f", accept=None, also=None):
             attrs.append(also)
         record(key, "linked", *attrs)
         return target
-    if status == "pending":
-        record(key, f"pending:{target}")
+    if status in ("pending", "deferred"):
+        record(key, f"pending:{target}" if status == "pending" else "deferred")
         op.keep.add(link)
-        return None
-    if status == "deferred":
-        record(key, "deferred")
-        op.keep.add(link)
+        op.kept_ids.setdefault(link, int(crmid))
         return None
     record(key, status)
     if status.startswith("dangling"):
@@ -812,7 +811,7 @@ def build_contact_access(row, ctx):
 def build_activity(module, row, ctx):
     a = "vtiger_activity."
     atype = row[a + "activitytype"]
-    entity = ACTIVITY_ENTITY.get(atype)
+    entity = ACTIVITY_ENTITY.get(atype or "")
     if entity is None:
         op = Op("Task", int(row["vtiger_crmentity.crmid"]), module)
         op.skip = "error:unknown_activitytype"
@@ -838,6 +837,7 @@ def build_activity(module, row, ctx):
     if entity == "Task":
         op.attributes.update(dateStart=start_utc, dateStartDate=None, dateCompleted=None)
         if module == "Calendar":
+            op.attributes["cTaskType"] = None  # a plain task: the kind «Письмо» is owned by the source too
             due = T.date_only(row.get(a + "due_date"))
             op.attributes.update(dateEnd=T.all_day_end(due), dateEndDate=due)  # the deadline is a date (all-day end)
             if due:
@@ -932,7 +932,7 @@ def build_user(row, ctx):
     Phones(*PHONE_COLUMNS["Users"]).apply(op, row, ctx)
     if not T.is_empty(row.get(u + "department")):
         op.column(u + "department", "archived", op.archive("department", row[u + "department"]))
-    prefs = {}
+    prefs = dict.fromkeys(("language", "dateFormat", "timeFormat", "weekStart", "timeZone", "signature"))  # owned
     lang = row.get(u + "language")
     if not T.is_empty(lang):
         prefs["language"] = lang[:2].lower() + "_" + lang[3:].upper() if len(lang) == 5 else lang
@@ -1118,6 +1118,9 @@ def attach_relations(ops, ctx):
         rel = f"crmentityrel:{a_mod}->{b_mod}"
         if a_mod not in SCOPE and b_mod not in SCOPE + ("Calendar",):
             continue  # neither end is imported in this stage
+        if ctx.crm[a_id][0] != a_mod or ctx.crm[b_id][0] != b_mod:
+            ctx.flags[f"mismatch_rel:{rel}"] += 1  # the row names other modules than its records: never linked
+            continue
         if (a_mod, b_mod) in REL_PENDING_PAIRS:
             ctx.flags[f"pending_rel:{rel}:{REL_PENDING_PAIRS[(a_mod, b_mod)]}"] += 1
             continue
@@ -1203,12 +1206,22 @@ def parent_conflict(op, ctx, rel, crmid):
     single_or_conflict(op, ctx, rel, "parent", crmid, status, target)
 
 
+# Entity types a single link of the in-scope entities accepts (a crmentityrel row may name a module the record is not).
+LINK_TYPES = {"account": ("Account",), "contact": ("Contact",), "project": ("Project",), "opportunity": ("Opportunity",),
+              "parent": ("Account", "Contact", "Lead", "Opportunity", "Case", "Project", "ProjectTask")}
+
+
 def single_or_conflict(op, ctx, rel, link, crmid, status, target):
     """A second source of a single link: unset → it sets the link; the same target → duplicate; another target →
     conflict, the alternative source id kept in vtigerData.<link>Alternatives (never last-writer-wins)."""
     current = op.links.get(link)
+    if not current and link in op.keep:  # the first source points to a record of a later stage: it stays the link
+        if op.kept_ids.get(link) == int(crmid):
+            op.relation(rel, "duplicate")
+            return
+        current = "kept"
     if not current:
-        link_ref(op, ctx, rel, link, crmid, kind="r")
+        link_ref(op, ctx, rel, link, crmid, kind="r", accept=LINK_TYPES.get(link))
     elif status == "ok" and current == list(target):
         op.relation(rel, "duplicate", f"{link}Id")
     else:

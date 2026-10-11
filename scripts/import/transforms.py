@@ -124,7 +124,8 @@ def text(value):
 
 
 def string(value):
-    return None if is_empty(value) else value.strip()
+    """Short text as is (no trimming: the source representation is kept, D-144); fully blank → empty."""
+    return text(value)
 
 
 def integer(value, zero_is_empty=False):

@@ -55,7 +55,7 @@ def log(msg):
 
 # --- writer bridge ----------------------------------------------------------------------------------
 
-def bridge(ops, mode, adopt, logdir, inventory=()):
+def bridge(ops, mode, adopt, logdir, inventory=(), journal=None):
     """One `itvolga-import` process: operations on stdin, `#itv#<nonce>#<json>` results on stdout. Lines without the
     nonce (PHP notices) are counted only; stderr goes to a private log."""
     nonce = secrets.token_hex(16)
@@ -78,6 +78,9 @@ def bridge(ops, mode, adopt, logdir, inventory=()):
             done.append(data["done"])
         else:
             results[data.get("key")] = data
+            if journal is not None and data.get("id"):  # written at once: a run that fails later is still known
+                journal.write(json.dumps({"key": data.get("key"), "id": data["id"], "status": data.get("status")}) + "\n")
+                journal.flush()
 
     Mysql([str(ESPO), "itvolga-import"], "itvolga-import").session(stream(), consume, logdir / f"writer-{mode}.log")
     expected = len(ops) + len(inventory)
@@ -135,7 +138,12 @@ def execute(rundir, snapshot_dir=None, source_db=None, only=None, check_only=Fal
                       effective_admin=effective_admin)
     log(f"plan: {len(plan.ops)} operations, {len(plan.held)} records held")
     silence_before = silence_counts(logdir)
-    applied, stray_apply = ({}, 0) if check_only else bridge(plan.ops, "apply", adopt, logdir)
+    if check_only:
+        applied, stray_apply = {}, 0
+    else:
+        fd = os.open(rundir / "applied.jsonl", os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        with os.fdopen(fd, "a") as journal:  # keys and EspoCRM ids of written records, as the writer answers
+            applied, stray_apply = bridge(plan.ops, "apply", adopt, logdir, journal=journal)
     if not check_only:
         log("apply: " + fmt(Counter(r.get("status") for r in applied.values())))
     checked, stray_check = bridge(plan.ops, "check", adopt, logdir, inventory=inventory_types(only))
@@ -183,7 +191,7 @@ def link_rows_accounted(plan):
                     if key.startswith(prefixes):
                         out[table] += 1
     for flag, n in plan.flags.items():
-        if flag.startswith(("pending_rel:", "unhandled_rel:")):
+        if flag.startswith(("pending_rel:", "unhandled_rel:", "mismatch_rel:")):
             name = flag.split(":", 1)[1]
             for table, prefixes in LINK_PREFIXES.items():
                 if name.startswith(prefixes):
@@ -319,11 +327,16 @@ def reconcile(plan, applied, checked, census, fields, key_range, check_only, lin
         if full_run and v["source_rows"] != v["accounted"]:  # a partial run plans only the selected modules
             problems["link_rows_unaccounted"] += 1
             problem_columns["link_rows_unaccounted"].append(t)
-    unhandled = {k.split(":", 1)[1]: n for k, n in plan.flags.items() if k.startswith("unhandled_rel:")}
+    def in_run(rel):  # crmentityrel:A->B of a module of this run (Calendar rows belong to Calendar and Events)
+        ends = rel.split(":", 1)[1].split("->")
+        return any(m in selected or (m == "Calendar" and selected & {"Calendar", "Events"}) for m in ends)
+
+    unhandled = {k.split(":", 1)[1]: n for k, n in plan.flags.items() if k.startswith("unhandled_rel:") and in_run(k.split(":", 1)[1])}
     if unhandled:  # a pair of modules the specification does not know: never accounted silently
         problems["unhandled_relations"] = sum(unhandled.values())
         problem_columns["unhandled_relations"] = sorted(unhandled)
-    lost = {k: n for k, n in (orphans or {}).items() if n}
+    lost = {k: n for k, n in (orphans or {}).items()
+            if n and (k in selected or (k == "Calendar" and selected & {"Calendar", "Events"}))}
     if lost:
         problems["live_without_base_row"] = sum(lost.values())
         problem_columns["live_without_base_row"] = sorted(lost)
@@ -346,9 +359,9 @@ def reconcile(plan, applied, checked, census, fields, key_range, check_only, lin
         entities[op.entityType]["source"] += 1
         entities[op.entityType][f"apply:{a.get('status', 'none')}"] += 1
         entities[op.entityType][f"check:{c.get('status')}"] += 1
-        if a.get("status") == "error" or c.get("status") in ("error", "missing", "deleted", "differs"):
-            if not (op.onlyIfExists and c.get("status") == "absent"):
-                problems["record_not_equal"] += 1
+        not_equal = ("error", "deleted", "differs") + (() if check_only else ("missing",))
+        if a.get("status") == "error" or c.get("status") in not_equal:  # a dry run only expects missing records
+            problems["record_not_equal"] += 1
         for name in a.get("forced") or []:
             entities[op.entityType][f"forced:{name}"] += 1
         if a.get("unresolved") or c.get("unresolved"):
@@ -382,9 +395,8 @@ def reconcile(plan, applied, checked, census, fields, key_range, check_only, lin
             if outcome.startswith(("pending", "dangling", "conflict", "no_target", "deferred")):
                 findings[outcome.split(":")[0]] += n
     findings["records_held"] = len(plan.held)
+    findings["relation_module_mismatch"] = sum(n for k, n in plan.flags.items() if k.startswith("mismatch_rel:"))
     findings["missing_in_source"] = sum(i["missing_in_source"] for i in inventory.values())
-    if check_only:
-        problems.pop("record_not_equal", None)
 
     status = "fail" if problems else ("findings" if any(findings.values()) else "pass")
     return {"status": status, "problems": dict(problems), "problem_columns": dict(problem_columns),

@@ -7,6 +7,7 @@ whose ids this test recorded (never a list from the API). No production data.
 
     task test:stage06.2
 """
+import fcntl
 import json
 import secrets
 import shutil
@@ -47,7 +48,8 @@ A1, A2, A3, C1, C2, L1, O1, P1, T1, H1, E1, E2, E3, E4, N1, N2, N3, F1 = (
     VT + 702, VT + 703, VT + 704, VT + 801, VT + 802, VT + 803, VT + 990)
 U_ADMIN, U_SALES, U_DEPUTY, U_CLASH, U_GONE, G_SALES = VT + 1, VT + 2, VT + 3, VT + 4, VT + 5, VT + 900
 C3, INV, DOC, E5, E6, A4 = VT + 203, VT + 961, VT + 962, VT + 705, VT + 706, VT + 104
-SECRET = f"pw-{secrets.token_hex(6)}"
+E7, E8, E9 = VT + 707, VT + 708, VT + 709
+SECRET = f" pw-{secrets.token_hex(4)} "  # edge spaces: a re-run must still compare it equal
 
 COLUMNS = {
     "vtiger_crmentity": "crmid INT PRIMARY KEY, smcreatorid INT, smownerid INT, modifiedby INT, setype VARCHAR(100), "
@@ -198,7 +200,7 @@ def fixture_sql():
         insert("vtiger_customerdetails", customerid=C2),
         # lead converted
         entity(L1, "Leads"),
-        insert("vtiger_leaddetails", leadid=L1, lead_no="ОБР_1", lastname=f"{PREFIX} L1", leadstatus="Холодный",
+        insert("vtiger_leaddetails", leadid=L1, lead_no="ОБР_1", lastname=f"{PREFIX} L1 ", leadstatus="Холодный",
                converted=1, annualrevenue="0.00000000"),
         insert("vtiger_leadaddress", leadaddressid=L1),
         insert("vtiger_leadsubdetails", leadsubscriptionid=L1),
@@ -233,6 +235,13 @@ def fixture_sql():
         entity(E6, "Calendar"),
         insert("vtiger_activity", activityid=E6, subject=f"{PREFIX} E6", activitytype="Call", date_start="2020-03-01",
                time_start="12:00", due_date="2020-03-02", eventstatus="Held"),
+        entity(E8, "Calendar"),
+        insert("vtiger_activity", activityid=E8, subject=f"{PREFIX} E8", activitytype="Письмо", eventstatus="Held"),
+        entity(E9, "Calendar"),
+        insert("vtiger_activity", activityid=E9, subject=f"{PREFIX} E9", activitytype="Call", date_start="2020-03-01",
+               time_start="12:00", due_date="2020-03-01", time_end="12:10", eventstatus="Held"),
+        insert("vtiger_seactivityrel", crmid=INV, activityid=E9),       # parent of stage 06.3 first …
+        insert("vtiger_crmentityrel", crmid=A1, module="Accounts", relcrmid=E9, relmodule="Calendar"),  # … then another
         entity(E2, "Calendar"),
         insert("vtiger_activity", activityid=E2, subject=f"{PREFIX} E2", activitytype="Call", date_start="2020-03-01",
                time_start="12:00", due_date="2020-03-01", time_end="12:30", duration_hours="0",
@@ -284,6 +293,9 @@ class Stage062(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         global ROOT, SOURCE
+        lock = open(Path(tempfile.gettempdir()) / "itvolga-stage06_2-test.lock", "w")
+        fcntl.flock(lock, fcntl.LOCK_EX)  # one run at a time: the key block check and the cleanup assume it
+        cls.addClassCleanup(lock.close)
         ROOT = Path(tempfile.mkdtemp(prefix="vtimp-test-"))
         cls.addClassCleanup(shutil.rmtree, ROOT, True)
         taken = sum(int(one(f"SELECT COUNT(*) FROM `{t}` WHERE vtiger_id BETWEEN {KEYS[0]} AND {KEYS[1]}")[0])
@@ -310,7 +322,7 @@ class Stage062(unittest.TestCase):
         rundir.mkdir()
         report = importer.execute(rundir, source_db=SOURCE, only=only, check_only=check_only, adopt=ADMIN_NAME,
                                   key_range=KEYS, effective_admin=U_ADMIN)
-        recs = [json.loads(line) for line in (rundir / "records.jsonl").read_text().splitlines()]
+        recs = [json.loads(line) for line in (rundir / "records.jsonl").read_text().splitlines()]  # run finished
         cls.runs.append(recs)
         return report, {r["key"]: r for r in recs}
 
@@ -324,10 +336,11 @@ class Stage062(unittest.TestCase):
                     ids.setdefault(r["key"].split(":")[0], set()).add(r["id"])
         for etype, eid in cls.created:
             ids.setdefault(etype, set()).add(eid)
-        # also records of a run that failed before its records were written: the key block was free before the test
-        for etype, table in IMPORT_TABLES.items():
-            for (eid,) in sql(f"SELECT id FROM `{table}` WHERE vtiger_id BETWEEN {KEYS[0]} AND {KEYS[1]}"):
-                ids.setdefault(etype, set()).add(eid)
+        # the writer's answers, journalled as they come: also records of a run that failed midway
+        for journal in ROOT.glob("run-*/applied.jsonl"):
+            for line in journal.read_text().splitlines():
+                rec = json.loads(line)
+                ids.setdefault(rec["key"].split(":")[0], set()).add(rec["id"])
         tables = IMPORT_TABLES
         junctions = ["DELETE FROM entity_team WHERE entity_id IN ({0})", "DELETE FROM entity_email_address WHERE entity_id IN ({0})",
                      "DELETE FROM entity_phone_number WHERE entity_id IN ({0})", "DELETE FROM account_contact WHERE contact_id IN ({0}) OR account_id IN ({0})",
@@ -380,7 +393,7 @@ class Stage062(unittest.TestCase):
         self.assertEqual(report["silence"], {k: 0 for k in importer.SILENCE})
         statuses = {r["check"] for r in recs.values() if not r["held"] and r["key"].split(":")[0] != "ContactAccess"}
         self.assertEqual(statuses, {"equal"})
-        self.assertEqual(report["link_tables"]["vtiger_crmentityrel"], {"source_rows": 2, "accounted": 2})
+        self.assertEqual(report["link_tables"]["vtiger_crmentityrel"], {"source_rows": 3, "accounted": 3})
         self.assertEqual(report["link_tables"]["vtiger_senotesrel"], {"source_rows": 1, "accounted": 1})
 
     def test_02_values(self):
@@ -410,7 +423,8 @@ class Stage062(unittest.TestCase):
                      f"WHERE vtiger_id={C1} AND deleted=0")
         self.assertEqual(access, ["synth-id", "1", "1"])                 # encrypted, never the plain value
         self.assertIsNone(one(f"SELECT id FROM contact_access WHERE vtiger_id={C2}"))
-        self.assertEqual(one(f"SELECT status, converted_at IS NULL FROM `lead` WHERE vtiger_id={L1}"), ["Converted", "1"])
+        self.assertEqual(one(f"SELECT status, converted_at IS NULL, last_name = {Mysql_quote(PREFIX + ' L1 ')} FROM `lead` "
+                             f"WHERE vtiger_id={L1}"), ["Converted", "1", "1"])           # text kept as in the source
         self.assertEqual(one(f"SELECT probability IS NULL, amount, stage, contact_id = '{c1}' FROM opportunity WHERE vtiger_id={O1}"),
                          ["1", "1500.50000000", "Negotiation or Review", "1"])
         self.assertEqual(one(f"SELECT budget, status FROM project WHERE vtiger_id={P1}"), ["1200.50", "Выполняется"])
@@ -425,6 +439,9 @@ class Stage062(unittest.TestCase):
         self.assertEqual(one(f"SELECT date_start, date_end, direction IS NULL, status FROM `call` WHERE vtiger_id={E2}"),
                          ["2020-03-01 09:00:00", "2020-03-01 09:30:00", "1", "Held"])
         self.assertEqual(one(f"SELECT parent_type, date_start IS NULL FROM meeting WHERE vtiger_id={E3}"), ["Lead", "1"])
+        e9 = one(f"SELECT parent_id IS NULL, vtiger_data FROM `call` WHERE vtiger_id={E9}")
+        self.assertEqual(e9[0], "1")                                          # the 06.3 parent waits, not replaced
+        self.assertEqual(json.loads(e9[1])["parentAlternatives"], [A1])       # the second source is kept
         e6 = one(f"SELECT date_end, vtiger_data FROM `call` WHERE vtiger_id={E6}")
         self.assertEqual(e6[0], "2020-03-01 09:00:00")                       # D-43: required end = start
         self.assertEqual(json.loads(e6[1]), {"dateEndMissing": True, "due_date": "2020-03-02"})  # the date is kept
@@ -576,6 +593,52 @@ class Stage062(unittest.TestCase):
         finally:
             source_sql(f"DELETE FROM vtiger_crmentity WHERE crmid={A4};")
 
+    def test_15_manual_account_and_role_stay(self):
+        c2, a2 = self.id_of("contact", C2), self.id_of("account", A2)
+        status, _, _ = self.client.put(f"Contact/{c2}", {"accountId": a2, "title": "manual role"})
+        self.assertEqual(status, 200)
+        source_sql(f"UPDATE vtiger_crmentity SET modifiedtime='2024-05-01 10:00:00' WHERE crmid={C2};")
+        report, recs = self.run_import()
+        self.assertEqual(recs[f"Contact:{C2}"]["apply"], "updated")
+        self.assertEqual(one(f"SELECT account_id IS NULL FROM contact WHERE id='{c2}'"), ["1"])          # source wins
+        self.assertEqual(one(f"SELECT role FROM account_contact WHERE contact_id='{c2}' AND account_id='{a2}' "
+                             f"AND deleted=0"), ["manual role"])                                    # manual link stays
+        self.assertEqual(recs[f"Contact:{C2}"]["check"], "equal")
+
+    def test_16_dry_run_reports_a_changed_target(self):
+        sql(f"UPDATE account SET website='synthetic.invalid' WHERE vtiger_id={A2}")
+        report, recs = self.run_import(check_only=True)
+        self.assertEqual(report["status"], "fail")
+        self.assertEqual(recs[f"Account:{A2}"]["check"], "differs")
+        report, recs = self.run_import()
+        self.assertEqual(one(f"SELECT website IS NULL FROM account WHERE vtiger_id={A2}"), ["1"])        # source wins
+
+    def test_17_source_edge_cases(self):
+        u2 = one(f"SELECT id FROM user WHERE vtiger_id={U_SALES}")[0]
+        source_sql(f"UPDATE vtiger_users SET signature='Синт подпись' WHERE id={U_SALES};"
+                   f"UPDATE vtiger_activity SET activitytype='Task', status='Not Started' WHERE activityid={E8};"
+                   f"INSERT INTO vtiger_crmentityrel (crmid, module, relcrmid, relmodule) VALUES ({C1}, 'Accounts', {O1}, 'Potentials');")
+        report, recs = self.run_import()
+        self.assertEqual(report["findings"].get("relation_module_mismatch"), 1)
+        self.assertEqual(one(f"SELECT account_id = (SELECT id FROM account WHERE vtiger_id={A1}) FROM opportunity "
+                             f"WHERE vtiger_id={O1}"), ["1"])                                   # never a contact id
+        self.assertEqual(one(f"SELECT c_task_type IS NULL FROM task WHERE vtiger_id={E8}"), ["1"])   # «Письмо» → task
+        signature = f"SELECT JSON_UNQUOTE(JSON_EXTRACT(data, '$.signature')), JSON_TYPE(JSON_EXTRACT(data, '$.signature')) " \
+                    f"FROM preferences WHERE id='{u2}'"
+        self.assertEqual(one(signature), ["Синт подпись", "STRING"])
+        source_sql(f"UPDATE vtiger_users SET signature=NULL WHERE id={U_SALES};")
+        report, recs = self.run_import()
+        self.assertEqual(recs[f"User:{U_SALES}"]["apply"], "updated")
+        self.assertEqual(one(signature)[1], "NULL")                                         # cleared
+        source_sql(entity(E7, "Calendar") + "\n" + insert("vtiger_activity", activityid=E7, subject="x"))
+        try:
+            report, recs = self.run_import()
+            self.assertEqual(report["status"], "fail")                                      # activitytype NULL
+            self.assertEqual(recs[f"Task:{E7}"]["held"], "error:unknown_activitytype")
+        finally:
+            source_sql(f"DELETE FROM vtiger_activity WHERE activityid={E7}; DELETE FROM vtiger_crmentity WHERE crmid={E7};"
+                       f"DELETE FROM vtiger_crmentityrel WHERE crmid={C1} AND relcrmid={O1};")
+
     def fingerprint(self):
         parts = []
         for table, key in (("account", A1), ("contact", C1), ("contact_access", C1), ("opportunity", O1),
@@ -648,6 +711,12 @@ class Pure(unittest.TestCase):
                 "Accounts": [{"vtiger_crmentity.crmid": "5", "vtiger_account.phone": number}],
                 "Contacts": [{"vtiger_crmentity.crmid": "3", "vtiger_contactdetails.mobile": number}]}
         self.assertEqual(spec.phone_registry(data), {phone("+7900", "0007788"): "Office"})   # the account comes first
+
+    def test_partial_run_ignores_other_modules(self):
+        plan = spec.Plan([], [], spec.Counter({"unhandled_rel:crmentityrel:Contacts->Potentials": 1}))
+        report = importer.reconcile(plan, {}, {}, {}, [], (1, 10), False, {}, selected=["Users"],
+                                    orphans={"Accounts": 1})
+        self.assertEqual(report["problems"], {})
 
     def test_real_import_refuses_synthetic_keys(self):
         data = {k: [] for k in list(spec.SOURCES) + list(spec.TABLES)}

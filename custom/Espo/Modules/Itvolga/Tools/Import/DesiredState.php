@@ -3,9 +3,9 @@
 namespace Espo\Modules\Itvolga\Tools\Import;
 
 use Espo\Core\ORM\Entity as CoreEntity;
-use Espo\Core\Utils\Crypt;
 use Espo\Core\Utils\Metadata;
 use Espo\Modules\Itvolga\Tools\Acl\HierarchyTeams;
+use Espo\Modules\Itvolga\Tools\ContactAccess\PasswordCipher;
 use Espo\ORM\EntityManager;
 use Espo\Repositories\EmailAddress as EmailAddressRepository;
 use Espo\Repositories\PhoneNumber as PhoneNumberRepository;
@@ -30,7 +30,7 @@ class DesiredState
         private Metadata $metadata,
         private KeyResolver $keys,
         private HierarchyTeams $hierarchyTeams,
-        private Crypt $crypt,
+        private PasswordCipher $cipher,
     ) {}
 
     /**
@@ -174,6 +174,9 @@ class DesiredState
                 if (is_array($allowed) && !in_array($foreignType, $allowed, true)) {
                     throw new ImportError('invalid', ["$link:entity_list"]);
                 }
+            } elseif ($this->entityManager->getDefs()->getEntity($entity->getEntityType())->getRelation($link)
+                    ->tryGetForeignEntityType() !== $foreignType) {
+                throw new ImportError('invalid', ["$link:entity_type"]); // never an id of another entity type
             }
         }
 
@@ -349,7 +352,7 @@ class DesiredState
         }
 
         $stored = $entity->get($attribute);
-        $current = ($stored === null || $stored === '') ? null : $this->crypt->decrypt($stored);
+        $current = ($stored === null || $stored === '') ? null : $this->cipher->decrypt($stored);
 
         if ($current === $plain) {
             return;

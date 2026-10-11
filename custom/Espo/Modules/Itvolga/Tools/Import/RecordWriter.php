@@ -30,7 +30,8 @@ class RecordWriter
      * Link-multiple fields the core's primary-link hooks unlink when the primary is cleared (Opportunity\Contacts,
      * CaseObj\Contacts, Contact\Accounts): items are added only (owner's rule), so what the save removes is put back.
      */
-    private const KEPT_LINKS = ['Opportunity' => 'contacts', 'Case' => 'contacts', 'Contact' => 'accounts'];
+    private const KEPT_LINKS = ['Opportunity' => ['contacts', 'contactId'], 'Case' => ['contacts', 'contactId'],
+        'Contact' => ['accounts', 'accountId']];
     /** Entity types whose enum defaults are not applied to imported records (D-38: empty stays empty). */
     private const NO_DEFAULTS = ['Account', 'Contact', 'Lead', 'Opportunity', 'Project', 'ProjectTask', 'Case', 'Task',
         'Call', 'Meeting'];
@@ -382,11 +383,13 @@ class RecordWriter
     }
 
     /**
-     * @return string[] Items of the kept link-multiple field before the save (current ones plus those being added).
+     * Items of the kept link-multiple field before the save (current ones plus those being added) with their columns.
+     *
+     * @return array<string, array<string, mixed>> id → columns
      */
     private function linkedIds(CoreEntity $entity, bool $isNew): array
     {
-        $link = self::KEPT_LINKS[$entity->getEntityType()] ?? null;
+        [$link] = self::KEPT_LINKS[$entity->getEntityType()] ?? [null];
 
         if (!$link || $isNew) {
             return [];
@@ -396,26 +399,48 @@ class RecordWriter
             $entity->loadLinkMultipleField($link);
         }
 
-        return $entity->getLinkMultipleIdList($link);
+        $columns = $entity->get($link . 'Columns');
+        $out = [];
+
+        foreach ($entity->getLinkMultipleIdList($link) as $id) {
+            $out[$id] = $columns && isset($columns->$id) ? get_object_vars($columns->$id) : [];
+        }
+
+        return $out;
     }
 
     /**
-     * @param string[] $before
+     * Puts back what the core's primary-link hooks removed or rewrote (a manual link and its role), except on the
+     * record the operation makes the primary one (its role comes from the source).
+     *
+     * @param array<string, array<string, mixed>> $before
      */
     private function relinkRemoved(CoreEntity $entity, array $before): void
     {
-        $link = self::KEPT_LINKS[$entity->getEntityType()] ?? null;
+        [$link, $primaryAttribute] = self::KEPT_LINKS[$entity->getEntityType()] ?? [null, null];
 
         if (!$link || !$before) {
             return;
         }
 
         $relation = $this->entityManager->getRDBRepository($entity->getEntityType())->getRelation($entity, $link);
+        $fresh = $this->entityManager->getRDBRepository($entity->getEntityType())->getById($entity->getId());
 
-        foreach ($before as $id) {
+        if (!$fresh instanceof CoreEntity) {
+            return;
+        }
+
+        $primary = $fresh->get($primaryAttribute);
+        $fresh->loadLinkMultipleField($link);
+        $now = $fresh->get($link . 'Columns');
+
+        foreach ($before as $id => $columns) {
+            $options = [SaveOption::SILENT => true, SaveOption::SKIP_HOOKS => true];
+
             if (!$relation->isRelatedById($id)) {
-                // the junction row is restored with its columns (role) kept
-                $relation->relateById($id, null, [SaveOption::SILENT => true, SaveOption::SKIP_HOOKS => true]);
+                $relation->relateById($id, $columns ?: null, $options); // the junction row is restored
+            } elseif ($columns && $id !== $primary && $now && isset($now->$id) && get_object_vars($now->$id) != $columns) {
+                $relation->updateColumnsById($id, $columns);
             }
         }
     }
