@@ -3,6 +3,7 @@
 namespace Espo\Modules\Itvolga\Tools\Import;
 
 use Espo\Core\ORM\Entity as CoreEntity;
+use Espo\Core\ORM\Repository\Option\SaveOption;
 use Espo\Core\Utils\Metadata;
 use Espo\Modules\Itvolga\Tools\Acl\HierarchyTeams;
 use Espo\Modules\Itvolga\Tools\ContactAccess\PasswordCipher;
@@ -22,6 +23,8 @@ use stdClass;
 class DesiredState
 {
     /** Attributes an operation may never set (identity, deletion, credentials). */
+    /** Address fields of an Email, compared as sets (DesiredState::applyEmailAddresses). */
+    private const EMAIL_ADDRESS_FIELDS = ['from', 'to', 'cc', 'bcc'];
     private const FORBIDDEN = ['id', 'deleted', 'deleteId', 'password', 'passwordVersion', 'apiKey', 'secretKey',
         'authMethod', 'authLogRecordId', 'hasAnydeskPassword', 'anydeskPassword'];
 
@@ -34,7 +37,7 @@ class DesiredState
     ) {}
 
     /**
-     * @return array{changed: string[], unresolved: string[]}
+     * @return array{changed: string[], unresolved: string[], deletedTargets: string[]}
      * @throws ImportError invalid values (codes and attribute names only)
      */
     public function apply(CoreEntity $entity, stdClass $op, bool $isNew): array
@@ -42,6 +45,7 @@ class DesiredState
         $type = $entity->getEntityType();
         $changed = [];
         $unresolved = [];
+        $deletedTargets = [];
         $invalid = [];
 
         foreach (get_object_vars($op->attributes ?? new stdClass()) as $attribute => $value) {
@@ -62,6 +66,21 @@ class DesiredState
                 continue;
             }
 
+            if ($this->isJsonObject($type, $attribute)) { // VtigerArchive.data: key order is not a difference
+                if ($isNew || $this->vtigerDataDiffers($entity->get($attribute), $value)) {
+                    $entity->set($attribute, $value);
+                    $changed[] = $attribute;
+                }
+
+                continue;
+            }
+
+            if ($type === 'Email' && in_array($attribute, self::EMAIL_ADDRESS_FIELDS, true)) {
+                $this->applyEmailAddresses($entity, $attribute, $value, $isNew, $changed);
+
+                continue;
+            }
+
             $entity->set($attribute, $value);
 
             if ($isNew || $entity->isAttributeChanged($attribute)) {
@@ -74,11 +93,11 @@ class DesiredState
         }
 
         foreach (get_object_vars($op->links ?? new stdClass()) as $link => $ref) {
-            $this->applyLink($entity, $link, $ref, $isNew, $changed, $unresolved);
+            $this->applyLink($entity, $link, $ref, $isNew, $changed, $unresolved, $deletedTargets);
         }
 
         foreach (get_object_vars($op->linkMultiple ?? new stdClass()) as $link => $spec) {
-            $this->applyLinkMultiple($entity, $link, $spec, $isNew, $changed, $unresolved);
+            $this->applyLinkMultiple($entity, $link, $spec, $isNew, $changed, $unresolved, $deletedTargets);
         }
 
         if ($entity->hasLinkMultipleField('teams') && $this->hierarchyTeams->getRules($type) &&
@@ -103,7 +122,65 @@ class DesiredState
             $this->applySecret($entity, $attribute, $plain, $changed);
         }
 
-        return ['changed' => array_values(array_unique($changed)), 'unresolved' => $unresolved];
+        return ['changed' => array_values(array_unique($changed)), 'unresolved' => array_values(array_unique($unresolved)),
+            'deletedTargets' => array_values(array_unique($deletedTargets))];
+    }
+
+    /**
+     * Add-only relation items of links without a link-multiple field (stage 06.3: a Document and the records it is
+     * attached to, `vtiger_senotesrel`): `{"<link>": [[entityType, key], …]}`. Rows made in EspoCRM stay; rows are
+     * written without hooks (no stream notes, no notifications).
+     *
+     * @return array{changed: string[], unresolved: string[], deletedTargets: string[]}
+     */
+    public function relate(CoreEntity $entity, stdClass $op, bool $write): array
+    {
+        $changed = $unresolved = $deleted = [];
+        $defs = $this->entityManager->getDefs()->getEntity($entity->getEntityType());
+        $repository = $this->entityManager->getRDBRepository($entity->getEntityType());
+
+        foreach (get_object_vars($op->relate ?? new stdClass()) as $link => $items) {
+            $relationDefs = $defs->tryGetRelation($link);
+
+            if (!$relationDefs || !$relationDefs->isManyToMany() || !is_array($items)) {
+                throw new ImportError('invalid', ["$link:unknown_link"]);
+            }
+
+            $relation = $repository->getRelation($entity, $link);
+
+            foreach ($items as $item) {
+                [$foreignType, $key] = $item;
+
+                if ($relationDefs->getForeignEntityType() !== $foreignType) {
+                    throw new ImportError('invalid', ["$link:entity_type"]);
+                }
+
+                $id = $this->keys->id($foreignType, $key);
+
+                if (!$id) {
+                    if ($this->keys->isDeleted($foreignType, $key)) {
+                        $deleted[] = $link;
+                    } else {
+                        $unresolved[] = $link;
+                    }
+
+                    continue;
+                }
+
+                if ($relation->isRelatedById($id)) {
+                    continue;
+                }
+
+                if ($write) {
+                    $relation->relateById($id, null, [SaveOption::SILENT => true, SaveOption::SKIP_HOOKS => true]);
+                }
+
+                $changed[] = "relate.$link";
+            }
+        }
+
+        return ['changed' => array_values(array_unique($changed)), 'unresolved' => array_values(array_unique($unresolved)),
+            'deletedTargets' => array_values(array_unique($deleted))];
     }
 
     /**
@@ -146,7 +223,7 @@ class DesiredState
     }
 
     private function applyLink(CoreEntity $entity, string $link, mixed $ref, bool $isNew, array &$changed,
-        array &$unresolved): void
+        array &$unresolved, array &$deletedTargets): void
     {
         $isParent = (bool) $this->entityManager->getDefs()->getEntity($entity->getEntityType())
             ->tryGetRelation($link)?->isBelongsToParent();
@@ -163,9 +240,15 @@ class DesiredState
             $id = $this->keys->id($foreignType, $key);
 
             if (!$id) {
-                $unresolved[] = $link;
+                // never cleared by an unresolved reference; a target deleted in EspoCRM is a finding (06.3: finance
+                // records deleted in EspoCRM are not restored), anything else unresolved is a problem
+                if ($this->keys->isDeleted($foreignType, $key)) {
+                    $deletedTargets[] = $link;
+                } else {
+                    $unresolved[] = $link;
+                }
 
-                return; // never cleared by an unresolved reference
+                return;
             }
 
             if ($isParent) {
@@ -196,7 +279,7 @@ class DesiredState
      * Items are added (links made in EspoCRM stay); a `domain` is owned: its members not in the items are removed.
      */
     private function applyLinkMultiple(CoreEntity $entity, string $link, stdClass $spec, bool $isNew, array &$changed,
-        array &$unresolved): void
+        array &$unresolved, array &$deletedTargets): void
     {
         if (!$entity->hasLinkMultipleField($link)) {
             throw new ImportError('invalid', ["$link:unknown_link"]);
@@ -214,7 +297,11 @@ class DesiredState
             $id = $this->keys->id($item[0], $item[1]);
 
             if (!$id) {
-                $unresolved[] = $link;
+                if ($this->keys->isDeleted($item[0], $item[1])) {
+                    $deletedTargets[] = $link;
+                } else {
+                    $unresolved[] = $link;
+                }
 
                 continue;
             }
@@ -385,6 +472,52 @@ class DesiredState
         }
 
         return (bool) ($kept->$name ?? false);
+    }
+
+    /**
+     * Address fields of an Email (not stored: the repository keeps them as EmailAddress links). The stored list is
+     * loaded first; an address list is compared as a set of lower-case addresses, so a re-run does not fight the
+     * repository's own order and spelling.
+     */
+    private function applyEmailAddresses(CoreEntity $entity, string $field, mixed $value, bool $isNew,
+        array &$changed): void
+    {
+        if (!$isNew && !$entity->has($field)) {
+            /** @var \Espo\Repositories\Email $repository */
+            $repository = $this->entityManager->getRepository('Email');
+            /** @var \Espo\Entities\Email $entity */
+            match ($field) {
+                'from' => $repository->loadFromField($entity),
+                'to' => $repository->loadToField($entity),
+                'cc' => $repository->loadCcField($entity),
+                'bcc' => $repository->loadBccField($entity),
+            };
+        }
+
+        $normal = static function (mixed $list): array {
+            $out = array_filter(array_map(fn ($a) => strtolower(trim($a)), explode(';', (string) $list)));
+            sort($out);
+
+            return array_values(array_unique($out));
+        };
+
+        if (!$isNew && $normal($entity->get($field)) === $normal($value)) {
+            return;
+        }
+
+        if ($isNew && $normal($value) === []) {
+            return;
+        }
+
+        $entity->set($field, $value);
+        $changed[] = $field;
+    }
+
+    private function isJsonObject(string $entityType, string $attribute): bool
+    {
+        $defs = $this->entityManager->getDefs()->getEntity($entityType);
+
+        return $defs->hasAttribute($attribute) && $defs->getAttribute($attribute)->getType() === 'jsonObject';
     }
 
     private function vtigerDataDiffers(mixed $stored, mixed $desired): bool

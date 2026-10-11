@@ -8,6 +8,7 @@ use Espo\Modules\Itvolga\Tools\Finance\Decimal;
 use Espo\Modules\Itvolga\Tools\Finance\Editing\Limits;
 use Espo\Modules\Itvolga\Tools\Finance\Exceptions\InvalidValue;
 use Espo\Modules\Itvolga\Tools\Finance\Source\Verification;
+use Espo\ORM\Entity;
 
 /**
  * Source marks of an imported document (D-46): the formula class, how the stored totals compare with the core
@@ -50,6 +51,36 @@ final class SourceMarks
         }
 
         return $marks;
+    }
+
+    /**
+     * Whether the stored marks of a document differ from `$marks` (of()): a verification that finds the same marks
+     * does not save the document again (stage 06.3: a re-run of the import writes nothing). Recomputed totals compare
+     * as decimals, the stored column carries trailing zeros.
+     *
+     * @param array<string, ?string> $marks
+     */
+    public static function differs(Entity $document, array $marks): bool
+    {
+        foreach ($marks as $attribute => $value) {
+            $stored = $document->get($attribute);
+            $stored = $stored === '' ? null : $stored;
+
+            if (!in_array($attribute, self::EXPECTED, true)) {
+                if ((string) $stored !== (string) $value) {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if (($stored === null) !== ($value === null) ||
+                ($value !== null && !Decimal::of((string) $stored)->equals(Decimal::of($value)))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

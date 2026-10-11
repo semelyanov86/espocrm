@@ -5,6 +5,13 @@
             "maxLength": 255,
             "readOnly": true
         },
+        "vtigerId": {
+            "type": "int",
+            "readOnly": true,
+            "disableFormatting": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true
+        },
         "payment": {
             "type": "link",
             "required": true,
@@ -131,6 +138,12 @@
         "order": "asc"
     },
     "indexes": {
+        "vtigerId": {
+            "type": "unique",
+            "columns": [
+                "vtigerId"
+            ]
+        },
         "paymentOrder": {
             "columns": [
                 "paymentId",

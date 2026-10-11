@@ -12,19 +12,25 @@ use Espo\ORM\Util;
 use stdClass;
 
 /**
- * Writer of the Vtiger import (stage 06.2, docs/migration/import.md). One operation = the desired state of one record
- * found by `vtigerId` (soft-deleted rows included, D-41). Writes only what differs; an unchanged record is not touched
- * (no modifiedAt, no version). After a save, values a hook rewrote (modifiedAt of an insert, a default probability,
- * the contact a task derives from its parent, …) are put back by one direct UPDATE of the record's own row.
+ * Writer of the Vtiger import (stages 06.2–06.3, docs/migration/import.md). One operation = the desired state of one
+ * record found by its source key — `vtigerId` (soft-deleted rows included, D-41), or the natural key of the legal
+ * entity and of the knowledge base category (KeyResolver::NATURAL_KEYS). Writes only what differs; an unchanged record
+ * is not touched (no modifiedAt, no version). After a save, values a hook rewrote (modifiedAt of an insert, a default
+ * probability, the contact a task derives from its parent, …) are put back by one direct UPDATE of the record's own
+ * row — on finance records only the provenance (FinanceRules: their hooks own the derived values).
  *
  * Saves are silent (`IMPORT` + `SILENT`, no link-multiple hooks); comments (`Note`) skip hooks entirely, since their
  * notification, websocket and stream-time hooks ignore `SILENT`. Reminders the core creates for imported historical
- * events from attendees' preferences are removed.
+ * events from attendees' preferences are removed. Finance records deleted in EspoCRM are not restored and documents
+ * recalculated in EspoCRM keep their calculation data (FinanceRules); files are written by AttachmentWriter.
  */
 class RecordWriter
 {
     public const ENTITY_TYPES = ['User', 'Account', 'Contact', 'ContactAccess', 'Lead', 'Opportunity', 'Project',
-        'ProjectTask', 'Case', 'Task', 'Call', 'Meeting', 'Note'];
+        'ProjectTask', 'Case', 'Task', 'Call', 'Meeting', 'Note', 'Vendor', 'Product', 'LegalEntity', 'Quote',
+        'QuoteItem', 'SalesOrder', 'SalesOrderItem', 'Act', 'ActItem', 'Invoice', 'InvoiceItem', 'Payment',
+        'PaymentAllocation', 'VtigerArchive', 'KnowledgeBaseCategory', 'KnowledgeBaseArticle', 'DocumentFolder',
+        'Document', 'Email', 'Attachment'];
     private const EVENT_TYPES = ['Task', 'Call', 'Meeting'];
     /**
      * Link-multiple fields the core's primary-link hooks unlink when the primary is cleared (Opportunity\Contacts,
@@ -32,9 +38,12 @@ class RecordWriter
      */
     private const KEPT_LINKS = ['Opportunity' => ['contacts', 'contactId'], 'Case' => ['contacts', 'contactId'],
         'Contact' => ['accounts', 'accountId']];
-    /** Entity types whose enum defaults are not applied to imported records (D-38: empty stays empty). */
+    /**
+     * Entity types whose enum defaults are not applied to imported records (D-38: empty stays empty). Finance records
+     * keep them: their operations own every source enum, the other ones are derived by the finance hooks.
+     */
     private const NO_DEFAULTS = ['Account', 'Contact', 'Lead', 'Opportunity', 'Project', 'ProjectTask', 'Case', 'Task',
-        'Call', 'Meeting'];
+        'Call', 'Meeting', 'Vendor', 'Product', 'VtigerArchive', 'KnowledgeBaseArticle', 'Document', 'Email'];
 
     public function __construct(
         private EntityManager $entityManager,
@@ -42,24 +51,38 @@ class RecordWriter
         private DesiredState $desired,
         private KeyResolver $keys,
         private PasswordHash $passwordHash,
+        private FinanceRules $finance,
+        private FinanceCheck $financeCheck,
+        private AttachmentWriter $attachments,
     ) {}
 
     /**
      * @return array<string, mixed>
      */
-    public function handle(stdClass $op, bool $check, ?string $adoptUserName): array
+    public function handle(stdClass $op, bool $check, ?string $adoptUserName, ?Blob $blob = null): array
     {
         $type = $op->entityType ?? null;
 
-        if (!in_array($type, self::ENTITY_TYPES, true) || !is_int($op->vtigerId ?? null) || $op->vtigerId < 1) {
+        if (!in_array($type, self::ENTITY_TYPES, true) || !$this->validKey($op)) {
             throw new ImportError('bad_operation');
+        }
+
+        if ($type === 'Attachment') {
+            return $check ? $this->attachments->check($op) :
+                $this->entityManager->getTransactionManager()->run(fn () => $this->attachments->write($op, $blob));
         }
 
         if ($check) {
             return $this->check($op);
         }
 
-        return $this->entityManager->getTransactionManager()->run(fn () => $this->write($op, $adoptUserName));
+        $result = $this->entityManager->getTransactionManager()->run(fn () => $this->write($op, $adoptUserName));
+
+        if (isset($result['id']) && in_array($result['status'], ['created', 'restored', 'adopted', 'updated'], true)) {
+            $this->keys->remember($type, $this->key($op), $result['id']); // only once the transaction committed
+        }
+
+        return $result;
     }
 
     /**
@@ -67,7 +90,7 @@ class RecordWriter
      */
     public function inventory(string $entityType): array
     {
-        if (!in_array($entityType, self::ENTITY_TYPES, true)) {
+        if (!in_array($entityType, self::ENTITY_TYPES, true) || isset(KeyResolver::NATURAL_KEYS[$entityType])) {
             throw new ImportError('bad_operation');
         }
 
@@ -96,7 +119,11 @@ class RecordWriter
      */
     private function check(stdClass $op): array
     {
-        $entity = $this->keys->findWithDeleted($op->entityType, $op->vtigerId);
+        $entity = $this->keys->findWithDeleted($op->entityType, $this->key($op));
+
+        if ($guarded = $this->finance->guard($op, $entity, true)) {
+            return $guarded; // a finance record deleted in EspoCRM, an item of a recalculated document: findings
+        }
 
         if (!$entity instanceof CoreEntity) {
             return ['status' => ($op->onlyIfExists ?? false) ? 'absent' : 'missing'];
@@ -106,15 +133,32 @@ class RecordWriter
             return ['status' => 'deleted', 'id' => $entity->getId()];
         }
 
+        $protected = $this->finance->protect($op, $entity);
         $diff = $this->desired->apply($entity, $op, false);
-        $differs = $diff['changed'];
+        $related = $this->desired->relate($entity, $op, false);
+        $differs = array_merge($diff['changed'], $related['changed'], $this->unreadEmail($entity) ? ['users.isRead'] : []);
 
         if ($op->entityType === 'User') {
             $differs = array_merge($differs, $this->desired->preferencesDiff($entity->getId(), $op->preferences ?? null));
         }
 
-        return ['status' => $differs ? 'differs' : 'equal', 'id' => $entity->getId(), 'differs' => $differs,
-            'unresolved' => $diff['unresolved']];
+        $result = ['status' => $differs ? 'differs' : 'equal', 'id' => $entity->getId(), 'differs' => $differs,
+            'unresolved' => array_merge($diff['unresolved'], $related['unresolved']),
+            'deletedTargets' => array_merge($diff['deletedTargets'], $related['deletedTargets'])];
+
+        if ($protected) {
+            $result['protected'] = $protected;
+        }
+
+        if ($verification = $this->financeCheck->document($entity)) {
+            $result['verification'] = $verification;
+        }
+
+        if ($legalEntity = $this->financeCheck->legalEntity($entity)) {
+            $result['legalEntity'] = $legalEntity;
+        }
+
+        return $result;
     }
 
     /**
@@ -123,7 +167,7 @@ class RecordWriter
     private function write(stdClass $op, ?string $adoptUserName): array
     {
         $type = $op->entityType;
-        $repository = $this->entityManager->getRDBRepository($type);
+        $this->finance->lock($op); // first: the reads below see a recalculation committed before the lock
 
         foreach ($op->keyAlsoIn ?? [] as $other) {
             if (in_array($other, self::EVENT_TYPES, true) && $this->keys->findWithDeleted($other, $op->vtigerId)) {
@@ -131,12 +175,21 @@ class RecordWriter
             }
         }
 
-        $entity = $this->keys->findWithDeleted($type, $op->vtigerId);
+        $entity = $this->keys->findWithDeleted($type, $this->key($op));
+
+        if ($guarded = $this->finance->guard($op, $entity)) {
+            return $guarded; // owner's answers 2026-10-11: not restored, not recalculated back
+        }
+
         $status = 'updated';
 
         if (!$entity) {
             if ($op->onlyIfExists ?? false) {
                 return ['status' => 'skipped'];
+            }
+
+            if ($type === 'LegalEntity') {
+                throw new ImportError('legal_entity_missing'); // the singleton comes from itvolga-setup-finance
             }
 
             [$entity, $status] = $type === 'User' ? $this->newUser($op, $adoptUserName) : [$this->newRecord($type), 'created'];
@@ -149,42 +202,103 @@ class RecordWriter
         $isNew = $entity->isNew();
 
         if ($isNew) {
-            $entity->set('vtigerId', $op->vtigerId);
+            $entity->set($this->keys->keyAttribute($type), $this->key($op));
         }
 
+        $protected = $isNew ? [] : $this->finance->protect($op, $entity);
         $diff = $this->desired->apply($entity, $op, $isNew);
+
+        if ($isNew && $diff['unresolved'] && $this->finance->isFinance($type)) {
+            throw new ImportError('unresolved_links', $diff['unresolved']); // never a finance row without its owner
+        }
+
+        $related = $isNew ? null : $this->desired->relate($entity, $op, false);
         $preferences = $type === 'User' && !$isNew ?
             $this->desired->preferencesDiff($entity->getId(), $op->preferences ?? null) : [];
+        $save = $isNew || $diff['changed'] || $preferences || $status !== 'updated';
+        $unread = !$isNew && $this->unreadEmail($entity);
 
-        if (!$isNew && !$diff['changed'] && !$preferences && $status === 'updated') {
-            return ['status' => 'unchanged', 'id' => $entity->getId(), 'unresolved' => $diff['unresolved']];
+        if (!$save && !$related['changed'] && !$unread) {
+            return ['status' => 'unchanged', 'id' => $entity->getId(), 'unresolved' => $diff['unresolved'],
+                'deletedTargets' => array_merge($diff['deletedTargets'], $related['deletedTargets'])] +
+                ($protected ? ['protected' => $protected] : []);
         }
 
-        $reminders = in_array($type, self::EVENT_TYPES, true) && !$isNew ? $this->reminders($type, $entity->getId()) : [];
-        $kept = $this->linkedIds($entity, $isNew);
-        $untouched = $this->untouchedLinks($entity, $op, $isNew);
+        $forced = [];
 
-        $this->entityManager->saveEntity($entity, $this->saveOptions($type));
-        $this->keys->remember($type, $op->vtigerId, $entity->getId());
-        $forced = $this->force($entity, $op, $untouched);
-        $this->relinkRemoved($entity, $kept);
+        if ($save) {
+            $reminders = in_array($type, self::EVENT_TYPES, true) && !$isNew ? $this->reminders($type, $entity->getId()) : [];
+            $kept = $this->linkedIds($entity, $isNew);
+            $untouched = $this->untouchedLinks($entity, $op, $isNew);
 
-        if (in_array($type, self::EVENT_TYPES, true)) {
-            $this->keepReminders($type, $entity->getId(), $reminders);
-        }
+            $this->entityManager->saveEntity($entity, $this->saveOptions($type));
+            $forced = $this->force($entity, $op, $untouched);
+            $this->relinkRemoved($entity, $kept);
 
-        if ($type === 'User' && isset($op->preferences)) {
-            if ($isNew) {
-                $preferences = $this->desired->preferencesDiff($entity->getId(), $op->preferences);
+            if (in_array($type, self::EVENT_TYPES, true)) {
+                $this->keepReminders($type, $entity->getId(), $reminders);
             }
 
-            if ($preferences) {
-                $this->desired->savePreferences($entity->getId(), $op->preferences);
+            if ($type === 'User' && isset($op->preferences)) {
+                if ($isNew) {
+                    $preferences = $this->desired->preferencesDiff($entity->getId(), $op->preferences);
+                }
+
+                if ($preferences) {
+                    $this->desired->savePreferences($entity->getId(), $op->preferences);
+                }
             }
         }
 
-        return ['status' => $status, 'id' => $entity->getId(), 'changed' => array_merge($diff['changed'], $preferences),
-            'forced' => $forced, 'unresolved' => $diff['unresolved']];
+        $related = $this->desired->relate($entity, $op, true);
+
+        if ($type === 'Email') {
+            $this->markEmailRead($entity->getId()); // owner's answer 2026-10-11: archived mail is not «new»
+        }
+
+        return ['status' => $status, 'id' => $entity->getId(),
+            'changed' => array_merge($diff['changed'], $preferences, $related['changed'], $unread ? ['users.isRead'] : []),
+            'forced' => $forced, 'unresolved' => array_merge($diff['unresolved'], $related['unresolved']),
+            'deletedTargets' => array_merge($diff['deletedTargets'], $related['deletedTargets'])] +
+            ($protected ? ['protected' => $protected] : []);
+    }
+
+    private function validKey(stdClass $op): bool
+    {
+        if (isset(KeyResolver::NATURAL_KEYS[$op->entityType])) {
+            return is_string($op->naturalKey ?? null) && $op->naturalKey !== '';
+        }
+
+        if ($op->entityType === 'Attachment' && !property_exists($op, 'vtigerId')) {
+            return true; // a file without a Vtiger attachment id: located through its owner field (the logo)
+        }
+
+        return is_int($op->vtigerId ?? null) && $op->vtigerId >= 1;
+    }
+
+    private function key(stdClass $op): int|string
+    {
+        return isset(KeyResolver::NATURAL_KEYS[$op->entityType]) ? $op->naturalKey : $op->vtigerId;
+    }
+
+    /**
+     * Users the core links to an imported email by its addresses see it as read (owner's answer 2026-10-11).
+     */
+    private function markEmailRead(string $emailId): void
+    {
+        $this->entityManager->getQueryExecutor()->execute($this->entityManager->getQueryBuilder()->update()
+            ->in('EmailUser')->set(['isRead' => true])
+            ->where(['emailId' => $emailId, 'isRead' => false, 'deleted' => false])->build());
+    }
+
+    private function unreadEmail(CoreEntity $entity): bool
+    {
+        if ($entity->getEntityType() !== 'Email') {
+            return false;
+        }
+
+        return (bool) $this->entityManager->getRDBRepository('EmailUser')
+            ->where(['emailId' => $entity->getId(), 'isRead' => false])->count();
     }
 
     /**
@@ -331,7 +445,7 @@ class RecordWriter
             }
         }
 
-        $want = $untouched + $want; // links the operation leaves as they are: hooks must not change them either
+        $want = $untouched + $this->finance->forceable($type, $want); // keep: hooks must not change them either
         $scratch = $this->entityManager->getRDBRepository($type)->getNew();
         $fix = [];
 

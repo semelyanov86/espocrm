@@ -394,7 +394,9 @@ class OfferFormsTest(PdfCase):
                            "Счет действителен на протяжении 14 календарных дней",
                            "Руководитель", "( Тестов Т. Т. )")
         images = poppler("pdfimages", body, "-list").split("\n")[2:]
-        self.assertEqual(1, len([line for line in images if line.strip()]), "the logo of the legal entity")
+        # a logo with transparency (the imported one, stage 06.3) adds its soft mask as a row of type smask
+        self.assertEqual(1, len([line for line in images if line.split()[2:3] == ["image"]]),
+                         "the logo of the legal entity")
 
     def test_sales_order(self):
         order = document("SalesOrder", dateDue="2026-10-31", contactId=S["contact"])

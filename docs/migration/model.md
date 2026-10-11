@@ -57,7 +57,7 @@
 | Call | `cPhoneNumber`, `cCallStatusRaw`, `cLegacyRecordingUrl` (не воспроизводится, D-10), `cBillDuration`, `cConnectorCallId`, `cIncomingLine` — только чтение | родитель — и счёт (D-61) | — |
 | Meeting | — | `dateStart/dateEnd` необязательны (D-43); родитель — и счёт (D-61) | — |
 | Case | `cSeverity`, `cSolution`, `cTags` | опции `status`/`priority` (подписи Vtiger), `type` | `cDocuments` |
-| KnowledgeBaseArticle | `cTags` | `name` до 500 символов, опции `status` | `cDocuments` |
+| KnowledgeBaseArticle | `cTags` | `name` до 500 символов, опции `status`; лента включена (`scopes.stream`, 06.3, D-152: комментарии Vtiger к FAQ) | `cDocuments` |
 | Document | `cExternalUrl` | `file` необязателен и без ограничения типов, `publishDate` необязательна | `cCases`, `cKnowledgeBaseArticles`, `cProjects`, `cProjectTasks`, `cVtigerArchives`, `cPayments` |
 | User | `cPhoneExtension` | — | — |
 | UserData | `cSecurityKeys` (JSON ключей безопасности, только чтение, D-129) | — | — |
@@ -78,7 +78,7 @@
 | QuoteItem, SalesOrderItem, InvoiceItem, ActItem | позиции (пишутся только через документ) | поля «Item» §11 (`order`, `product`, `quantity`, `unitPrice`, скидки, `taxRate`, `amount`, `purchaseCost`, `margin`) + `name` (название товара на момент сохранения) | `quote` / `salesOrder` / `invoice` / `act`, `product` |
 | LegalEntity | одно юрлицо (D-55) | реквизиты §11, `vtigerCompanyKey` = `Default` | — |
 | Payment | рабочий платёж (D-62…D-68) | поля «Payment» §11 (`number` без префикса, `datePaid`, `direction`, `method`, `amount`, `status`, `payer` Account/Contact/Vendor, `legalEntity`, реквизиты контрагента, `vtigerId`, `vtigerData`) + `allocationList` (нехранимая таблица распределений, audited), `allocatedAmount`/`unallocatedAmount` (при чтении); лента | `paymentAllocations` (каскад), `payer`, `documents` |
-| PaymentAllocation | строка распределения (пишется только через платёж и импорт) | `payment`, `invoice` или `salesOrder`, `amount`, `order`, `source`, `sourceConflict`, `vtigerData`, `paymentDatePaid`/`paymentStatus` (foreign) | `payment`, `invoice`, `salesOrder` |
+| PaymentAllocation | строка распределения (пишется только через платёж и импорт) | `payment`, `invoice` или `salesOrder`, `amount`, `order`, `source`, `sourceConflict`, `vtigerData`, `vtigerId` (06.3: `payid` платежа источника, уникальный, D-149), `paymentDatePaid`/`paymentStatus` (foreign) | `payment`, `invoice`, `salesOrder` |
 
 У `Invoice` и `SalesOrder` (этап 04.4): `paidAmount`, `balanceAmount`, `settlementState` — хранимая оплата (только чтение, audited, D-64), связь `paymentAllocations` (каскад, только чтение), панель «Оплаты», действие «Добавить платёж».
 

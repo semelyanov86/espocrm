@@ -6,6 +6,7 @@ use Espo\Core\Console\Command;
 use Espo\Core\Console\Command\Params;
 use Espo\Core\Console\IO;
 use Espo\Core\Utils\Log;
+use Espo\Modules\Itvolga\Tools\Import\BlobReceiver;
 use Espo\Modules\Itvolga\Tools\Import\ImportError;
 use Espo\Modules\Itvolga\Tools\Import\RecordWriter;
 use Monolog\Handler\NullHandler;
@@ -18,21 +19,25 @@ use Throwable;
  * scripts/import/importer.py. Source values come on stdin (never in argv or files: the stand user cannot read the
  * private directory), one JSON line each:
  *
- *   {"protocol": 1, "mode": "apply" | "check", "nonce": "<hex>", "adoptUserName": "admin" | null}   header
+ *   {"protocol": 2, "mode": "apply" | "check", "nonce": "<hex>", "adoptUserName": "admin" | null}   header
  *   {"key": "Contact:123", "entityType": "Contact", "vtigerId": 123, "attributes": {…}, "links": {…}, …}
+ *   {"key": "Attachment:9", "entityType": "Attachment", "vtigerId": 9, …, "file": {"size": n, "sha256": "…",
+ *    "chunks": k}}  followed (apply only) by k lines {"seq": i, "data": "<base64>"} — the bytes of the file (06.3)
  *   {"op": "inventory", "entityType": "Contact"}
  *
- * Every line is answered on stdout with `#itv#<nonce>#<json>` (status, ids, attribute names, closed error codes —
- * never values), then `{"done": n}`. Exception messages are never printed (they may quote values); the application
- * log is muted while the command runs (a failed SQL statement would be logged with its values).
+ * Every operation line is answered on stdout with `#itv#<nonce>#<json>` (status, ids, attribute names, closed error
+ * codes — never values), then `{"done": n}`. Exception messages are never printed (they may quote values); the
+ * application log is muted while the command runs (a failed SQL statement would be logged with its values). Protocol 1
+ * (stage 06.2) is the same without files.
  */
 class Import implements Command
 {
-    private const PROTOCOL = 1;
+    private const PROTOCOLS = [1, 2];
     private const MAX_LINE = 8 * 1024 * 1024;
 
     public function __construct(
         private RecordWriter $writer,
+        private BlobReceiver $blobs,
         private Log $log,
     ) {}
 
@@ -42,7 +47,8 @@ class Import implements Command
         $stdin = fopen('php://stdin', 'rb');
         $header = $stdin ? $this->decode(fgets($stdin, self::MAX_LINE)) : null;
 
-        if (!$header || ($header->protocol ?? null) !== self::PROTOCOL || !in_array($header->mode ?? null, ['apply', 'check'], true)
+        if (!$header || !in_array($header->protocol ?? null, self::PROTOCOLS, true) ||
+            !in_array($header->mode ?? null, ['apply', 'check'], true)
             || !is_string($header->nonce ?? null) || !preg_match('/^[0-9a-f]{16,64}$/', $header->nonce)) {
             $io->writeErrorLine('itvolga-import: bad header');
             $io->setExitStatus(1);
@@ -68,15 +74,21 @@ class Import implements Command
                     throw new ImportError('bad_frame');
                 }
 
+                // the bytes of a file follow its operation: read (and checked) before the operation runs
+                $blob = $header->mode === 'apply' && isset($op->file->chunks) && $header->protocol === 2 ?
+                    $this->blobs->receive($stdin, $op->file, self::MAX_LINE) : null;
+
                 $result += ($op->op ?? null) === 'inventory' ?
                     $this->writer->inventory((string) ($op->entityType ?? '')) :
-                    $this->writer->handle($op, $header->mode === 'check', $adopt);
+                    $this->writer->handle($op, $header->mode === 'check', $adopt, $blob);
             } catch (ImportError $e) {
                 $result += ['status' => 'error', 'error' => $e->reason, 'attributes' => $e->attributes];
             } catch (PDOException $e) {
                 $result += ['status' => 'error', 'error' => 'db:' . $e->getCode()];
             } catch (Throwable $e) {
                 $result += ['status' => 'error', 'error' => 'exception:' . (new \ReflectionClass($e))->getShortName()];
+            } finally {
+                $this->blobs->cleanup(); // a part file never outlives its operation
             }
 
             echo $prefix, json_encode($result, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), "\n";

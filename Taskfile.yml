@@ -223,7 +223,7 @@ tasks:
 
   # --- import of the base entities (stage 06.2, docs/migration/import.md) ------------------------------
   import:run:
-    desc: Import users, accounts, contacts, leads, opportunities, activities, cases, comments, projects from a verified snapshot (-- --snapshot ID [--only M1,M2] [--check-only]); stand backup first
+    desc: Import the Vtiger records, finances, documents and files from a verified snapshot (-- --snapshot ID [--only M1,M2] [--check-only]); stand backup first
     cmds:
       - scripts/stand/backup.sh --label pre-import
       - python3 scripts/import/importer.py run {{.CLI_ARGS}}
@@ -237,6 +237,11 @@ tasks:
     desc: Import acceptance tests (synthetic Vtiger source in a temporary stand database, import into the stand, cleanup by id) and pure checks
     cmds:
       - python3 -m unittest discover -s tests/stage06_2 -v
+
+  test:stage06.3:
+    desc: Acceptance tests of the import of finances, documents and files (synthetic source and file part, import into the stand, D-11 parity with the core, cleanup by id)
+    cmds:
+      - python3 -m unittest discover -s tests/stage06_3 -p 'test_*.py' -v
 
   check:secrets:
     desc: Scan files that would be committed for secrets and personal data

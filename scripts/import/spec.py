@@ -13,6 +13,7 @@ except the domains `teams` (Vtiger groups) and `roles` (the four Vtiger roles), 
 """
 import csv
 import datetime as dt
+import json
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
@@ -20,34 +21,69 @@ import transforms as T
 
 # --- scope ---------------------------------------------------------------------------------------
 
-SCOPE = ("Users", "Accounts", "Contacts", "Leads", "Potentials", "Calendar", "Events", "HelpDesk", "ModComments",
-         "Project", "ProjectTask")
+BASE_SCOPE = ("Users", "Accounts", "Contacts", "Leads", "Potentials", "Calendar", "Events", "HelpDesk", "ModComments",
+              "Project", "ProjectTask")
+# Stage 06.3 (D-139, owner's answers 2026-10-11): finance, catalogues, documents, knowledge base, e-mail, archives and
+# every file; pseudo-modules: the legal entity (vtiger_organizationdetails) and the files of the records in scope.
+FINANCE = ("Quotes", "SalesOrder", "Act", "Invoice", "SPPayments")
+ARCHIVES = ("Consignment", "ServiceContracts", "Assets", "Jivosite", "JVmes")
+CONTENT_SCOPE = ("Vendors", "Products", "Services", *FINANCE, *ARCHIVES, "Faq", "Emails", "Documents",
+                 "OrganizationDetails", "Attachments")
+SCOPE = BASE_SCOPE + CONTENT_SCOPE
 # Target entity of a live source record of each setype (activities: by activitytype).
 ENTITY_BY_SETYPE = {"Accounts": "Account", "Contacts": "Contact", "Leads": "Lead", "Potentials": "Opportunity",
-                    "HelpDesk": "Case", "Project": "Project", "ProjectTask": "ProjectTask", "ModComments": "Note"}
+                    "HelpDesk": "Case", "Project": "Project", "ProjectTask": "ProjectTask", "ModComments": "Note",
+                    "Vendors": "Vendor", "Products": "Product", "Services": "Product", "Quotes": "Quote",
+                    "SalesOrder": "SalesOrder", "Invoice": "Invoice", "Act": "Act", "SPPayments": "Payment",
+                    "Documents": "Document", "Faq": "KnowledgeBaseArticle", "Emails": "Email",
+                    **{m: "VtigerArchive" for m in ARCHIVES}}
 ACTIVITY_ENTITY = {"Task": "Task", "Call": "Call", "Meeting": "Meeting", "Письмо": "Task"}
 # Modules imported by later stages (owner's answer 2026-10-11): references to them wait for that stage.
-PENDING = {**{m: "06.3" for m in ("Faq", "Documents", "Emails", "Invoice", "Quotes", "SalesOrder", "Act", "SPPayments",
-                                  "Products", "Services", "Vendors", "Consignment", "ServiceContracts", "Assets",
-                                  "Jivosite", "JVmes", "PurchaseOrder")},
-           "PBXManager": "07.2", "SPCallPopup": "07.2"}
+PENDING = {"PBXManager": "07.2", "SPCallPopup": "07.2"}
 # Target entity types each source module fills (inventory of the target: records gone from the source).
 MODULE_ENTITIES = {"Users": ("User",), "Accounts": ("Account",), "Contacts": ("Contact", "ContactAccess"),
                    "Leads": ("Lead",), "Potentials": ("Opportunity",), "Project": ("Project",),
                    "ProjectTask": ("ProjectTask",), "HelpDesk": ("Case",), "Calendar": ("Task",),
-                   "Events": ("Call", "Meeting", "Task"), "ModComments": ("Note",)}
+                   "Events": ("Call", "Meeting", "Task"), "ModComments": ("Note",), "Vendors": ("Vendor",),
+                   "Products": ("Product",), "Services": ("Product",), "Quotes": ("Quote", "QuoteItem"),
+                   "SalesOrder": ("SalesOrder", "SalesOrderItem"), "Invoice": ("Invoice", "InvoiceItem"),
+                   "Act": ("Act", "ActItem"), "SPPayments": ("Payment", "PaymentAllocation"),
+                   **{m: ("VtigerArchive",) for m in ARCHIVES}, "Faq": ("KnowledgeBaseArticle",),
+                   "Emails": ("Email",), "Documents": ("Document", "DocumentFolder"), "Attachments": ("Attachment",)}
 # Import order: a reference always points to an entity type imported earlier in the run.
-ORDER = ("User", "Account", "Contact", "ContactAccess", "Lead", "Opportunity", "Project", "ProjectTask", "Case",
-         "Task", "Call", "Meeting", "Note")
+ORDER = ("User", "Vendor", "Product", "LegalEntity", "Account", "Contact", "ContactAccess", "Lead", "Opportunity",
+         "Project", "ProjectTask", "Case", "Quote", "QuoteItem", "SalesOrder", "SalesOrderItem", "Act", "ActItem",
+         "Invoice", "InvoiceItem", "Payment", "PaymentAllocation", "VtigerArchive", "KnowledgeBaseCategory",
+         "KnowledgeBaseArticle", "Task", "Call", "Meeting", "Email", "DocumentFolder", "Document", "Note", "Attachment")
+# Entity types identified by a natural key instead of vtigerId (KeyResolver::NATURAL_KEYS).
+NATURAL_KEY_TYPES = ("LegalEntity", "KnowledgeBaseCategory")
 ROLES = {"H2": "Директор", "H3": "Заместитель директора", "H4": "Менеджер по продажам", "H10": "Менеджер клиентов"}
 GROUP_TEAMS = ("Отдел Поддержки", "Отдел Маркетинга", "Отдел Продаж")  # app.itvolgaAcl.groupTeams
 EFFECTIVE_ADMIN = 1          # D-39: only user#1 is an administrator in Vtiger
 SYNTHETIC_KEY_MIN = 900_000_000  # vtigerId block of the stand tests; the real import refuses such source keys
 TRANSFER_FATES = ("перенос", "архив", "переносится как связь")
 # Filled source columns the generated map has no row for, consumed by a rule anyway (reason in import.md):
-# ModComments does not declare `modifiedby` in vtiger_field, so the audit has no module row for it.
-MAP_GAPS = {("ModComments", "vtiger_crmentity.modifiedby"): "Note.modifiedBy"}
-NO_VTIGER_DATA = {"ContactAccess"}  # model.md: the access record keeps no source archive (D-42)
+# ModComments does not declare `modifiedby` in vtiger_field, so the audit has no module row for it; the name of an
+# attachment has a map row only under Emails (uitype 61), the file of every attachment needs it (D-149).
+MAP_GAPS = {("ModComments", "vtiger_crmentity.modifiedby"): "Note.modifiedBy",
+            ("Attachments", "vtiger_attachments.name"): "Attachment.name",
+            # Emails and Faq do not declare the author / the owner in vtiger_field either (stage 06.3, D-149)
+            ("Emails", "vtiger_crmentity.smcreatorid"): "Email.createdBy",
+            ("Faq", "vtiger_crmentity.smownerid"): "KnowledgeBaseArticle.assignedUser"}
+
+# Filled source columns without a map row and without a working field: an explicit fate with its reason (stage 06.3,
+# D-149). Archived e-mails share vtiger_activity with the calendar; the event-only service columns hold the defaults.
+EXTRA_FATES = {("Emails", "vtiger_activity." + c): f"исключено: служебное поле события Vtiger, у писем — значение по "
+               f"умолчанию ({c})" for c in ("notime", "sendnotification", "visibility")}
+MAP_GAPS.update({(m, "vtiger_crmentity." + c): f"VtigerArchive.data.{k}" for m in ("Jivosite", "JVmes")
+                 for c, k in (("smcreatorid", "created_user_id"), ("modifiedby", "modifiedby"))})
+
+
+def is_key_row(r):
+    """A map row of a record key: the key of the record or a join (→ vtigerId), the entity type."""
+    target = r["target_field"]
+    return target in ("(ключ записи)", "vtigerId", "(тип сущности)") or target.endswith(".vtigerId")
+NO_VTIGER_DATA = {"ContactAccess", "VtigerArchive", "LegalEntity", "KnowledgeBaseCategory"}  # no vtigerData field
 ACCESS_COLUMNS = ("cf_1322", "cf_1324", "cf_1326", "cf_1328")  # D-06/D-42: values never leave the pipe
 # Source columns never read into the import process (secrets of users and staff data excluded by the owner).
 FORBIDDEN = {"vtiger_users": {"user_password", "confirm_password", "user_hash", "accesskey", "crypt_type",
@@ -75,8 +111,10 @@ LINK_COLUMNS = {
                         "tag": "excluded: нормализованная форма raw_tag (значение тега — raw_tag)",
                         "visibility": "excluded: видимость тега Vtiger (теги EspoCRM — значения поля)",
                         "owner": "excluded: автор тега Vtiger"},
-    "vtiger_senotesrel": {"crmid": "pending:06.3", "notesid": "pending:06.3"},
-    "vtiger_seattachmentsrel": {"crmid": "pending:06.3", "attachmentsid": "pending:06.3"},
+    "vtiger_senotesrel": {"crmid": "pair", "notesid": "pair"},
+    "vtiger_seattachmentsrel": {"crmid": "pair", "attachmentsid": "pair"},
+    "vtiger_salesmanattachmentsrel": {"smid": "pair", "attachmentsid": "pair"},
+    "vtiger_email_track": {"crmid": "pair", "mailid": "pair", "access_count": "pair", "click_count": "pair"},
 }
 # Phone columns of each module (number type), in record order: they also fix the type of a shared number (first owner
 # in import order over the whole source, whatever modules a run selects).
@@ -90,6 +128,7 @@ PHONE_COLUMNS = {
                  ("vtiger_contactdetails.fax", "Fax", "fax")),
     "Leads": (("vtiger_leadaddress.phone", "Office", "phone"), ("vtiger_leadaddress.mobile", "Mobile", "mobile"),
               ("vtiger_leadaddress.fax", "Fax", "fax")),
+    "Vendors": (("vtiger_vendor.phone", "Office", "phone"),),
 }
 
 
@@ -134,11 +173,47 @@ SOURCES = {
     "Events": Source("Events", ("vtiger_activity", "activityid"), setype="Calendar",
                      where=" AND (`vtiger_activity`.activitytype IS NULL "
                            "OR `vtiger_activity`.activitytype NOT IN ('Task', 'Emails'))"),  # NULL: an error record
+    # stage 06.3
+    "Vendors": Source("Vendors", ("vtiger_vendor", "vendorid"), (("vtiger_vendorcf", "vendorid"),)),
+    "Products": Source("Products", ("vtiger_products", "productid"), (("vtiger_productcf", "productid"),)),
+    "Services": Source("Services", ("vtiger_service", "serviceid"), (("vtiger_servicecf", "serviceid"),)),
+    "Quotes": Source("Quotes", ("vtiger_quotes", "quoteid"),
+                     (("vtiger_quotescf", "quoteid"), ("vtiger_quotesbillads", "quotebilladdressid"),
+                      ("vtiger_quotesshipads", "quoteshipaddressid"))),
+    "SalesOrder": Source("SalesOrder", ("vtiger_salesorder", "salesorderid"),
+                         (("vtiger_salesordercf", "salesorderid"), ("vtiger_sobillads", "sobilladdressid"),
+                          ("vtiger_soshipads", "soshipaddressid"), ("vtiger_invoice_recurring_info", "salesorderid"))),
+    "Invoice": Source("Invoice", ("vtiger_invoice", "invoiceid"),
+                      (("vtiger_invoicecf", "invoiceid"), ("vtiger_invoicebillads", "invoicebilladdressid"),
+                       ("vtiger_invoiceshipads", "invoiceshipaddressid"))),
+    "Act": Source("Act", ("vtiger_sp_act", "actid"),
+                  (("vtiger_sp_actcf", "actid"), ("vtiger_sp_actbillads", "actbilladdressid"),
+                   ("vtiger_sp_actshipads", "actshipaddressid"))),
+    "SPPayments": Source("SPPayments", ("sp_payments", "payid"), (("sp_paymentscf", "payid"),)),
+    "Documents": Source("Documents", ("vtiger_notes", "notesid"), (("vtiger_notescf", "notesid"),)),
+    "Faq": Source("Faq", ("vtiger_faq", "id"), (("vtiger_faqcf", "faqid"),)),
+    "Emails": Source("Emails", ("vtiger_activity", "activityid"), (("vtiger_emaildetails", "emailid"),),
+                     setype="Emails"),
+    "Consignment": Source("Consignment", ("vtiger_sp_consignment", "consignmentid"),
+                          (("vtiger_sp_consignmentcf", "consignmentid"),
+                           ("vtiger_sp_consignmentbillads", "consignmentbilladdressid"),
+                           ("vtiger_sp_consignmentshipads", "consignmentshipaddressid"))),
+    "ServiceContracts": Source("ServiceContracts", ("vtiger_servicecontracts", "servicecontractsid"),
+                               (("vtiger_servicecontractscf", "servicecontractsid"),)),
+    "Assets": Source("Assets", ("vtiger_assets", "assetsid"), (("vtiger_assetscf", "assetsid"),)),
+    "Jivosite": Source("Jivosite", ("vtiger_jivosite", "jivositeid"), (("vtiger_jivositecf", "jivositeid"),)),
+    "JVmes": Source("JVmes", ("vtiger_jvmes", "jvmesid"), (("vtiger_jvmescf", "jvmesid"),)),
 }
+# Line items of the documents (one table for every module, D-09: VTEItems excluded): read per live parent module.
+LINE_MODULES = ("Quotes", "SalesOrder", "Invoice", "Act", "Consignment")
 # Plain tables read whole (no crmentity): users and the link tables.
 TABLES = ("vtiger_users", "vtiger_user2role", "vtiger_users2group", "vtiger_groups", "vtiger_crmentityrel",
           "vtiger_contpotentialrel", "vtiger_seactivityrel", "vtiger_cntactivityrel", "vtiger_salesmanactivityrel",
-          "vtiger_freetagged_objects", "vtiger_freetags", "vtiger_senotesrel", "vtiger_seattachmentsrel")
+          "vtiger_freetagged_objects", "vtiger_freetags", "vtiger_senotesrel", "vtiger_seattachmentsrel",
+          "vtiger_salesmanattachmentsrel", "vtiger_email_track")
+# Plain tables of pseudo-modules (06.3): rows in scope with their census under the pseudo-module.
+PLAIN_MODULES = {"Attachments": ("vtiger_attachments",), "OrganizationDetails": ("vtiger_organizationdetails",),
+                 "Documents": ("vtiger_attachmentsfolder",)}
 
 
 # --- operation under construction ----------------------------------------------------------------
@@ -146,7 +221,7 @@ TABLES = ("vtiger_users", "vtiger_user2role", "vtiger_users2group", "vtiger_grou
 @dataclass
 class Op:
     entityType: str
-    vtigerId: int
+    vtigerId: object        # int; the natural key (str) of NATURAL_KEY_TYPES; None for the logo attachment
     module: str
     attributes: dict = field(default_factory=dict)
     links: dict = field(default_factory=dict)
@@ -164,10 +239,15 @@ class Op:
     kept_ids: dict = field(default_factory=dict)    # link → source crmid of the untouched target
     pending: str = None                             # the whole record waits for a stage (comment on a FAQ)
     skip: str = None                                # the record is not imported (reason code)
+    relate: dict = field(default_factory=dict)      # link → [[type, key]]: add-only rows of links without a field
+    owner: dict = None                              # Attachment: {entityType, key, field}
+    file: dict = None                               # Attachment: {size, sha256} of the source file
+    file_ref: bytes = None                          # Attachment: path of the file in the snapshot (never sent)
+    name_override: str = None                       # key of an operation without a numeric source key
 
     @property
     def key(self):
-        return f"{self.entityType}:{self.vtigerId}"
+        return self.name_override or f"{self.entityType}:{self.vtigerId}"
 
     def column(self, col, outcome, *attrs):
         self.outcomes.append(("f", col, outcome, attrs))
@@ -186,16 +266,29 @@ class Op:
         if domain is not None:
             lm["domain"] = domain
 
+    def add_relate(self, link, target):
+        items = self.relate.setdefault(link, [])
+        if list(target) not in items:
+            items.append(list(target))
+
     def payload(self):
         """The operation sent to the writer. vtigerData is owned as a whole: its keys are the source facts kept."""
         attributes = dict(self.attributes)
         if self.entityType not in NO_VTIGER_DATA:
             attributes["vtigerData"] = dict(sorted(self.vtigerData.items())) or None
-        data = {"key": self.key, "entityType": self.entityType, "vtigerId": self.vtigerId, "attributes": attributes,
+        data = {"key": self.key, "entityType": self.entityType, "attributes": attributes,
                 "links": self.links, "linkMultiple": self.linkMultiple}
-        for name in ("emails", "phones", "secret", "preferences", "user", "keyAlsoIn"):
+        if self.entityType in NATURAL_KEY_TYPES:
+            data["naturalKey"] = self.vtigerId
+        elif self.vtigerId is not None:
+            data["vtigerId"] = self.vtigerId
+        for name in ("emails", "phones", "secret", "preferences", "user", "keyAlsoIn", "owner"):
             if getattr(self, name) is not None:
                 data[name] = getattr(self, name)
+        if self.relate:
+            data["relate"] = {k: sorted(v) for k, v in sorted(self.relate.items())}
+        if self.file is not None:
+            data["file"] = dict(self.file)
         if self.onlyIfExists:
             data["onlyIfExists"] = True
         if self.keep:
@@ -218,6 +311,12 @@ class Context:
         self.users = {int(r["vtiger_users.id"]): r for r in data["vtiger_users"]}  # live users only (source.load)
         self.groups = {int(r["vtiger_groups.groupid"]): r["vtiger_groups.groupname"] for r in data["vtiger_groups"]}
         self.phone_types = phone_registry(data)  # number → type of its first owner over the whole source
+        # stage 06.3: product names (the name of a document line), files of their owners ((entity, key) → attachment ids)
+        self.product_names = {int(r["vtiger_crmentity.crmid"]): r.get(c) for m, c in (
+            ("Products", "vtiger_products.productname"), ("Services", "vtiger_service.servicename"))
+            for r in data.get(m, [])}
+        self.attachments_of = attachment_owners(data)
+        self.rows_of_email = {}
 
     def dt(self, value):
         return T.vt_datetime(value, self.flags)
@@ -238,9 +337,10 @@ class Context:
         if setype == "Calendar":
             atype = self.activity_type.get(crmid)
             if atype == "Emails":
-                return "pending", PENDING["Emails"]
-            module = "Calendar" if atype == "Task" else "Events"
-            entity = ACTIVITY_ENTITY.get(atype)
+                module, entity = "Emails", "Email"
+            else:
+                module = "Calendar" if atype == "Task" else "Events"
+                entity = ACTIVITY_ENTITY.get(atype)
         else:
             module, entity = setype, ENTITY_BY_SETYPE.get(setype)
         if setype in PENDING:
@@ -300,6 +400,61 @@ class Dec(Rule):
         op.attributes[self.attr + "Currency"] = "RUB" if value is not None else None
         if value is None and not T.is_empty(raw):
             op.column(self.cols[0], "zero_empty")
+
+
+class Num(Rule):
+    """A decimal without a currency (quantity, percent): the value as a decimal string of the column's scale."""
+
+    def apply(self, op, row, ctx):
+        _set(op, self.cols[0], self.attr, T.decimal(self.value(row), self.kw["scale"]))
+
+
+class Currency(Rule):
+    """currency_id of a finance record: the installation has one currency (D-37), 1 = RUB; the currency of every money
+    attribute of the record carries it. Any other id is an error, never a guess."""
+
+    def apply(self, op, row, ctx):
+        raw = self.value(row)
+        if T.is_empty(raw):
+            return
+        if raw.strip() != "1":
+            op.column(self.cols[0], "error:currency_unknown")
+            return
+        op.column(self.cols[0], "mapped", *sorted(a for a in op.attributes if a.endswith("Currency")))
+
+
+class RegionId(Rule):
+    """region_id of a finance document: NULL (before the 2018-07 upgrade) and 0 are both meaningful for the source
+    verification (SourceVerification reads vtigerData.region_id), so the key is always present."""
+
+    def apply(self, op, row, ctx):
+        raw = self.value(row)
+        if T.is_empty(raw):
+            op.vtigerData["region_id"] = None
+            return
+        op.column(self.cols[0], "archived", op.archive("region_id", T.integer(raw)))
+
+
+class DocNo(Rule):
+    """An integer number kept as a string field (the payment document number); 0 is «no number»."""
+
+    def apply(self, op, row, ctx):
+        raw = self.value(row)
+        value = T.integer(raw, zero_is_empty=True)
+        _set(op, self.cols[0], self.attr, None if value is None else str(value))
+        if value is None and not T.is_empty(raw):
+            op.column(self.cols[0], "zero_empty")
+
+
+class Data(Rule):
+    """A column of an archive module (VtigerArchive.data.<key>, D-08): the source value as is."""
+
+    def apply(self, op, row, ctx):
+        raw = self.value(row)
+        if T.is_empty(raw):
+            return
+        op.attributes.setdefault("data", {})[self.attr] = raw
+        op.column(self.cols[0], "archived", "data")
 
 
 class Date(Rule):
@@ -370,6 +525,21 @@ class NotApplicable(Rule):
             op.column(self.cols[0], "not_applicable:" + self.attr)
 
 
+class FileName(Rule):
+    """The file name column of a record whose file is an attachment of its own (Contact photo, User avatar): with the
+    attachment in the source the file arrives by its Attachment operation (`linked`); a name without a file is an
+    accepted loss (D-23), the name kept in vtigerData. A file field is never cleared by the import (stage 06.3)."""
+
+    def apply(self, op, row, ctx):
+        raw = self.value(row)
+        if T.is_empty(raw):
+            return
+        if ctx.attachments_of.get((op.entityType, op.vtigerId)):
+            op.column(self.cols[0], "linked", self.attr)
+        else:
+            op.column(self.cols[0], "not_applicable:D-23", op.archive(self.cols[0].split(".")[1], raw))
+
+
 class Phones(Rule):
     """Phone columns of a record → phoneNumberData (owner's rule 2026-10-11): unambiguous numbers normalised to
     E.164, others kept; a changed value keeps its source string in vtigerData. The type lives on the shared
@@ -412,7 +582,7 @@ def phone_registry(data):
     registry = {}
     batches = [("Users", sorted(data.get("vtiger_users", []), key=lambda r: int(r["vtiger_users.id"])))]
     batches += [(m, sorted(data.get(m, []), key=lambda r: int(r["vtiger_crmentity.crmid"])))
-                for m in ("Accounts", "Contacts", "Leads")]
+                for m in ("Accounts", "Contacts", "Leads", "Vendors")]  # vendors (06.3) last: 06.2 types stay
     for module, rows in batches:
         for row in rows:
             for col, ptype, _ in PHONE_COLUMNS[module]:
@@ -420,6 +590,22 @@ def phone_registry(data):
                 if number is not None:
                     registry.setdefault(number, ptype)
     return registry
+
+
+def attachment_owners(data):
+    """(owner entity, owner key) → ids of its live attachments in scope (vtiger_seattachmentsrel by crmid, user images
+    by vtiger_salesmanattachmentsrel)."""
+    import spec_content as C  # noqa: PLC0415 (the content part imports this module)
+    live = {r["vtiger_attachments.attachmentsid"] for r in data.get("vtiger_attachments", [])}
+    out = defaultdict(list)
+    for table, owner_col in (("vtiger_seattachmentsrel", "crmid"), ("vtiger_salesmanattachmentsrel", "smid")):
+        for r in data.get(table, []):
+            att = r[f"{table}.attachmentsid"]
+            setype = data["crm"].get(int(att), (None,))[0]
+            if att not in live or setype not in C.ATTACHMENT_OWNERS:
+                continue
+            out[(C.ATTACHMENT_OWNERS[setype][1], int(r[f"{table}.{owner_col}"]))].append(int(att))
+    return dict(out)
 
 
 class Emails(Rule):
@@ -605,7 +791,7 @@ def rules_of(module):
                     PostalCode=ad + "mailingzip", Country=ad + "mailingcountry"),
             Address("cOtherAddress", Street=ad + "otherstreet", City=ad + "othercity", State=ad + "otherstate",
                     PostalCode=ad + "otherzip", Country=ad + "othercountry"),
-            Pending(c + "imagename", "06.3"),
+            FileName(c + "imagename", "cPhotoId"),
         ]
     if module == "Leads":
         a2, s2, cf = "vtiger_leadaddress.", "vtiger_leadsubdetails.", "vtiger_leadscf."
@@ -974,7 +1160,7 @@ def build_user(row, ctx):
         op.column(u + "signature", "carried", "preferences.signature")
     op.preferences = prefs
     NotApplicable(u + "currency_id", "D-37").apply(op, row, ctx)
-    Pending(u + "imagename", "06.3").apply(op, row, ctx)
+    FileName(u + "imagename", "avatarId").apply(op, row, ctx)
     roles = [ROLES[r["vtiger_user2role.roleid"]] for r in ctx.data["vtiger_user2role"]
              if int(r["vtiger_user2role.userid"]) == uid and r["vtiger_user2role.roleid"] in ROLES]
     for r in ctx.data["vtiger_user2role"]:
@@ -1035,7 +1221,13 @@ def build_note(row, ctx):
     else:
         op.skip = f"parent_{status}"
         op.column(m + "related_to", status)
-    Pending(m + "filename", "06.3").apply(op, row, ctx)
+    filename = row.get(m + "filename")
+    if not T.is_empty(filename) and filename.strip() == "0":
+        op.column(m + "filename", "zero_empty")
+    elif not T.is_empty(filename):  # the id of the comment's ModComments Attachment
+        attached = ctx.attachments_of.get(("Note", op.vtigerId), ())
+        op.column(m + "filename", "linked" if filename.strip() in {str(a) for a in attached} else "error:attachment_unknown",
+                  "attachments")
     return op
 
 
@@ -1043,10 +1235,6 @@ def build_note(row, ctx):
 
 # Relations of relations.csv touching the scope and owned by a later stage (the other end is imported there).
 REL_PENDING_PAIRS = {
-    ("Accounts", "Invoice"): "06.3", ("Contacts", "Invoice"): "06.3", ("Potentials", "Invoice"): "06.3",
-    ("Potentials", "Quotes"): "06.3", ("Accounts", "SPPayments"): "06.3", ("Contacts", "SPPayments"): "06.3",
-    ("Potentials", "Services"): "06.3", ("Contacts", "Emails"): "06.3", ("Leads", "Emails"): "06.3",
-    ("Potentials", "Emails"): "06.3", ("Contacts", "Jivosite"): "06.3", ("Leads", "Jivosite"): "06.3",
     ("Contacts", "PBXManager"): "07.2", ("Leads", "PBXManager"): "07.2", ("Contacts", "SPCallPopup"): "07.2",
     ("Leads", "SPCallPopup"): "07.2", ("SPCallPopup", "Contacts"): "07.2", ("SPCallPopup", "Leads"): "07.2",
 }
@@ -1055,8 +1243,20 @@ REL_PENDING_PAIRS = {
 # crmentityrel pairs handled in this stage: a single link (duplicate of a field) or a link-multiple item;
 # pairs with Calendar set the activity's parent (contacts of calls/meetings, the contact of a task).
 REL_SINGLE = {("Accounts", "Potentials"): ("Opportunity", "account"), ("Accounts", "HelpDesk"): ("Case", "account"),
-              ("Accounts", "Project"): ("Project", "account"), ("Project", "ProjectTask"): ("ProjectTask", "project")}
+              ("Accounts", "Project"): ("Project", "account"), ("Project", "ProjectTask"): ("ProjectTask", "project"),
+              # stage 06.3
+              ("Accounts", "Invoice"): ("Invoice", "account"), ("Contacts", "Invoice"): ("Invoice", "contact"),
+              ("Potentials", "Invoice"): ("Invoice", "opportunity"), ("Potentials", "Quotes"): ("Quote", "opportunity"),
+              ("Accounts", "SPPayments"): ("Payment", "payer"), ("Contacts", "SPPayments"): ("Payment", "payer"),
+              ("Vendors", "SPPayments"): ("Payment", "payer"), ("Invoice", "Consignment"): ("VtigerArchive", "invoice"),
+              ("Leads", "Jivosite"): ("VtigerArchive", "lead"), ("Contacts", "Jivosite"): ("VtigerArchive", "contact"),
+              ("Potentials", "Emails"): ("Email", "parent"), ("Contacts", "Emails"): ("Email", "parent"),
+              ("Leads", "Emails"): ("Email", "parent")}
 REL_MULTI = {("Accounts", "Contacts"): ("Contact", "accounts"), ("Contacts", "HelpDesk"): ("Case", "contacts")}
+# a link-multiple item on the record of the first module (06.3: services of an opportunity)
+REL_MULTI_FIRST = {("Potentials", "Services"): ("Opportunity", "cProducts")}
+# allocation sources of payments: consumed by spec_finance.build_allocation
+REL_ALLOCATION = {("Invoice", "SPPayments"), ("SPPayments", "Invoice")}
 REL_CALENDAR = {"Accounts", "Contacts", "Leads", "Potentials", "Invoice"}
 
 
@@ -1066,16 +1266,17 @@ def attach_relations(ops, ctx):
     last-writer-wins)."""
     by_key = {(o.entityType, o.vtigerId): o for o in ops}
     acts = {o.vtigerId: o for o in ops if o.entityType in ("Task", "Call", "Meeting")}
+    emails = {o.vtigerId: o for o in ops if o.entityType == "Email"}
     d = ctx.data
 
     def live(crmid):
         info = ctx.crm.get(int(crmid))
         return info and not info[1]
 
-    # seactivityrel: the activity's parent
+    # seactivityrel: the activity's (and the archived e-mail's) parent
     for r in d["vtiger_seactivityrel"]:
         act, crmid = int(r["vtiger_seactivityrel.activityid"]), r["vtiger_seactivityrel.crmid"]
-        op = acts.get(act)
+        op = acts.get(act) or emails.get(act)
         if op is None:
             continue
         rel = f"seactivityrel:{ctx.crm.get(int(crmid), ('?',))[0]}->{op.entityType}"
@@ -1138,13 +1339,16 @@ def attach_relations(ops, ctx):
         if (a_mod, b_mod) in REL_PENDING_PAIRS:
             ctx.flags[f"pending_rel:{rel}:{REL_PENDING_PAIRS[(a_mod, b_mod)]}"] += 1
             continue
+        if (a_mod, b_mod) in REL_ALLOCATION:
+            continue  # the source of the payment's allocation: outcomes in spec_finance.build_allocation
         crmentityrel_pair(by_key, acts, ctx, rel, a_id, a_mod, b_id, b_mod)
     # tags (freetags) of cases and project tasks
     tags = {int(r["vtiger_freetags.id"]): r["vtiger_freetags.raw_tag"] if not T.is_empty(r.get("vtiger_freetags.raw_tag"))
             else r["vtiger_freetags.tag"] for r in d["vtiger_freetags"]}
     for r in d["vtiger_freetagged_objects"]:
         module = r["vtiger_freetagged_objects.module"]
-        entity, attr = {"HelpDesk": ("Case", "cTags"), "ProjectTask": ("ProjectTask", "tags")}.get(module, (None, None))
+        entity, attr = {"HelpDesk": ("Case", "cTags"), "ProjectTask": ("ProjectTask", "tags"),
+                        "Faq": ("KnowledgeBaseArticle", "cTags")}.get(module, (None, None))
         oid = int(r["vtiger_freetagged_objects.object_id"])
         if entity is None or not live(oid):
             continue
@@ -1173,14 +1377,44 @@ def attach_relations(ops, ctx):
         for attr in ("cTags", "tags"):
             if attr in op.attributes:
                 op.attributes[attr].sort()
-        if op.entityType in ("Case", "ProjectTask"):
-            op.attributes.setdefault("cTags" if op.entityType == "Case" else "tags", [])
-    # documents and attachments of in-scope records: stage 06.3
-    for table, col, ref in (("vtiger_senotesrel", "crmid", "Documents"), ("vtiger_seattachmentsrel", "crmid", "attachment")):
-        for r in d[table]:
-            info = ctx.crm.get(int(r[f"{table}.{col}"]))
-            if info and not info[1] and info[0] in SCOPE[1:] + ("Calendar",):
-                ctx.flags[f"pending_rel:{table}:{info[0]}->{ref}:06.3"] += 1
+        if op.entityType in ("Case", "ProjectTask", "KnowledgeBaseArticle"):
+            op.attributes.setdefault("tags" if op.entityType == "ProjectTask" else "cTags", [])
+    # stage 06.3: documents of records, the e-mails' parents and recipients, opens of tracked e-mails
+    documents = {o.vtigerId: o for o in ops if o.entityType == "Document"}
+    for r in d["vtiger_senotesrel"]:
+        crmid, note = int(r["vtiger_senotesrel.crmid"]), int(r["vtiger_senotesrel.notesid"])
+        setype = ctx.crm.get(crmid, ("?",))[0]
+        rel = f"senotesrel:{setype}->Documents"
+        op = documents.get(note)
+        if op is None:
+            _not_in_run(ctx, rel, "Documents")
+            continue
+        link = C.DOCUMENT_LINKS.get(setype)
+        status, target = ctx.target(crmid)
+        if link is None:
+            op.relation(rel, "error:document_owner_unknown")
+        elif status == "ok":
+            op.add_relate(link, target)
+            op.relation(rel, "linked", f"relate.{link}")
+        else:
+            op.relation(rel, status if status != "pending" else f"pending:{target}")
+    for op in emails.values():
+        if "parent" not in op.links and "parent" not in op.keep:
+            op.links["parent"] = None
+        C.recipients(op, ctx.rows_of_email.get(op.vtigerId, {}), ctx)
+    track = defaultdict(list)
+    for r in d["vtiger_email_track"]:
+        mail = int(r["vtiger_email_track.mailid"])
+        op = emails.get(mail)
+        if op is None:
+            _not_in_run(ctx, "email_track:Emails", "Emails")
+            continue
+        entry = {k: r[f"vtiger_email_track.{k}"] for k in ("crmid", "access_count", "click_count")
+                 if not T.is_empty(r.get(f"vtiger_email_track.{k}")) and r[f"vtiger_email_track.{k}"].strip() != "0"}
+        track[mail].append(dict(sorted(entry.items())))
+        op.relation("email_track:Emails", "archived", "vtigerData.track")
+    for mail, entries in track.items():
+        emails[mail].archive("track", sorted(entries, key=lambda e: json.dumps(e, sort_keys=True)))
 
 
 def derived_task_contact(op, by_key):
@@ -1222,7 +1456,8 @@ def parent_conflict(op, ctx, rel, crmid):
 
 # Entity types a single link of the in-scope entities accepts (a crmentityrel row may name a module the record is not).
 LINK_TYPES = {"account": ("Account",), "contact": ("Contact",), "project": ("Project",), "opportunity": ("Opportunity",),
-              "parent": ("Account", "Contact", "Lead", "Opportunity", "Case", "Project", "ProjectTask")}
+              "parent": ("Account", "Contact", "Lead", "Opportunity", "Case", "Project", "ProjectTask", "Invoice"),
+              "payer": ("Account", "Contact", "Vendor"), "invoice": ("Invoice",), "lead": ("Lead",)}
 
 
 def single_or_conflict(op, ctx, rel, link, crmid, status, target):
@@ -1243,11 +1478,20 @@ def single_or_conflict(op, ctx, rel, link, crmid, status, target):
         op.relation(rel, "conflict", op.archive(key, sorted(set(op.vtigerData.get(key, [])) | {int(crmid)})))
 
 
+def _not_in_run(ctx, rel, module):
+    """A link row whose record belongs to a module outside this run (--only): counted, left for that module's run."""
+    if module in ctx.selected or (module == "Calendar" and ctx.selected & {"Calendar", "Events"}):
+        return False
+    ctx.flags[f"deferred_rel:{rel}"] += 1
+    return True
+
+
 def crmentityrel_pair(by_key, acts, ctx, rel, a_id, a_mod, b_id, b_mod):
     """Vtiger's generic M:N → the link of the record imported later."""
     if b_mod == "Calendar":
         op = acts.get(b_id)
         if op is None:
+            _not_in_run(ctx, rel, "Calendar")
             return
         status, target = ctx.target(a_id)
         if op.entityType == "Task" and a_mod == "Contacts":
@@ -1269,13 +1513,25 @@ def crmentityrel_pair(by_key, acts, ctx, rel, a_id, a_mod, b_id, b_mod):
         if op is not None:
             status, target = ctx.target(a_id)
             single_or_conflict(op, ctx, rel, link, a_id, status, target)
+        else:
+            _not_in_run(ctx, rel, b_mod)
         return
     if (a_mod, b_mod) in REL_MULTI:
         entity, link = REL_MULTI[(a_mod, b_mod)]
         op = by_key.get((entity, b_id))
         if op is None:
+            _not_in_run(ctx, rel, b_mod)
             return
         status, target = ctx.target(a_id)
+        multi_item(op, ctx, rel, link, status, target)
+        return
+    if (a_mod, b_mod) in REL_MULTI_FIRST:
+        entity, link = REL_MULTI_FIRST[(a_mod, b_mod)]
+        op = by_key.get((entity, a_id))
+        if op is None:
+            _not_in_run(ctx, rel, a_mod)
+            return
+        status, target = ctx.target(b_id)
         multi_item(op, ctx, rel, link, status, target)
         return
     ctx.flags[f"unhandled_rel:{rel}"] += 1
@@ -1288,45 +1544,169 @@ class Plan:
     ops: list            # operations to send, in ORDER
     held: list           # records not sent: pending (later stage), skipped (reason)
     flags: Counter
+    counters: dict = field(default_factory=dict)   # entity type → next number (vtiger_modentity_num.cur_id)
+    problems: list = field(default_factory=list)   # plan-level problems (identifiers only)
 
 
-def build(data, selected=None, key_range=(1, SYNTHETIC_KEY_MIN - 1), effective_admin=EFFECTIVE_ADMIN):
-    """All operations of the run from the rows read (spec order, deterministic)."""
+def _crm_sorted(rows):
+    return sorted(rows, key=lambda r: int(r["vtiger_crmentity.crmid"]))
+
+
+def build(data, selected=None, key_range=(1, SYNTHETIC_KEY_MIN - 1), effective_admin=EFFECTIVE_ADMIN, files=None):
+    """All operations of the run from the rows read (spec order, deterministic). `files`: attachment id → resolved
+    snapshot file ({status, rel, size, sha256}) and the snapshot inventory under the key `inventory`."""
+    files = files or {}
     ctx = Context(data, selected, key_range, effective_admin)
     ops = []
     if "Users" in ctx.selected:
         ops += [build_user(r, ctx) for r in sorted(data["vtiger_users"], key=lambda r: int(r["vtiger_users.id"]))]
+    for module in ("Vendors", "Products", "Services"):
+        if module in ctx.selected:
+            ops += [record_or_error(module, r, ctx, C.build_catalogue) for r in _crm_sorted(data[module])]
+    if "OrganizationDetails" in ctx.selected:
+        for row in data.get("vtiger_organizationdetails", []):
+            ops.append(F.build_legal_entity(row, ctx))
+            logo = C.build_logo(row, files.get("inventory", {}), ctx)
+            if logo:
+                ops.append(logo)
+                logo_col = "vtiger_organizationdetails.logoname"
+                ops[-2].column(logo_col, "linked" if not logo.skip else f"not_applicable:{logo.skip}", "logoId")
     for module in ("Accounts", "Contacts", "Leads", "Potentials", "Project", "ProjectTask", "HelpDesk"):
         if module not in ctx.selected:
             continue
-        rows = sorted(data[module], key=lambda r: int(r["vtiger_crmentity.crmid"]))
+        rows = _crm_sorted(data[module])
         ops += [record_or_error(module, r, ctx, build_record) for r in rows]
         if module == "Contacts":
             ops += [record_or_error(module, r, ctx, lambda m, row, c: build_contact_access(row, c)) for r in rows]
+    lines = defaultdict(list)
+    for row in data.get("lines", []):
+        lines[int(row["vtiger_inventoryproductrel.id"])].append(row)
+    for module in F.DOCUMENTS:
+        if module not in ctx.selected:
+            continue
+        for row in _crm_sorted(data[module]):
+            doc = record_or_error(module, row, ctx, F.build_document)
+            ops.append(doc)
+            for line in sorted(lines.get(doc.vtigerId, []), key=lambda r: int(r["vtiger_inventoryproductrel.lineitem_id"])):
+                item = record_or_error(module, line, ctx, F.build_item, key_col="vtiger_inventoryproductrel.lineitem_id",
+                                       entity=F.DOCUMENTS[module][1])
+                if doc.skip or doc.pending:
+                    item.pending, item.skip = doc.pending, doc.skip and "owner_skipped"
+                ops.append(item)
+    if "SPPayments" in ctx.selected:
+        invoice_links = defaultdict(list)
+        for r in data["vtiger_crmentityrel"]:
+            a, b = int(r["vtiger_crmentityrel.crmid"]), int(r["vtiger_crmentityrel.relcrmid"])
+            pair = (r["vtiger_crmentityrel.module"], r["vtiger_crmentityrel.relmodule"])
+            if pair not in REL_ALLOCATION or not (_live(ctx, a) and _live(ctx, b)) \
+                    or (ctx.crm[a][0], ctx.crm[b][0]) != pair:
+                continue
+            payment, invoice = (b, a) if pair[0] == "Invoice" else (a, b)
+            invoice_links[payment].append(invoice)
+        for row in _crm_sorted(data["SPPayments"]):
+            payment = record_or_error("SPPayments", row, ctx, F.build_payment)
+            ops.append(payment)
+            if payment.skip:
+                continue
+            allocation = F.build_allocation(payment, row, invoice_links.get(payment.vtigerId, []), ctx)
+            if allocation:
+                ops.append(allocation)
+    for module in ARCHIVES:
+        if module in ctx.selected:
+            ops += [record_or_error(module, r, ctx, lambda m, row, c: C.build_archive(
+                m, row, c, lines.get(int(row["vtiger_crmentity.crmid"]), []))) for r in _crm_sorted(data[module])]
+    if "Faq" in ctx.selected:
+        faqs = [record_or_error("Faq", r, ctx, lambda m, row, c: C.build_faq(row, c)) for r in _crm_sorted(data["Faq"])]
+        names = sorted({i[1] for o in faqs for i in o.linkMultiple.get("categories", {}).get("items", [])})
+        ops += [C.build_category(n) for n in names] + faqs
     for module in ("Calendar", "Events"):
         if module in ctx.selected:
-            ops += [record_or_error(module, r, ctx, build_activity)
-                    for r in sorted(data[module], key=lambda r: int(r["vtiger_crmentity.crmid"]))]
+            ops += [record_or_error(module, r, ctx, build_activity) for r in _crm_sorted(data[module])]
+    if "Emails" in ctx.selected:
+        ctx.rows_of_email = {int(r["vtiger_crmentity.crmid"]): r for r in data["Emails"]}
+        ops += [record_or_error("Emails", r, ctx, lambda m, row, c: C.build_email(row, c))
+                for r in _crm_sorted(data["Emails"])]
+    if "Documents" in ctx.selected:
+        ops += [C.build_folder(r, ctx) for r in data.get("vtiger_attachmentsfolder", [])]
+        documents_files = document_files(data, files)
+        ops += [record_or_error("Documents", r, ctx, lambda m, row, c: C.build_document(row, c, documents_files))
+                for r in _crm_sorted(data["Documents"])]
     if "ModComments" in ctx.selected:
         rows = sorted(data["ModComments"], key=lambda r: (r["vtiger_crmentity.createdtime"] or "",
                                                           int(r["vtiger_crmentity.crmid"])))
         ops += [record_or_error("ModComments", r, ctx, lambda m, row, c: build_note(row, c)) for r in rows]
+    if "Attachments" in ctx.selected:
+        ops += build_attachments(data, files, ctx)
     attach_relations([o for o in ops if not o.skip], ctx)
+    held = {(o.entityType, o.vtigerId) for o in ops if o.skip or o.pending}
+    for op in ops:  # a file waits with its owner (a comment held, an owner not created)
+        if op.entityType == "Attachment" and not (op.skip or op.pending) and \
+                (op.owner["entityType"], op.owner["key"]) in held:
+            op.pending = "owner_held"
     for op in ops:
-        if not (key_range[0] <= op.vtigerId <= key_range[1]):
+        if isinstance(op.vtigerId, int) and not (key_range[0] <= op.vtigerId <= key_range[1]):
             raise T.TransformError("key_out_of_range")
     order = {e: i for i, e in enumerate(ORDER)}
     send = [o for o in ops if not (o.skip or o.pending)]
     send.sort(key=lambda o: order[o.entityType])   # stable: comments keep their chronological order
-    return Plan(send, [o for o in ops if o.skip or o.pending], ctx.flags)
+    counters, problems = F.counters(data) if FINANCE_COUNTERS & ctx.selected else ({}, [])
+    return Plan(send, [o for o in ops if o.skip or o.pending], ctx.flags, counters, problems)
 
 
-def record_or_error(module, row, ctx, builder):
+FINANCE_COUNTERS = {"Quotes", "SalesOrder", "Invoice", "Act", "SPPayments"}
+
+
+def _live(ctx, crmid):
+    info = ctx.crm.get(int(crmid))
+    return bool(info) and not info[1]
+
+
+def document_files(data, files):
+    """Document crmid → the resolved file of its Documents Attachment (name, size, type), for the comparison of the
+    source document's file name, size and type."""
+    atts = {int(r["vtiger_attachments.attachmentsid"]): r for r in data.get("vtiger_attachments", [])}
+    out = {}
+    for r in data.get("vtiger_seattachmentsrel", []):
+        att = int(r["vtiger_seattachmentsrel.attachmentsid"])
+        ref = files.get(att)
+        if att in atts and data["crm"].get(att, (None,))[0] == "Documents Attachment" and ref and ref["status"] == "found":
+            out[int(r["vtiger_seattachmentsrel.crmid"])] = {"name": atts[att].get("vtiger_attachments.name"),
+                                                             "size": ref["size"],
+                                                             "type": atts[att].get("vtiger_attachments.type")}
+    return out
+
+
+def build_attachments(data, files, ctx):
+    """One Attachment operation per live attachment of a record in scope (vtiger_seattachmentsrel by its owner,
+    vtiger_salesmanattachmentsrel for user images); an attachment of an owner outside this run waits (deferred)."""
+    rows = {int(r["vtiger_attachments.attachmentsid"]): r for r in data.get("vtiger_attachments", [])}
+    ops = []
+    for table, owner_col in (("vtiger_seattachmentsrel", "crmid"), ("vtiger_salesmanattachmentsrel", "smid")):
+        for r in sorted(data.get(table, []), key=lambda r: int(r[f"{table}.attachmentsid"])):
+            att = int(r[f"{table}.attachmentsid"])
+            setype = ctx.crm.get(att, ("?",))[0]
+            rel = f"{table.replace('vtiger_', '')}:{setype}"
+            if att not in rows or setype not in C.ATTACHMENT_OWNERS:
+                continue  # outside the scope of the reader (LINK_ROWS): not counted there either
+            owner_setype, owner_entity, field_name = C.ATTACHMENT_OWNERS[setype]
+            owner_key = int(r[f"{table}.{owner_col}"])
+            module_of_owner = "Users" if owner_setype == "Users" else owner_setype
+            op = C.build_attachment(rows[att], (owner_setype, owner_entity, field_name, owner_key), files, ctx)
+            if module_of_owner not in ctx.selected:
+                op.pending = "deferred"
+                op.relation(rel, "deferred")
+            else:
+                op.relation(rel, "linked", f"owner.{field_name}")
+            ops.append(op)
+    return ops
+
+
+def record_or_error(module, row, ctx, builder, key_col=None, entity=None):
     try:
         return builder(module, row, ctx)
     except T.TransformError as e:
-        entity = ENTITY_BY_SETYPE.get(module, "Task" if module in ("Calendar", "Events") else "User")
-        key = row.get("vtiger_crmentity.crmid") or row.get("vtiger_users.id")
+        entity = entity or ENTITY_BY_SETYPE.get(module, "Task" if module in ("Calendar", "Events") else "User")
+        key = row.get(key_col) if key_col else (row.get("vtiger_crmentity.crmid") or row.get("vtiger_users.id"))
         op = Op(entity, int(key), module)
         op.skip = f"error:{e.code}"
         return op
@@ -1361,6 +1741,49 @@ def consumed_columns():
                                        "language", "date_format", "hour_format", "dayoftheweek", "time_zone",
                                        "signature", "currency_id", "imagename")}
     out |= {("Users", "vtiger_user2role.roleid")}
+    return out | consumed_columns_063()
+
+
+def consumed_columns_063():
+    """Columns consumed by the stage-06.3 rules (spec_finance, spec_content)."""
+    out = set()
+    common = ("smownerid", "smcreatorid", "modifiedby", "createdtime", "modifiedtime", "description")
+    for module in ("Vendors", "Products", "Services"):
+        out |= {(module, c) for rule in C.catalogue_rules(module) for c in rule.cols}
+        out |= {(module, "vtiger_crmentity." + c) for c in common}
+    line = F.LINE
+    for module in F.DOCUMENTS:
+        out |= {(module, c) for rule in F.document_rules(module) for c in rule.cols}
+        out |= {(module, "vtiger_crmentity." + c) for c in common}
+        out |= {(module, c) for rule in F.line_rules() for c in rule.cols}
+        out |= {(module, line + c) for c in ("id", "lineitem_id", "sequence_no", "productid")}
+    out |= {("SPPayments", c) for rule in F.payment_rules() for c in rule.cols}
+    out |= {("SPPayments", "vtiger_crmentity." + c) for c in common} | {("SPPayments", "sp_payments.related_to")}
+    for module in ARCHIVES:
+        out |= {(module, c) for rule in C.archive_rules(module) for c in rule.cols}
+    out |= {("Consignment", line + c) for c in ("id", "lineitem_id", "sequence_no", "productid", "quantity", "listprice",
+                                                 "comment", "discount_amount", "discount_percent", "tax1", "tax2",
+                                                 "tax3", "purchase_cost", "margin")}
+    f = "vtiger_faq."
+    out |= {("Faq", f + c) for c in ("question", "answer", "faq_no", "status", "product_id", "category")}
+    out |= {("Faq", "vtiger_crmentity." + c) for c in common if c != "description"}
+    a, d = "vtiger_activity.", "vtiger_emaildetails."
+    out |= {("Emails", a + c) for c in ("subject", "date_start", "time_start", "semodule")}
+    out |= {("Emails", d + c) for c in ("from_email", "to_email", "cc_email", "bcc_email", "idlists", "email_flag")}
+    out |= {("Emails", "vtiger_crmentity." + c) for c in common}
+    n = "vtiger_notes."
+    out |= {("Documents", n + c) for c in ("title", "note_no", "folderid", "filelocationtype", "filestatus",
+                                            "filename", "filesize", "filetype", "fileversion", "filedownloadcount",
+                                            "notecontent")}
+    out |= {("Documents", "vtiger_notescf.cf_for_field")}
+    out |= {("Documents", "vtiger_crmentity." + c) for c in common if c != "description"}
+    out |= {("Documents", "vtiger_attachmentsfolder." + c) for c in ("folderid", "foldername", "description",
+                                                                     "createdby", "sequence")}
+    out |= {("Attachments", "vtiger_attachments." + c) for c in ("attachmentsid", "name", "type", "description", "path")}
+    out |= {("Emails", "vtiger_attachments.name")}  # the file of an e-mail: its Attachment operation (Attachments)
+    o = "vtiger_organizationdetails."
+    out |= {("OrganizationDetails", c) for rule in F.legal_entity_rules() for c in rule.cols}
+    out |= {("OrganizationDetails", o + c) for c in ("company", "logoname")}
     return out
 
 
@@ -1377,10 +1800,19 @@ def load_maps(repo):
 
 
 def module_of_physical(table):
-    for module, src in SOURCES.items():
-        if table in src.tables()[1:]:
-            return module
-    return "Users" if table in ("vtiger_users", "vtiger_user2role") else None
+    modules = modules_of_physical(table)
+    return modules[0] if modules else None
+
+
+def modules_of_physical(table):
+    """Modules whose records read rows of `table` (vtiger_crmentity excluded: its columns are per module)."""
+    if table == "vtiger_inventoryproductrel":
+        return list(LINE_MODULES)
+    out = [module for module, src in SOURCES.items() if table in src.tables()[1:]]
+    out += [module for module, tables in PLAIN_MODULES.items() if table in tables and module not in out]
+    if table in ("vtiger_users", "vtiger_user2role"):
+        out.append("Users")
+    return out
 
 
 def check_coverage(fields, relations):
@@ -1389,12 +1821,12 @@ def check_coverage(fields, relations):
     consumed = consumed_columns()
     rows = defaultdict(list)
     for r in fields:
-        module = r["source_module"] or module_of_physical(r["source_table"])
-        if module in SCOPE:
-            rows[(module, f"{r['source_table']}.{r['source_column']}")].append(r)
+        for module in [r["source_module"]] if r["source_module"] else modules_of_physical(r["source_table"]):
+            if module in SCOPE:
+                rows[(module, f"{r['source_table']}.{r['source_column']}")].append(r)
     for key, rs in sorted(rows.items()):
         transfer = [r for r in rs if r["fate"].startswith(TRANSFER_FATES)]
-        is_key = any(r["target_field"] in ("(ключ записи)", "vtigerId", "(тип сущности)") for r in rs)
+        is_key = any(is_key_row(r) for r in rs)
         if transfer and key not in consumed and not is_key:
             problems.append(f"no rule for {key[0]} {key[1]}")
     for key in sorted(consumed):
@@ -1418,14 +1850,14 @@ def check_coverage(fields, relations):
         rid = r["relation_id"]
         if rid.startswith("crmentityrel:"):
             pair = tuple(rid.split(":", 1)[1].split("->"))
-            if not (pair in REL_PENDING_PAIRS or pair in REL_SINGLE or pair in REL_MULTI
-                    or (pair[1] == "Calendar" and pair[0] in REL_CALENDAR)):
+            if not (pair in REL_PENDING_PAIRS or pair in REL_SINGLE or pair in REL_MULTI or pair in REL_MULTI_FIRST
+                    or pair in REL_ALLOCATION or (pair[1] == "Calendar" and pair[0] in REL_CALENDAR)):
                 problems.append(f"relation not handled: {rid}")
             continue
         if rid.startswith(HANDLED_RELATIONS_PREFIXES) or rid in FIELD_RELATIONS:
             continue
-        if rid.startswith(("senotesrel:", "seattachmentsrel:")):
-            continue  # documents and files: stage 06.3 (counted as pending)
+        if rid.startswith(("senotesrel:", "seattachmentsrel:", "lines:", "allocation:", "invoice_act:", "tags:")):
+            continue  # documents, files, line items, allocations: 06.3 builders (spec_content, spec_finance)
         if r["from_module"] not in SCOPE:
             continue  # a field of a later module pointing into the scope: imported with that module
         problems.append(f"relation not handled: {rid}")
@@ -1434,6 +1866,18 @@ def check_coverage(fields, relations):
 
 # Field relations of in-scope modules handled by the column rules above.
 FIELD_RELATIONS = {"Calendar.crmid", "Events.crmid", "Events.contactid", "Contacts.accountid", "HelpDesk.contact_id",
+                   # stage 06.3: links of the finance documents, payments and archives (spec_finance, spec_content)
+                   *(f"{m}.{c}" for m in ("Quotes", "SalesOrder", "Invoice", "Act")
+                     for c in ("productid", "accountid", "contactid", "potentialid", "potential_id", "salesorderid",
+                               "sp_act_id")),
+                   "SPPayments.payer", "SPPayments.related_to", "Assets.account", "Assets.product",
+                   "Consignment.productid", "Consignment.accountid", "Consignment.invoiceid", "JVmes.relatedjivo",
+                   "Jivosite.relatedleads", "ServiceContracts.sc_related_to",
                    "HelpDesk.parent_id", "ModComments.customer", "ModComments.related_to", "ModComments.userid",
                    "Potentials.contact_id", "Potentials.related_to", "Project.linktoaccountscontacts",
                    "Project.potentialid", "ProjectTask.projectid"}
+
+
+# The stage-06.3 parts of the specification (they use the definitions above).
+import spec_content as C  # noqa: E402
+import spec_finance as F  # noqa: E402

@@ -20,7 +20,8 @@ use Espo\ORM\EntityManager;
  * of the totals («Пересчёт ядра») — the step the importer (stage 06.3) runs after it has written a document with its
  * items. SourceVerifier classifies the stored totals, which are not changed (D-05). The marks are saved with the import
  * option, so the source legal entity is resolved again (an unknown spcompany stops the run, D-48). Documents
- * recalculated in EspoCRM (vtigerData.sourceTotals) are skipped. Prints counts only.
+ * recalculated in EspoCRM (vtigerData.sourceTotals) are skipped; a document whose stored marks are already the
+ * computed ones is not saved again («(unchanged)»). Prints counts only.
  *
  *   task espo -- itvolga-finance-verify [--entity=Invoice] [--id=<id>[,<id>…]] [--dry-run]
  */
@@ -93,6 +94,11 @@ class FinanceVerify implements Command
         }
 
         $marks = SourceMarks::of($result);
+        $key = "{$marks['sourceFormula']} / {$marks['totalsCheck']}";
+
+        if (!SourceMarks::differs($document, $marks)) {
+            return "$key (unchanged)"; // a re-run of the import writes nothing (stage 06.3)
+        }
 
         if (!$dryRun) {
             $document->set($marks);
@@ -100,6 +106,6 @@ class FinanceVerify implements Command
             $this->entityManager->saveEntity($document, [SaveOption::IMPORT => true, SaveOption::SILENT => true]);
         }
 
-        return "{$marks['sourceFormula']} / {$marks['totalsCheck']}";
+        return $key;
     }
 }

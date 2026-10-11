@@ -28,6 +28,8 @@ import source  # noqa: E402  (puts scripts/snapshot and scripts/audit on sys.pat
 import spec  # noqa: E402
 import transforms as T  # noqa: E402
 import verify  # noqa: E402
+import aggregates  # noqa: E402
+import files as F  # noqa: E402
 from common import (SNAPSHOT_ROOT, ID_RE, Mysql, SnapshotError, ensure_root, root_lock, sha256_file,  # noqa: E402
                     write_json, write_private)
 
@@ -35,7 +37,9 @@ IMPORT_ROOT = Path(os.environ.get("IMPORT_ROOT", "/data/itvolga/espo-private/imp
 ESPO = REPO / "scripts" / "stand" / "espo.sh"
 REAL_KEYS = (1, spec.SYNTHETIC_KEY_MIN - 1)
 TOOL_SOURCES = ("scripts/import", "scripts/snapshot", "custom/Espo/Modules/Itvolga/Tools/Import",
-                "custom/Espo/Modules/Itvolga/Classes/ConsoleCommands/Import.php")
+                "custom/Espo/Modules/Itvolga/Classes/ConsoleCommands/Import.php",
+                "custom/Espo/Modules/Itvolga/Classes/ConsoleCommands/FinanceVerify.php",
+                "custom/Espo/Modules/Itvolga/Tools/FinanceDocument/SourceMarks.php")
 VERIFIED = ("carried", "normalized", "mapped", "archived", "linked", "protected", "derived_equal", "duplicate",
             "type_conflict", "no_target")
 SILENCE = {  # stand tables an import must not write to (counts before / after)
@@ -43,7 +47,7 @@ SILENCE = {  # stand tables an import must not write to (counts before / after)
     "reminder": "SELECT COUNT(*) FROM reminder",
     "stream_subscription": "SELECT COUNT(*) FROM stream_subscription",
     "note_not_imported": "SELECT COUNT(*) FROM note WHERE vtiger_id IS NULL",
-    "email": "SELECT COUNT(*) FROM email",
+    "email_not_imported": "SELECT COUNT(*) FROM email WHERE vtiger_id IS NULL",
     "webhook_queue_item": "SELECT COUNT(*) FROM webhook_queue_item",
     "action_history_record": "SELECT COUNT(*) FROM action_history_record",
 }
@@ -55,17 +59,23 @@ def log(msg):
 
 # --- writer bridge ----------------------------------------------------------------------------------
 
-def bridge(ops, mode, adopt, logdir, inventory=(), journal=None):
+def bridge(ops, mode, adopt, logdir, inventory=(), journal=None, files=None):
     """One `itvolga-import` process: operations on stdin, `#itv#<nonce>#<json>` results on stdout. Lines without the
-    nonce (PHP notices) are counted only; stderr goes to a private log."""
+    nonce (PHP notices) are counted only; stderr goes to a private log. In apply mode the bytes of a file follow its
+    Attachment operation (protocol 2: `file.chunks` lines), read from the snapshot as they are sent."""
     nonce = secrets.token_hex(16)
     prefix = f"#itv#{nonce}#".encode()
     results, stray, done = {}, [0], []
 
     def stream():
-        yield (json.dumps({"protocol": 1, "mode": mode, "nonce": nonce, "adoptUserName": adopt}) + "\n").encode()
+        yield (json.dumps({"protocol": 2, "mode": mode, "nonce": nonce, "adoptUserName": adopt}) + "\n").encode()
         for op in ops:
-            yield (json.dumps(op.payload(), ensure_ascii=False) + "\n").encode()
+            payload = op.payload()
+            if op.file is not None and mode == "apply":
+                payload["file"]["chunks"] = F.chunk_count(op.file["size"])
+            yield (json.dumps(payload, ensure_ascii=False) + "\n").encode()
+            if op.file is not None and mode == "apply":
+                yield from F.chunk_lines(files, op.file_ref, op.file["size"])
         for entity in inventory:
             yield (json.dumps({"op": "inventory", "key": f"inventory:{entity}", "entityType": entity}) + "\n").encode()
 
@@ -87,6 +97,17 @@ def bridge(ops, mode, adopt, logdir, inventory=(), journal=None):
     if done != [expected] or len(results) != expected:
         raise SnapshotError(f"writer ({mode}) answered {len(results)} of {expected} operations")
     return results, stray[0]
+
+
+def espo_command(args, logdir, name):
+    """A console command of the stand (`task espo -- …`): ids and entity names only in argv; output to a private log,
+    the lines are returned for counting."""
+    out = []
+    Mysql([str(ESPO), *args], name).session(iter(()), out.append, logdir / f"{name}.log")
+    lines = [line.decode("utf-8", "replace").rstrip("\n") for line in out]
+    with open(logdir / f"{name}.out", "a", encoding="utf-8") as fh:
+        fh.write("".join(f"{line}\n" for line in lines))
+    return lines
 
 
 # --- stand state ------------------------------------------------------------------------------------
@@ -111,9 +132,10 @@ def uitypes_by_module(fields):
 
 
 def execute(rundir, snapshot_dir=None, source_db=None, only=None, check_only=False, adopt="admin",
-            key_range=REAL_KEYS, effective_admin=spec.EFFECTIVE_ADMIN):
+            key_range=REAL_KEYS, effective_admin=spec.EFFECTIVE_ADMIN, files_root=None, download=None):
     """The whole run; returns the report (also written to `rundir`). `source_db` (an already restored or synthetic
-    source database) is for the stage tests; real runs always come from a verified snapshot."""
+    source database) and `files_root` (a directory as the file part) are for the stage tests; real runs always come
+    from a verified snapshot, whose shared lock is held for the whole run (its files are read while writing)."""
     logdir = rundir / "logs"
     logdir.mkdir(parents=True, exist_ok=True)
     fields, relations = spec.load_maps(REPO)
@@ -122,46 +144,185 @@ def execute(rundir, snapshot_dir=None, source_db=None, only=None, check_only=Fal
         write_json(rundir / "coverage-problems.json", problems)
         raise SnapshotError(f"the specification does not cover the maps ({len(problems)} problems, see the run directory)")
     uitypes = uitypes_by_module(fields)
-    started = time.time()
     if snapshot_dir is not None:
         with root_lock(SNAPSHOT_ROOT, exclusive=False):
-            with verify.restored_databases(snapshot_dir, SNAPSHOT_ROOT, logdir) as names:
-                log("reading the restored source")
-                data, census = source.load(source.SourceDb(names["vtiger7"], logdir), uitypes)
+            return _execute(rundir, logdir, fields, uitypes, snapshot_dir, None, F.SnapshotFiles(snapshot_dir), only,
+                            check_only, adopt, key_range, effective_admin, download)
+    return _execute(rundir, logdir, fields, uitypes, None, source_db,
+                    F.DirectoryFiles(files_root) if files_root else None, only, check_only, adopt, key_range,
+                    effective_admin, download)
+
+
+def _execute(rundir, logdir, fields, uitypes, snapshot_dir, source_db, files, only, check_only, adopt, key_range,
+             effective_admin, download):
+    started = time.time()
+    selected = only.split(",") if only else None
+    if snapshot_dir is not None:
+        with verify.restored_databases(snapshot_dir, SNAPSHOT_ROOT, logdir) as names:
+            log("reading the restored source")
+            db = source.SourceDb(names["vtiger7"], logdir)
+            data, census = source.load(db, uitypes)
+            source_totals = aggregates.run(db.lines, aggregates.source_sql())
         log("temporary source database dropped")
     else:
-        data, census = source.load(source.SourceDb(source_db, logdir), uitypes)
+        db = source.SourceDb(source_db, logdir)
+        data, census = source.load(db, uitypes)
+        source_totals = aggregates.run(db.lines, aggregates.source_sql())
     transport = transport_check(data, census)
     if transport:
         raise SnapshotError(f"reader and census disagree on {len(transport)} columns: nothing written")
-    plan = spec.build(data, selected=only.split(",") if only else None, key_range=key_range,
-                      effective_admin=effective_admin)
+    resolved = F.resolve(data["vtiger_attachments"], data["crm"], files) if files else {}
+    plan = spec.build(data, selected=selected, key_range=key_range, effective_admin=effective_admin,
+                      files={**resolved, "inventory": files.inventory if files else {}})
     log(f"plan: {len(plan.ops)} operations, {len(plan.held)} records held")
+    if plan.problems:
+        raise SnapshotError(f"plan problems: {', '.join(plan.problems)}: nothing written")
     silence_before = silence_counts(logdir)
     if check_only:
-        applied, stray_apply = {}, 0
+        applied, stray_apply, targets_before = {}, 0, set()
     else:
+        targets_before = allocation_targets(plan, logdir)
         fd = os.open(rundir / "applied.jsonl", os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
         with os.fdopen(fd, "a") as journal:  # keys and EspoCRM ids of written records, as the writer answers
-            applied, stray_apply = bridge(plan.ops, "apply", adopt, logdir, journal=journal)
-    if not check_only:
+            applied, stray_apply = bridge(plan.ops, "apply", adopt, logdir, journal=journal, files=files)
         log("apply: " + fmt(Counter(r.get("status") for r in applied.values())))
+    finance = finance_steps(plan, check_only, logdir, targets_before)
     checked, stray_check = bridge(plan.ops, "check", adopt, logdir, inventory=inventory_types(only))
     silence_after = silence_counts(logdir)
     log("check: " + fmt(Counter(r.get("status") for k, r in checked.items() if not k.startswith("inventory:"))))
+    downloads = file_downloads(plan, checked, download)
+    target_totals, excluded = target_aggregates(plan, checked, logdir)
     report = reconcile(plan, applied, checked, census, fields, key_range, check_only, data["link_census"],
-                       selected=only.split(",") if only else None, orphans=data["orphans"])
+                       selected=selected, orphans=data["orphans"])
+    extend_report(report, plan, applied, checked, downloads, finance, source_totals, target_totals, excluded, data,
+                  resolved, rundir, check_only, selected)
     report.update(started_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(started)),
                   finished_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), tool=tool_identity(),
                   snapshot=snapshot_dir.name if snapshot_dir else None, only=only, check_only=check_only,
                   stray_writer_lines={"apply": stray_apply, "check": stray_check},
                   silence={k: silence_after[k] - silence_before[k] for k in SILENCE})
-    if any(report["silence"].values()) or stray_apply or stray_check:
+    if any(report["silence"].values()) or stray_apply or stray_check or report["problems"]:
         report["status"] = "fail"
     write_json(rundir / "report.json", report)
     write_private(rundir / "records.jsonl", "".join(
         json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in records(plan, applied, checked)))
     return report
+
+
+DOCUMENT_TABLES = {"Quote": "quote", "SalesOrder": "sales_order", "Act": "act", "Invoice": "invoice"}
+FINANCE_TYPES = ("Quote", "QuoteItem", "SalesOrder", "SalesOrderItem", "Act", "ActItem", "Invoice", "InvoiceItem",
+                 "Payment", "PaymentAllocation")
+
+
+def _command_counts(lines):
+    """`Entity: key — n, key — n` (itvolga-finance-verify) and `Entity key: n` (itvolga-finance-settle) → Counter."""
+    out = Counter()
+    for line in lines:
+        line = line.replace("[dry-run] ", "")
+        if " — " in line and ": " in line:
+            entity, rest = line.split(": ", 1)
+            for part in rest.split(", "):
+                if " — " in part:
+                    key, n = part.rsplit(" — ", 1)
+                    out[f"{entity}: {key}"] += int(n) if n.strip().isdigit() else 0
+        elif line.rsplit(":", 1)[-1].strip().isdigit():
+            out[line.rsplit(":", 1)[0]] += int(line.rsplit(":", 1)[1])
+    return out
+
+
+def finance_steps(plan, check_only, logdir, targets_before):
+    """After the records (stage 06.3), only on the documents of this run: source marks of the imported documents
+    (`itvolga-finance-verify`, saves only what differs), settlement of the run's invoices and orders and of the documents
+    its allocations point to — before and after the write (`itvolga-finance-settle --silent`, writes only changes; then
+    a dry run must find nothing to change), the numbering counters raised to the source's cur_id (never lowered; also
+    in a run without documents). Check-only runs count without writing. Output lines go to private logs; the counts
+    come back."""
+    out = {"verify": Counter(), "settle": Counter(), "settle_drift": 0, "counters": {}}
+    dry = ["--dry-run"] if check_only else []
+    ids = {e: stand_ids(e, [op.vtigerId for op in plan.ops if op.entityType == e], logdir) for e in DOCUMENT_TABLES}
+    for entity, found in ids.items():
+        if found:  # an empty --id would select every document
+            out["verify"] += _command_counts(espo_command(
+                ["itvolga-finance-verify", f"--entity={entity}", "--id=" + ",".join(found), *dry], logdir, "finance-verify"))
+    settle = sorted({*ids["Invoice"], *ids["SalesOrder"], *targets_before, *allocation_targets(plan, logdir)})
+    if settle:
+        selection = "--id=" + ",".join(settle)
+        if not check_only:
+            out["settle"] = _command_counts(espo_command(["itvolga-finance-settle", "--silent", selection], logdir,
+                                                         "finance-settle"))
+        drift = _command_counts(espo_command(["itvolga-finance-settle", "--dry-run", selection], logdir,
+                                             "finance-settle-check"))
+        out["settle_drift"] = sum(n for k, n in drift.items() if "would change" in k)
+    if plan.counters:
+        pairs = ",".join(f"{e}:{n}" for e, n in sorted(plan.counters.items()))
+        lines = espo_command(["itvolga-setup-finance", f"--next={pairs}", *dry], logdir, "setup-finance")
+        out["counters"]["changes"] = sum(1 for line in lines if "counter" in line)
+        out["counters"]["below"] = counters_below(plan.counters, logdir)
+    return out
+
+
+def stand_ids(entity, keys, logdir):
+    """EspoCRM ids of the live records of a finance document type with the given source keys."""
+    if not keys:
+        return []
+    sql = (f"SET SESSION TRANSACTION READ ONLY;\nSELECT id FROM `{DOCUMENT_TABLES[entity]}` WHERE deleted = 0 "
+           f"AND vtiger_id IN ({', '.join(str(int(k)) for k in sorted(set(keys)))}) ORDER BY id;\n")
+    return [v.decode("ascii") for v in Mysql.stand(database="espocrm").lines(sql, logdir / "stand.log")]
+
+
+def allocation_targets(plan, logdir):
+    """EspoCRM ids of the documents the run's allocations point to on the stand: read before the write too, so a
+    document an allocation leaves is settled as well."""
+    keys = sorted({op.vtigerId for op in plan.ops if op.entityType == "PaymentAllocation"})
+    if not keys:
+        return set()
+    sql = ("SET SESSION TRANSACTION READ ONLY;\nSELECT IFNULL(invoice_id, sales_order_id) FROM payment_allocation "
+           f"WHERE deleted = 0 AND vtiger_id IN ({', '.join(str(int(k)) for k in keys)});\n")
+    return {v.decode("ascii") for v in Mysql.stand(database="espocrm").lines(sql, logdir / "stand.log")} - {"NULL"}
+
+
+def counters_below(counters, logdir):
+    """Entity types whose stand counter is lower than the source's next number (must be none after a run)."""
+    sql = "SET SESSION TRANSACTION READ ONLY;\n" + "".join(
+        f"SELECT IFNULL(MAX(value), 0) FROM next_number WHERE deleted = 0 AND entity_type = '{e}' "
+        f"AND field_name = 'number';\n" for e in sorted(counters))
+    values = Mysql.stand(database="espocrm").lines(sql, logdir / "stand.log")
+    return sorted(e for e, v in zip(sorted(counters), values) if int(v) < counters[e])
+
+
+def file_downloads(plan, checked, download):
+    """Every imported file downloaded through the stand as the administrator (owner's answer 2026-10-11)."""
+    items = []
+    for op in plan.ops:
+        if op.entityType != "Attachment" or op.file is None:
+            continue
+        result = checked.get(op.key, {})
+        if result.get("id"):
+            items.append((op.key, result["id"], op.file["size"], op.file["sha256"]))
+    if not items:
+        return {}
+    log(f"downloading {len(items)} files through the stand")
+    return (download or F.download_check)(items)
+
+
+def target_aggregates(plan, checked, logdir):
+    """Stand SQL of the finance measures over the records imported as planned (equal in the check pass); records the
+    owner's answers keep out of the import (deleted, recalculated in EspoCRM) are excluded and listed."""
+    keys, excluded = defaultdict(list), defaultdict(list)
+    for op in plan.ops:
+        status = checked.get(op.key, {}).get("status")
+        if op.entityType not in FINANCE_TYPES:
+            continue
+        if status in ("deleted_in_target", "protected") or checked.get(op.key, {}).get("protected"):
+            excluded[op.entityType].append(op.vtigerId)
+        else:
+            keys[op.entityType].append(op.vtigerId)
+    if not keys:
+        return {}, {}
+    sql = "SET SESSION TRANSACTION READ ONLY;\n"
+    queries = aggregates.target_sql(keys)
+    totals = aggregates.run(lambda q: Mysql.stand(database="espocrm").lines(sql + q, logdir / "stand.log"), queries)
+    return totals, {k: sorted(v) for k, v in excluded.items()}
 
 
 def inventory_types(only):
@@ -177,7 +338,8 @@ LINK_PREFIXES = {  # link table → keys of its outcomes and planner counters (s
     "vtiger_seactivityrel": ("seactivityrel:",), "vtiger_cntactivityrel": ("cntactivityrel:",),
     "vtiger_salesmanactivityrel": ("salesmanactivityrel:",), "vtiger_contpotentialrel": ("contpotentialrel:",),
     "vtiger_crmentityrel": ("crmentityrel:",), "vtiger_freetagged_objects": ("tags:",),
-    "vtiger_senotesrel": ("vtiger_senotesrel:",), "vtiger_seattachmentsrel": ("vtiger_seattachmentsrel:",),
+    "vtiger_senotesrel": ("senotesrel:",), "vtiger_seattachmentsrel": ("seattachmentsrel:",),
+    "vtiger_salesmanattachmentsrel": ("salesmanattachmentsrel:",), "vtiger_email_track": ("email_track:",),
 }
 
 
@@ -191,7 +353,7 @@ def link_rows_accounted(plan):
                     if key.startswith(prefixes):
                         out[table] += 1
     for flag, n in plan.flags.items():
-        if flag.startswith(("pending_rel:", "unhandled_rel:", "mismatch_rel:")):
+        if flag.startswith(("pending_rel:", "unhandled_rel:", "mismatch_rel:", "deferred_rel:")):
             name = flag.split(":", 1)[1]
             for table, prefixes in LINK_PREFIXES.items():
                 if name.startswith(prefixes):
@@ -202,14 +364,8 @@ def link_rows_accounted(plan):
 def transport_check(data, census):
     """Columns where the Python reader and the SQL census count different non-empty values."""
     bad = []
-    for module in spec.SOURCES:
-        counts = source.reader_counts(data[module])
+    for module, counts in data["reader"].items():
         bad += [f"{module}:{k}" for k, v in counts.items() if census[module].get(k, (None,))[0] != v]
-    counts = source.reader_counts(data["vtiger_users"])
-    bad += [f"Users:{k}" for k, v in counts.items() if census["Users"].get(k, (None,))[0] != v]
-    for table in spec.LINK_COLUMNS:
-        counts = source.reader_counts(data[table])
-        bad += [f"links:{k}" for k, v in counts.items() if census["links"].get(k, (None,))[0] != v]
     return bad
 
 
@@ -222,6 +378,9 @@ def records(plan, applied, checked):
                "invalid": a.get("attributes") or c.get("attributes"), "changed": a.get("changed"),
                "forced": a.get("forced"), "differs": c.get("differs"),
                "unresolved": sorted(set(a.get("unresolved") or []) | set(c.get("unresolved") or [])),
+               "deletedTargets": c.get("deletedTargets") or None, "protected": c.get("protected") or None,
+               "file": c.get("file"), "legalEntity": c.get("legalEntity"),
+               "verification": {k: v for k, v in (c.get("verification") or {}).items() if k != "expected"} or None,
                "outcomes": [[k, key, outcome] for k, key, outcome, _ in op.outcomes]}
 
 
@@ -249,15 +408,15 @@ def reconcile(plan, applied, checked, census, fields, key_range, check_only, lin
         for column in census[module]:
             if (module, column) not in rows and column in physical:
                 rows[(module, column)] = physical[column]
-    key_columns = {k for k, rs in rows.items()
-                   if any(r["target_field"] in ("(ключ записи)", "vtigerId", "(тип сущности)") for r in rs)}
+    key_columns = {k for k, rs in rows.items() if any(spec.is_key_row(r) for r in rs)}
     consumed = spec.consumed_columns()
 
-    columns = defaultdict(lambda: {"outcomes": Counter(), "verified": 0, "mismatch": 0})
-    relations = defaultdict(lambda: {"outcomes": Counter(), "verified": 0, "mismatch": 0})
+    columns = defaultdict(lambda: {"outcomes": Counter(), "verified": 0, "mismatch": 0, "exempt": 0})
+    relations = defaultdict(lambda: {"outcomes": Counter(), "verified": 0, "mismatch": 0, "exempt": 0})
     for op in plan.ops + plan.held:
         c = checked.get(op.key, {})
         differs = set(c.get("differs") or [])
+        protected = set(c.get("protected") or [])
         sent = not (op.skip or op.pending)
         for kind, key, outcome, attrs in op.outcomes:
             entry = (columns[(op.module, key)] if kind == "f" else relations[key])
@@ -266,6 +425,9 @@ def reconcile(plan, applied, checked, census, fields, key_range, check_only, lin
                 continue
             if check_only and c.get("status") in ("missing", "absent"):
                 continue  # a dry run before the first import: nothing to compare yet
+            if c.get("status") in ("deleted_in_target", "protected") or protected & set(attrs):
+                entry["exempt"] += 1  # owner's answers 2026-10-11: findings, not compared
+                continue
             ok = c.get("status") == "equal" or (c.get("status") == "differs" and not differs & set(attrs))
             entry["verified" if ok else "mismatch"] += 1
 
@@ -292,7 +454,7 @@ def reconcile(plan, applied, checked, census, fields, key_range, check_only, lin
                 continue
             fate_rows = rows.get(key, [])
             fate = fate_rows[0]["fate"] if fate_rows else ("правило без строки карты: " + spec.MAP_GAPS[key]
-                                                           if key in spec.MAP_GAPS else "")
+                                                           if key in spec.MAP_GAPS else spec.EXTRA_FATES.get(key, ""))
             entry = columns.get(key)
             accounted = sum(entry["outcomes"].values()) if entry else 0
             item = {"module": module, "column": name, "fate": fate, "category": fate_category(fate) if fate else "unmapped",
@@ -302,7 +464,7 @@ def reconcile(plan, applied, checked, census, fields, key_range, check_only, lin
             elif key in consumed:
                 item.update(category="rule", outcomes=dict(entry["outcomes"]) if entry else {},
                             verified=entry["verified"] if entry else 0, mismatch=entry["mismatch"] if entry else 0,
-                            unaccounted=nonempty - accounted)
+                            exempt=entry["exempt"] if entry else 0, unaccounted=nonempty - accounted)
                 if nonempty != accounted:
                     problems["unaccounted_values"] += 1
                     problem_columns["unaccounted_values"].append(f"{module}:{name}")
@@ -320,8 +482,8 @@ def reconcile(plan, applied, checked, census, fields, key_range, check_only, lin
                 problem_columns["unmapped_nonempty"].append(f"{module}:{name}")
             col_report.append(item)
 
-    rel_report = [{"relation": k, "outcomes": dict(v["outcomes"]), "verified": v["verified"], "mismatch": v["mismatch"]}
-                  for k, v in sorted(relations.items())]
+    rel_report = [{"relation": k, "outcomes": dict(v["outcomes"]), "verified": v["verified"], "mismatch": v["mismatch"],
+                   "exempt": v["exempt"]} for k, v in sorted(relations.items())]
     accounted_rows = link_rows_accounted(plan)
     link_tables = {t: {"source_rows": n, "accounted": accounted_rows.get(t, 0)} for t, n in sorted((link_census or {}).items())}
     full_run = selected >= set(spec.SCOPE)
@@ -385,7 +547,8 @@ def reconcile(plan, applied, checked, census, fields, key_range, check_only, lin
             "missing_in_source": sum(1 for v in live if key_range[0] <= v <= key_range[1]),
             "missing_keys": sorted(v for v in live if key_range[0] <= v <= key_range[1]),  # private report only
             "other_range_live": sum(1 for v in live if not key_range[0] <= v <= key_range[1]),
-            "deleted_in_target": len(r.get("deleted", [])),
+            "deleted_in_target": sum(1 for v in r.get("deleted", []) if key_range[0] <= v <= key_range[1]),
+            "other_range_deleted": sum(1 for v in r.get("deleted", []) if not key_range[0] <= v <= key_range[1]),
         }
 
     findings = Counter()
@@ -407,6 +570,165 @@ def reconcile(plan, applied, checked, census, fields, key_range, check_only, lin
             "entities": {k: dict(v) for k, v in sorted(entities.items())}, "columns": col_report,
             "relations": rel_report, "link_tables": link_tables, "orphans": orphans or {}, "inventory": inventory,
             "flags": {k: v for k, v in sorted(plan.flags.items()) if not k.startswith("pending_rel:")}}
+
+
+# --- stage 06.3: finance discrepancies, files, aggregates ------------------------------------------------------
+
+TOTALS = ("subtotal", "preTaxTotal", "grandTotal")
+
+
+def extend_report(report, plan, applied, checked, downloads, finance, source_totals, target_totals, excluded, data,
+                  resolved, rundir, check_only, selected):
+    """Stage 06.3 sections of the report: the owner's-answer findings, every rounding discrepancy and every file
+    (private machine reports with reasons), exact aggregates; problems and findings are added to the run's."""
+    problems, findings = Counter(report["problems"]), Counter(report["findings"])
+    problem_columns = defaultdict(list, report["problem_columns"])
+    results = {op.key: checked.get(op.key, {}) for op in plan.ops}
+    findings["deleted_in_target"] = sum(1 for c in results.values() if c.get("status") == "deleted_in_target")
+    findings["recalculated_in_target"] = sum(1 for c in results.values()
+                                             if c.get("status") == "protected" or c.get("protected"))
+    findings["deleted_targets"] = sum(len(c.get("deletedTargets") or []) for c in results.values())
+    for name, keys in (("legal_entity_differs", [k for k, c in results.items() if c.get("legalEntity") == "differs"]),
+                       ("source_marks_differ", [] if check_only else [
+                           k for k, c in results.items() if (c.get("verification") or {}).get("marks") == "differs"])):
+        if keys:
+            problems[name] = len(keys)
+            problem_columns[name] = sorted(keys)[:50]
+
+    discrepancies, finance_counts = finance_discrepancies(plan, results)
+    for d in discrepancies:
+        findings[f"discrepancy:{d['kind']}"] += 1
+    file_rows, file_counts = file_report(plan, results, downloads, check_only)
+    for row in file_rows:
+        if row["class"] == "problem":
+            problems["file_" + row["reason"]] += 1
+        elif row["class"] == "finding":
+            findings["file_" + row["reason"]] += 1
+    if finance.get("settle_drift"):
+        problems["settlement_drift"] = finance["settle_drift"]
+    if (finance.get("counters") or {}).get("below") and not check_only:
+        problems["counter_below"] = len(finance["counters"]["below"])
+
+    measures = selected_measures(source_totals, selected)
+    reader = aggregates.compare(source_totals, aggregates.planned(plan.ops + plan.held, lambda op: True), measures)
+    imported = {op.key for op in plan.ops if results.get(op.key, {}).get("status") in ("equal", "differs")
+                and not results[op.key].get("protected")}
+    writer = aggregates.compare(aggregates.planned(plan.ops, lambda op: op.key in imported), target_totals,
+                                [m for m in measures if target_totals]) if target_totals else []
+    if any(not r["equal"] for r in reader):
+        problems["aggregate_reader_mismatch"] = sum(1 for r in reader if not r["equal"])
+    if any(not r["equal"] for r in writer) and not check_only:
+        problems["aggregate_writer_mismatch"] = sum(1 for r in writer if not r["equal"])
+
+    write_private(rundir / "discrepancies.jsonl", "".join(
+        json.dumps(d, ensure_ascii=False, sort_keys=True) + "\n" for d in discrepancies + [
+            {"kind": "file", **r} for r in file_rows if r["class"] != "ok"]))
+    write_private(rundir / "files.jsonl", "".join(json.dumps(r, sort_keys=True) + "\n" for r in file_rows))
+    write_json(rundir / "aggregates.json", {"reader": reader, "writer": writer, "excluded": excluded})
+    report.update(
+        problems=dict(problems), problem_columns=dict(problem_columns), findings={k: v for k, v in findings.items() if v},
+        finance={**finance_counts, "verify": dict(finance.get("verify") or {}), "settle": dict(finance.get("settle") or {}),
+                 "settle_drift": finance.get("settle_drift", 0), "counters": finance.get("counters") or {},
+                 "allocations": {k.split(":", 1)[1]: v for k, v in plan.flags.items() if k.startswith("allocation:")}},
+        files=file_counts | {"excluded": data.get("excluded_files", {}),
+                             "unresolved_in_snapshot": sum(1 for r in resolved.values() if r["status"] != "found")},
+        aggregates={"reader": {"measures": len(reader), "unequal": sum(1 for r in reader if not r["equal"])},
+                    "writer": {"measures": len(writer), "unequal": sum(1 for r in writer if not r["equal"])},
+                    "excluded": {k: len(v) for k, v in excluded.items()}})
+    if problems:
+        report["status"] = "fail"
+    elif report["status"] == "pass" and any(report["findings"].values()):
+        report["status"] = "findings"
+
+
+def selected_measures(source_totals, selected):
+    modules = set(selected or spec.SCOPE)
+    prefix = {"Payment": "SPPayments", "PaymentAllocation": "SPPayments"}
+    return sorted(m for m in source_totals if prefix.get(m.split(".")[0], m.split(".")[0]) in modules)
+
+
+def finance_discrepancies(plan, results):
+    """Every document whose stored totals are not exactly the core recomputation, every line margin that disagrees,
+    every invoice and act of one pair with different totals — with a closed reason (private report)."""
+    out, counts = [], defaultdict(Counter)
+    acts = {op.vtigerId: op for op in plan.ops if op.entityType == "Act"}
+    for op in plan.ops:
+        c = results.get(op.key, {})
+        v = c.get("verification")
+        if v is None:
+            continue
+        if v.get("recalculated"):
+            counts["formula"]["recalculated"] += 1
+            continue
+        counts["formula"][v.get("formula") or "not_classified"] += 1
+        counts["totalsCheck"][v.get("worst") or "not_classified"] += 1
+        for kind, n in (v.get("margins") or {}).items():
+            counts["margins"][kind] += n
+        reasons = {"rounded": ["rounded_to_kopecks"], "mismatch": ["stored_total_differs_from_source_formula"],
+                   "unverified": ["unsupported_source_formula"]}.get(v.get("worst"), [])
+        if v.get("formula") is None:
+            reasons = ["not_classified"]
+        reasons += [r for r in v.get("reasons") or [] if reasons]
+        margin = (v.get("margins") or {})
+        if margin.get("mismatch") or margin.get("absent"):
+            reasons.append("margin_differs_from_net_less_purchase_cost")
+        if reasons:
+            out.append({"kind": "rounding" if v.get("worst") in ("rounded", "mismatch") else "verification",
+                        "key": op.key, "id": c.get("id"), "number_present": bool(op.attributes.get("number")),
+                        "formula": v.get("formula"), "checks": v.get("checks"), "reasons": reasons,
+                        "marginLines": v.get("marginLines"), "expected": v.get("expected"),
+                        "stored": {t: op.attributes.get(t) for t in TOTALS}})
+        if op.entityType == "Invoice" and op.links.get("act"):
+            act = acts.get(op.links["act"][1])
+            if act and any(T.decimal(op.attributes.get(t) or "0", 8) != T.decimal(act.attributes.get(t) or "0", 8)
+                           for t in TOTALS):
+                out.append({"kind": "invoice_act_total", "key": op.key, "act": act.key, "id": c.get("id"),
+                            "reasons": ["linked_invoice_act_totals_differ"],
+                            "invoice": {t: op.attributes.get(t) for t in TOTALS},
+                            "actTotals": {t: act.attributes.get(t) for t in TOTALS}})
+    reasons = Counter(r for d in out for r in d["reasons"])
+    return out, {k: dict(v) for k, v in counts.items()} | {"discrepancy_reasons": dict(reasons)}
+
+
+ACCEPTED = {"not_applicable:D-23"}
+
+
+def file_report(plan, results, downloads, check_only=False):
+    """Every file of the import (and every file the source names without one) → class ok / finding / problem with a
+    reason: stored and downloaded as the administrator with the source sha256 = ok; a file the source names but the
+    snapshot has none of = finding (accepted loss D-23 or a new one); anything wrong on the stand = problem."""
+    rows = []
+    for op in plan.ops + plan.held:
+        if op.entityType != "Attachment":
+            continue
+        c, d = results.get(op.key, {}), downloads.get(op.key)
+        row = {"key": op.key, "owner": op.owner, "id": c.get("id"), "size": op.file and op.file["size"],
+               "sha256": op.file and op.file["sha256"], "storage": c.get("file"), "check": c.get("status"),
+               "http": d and d["http"], "held": op.skip or op.pending}
+        if op.skip:
+            row.update({"class": "finding", "reason": op.skip if op.skip.startswith("file_") else "held"})
+        elif op.pending:
+            row.update({"class": "ok", "reason": "deferred"})
+        elif check_only and c.get("status") == "missing":
+            row.update({"class": "ok", "reason": "not_imported_yet"})  # a dry run before the first import
+        elif c.get("status") != "equal":
+            row.update({"class": "problem", "reason": f"check_{c.get('status')}"})
+        elif not d or d["reason"]:
+            row.update({"class": "problem", "reason": "download_" + (d["reason"] if d else "missing")})
+        else:
+            row.update({"class": "ok", "reason": None})
+        rows.append(row)
+    for op in plan.ops + plan.held:  # names without a file in the source: accepted losses (D-23)
+        for kind, col, outcome, _ in op.outcomes:
+            if kind == "f" and outcome in ACCEPTED:
+                rows.append({"key": op.key, "column": col, "class": "accepted", "reason": "accepted_loss_D-23"})
+    counts = defaultdict(Counter)
+    for row in rows:
+        owner = (row.get("owner") or {}).get("entityType", "source")
+        counts[owner][row["class"] if row["class"] != "ok" else ("ok" if row.get("reason") is None else row["reason"])] += 1
+    return rows, {"by_owner": {k: dict(v) for k, v in sorted(counts.items())},
+                  "stored_and_downloaded": sum(1 for r in rows if r["class"] == "ok" and r.get("reason") is None),
+                  "accepted_losses": sum(1 for r in rows if r["class"] == "accepted")}
 
 
 def fmt(counter):
@@ -442,7 +764,7 @@ def render_summary(report, run_id):
             cat[c["module"]]["values_mismatch"] += c.get("mismatch", 0)
             cat[c["module"]]["values_unaccounted"] += c.get("unaccounted", 0)
     lines = [
-        "# Импорт базовых сущностей — сводка прогона (этап 06.2)", "",
+        "# Импорт Vtiger — сводка прогона (этапы 06.2–06.3)", "",
         "Генерируется: `task import:summary -- <прогон>` (`scripts/import/importer.py summary`). Только счётчики: ни "
         "значений, ни идентификаторов записей. Машинный отчёт с причинами по каждой записи и колонке — вне Git "
         "(`/data/itvolga/espo-private/import/<прогон>/`). Контракт импорта — `import.md`.", "",
@@ -494,12 +816,59 @@ def render_summary(report, run_id):
               "исход планировщика — должны совпадать.", "", "| Таблица | Строк в источнике | Учтено |", "|---|---|---|"]
     for table, v in report.get("link_tables", {}).items():
         lines.append(f"| `{table}` | {v['source_rows']} | {v['accounted']} |")
-    lines += ["", "## Цель вне источника", "", "| Сущность | Живые с vtigerId вне источника | Вне диапазона ключей | "
-              "Удалённые с vtigerId |", "|---|---|---|---|"]
+    lines += ["", "## Цель вне источника", "", "Записи EspoCRM с vtigerId: живые вне источника; вне диапазона реальных ключей "
+              "(синтетика тестов, ключи ≥ 900 000 000); удалённые в EspoCRM — в диапазоне реальных ключей и вне его.", "",
+              "| Сущность | Живые с vtigerId вне источника | Вне диапазона ключей | Удалённые (реальные ключи) | "
+              "Удалённые (вне диапазона) |", "|---|---|---|---|---|"]
     for entity, i in sorted(report["inventory"].items()):
-        lines.append(f"| {entity} | {i['missing_in_source']} | {i['other_range_live']} | {i['deleted_in_target']} |")
+        lines.append(f"| {entity} | {i['missing_in_source']} | {i['other_range_live']} | {i['deleted_in_target']} | "
+                     f"{i.get('other_range_deleted', 0)} |")
+    lines += render_063(report)
     lines += ["", "## Счётчики преобразований", "", ", ".join(f"`{k}` {v}" for k, v in report["flags"].items()) or "—", ""]
     return "\n".join(lines)
+
+
+def render_063(report):
+    """Stage 06.3 sections of the summary: counts and classes only (no amounts, names, ids or digests)."""
+    fin, files, agg = report.get("finance") or {}, report.get("files") or {}, report.get("aggregates") or {}
+    if not (fin or files or agg):
+        return []
+    lines = ["", "## Финансы: сверка итогов и налогов (этап 06.3)", "",
+             "Исходные итоги и строки — эталон (D-05): импорт их не пересчитывает. Каждый документ проверен чистым ядром "
+             "(`SourceVerifier`, «Пересчёт ядра»): класс формулы, сравнение каждого итога с точным пересчётом по строкам, "
+             "маржа строк. Каждое расхождение (округление, несовпадение, неподтверждённая формула, маржа, разные итоги "
+             "связанных счёта и акта) — с причиной в приватном `discrepancies.jsonl`.", "",
+             f"- Класс формулы: {fmt(Counter(fin.get('formula') or {})) or '—'}.",
+             f"- Сверка итогов: {fmt(Counter(fin.get('totalsCheck') or {})) or '—'}.",
+             f"- Маржа строк: {fmt(Counter(fin.get('margins') or {})) or '—'}.",
+             f"- Причины расхождений: {fmt(Counter(fin.get('discrepancy_reasons') or {})) or 'нет'}.",
+             f"- Распределение платежей (D-11, категория:решение): {fmt(Counter(fin.get('allocations') or {})) or '—'}.",
+             f"- Пометки источника (`itvolga-finance-verify`): {fmt(Counter(fin.get('verify') or {})) or '—'}.",
+             f"- Оплата документов (`itvolga-finance-settle --silent`): {fmt(Counter(fin.get('settle') or {})) or '—'}; "
+             f"расхождение после пересчёта: {fin.get('settle_drift', 0)}.",
+             f"- Счётчики номеров (cur_id источника, только вверх): изменений {(fin.get('counters') or {}).get('changes', 0)}, "
+             f"ниже источника: {len((fin.get('counters') or {}).get('below') or [])}.",
+             "", "## Агрегаты (точные суммы decimal)", "",
+             "Одни и те же меры тремя способами: SQL восстановленного источника, значения плана, SQL стенда. "
+             "«Чтение» — SQL источника = план по всем записям; «запись» — план = SQL стенда по импортированным записям "
+             "(без удалённых и пересчитанных в EspoCRM — ответы владельца). Суммы — только в приватном `aggregates.json`.", "",
+             "| Сравнение | Мер | Не равно |", "|---|---|---|",
+             f"| чтение | {(agg.get('reader') or {}).get('measures', 0)} | {(agg.get('reader') or {}).get('unequal', 0)} |",
+             f"| запись | {(agg.get('writer') or {}).get('measures', 0)} | {(agg.get('writer') or {}).get('unequal', 0)} |",
+             f"", f"Исключено из сравнения записи: {fmt(Counter(agg.get('excluded') or {})) or 'нет'}.",
+             "", "## Файлы", "",
+             "Каждый файл: байты из проверенного снимка (размер и sha256 по запечатанной описи), запись в хранилище "
+             "стенда, проверочный проход (файл есть, sha256 совпадает) и скачивание через стенд администратором "
+             "(200 и sha256 источника). Внешние ссылки документов не открываются — переносятся дословно. Каждый "
+             "недоступный файл — с причиной в приватном `files.jsonl`.", "",
+             "| Владелец | Итоги |", "|---|---|"]
+    for owner, counts in (files.get("by_owner") or {}).items():
+        lines.append(f"| {owner} | {fmt(Counter(counts))} |")
+    lines += ["", f"- Сохранено и скачано: {files.get('stored_and_downloaded', 0)}; принятые потери D-23 (имя файла без "
+                  f"файла в источнике): {files.get('accepted_losses', 0)}; не найдено в снимке: "
+                  f"{files.get('unresolved_in_snapshot', 0)}.",
+              f"- Оставлены в снимке по решениям: {fmt(Counter(files.get('excluded') or {})) or 'нет'}."]
+    return lines
 
 
 # --- CLI -------------------------------------------------------------------------------------------------

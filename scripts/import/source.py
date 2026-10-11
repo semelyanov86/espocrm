@@ -93,22 +93,43 @@ class SourceDb:
 
 
 def load(db, uitypes):
-    """Everything the plan needs, plus the census of every column of every table read (counts only)."""
-    data, census = {}, {}
+    """Everything the plan needs, plus the census of every column of every table read (counts only) and the reader's
+    own counts of the same columns (transport check)."""
+    data, census, reader = {}, {}, {}
+
+    def read(module, from_sql, tables, census_module=None):
+        rows = db.select(from_sql, tables)
+        target = census_module or module
+        census.setdefault(target, {}).update(db.census(from_sql, tables, uitypes.get(target, {})))
+        for k, v in reader_counts(rows).items():
+            reader.setdefault(target, {})[k] = reader.get(target, {}).get(k, 0) + v
+        return rows
+
     for module, src in spec.SOURCES.items():
-        data[module] = db.select(src.from_sql(), src.tables())
-        census[module] = db.census(src.from_sql(), src.tables(), uitypes.get(module, {}))
+        data[module] = read(module, src.from_sql(), src.tables())
+    data["lines"] = []
+    for module in spec.LINE_MODULES:  # lines of the live documents: census under their module (field-map rows)
+        data["lines"] += read(module, LINES.format(module=module), ("vtiger_inventoryproductrel",))
+    for module, tables in spec.PLAIN_MODULES.items():
+        for table in tables:
+            data[table] = read(module, PLAIN_ROWS[table], (table,))
     for table in spec.TABLES:
         data[table] = db.select(LINK_ROWS.get(table, ""), (table,))
     census["Users"] = db.census(LINK_ROWS["vtiger_users"], ("vtiger_users",), uitypes.get("Users", {}))
     census["Users"].update(db.census(LINK_ROWS["vtiger_user2role"], ("vtiger_user2role",), {}))
+    reader["Users"] = {**reader_counts(data["vtiger_users"]), **reader_counts(data["vtiger_user2role"])}
     data["link_census"] = link_census(db)
     data["orphans"] = orphans(db)
     census["links"] = {}
     for table in spec.LINK_COLUMNS:
         census["links"].update(db.census(LINK_ROWS[table], (table,), {}))
+    reader["links"] = {k: v for t in spec.LINK_COLUMNS for k, v in reader_counts(data[t]).items()}
     data["crm"] = {crmid: (setype, deleted) for crmid, setype, deleted in _crm(db)}
     data["activity_type"] = _activity_types(db)
+    data["modentity_num"] = [{k.split(".", 1)[1]: v for k, v in r.items()}
+                             for r in db.select(COUNTERS, ("vtiger_modentity_num",))]
+    data["excluded_files"] = _counts(db, EXCLUDED_FILES)
+    data["reader"] = reader
     return data, census
 
 
@@ -117,30 +138,58 @@ def load(db, uitypes):
 LIVE = "SELECT crmid FROM vtiger_crmentity WHERE deleted = 0"
 LIVE_ACTIVITY = (f"SELECT activityid FROM vtiger_activity WHERE activitytype IN ('Task', 'Call', 'Meeting', 'Письмо') "
                  f"AND activityid IN ({LIVE} AND setype = 'Calendar')")
+# activities and archived e-mails (stage 06.3: the e-mails' parents, recipients, users)
+LIVE_ACTIVITY_OR_EMAIL = f"{LIVE_ACTIVITY} UNION SELECT crmid FROM vtiger_crmentity WHERE deleted = 0 AND setype = 'Emails'"
 LIVE_USER = "SELECT id FROM vtiger_users WHERE deleted = 0"
 SCOPE_MODULES = "', '".join(spec.SCOPE)
+# setypes of the attachments in scope (MailManager cache: excluded, Q-13)
+ATTACHMENT_SETYPES = "', '".join(("Documents Attachment", "Contacts Image", "ModComments Attachment",
+                                  "Emails Attachment", "Users Image"))
+LIVE_ATTACHMENT = f"{LIVE} AND setype IN ('{ATTACHMENT_SETYPES}')"
+LINES = ("FROM vtiger_inventoryproductrel WHERE id IN "
+         f"({LIVE} AND setype = '{{module}}')")
+PLAIN_ROWS = {
+    "vtiger_attachments": f"FROM vtiger_attachments WHERE attachmentsid IN ({LIVE_ATTACHMENT})",
+    "vtiger_organizationdetails": "FROM vtiger_organizationdetails",
+    "vtiger_attachmentsfolder": "FROM vtiger_attachmentsfolder",
+}
+COUNTERS = ("FROM vtiger_modentity_num WHERE semodule IN ('Quotes', 'SalesOrder', 'Invoice', 'Act', 'SPPayments') "
+            "ORDER BY num_id")
+# files the import leaves in the snapshot (decisions): counted for the report
+EXCLUDED_FILES = {
+    "mailmanager_attachments": f"SELECT COUNT(*) FROM vtiger_attachments WHERE attachmentsid IN ({LIVE} "
+                               "AND setype = 'MailManager Attachment')",
+}
 LINK_ROWS = {
     "vtiger_users": "FROM vtiger_users WHERE deleted = 0",
     "vtiger_user2role": f"FROM vtiger_user2role WHERE userid IN ({LIVE_USER})",
     "vtiger_users2group": f"FROM vtiger_users2group WHERE userid IN ({LIVE_USER})",
-    "vtiger_seactivityrel": f"FROM vtiger_seactivityrel WHERE activityid IN ({LIVE_ACTIVITY})",
-    "vtiger_cntactivityrel": f"FROM vtiger_cntactivityrel WHERE activityid IN ({LIVE_ACTIVITY})",
-    "vtiger_salesmanactivityrel": f"FROM vtiger_salesmanactivityrel WHERE activityid IN ({LIVE_ACTIVITY})",
+    "vtiger_seactivityrel": f"FROM vtiger_seactivityrel WHERE activityid IN ({LIVE_ACTIVITY_OR_EMAIL})",
+    "vtiger_cntactivityrel": f"FROM vtiger_cntactivityrel WHERE activityid IN ({LIVE_ACTIVITY_OR_EMAIL})",
+    "vtiger_salesmanactivityrel": f"FROM vtiger_salesmanactivityrel WHERE activityid IN ({LIVE_ACTIVITY_OR_EMAIL})",
     "vtiger_contpotentialrel": f"FROM vtiger_contpotentialrel WHERE potentialid IN ({LIVE} AND setype = 'Potentials')",
     "vtiger_crmentityrel": f"FROM vtiger_crmentityrel WHERE crmid IN ({LIVE}) AND relcrmid IN ({LIVE}) "
                            f"AND (module IN ('{SCOPE_MODULES}') OR relmodule IN ('{SCOPE_MODULES}', 'Calendar'))",
-    "vtiger_freetagged_objects": f"FROM vtiger_freetagged_objects WHERE module IN ('HelpDesk', 'ProjectTask') "
+    "vtiger_freetagged_objects": f"FROM vtiger_freetagged_objects WHERE module IN ('HelpDesk', 'ProjectTask', 'Faq') "
                                  f"AND object_id IN ({LIVE})",
     "vtiger_groups": "FROM vtiger_groups",
-    "vtiger_senotesrel": f"FROM vtiger_senotesrel WHERE crmid IN ({LIVE} AND setype IN ('{SCOPE_MODULES}', 'Calendar'))",
-    "vtiger_seattachmentsrel": f"FROM vtiger_seattachmentsrel WHERE crmid IN "
-                               f"({LIVE} AND setype IN ('{SCOPE_MODULES}', 'Calendar'))",
+    "vtiger_senotesrel": f"FROM vtiger_senotesrel WHERE notesid IN ({LIVE} AND setype = 'Documents') "
+                         f"AND crmid IN ({LIVE})",
+    "vtiger_seattachmentsrel": f"FROM vtiger_seattachmentsrel WHERE attachmentsid IN ({LIVE_ATTACHMENT}) "
+                               f"AND crmid IN ({LIVE})",
+    "vtiger_salesmanattachmentsrel": f"FROM vtiger_salesmanattachmentsrel WHERE attachmentsid IN ({LIVE_ATTACHMENT}) "
+                                     f"AND smid IN ({LIVE_USER})",
+    "vtiger_email_track": f"FROM vtiger_email_track WHERE mailid IN ({LIVE} AND setype = 'Emails')",
 }
 
 
 LINK_ROWS["vtiger_freetags"] = (f"FROM vtiger_freetags WHERE id IN "
                                f"(SELECT tag_id {LINK_ROWS['vtiger_freetagged_objects']})")
 PAIR_TABLES = [t for t in LINK_ROWS if t not in ("vtiger_users", "vtiger_groups", "vtiger_freetags")]
+
+
+def _counts(db, queries):
+    return {name: int(db.lines(sql + ";\n")[0]) for name, sql in queries.items()}
 
 
 def link_census(db):

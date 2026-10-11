@@ -19,12 +19,14 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "scripts" / "import"))
 sys.path.insert(0, str(REPO / "tests" / "stage03"))
+sys.path.insert(0, str(REPO / "tests" / "stage06_3"))
 import importer  # noqa: E402
 import spec  # noqa: E402
 import transforms as T  # noqa: E402
 import verify  # noqa: E402
 from common import Mysql  # noqa: E402
 from espo import Client, admin_credentials  # noqa: E402
+from schema import COLUMNS_063  # noqa: E402  (stage 06.3: the importer reads these tables too; empty here)
 
 HEX = secrets.token_hex(3)
 VT = 900_000_000 + secrets.randbelow(89_000_000) // 1000 * 1000
@@ -306,7 +308,8 @@ class Stage062(unittest.TestCase):
         cls.temp = verify.TempDatabases(ROOT, ROOT)
         SOURCE = cls.temp.create("vtiger7", "utf8mb4", "utf8mb4_0900_ai_ci")
         cls.addClassCleanup(cls.temp.drop_all)
-        source_sql("\n".join(f"CREATE TABLE `{t}` ({c}) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;" for t, c in COLUMNS.items()))
+        source_sql("\n".join(f"CREATE TABLE `{t}` ({c}) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;"
+                              for t, c in {**COLUMNS_063, **COLUMNS}.items()))
         source_sql("\n".join(fixture_sql()))
         cls.preexisting = {t: {r[0] for r in sql(f"SELECT id FROM {t}")} for t in ("email_address", "phone_number")}
         cls.client = Client(*admin_credentials())
@@ -320,6 +323,7 @@ class Stage062(unittest.TestCase):
 
     @classmethod
     def run_import(cls, only=None, check_only=False):
+        only = only or ",".join(spec.BASE_SCOPE)  # stage 06.2: references to 06.3 modules wait (deferred)
         rundir = ROOT / f"run-{len(cls.runs)}"
         rundir.mkdir()
         report = importer.execute(rundir, source_db=SOURCE, only=only, check_only=check_only, adopt=ADMIN_NAME,
