@@ -2,8 +2,8 @@
 
 Генерируется: `task import:summary -- <прогон>` (`scripts/import/importer.py summary`). Только счётчики: ни значений, ни идентификаторов записей. Машинный отчёт с причинами по каждой записи и колонке — вне Git (`/data/itvolga/espo-private/import/<прогон>/`). Контракт импорта — `import.md`.
 
-- Прогон: `20261011T133339`; снимок: `20261006T201216`; код: `ff5c5cc` (незакоммиченных файлов инструмента: 0).
-- Итог: **findings**; проблемы: нет; находки: conflict=8, dangling=1, missing_in_source=0, no_target=14, pending=931, records_held=3, type_conflict=22.
+- Прогон: `20261011T142701`; снимок: `20261006T201216`; код: `f76216d` (незакоммиченных файлов инструмента: 0).
+- Итог: **findings**; проблемы: нет; находки: conflict=8, dangling=1, missing_in_source=0, no_target=14, pending=930, records_held=3, relation_module_mismatch=0, type_conflict=22.
 - «Тишина» (изменение числа строк стенда: уведомления, напоминания, подписки, записи ленты без vtigerId, письма, вебхуки, журнал действий): action_history_record=0, email=0, note_not_imported=0, notification=0, reminder=0, stream_subscription=0, webhook_queue_item=0.
 
 ## Записи
@@ -73,7 +73,7 @@
 | `crmentityrel:Accounts->Project` | duplicate=3 | 3 | 0 |
 | `crmentityrel:Contacts->Calendar` | duplicate=2, linked=1 | 3 | 0 |
 | `crmentityrel:Contacts->HelpDesk` | linked=3 | 3 | 0 |
-| `crmentityrel:Invoice->Calendar` | pending:06.3=1 | 0 | 0 |
+| `crmentityrel:Invoice->Calendar` | duplicate=1 | 1 | 0 |
 | `crmentityrel:Leads->Calendar` | conflict=3, duplicate=32, linked=3 | 35 | 0 |
 | `crmentityrel:Potentials->Calendar` | duplicate=24 | 24 | 0 |
 | `crmentityrel:Project->ProjectTask` | conflict=5, duplicate=481 | 481 | 0 |
@@ -121,6 +121,46 @@
 | `vtiger_senotesrel:Project->Documents` | pending:06.3=6 | — | — |
 | `vtiger_senotesrel:ProjectTask->Documents` | pending:06.3=49 | — | — |
 
+## Колонки таблиц связей
+
+Строки таблиц связей в границах этапа: «пара» — колонки, из которых строится связь (строки сверены ниже), «ждёт этапа» — связи следующего этапа, «не переносится» — с причиной (D-144).
+
+| Колонка | Судьба | Значений |
+|---|---|---|
+| `vtiger_cntactivityrel.activityid` | пара | 6 |
+| `vtiger_cntactivityrel.contactid` | пара | 6 |
+| `vtiger_contpotentialrel.contactid` | пара | 5 |
+| `vtiger_contpotentialrel.potentialid` | пара | 5 |
+| `vtiger_crmentityrel.crmid` | пара | 1392 |
+| `vtiger_crmentityrel.module` | пара | 1392 |
+| `vtiger_crmentityrel.relcrmid` | пара | 1392 |
+| `vtiger_crmentityrel.relmodule` | пара | 1392 |
+| `vtiger_freetagged_objects.module` | пара | 4 |
+| `vtiger_freetagged_objects.object_id` | пара | 4 |
+| `vtiger_freetagged_objects.tag_id` | пара | 4 |
+| `vtiger_freetagged_objects.tagged_on` | не переносится: время постановки тега — у значения multiEnum его нет | 4 |
+| `vtiger_freetagged_objects.tagger_id` | не переносится: автор постановки тега — у значения multiEnum его нет | 4 |
+| `vtiger_freetags.id` | пара | 4 |
+| `vtiger_freetags.owner` | не переносится: автор тега Vtiger | 4 |
+| `vtiger_freetags.raw_tag` | пара | 4 |
+| `vtiger_freetags.tag` | не переносится: нормализованная форма raw_tag (значение тега — raw_tag) | 4 |
+| `vtiger_freetags.visibility` | не переносится: видимость тега Vtiger (теги EspoCRM — значения поля) | 4 |
+| `vtiger_groups.description` | не переносится: группы воспроизводятся командами (D-39), описание не переносится | 3 |
+| `vtiger_groups.groupid` | пара | 3 |
+| `vtiger_groups.groupname` | пара | 3 |
+| `vtiger_salesmanactivityrel.activityid` | пара | 86 |
+| `vtiger_salesmanactivityrel.smid` | пара | 86 |
+| `vtiger_seactivityrel.activityid` | пара | 80 |
+| `vtiger_seactivityrel.crmid` | пара | 80 |
+| `vtiger_seattachmentsrel.attachmentsid` | ждёт этапа 06.3 | 3 |
+| `vtiger_seattachmentsrel.crmid` | ждёт этапа 06.3 | 3 |
+| `vtiger_senotesrel.crmid` | ждёт этапа 06.3 | 113 |
+| `vtiger_senotesrel.notesid` | ждёт этапа 06.3 | 113 |
+| `vtiger_user2role.roleid` | пара | 7 |
+| `vtiger_user2role.userid` | пара | 7 |
+| `vtiger_users2group.groupid` | пара | 4 |
+| `vtiger_users2group.userid` | пара | 4 |
+
 ## Таблицы связей источника
 
 Строки таблиц связей по живым записям этапа (SQL) и строки, получившие исход планировщика — должны совпадать.
@@ -142,12 +182,12 @@
 
 | Сущность | Живые с vtigerId вне источника | Вне диапазона ключей | Удалённые с vtigerId |
 |---|---|---|---|
-| Account | 0 | 0 | 55 |
+| Account | 0 | 0 | 56 |
 | Call | 0 | 0 | 0 |
 | Case | 0 | 0 | 0 |
 | Contact | 0 | 0 | 0 |
 | ContactAccess | 0 | 0 | 0 |
-| Lead | 0 | 0 | 51 |
+| Lead | 0 | 0 | 52 |
 | Meeting | 0 | 0 | 0 |
 | Note | 0 | 0 | 0 |
 | Opportunity | 0 | 0 | 0 |
