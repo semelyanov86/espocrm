@@ -185,6 +185,13 @@ def _execute(rundir, logdir, fields, uitypes, snapshot_dir, source_db, files, on
         fd = os.open(rundir / "applied.jsonl", os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
         with os.fdopen(fd, "a") as journal:  # keys and EspoCRM ids of written records, as the writer answers
             applied, stray_apply = bridge(plan.ops, "apply", adopt, logdir, journal=journal, files=files)
+            # a lower source amount of a payment fits only once its allocation is lowered (the payment hook keeps the
+            # stored allocations and refuses an amount below them): failed payments are written once more after them
+            retry = [op for op in plan.ops if op.entityType == "Payment" and applied[op.key].get("status") == "error"]
+            if retry:
+                again, stray_again = bridge(retry, "apply", adopt, logdir, journal=journal, files=files)
+                applied.update(again)
+                stray_apply += stray_again
         log("apply: " + fmt(Counter(r.get("status") for r in applied.values())))
     finance = finance_steps(plan, check_only, logdir, targets_before)
     checked, stray_check = bridge(plan.ops, "check", adopt, logdir, inventory=inventory_types(only))

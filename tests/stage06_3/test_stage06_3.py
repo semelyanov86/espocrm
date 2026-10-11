@@ -756,6 +756,41 @@ class Stage063(unittest.TestCase):
         with self.assertRaises(spec.T.TransformError):
             spec.Currency("vtiger_invoice.currency_id").apply(spec.Op("Invoice", 1, "Invoice"),
                                                               {"vtiger_invoice.currency_id": "2"}, None)
+        for url in ("https:///x", "http://?x", "ftp://#x", "not a link", "http://a b"):  # no host, not a URL
+            self.assertFalse(spec.C.is_url(url), url)
+        self.assertTrue(spec.C.is_url("https://example.com/synth"))
+
+    def test_16_lower_source_amount_after_an_edit_in_espocrm(self):
+        """A payment and its allocation raised in EspoCRM go back to the lower source amount in one run (the payment
+        hook refuses an amount below the stored allocation: the payment is written again after the allocation)."""
+        payment, order = self.id_of("payment", PAY4), self.id_of("sales_order", SO1)
+        allocation = one(f"SELECT id FROM payment_allocation WHERE vtiger_id = {PAY4} AND deleted = 0")[0]
+        status, _b, _ = self.client.put(f"Payment/{payment}", {"amount": "100", "allocationList": [
+            {"id": allocation, "salesOrderId": order, "amount": "100"}]})
+        self.assertEqual(status, 200)
+        report, recs, _ = self.run_import()
+        self.assertEqual(report["problems"], {}, report.get("problem_columns"))
+        row = one(f"SELECT p.amount, a.amount FROM payment p JOIN payment_allocation a ON a.payment_id = p.id "
+                  f"AND a.deleted = 0 WHERE p.vtiger_id = {PAY4}")
+        self.assertEqual([Decimal(v) for v in row], [Decimal("50"), Decimal("50")])
+        self.assertEqual(recs[f"Payment:{PAY4}"]["apply"], "updated")
+
+    def test_17_partial_run_and_repeated_category_name(self):
+        """`--only Contacts`: a photo whose Attachment operation is not in the run waits (deferred), never verified.
+        A deleted category of the same name as the live one is not restored instead of it."""
+        source_sql(f"UPDATE vtiger_contactdetails SET imagename = 'photo.png' WHERE contactid = {C1};")
+        report, recs, _ = self.run_import(only="Contacts")
+        self.assertEqual(report["problems"], {}, report.get("problem_columns"))
+        outcomes = {key: outcome for _kind, key, outcome in recs[f"Contact:{C1}"]["outcomes"]}
+        self.assertEqual(outcomes["vtiger_contactdetails.imagename"], "deferred")
+        live = one("SELECT id FROM knowledge_base_category WHERE name = 'Общее' AND deleted = 0")[0]
+        sql(f"INSERT INTO knowledge_base_category (id, name, deleted, created_at) VALUES "
+            f"('000itv{HEX}del', 'Общее', 1, NOW())")
+        self.created.append(("KnowledgeBaseCategory", f"000itv{HEX}del"))
+        report, recs, _ = self.run_import()
+        self.assertEqual(report["problems"], {}, report.get("problem_columns"))
+        self.assertEqual(one(f"SELECT deleted FROM knowledge_base_category WHERE id = '000itv{HEX}del'")[0], "1")
+        self.assertEqual(recs["KnowledgeBaseCategory:Общее"]["id"], live)
 
 
 def load_tests(loader, tests, pattern):

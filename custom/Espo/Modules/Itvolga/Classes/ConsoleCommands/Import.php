@@ -26,7 +26,8 @@ use Throwable;
  *   {"op": "inventory", "entityType": "Contact"}
  *
  * Every operation line is answered on stdout with `#itv#<nonce>#<json>` (status, ids, attribute names, closed error
- * codes — never values), then `{"done": n}`. Exception messages are never printed (they may quote values); the
+ * codes — never values), then `{"done": n}`; after a COMMIT that failed (`transaction_failed`) the command stops there
+ * and `done` counts the lines read. Exception messages are never printed (they may quote values); the
  * application log is muted while the command runs (a failed SQL statement would be logged with its values). Protocol 1
  * (stage 06.2) is the same without files.
  */
@@ -93,6 +94,10 @@ class Import implements Command
 
             echo $prefix, json_encode($result, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE), "\n";
             flush();
+
+            if (($result['error'] ?? null) === 'transaction_failed') {
+                break; // an uncertain COMMIT: the run stops (the importer sees fewer answers than operations)
+            }
         }
 
         echo $prefix, json_encode(['done' => $count]), "\n";

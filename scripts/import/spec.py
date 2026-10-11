@@ -540,7 +540,8 @@ class FileName(Rule):
         if not attached:
             op.column(self.cols[0], "not_applicable:D-23", op.archive(self.cols[0].split(".")[1], raw))
         elif raw in {ctx.attachment_names.get(a) for a in attached}:
-            op.column(self.cols[0], "linked", self.attr)
+            # the file and the owner's pointer are verified by the Attachment operation: only in a run that has it
+            op.column(self.cols[0], "linked" if "Attachments" in ctx.selected else "deferred", self.attr)
         else:
             ctx.flags["file_name_differs"] += 1
             op.column(self.cols[0], "archived", op.archive(self.cols[0].split(".")[1], raw))

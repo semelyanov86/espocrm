@@ -7,6 +7,7 @@ import csv
 import json
 import mimetypes
 import re
+from urllib.parse import urlsplit
 
 import spec as S
 import transforms as T
@@ -24,6 +25,14 @@ ATTACHMENT_OWNERS = {"Documents Attachment": ("Documents", "Document", "file"),
                      "Users Image": ("Users", "User", "avatar")}
 KB_CATEGORY = {"General": "Общее"}  # field-map: the single FAQ category → KnowledgeBaseCategory «Общее»
 URL_RE = re.compile(r"^(https?|ftp)://\S+$", re.IGNORECASE)
+
+
+def is_url(value):
+    """A link the field can hold and a browser can open: http/https/ftp with a host, no whitespace, ≤ 255."""
+    try:
+        return len(value) <= 255 and bool(URL_RE.match(value.strip())) and bool(urlsplit(value.strip()).hostname)
+    except ValueError:
+        return False
 ARCHIVE_LINKS = {  # archive module → column → (link, accepted entity types)
     "Consignment": {"vtiger_sp_consignment.accountid": ("account", ("Account",)),
                     "vtiger_sp_consignment.invoiceid": ("invoice", ("Invoice",)),
@@ -134,7 +143,7 @@ def build_document(row, ctx, files):
     op.attributes["cExternalUrl"] = None
     if location == "E":
         op.column(n + "filelocationtype", "mapped", "cExternalUrl")
-        if not T.is_empty(name) and URL_RE.match(name.strip()) and len(name) <= 255:
+        if not T.is_empty(name) and is_url(name):
             op.attributes["cExternalUrl"] = name
             op.column(n + "filename", "carried", "cExternalUrl")
         elif not T.is_empty(name):

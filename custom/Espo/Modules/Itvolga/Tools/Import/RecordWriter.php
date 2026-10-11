@@ -73,26 +73,55 @@ class RecordWriter
                 return $this->attachments->check($op);
             }
 
-            try {
-                return $this->entityManager->getTransactionManager()->run(fn () => $this->attachments->write($op, $blob));
-            } catch (Throwable $e) {
-                $this->attachments->discardUncommitted(); // the transaction is over: its record decides the file
-
-                throw $e;
-            }
+            return $this->transaction(fn () => $this->attachments->write($op, $blob),
+                fn () => $this->attachments->discardUncommitted()); // the transaction is over: its record decides
         }
 
         if ($check) {
             return $this->check($op);
         }
 
-        $result = $this->entityManager->getTransactionManager()->run(fn () => $this->write($op, $adoptUserName));
+        $result = $this->transaction(fn () => $this->write($op, $adoptUserName));
 
         if (isset($result['id']) && in_array($result['status'], ['created', 'restored', 'adopted', 'updated'], true)) {
             $this->keys->remember($type, $this->key($op), $result['id']); // only once the transaction committed
         }
 
         return $result;
+    }
+
+    /**
+     * One operation in one transaction. The core decrements its transaction counter before PDO::commit(): a COMMIT
+     * that throws leaves the PDO transaction open and the core's rollback refuses. The transaction is ended here
+     * before `$afterFailure` looks at the database; after a failed COMMIT the outcome is uncertain and the command
+     * stops (`transaction_failed`) instead of writing more on that connection.
+     *
+     * @param callable(): array<string, mixed> $write
+     * @param ?callable(): void $afterFailure
+     * @return array<string, mixed>
+     */
+    private function transaction(callable $write, ?callable $afterFailure = null): array
+    {
+        try {
+            return $this->entityManager->getTransactionManager()->run($write);
+        } catch (Throwable $e) {
+            $pdo = $this->entityManager->getPDO();
+            $uncertain = $pdo->inTransaction();
+
+            try {
+                if ($uncertain) {
+                    $pdo->rollBack();
+                }
+
+                if ($afterFailure) {
+                    $afterFailure();
+                }
+            } catch (Throwable) {
+                $uncertain = true; // the connection is gone: nothing can be checked
+            }
+
+            throw $uncertain ? new ImportError('transaction_failed') : $e;
+        }
     }
 
     /**

@@ -33,9 +33,24 @@ class KeyResolver
             ->from($entityType)
             ->where([$this->keyAttribute($entityType) => $this->typed($entityType, $key)])
             ->withDeleted()
+            ->order('id', 'DESC')
             ->build();
+        $repository = $this->entityManager->getRDBRepository($entityType);
 
-        return $this->entityManager->getRDBRepository($entityType)->clone($query)->findOne();
+        if (!isset(self::NATURAL_KEYS[$entityType])) {
+            return $repository->clone($query)->findOne(); // vtigerId is unique with the deleted rows (D-41)
+        }
+
+        // A name may repeat: the single live record; with none live, the latest deleted one (restored); more than
+        // one live — never a guess (id() refuses them as well).
+        $found = iterator_to_array($repository->clone($query)->find(), false);
+        $live = array_values(array_filter($found, static fn (Entity $entity) => !$entity->get('deleted')));
+
+        if (count($live) > 1) {
+            throw new ImportError('ambiguous_key');
+        }
+
+        return $live[0] ?? $found[0] ?? null;
     }
 
     /**
