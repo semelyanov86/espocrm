@@ -33,6 +33,11 @@ ADMIN_NAME = f"synth-imp-{HEX}-admin"
 CLASH_NAME = f"synth-imp-{HEX}-clash"
 
 
+IMPORT_TABLES = {"User": "user", "Account": "account", "Contact": "contact", "ContactAccess": "contact_access",
+                 "Lead": "lead", "Opportunity": "opportunity", "Project": "project", "ProjectTask": "project_task",
+                 "Case": "case", "Task": "task", "Call": "call", "Meeting": "meeting", "Note": "note"}
+
+
 def phone(*parts):
     return "".join(parts)  # built at run time: no phone-shaped literal in Git
 
@@ -41,7 +46,7 @@ A1, A2, A3, C1, C2, L1, O1, P1, T1, H1, E1, E2, E3, E4, N1, N2, N3, F1 = (
     VT + 101, VT + 102, VT + 103, VT + 201, VT + 202, VT + 301, VT + 401, VT + 501, VT + 502, VT + 601, VT + 701,
     VT + 702, VT + 703, VT + 704, VT + 801, VT + 802, VT + 803, VT + 990)
 U_ADMIN, U_SALES, U_DEPUTY, U_CLASH, U_GONE, G_SALES = VT + 1, VT + 2, VT + 3, VT + 4, VT + 5, VT + 900
-C3, INV, DOC, E5 = VT + 203, VT + 961, VT + 962, VT + 705
+C3, INV, DOC, E5, E6, A4 = VT + 203, VT + 961, VT + 962, VT + 705, VT + 706, VT + 104
 SECRET = f"pw-{secrets.token_hex(6)}"
 
 COLUMNS = {
@@ -225,6 +230,9 @@ def fixture_sql():
         entity(E5, "Calendar"),
         insert("vtiger_activity", activityid=E5, subject=f"{PREFIX} E5", activitytype="Task", status="Not Started"),
         insert("vtiger_seactivityrel", crmid=O1, activityid=E5),
+        entity(E6, "Calendar"),
+        insert("vtiger_activity", activityid=E6, subject=f"{PREFIX} E6", activitytype="Call", date_start="2020-03-01",
+               time_start="12:00", due_date="2020-03-02", eventstatus="Held"),
         entity(E2, "Calendar"),
         insert("vtiger_activity", activityid=E2, subject=f"{PREFIX} E2", activitytype="Call", date_start="2020-03-01",
                time_start="12:00", due_date="2020-03-01", time_end="12:30", duration_hours="0",
@@ -278,8 +286,9 @@ class Stage062(unittest.TestCase):
         global ROOT, SOURCE
         ROOT = Path(tempfile.mkdtemp(prefix="vtimp-test-"))
         cls.addClassCleanup(shutil.rmtree, ROOT, True)
-        taken = one(f"SELECT COUNT(*) FROM account WHERE vtiger_id BETWEEN {KEYS[0]} AND {KEYS[1]}")
-        assert taken == ["0"], "the random key block is in use: run again"
+        taken = sum(int(one(f"SELECT COUNT(*) FROM `{t}` WHERE vtiger_id BETWEEN {KEYS[0]} AND {KEYS[1]}")[0])
+                    for t in IMPORT_TABLES.values())   # deleted rows included: they keep their key (D-41)
+        assert taken == 0, "the random key block is in use: run again"
         cls.temp = verify.TempDatabases(ROOT, ROOT)
         SOURCE = cls.temp.create("vtiger7", "utf8mb4", "utf8mb4_0900_ai_ci")
         cls.addClassCleanup(cls.temp.drop_all)
@@ -315,9 +324,11 @@ class Stage062(unittest.TestCase):
                     ids.setdefault(r["key"].split(":")[0], set()).add(r["id"])
         for etype, eid in cls.created:
             ids.setdefault(etype, set()).add(eid)
-        tables = {"User": "user", "Account": "account", "Contact": "contact", "ContactAccess": "contact_access",
-                  "Lead": "lead", "Opportunity": "opportunity", "Project": "project", "ProjectTask": "project_task",
-                  "Case": "case", "Task": "task", "Call": "call", "Meeting": "meeting", "Note": "note"}
+        # also records of a run that failed before its records were written: the key block was free before the test
+        for etype, table in IMPORT_TABLES.items():
+            for (eid,) in sql(f"SELECT id FROM `{table}` WHERE vtiger_id BETWEEN {KEYS[0]} AND {KEYS[1]}"):
+                ids.setdefault(etype, set()).add(eid)
+        tables = IMPORT_TABLES
         junctions = ["DELETE FROM entity_team WHERE entity_id IN ({0})", "DELETE FROM entity_email_address WHERE entity_id IN ({0})",
                      "DELETE FROM entity_phone_number WHERE entity_id IN ({0})", "DELETE FROM account_contact WHERE contact_id IN ({0}) OR account_id IN ({0})",
                      "DELETE FROM contact_opportunity WHERE contact_id IN ({0}) OR opportunity_id IN ({0})",
@@ -414,6 +425,9 @@ class Stage062(unittest.TestCase):
         self.assertEqual(one(f"SELECT date_start, date_end, direction IS NULL, status FROM `call` WHERE vtiger_id={E2}"),
                          ["2020-03-01 09:00:00", "2020-03-01 09:30:00", "1", "Held"])
         self.assertEqual(one(f"SELECT parent_type, date_start IS NULL FROM meeting WHERE vtiger_id={E3}"), ["Lead", "1"])
+        e6 = one(f"SELECT date_end, vtiger_data FROM `call` WHERE vtiger_id={E6}")
+        self.assertEqual(e6[0], "2020-03-01 09:00:00")                       # D-43: required end = start
+        self.assertEqual(json.loads(e6[1]), {"dateEndMissing": True, "due_date": "2020-03-02"})  # the date is kept
         e4 = one(f"SELECT c_task_type, contact_id = '{c1}', parent_type, vtiger_data FROM task WHERE vtiger_id={E4}")
         self.assertEqual(e4[:3], ["Письмо", "1", "Opportunity"])
         self.assertEqual(json.loads(e4[3]), {"duration_hours": "2", "duration_minutes": "0", "eventstatus": "Held",
@@ -536,9 +550,31 @@ class Stage062(unittest.TestCase):
 
     def test_12_partial_run_keeps_derived_task_contact(self):
         report, recs = self.run_import(only="Calendar")
+        self.assertEqual(report["problems"], {}, report.get("problem_columns"))
         self.assertEqual(one(f"SELECT contact_id = (SELECT id FROM contact WHERE vtiger_id={C1}) FROM task "
                              f"WHERE vtiger_id={E5}"), ["1"])
         self.assertEqual(recs[f"Task:{E5}"]["apply"], "unchanged")
+
+    def test_13_partial_runs_keep_title_and_task_contact(self):
+        report, recs = self.run_import(only="Users,Contacts")
+        self.assertEqual(report["problems"], {}, report.get("problem_columns"))
+        c1 = self.id_of("contact", C1)
+        self.assertEqual(one(f"SELECT role FROM account_contact WHERE contact_id='{c1}' AND deleted=0"), ["Директор"])
+        source_sql(f"INSERT INTO vtiger_seactivityrel (crmid, activityid) VALUES ({A2}, {E4});"
+                   f"UPDATE vtiger_crmentity SET modifiedtime='2024-04-01 10:00:00' WHERE crmid={E4};")
+        report, recs = self.run_import(only="Users,Accounts,Events")   # contacts not in the run: E4's contact is kept
+        self.assertEqual(report["problems"], {}, report.get("problem_columns"))
+        self.assertEqual(recs[f"Task:{E4}"]["apply"], "updated")
+        self.assertEqual(one(f"SELECT parent_type, contact_id = '{c1}' FROM task WHERE vtiger_id={E4}"), ["Account", "1"])
+
+    def test_14_live_record_without_base_row_fails(self):
+        source_sql(entity(A4, "Accounts"))
+        try:
+            report, recs = self.run_import()
+            self.assertEqual(report["status"], "fail")
+            self.assertEqual(report["problems"].get("live_without_base_row"), 1)
+        finally:
+            source_sql(f"DELETE FROM vtiger_crmentity WHERE crmid={A4};")
 
     def fingerprint(self):
         parts = []
@@ -598,6 +634,20 @@ class Pure(unittest.TestCase):
         report = importer.reconcile(plan, {}, {op.key: {"status": "equal"}}, census, [], (1, 10), False, {})
         self.assertEqual(report["status"], "fail")
         self.assertEqual(report["problems"].get("error_outcomes"), 1)
+
+    def test_unhandled_pair_and_unknown_link_column_fail(self):
+        plan = spec.Plan([], [], spec.Counter({"unhandled_rel:crmentityrel:Contacts->Potentials": 1}))
+        census = {"links": {"vtiger_crmentityrel.crmid": (1, 1), "vtiger_freetags.new_column": (1, 1)}}
+        report = importer.reconcile(plan, {}, {}, census, [], (1, 10), False, {})
+        self.assertEqual(report["problems"].get("unhandled_relations"), 1)
+        self.assertEqual(report["problems"].get("link_column_without_fate"), 1)
+
+    def test_shared_phone_type_does_not_depend_on_the_run(self):
+        number = phone("8 (900) ", "000-77-88")
+        data = {"vtiger_users": [], "Leads": [],
+                "Accounts": [{"vtiger_crmentity.crmid": "5", "vtiger_account.phone": number}],
+                "Contacts": [{"vtiger_crmentity.crmid": "3", "vtiger_contactdetails.mobile": number}]}
+        self.assertEqual(spec.phone_registry(data), {phone("+7900", "0007788"): "Office"})   # the account comes first
 
     def test_real_import_refuses_synthetic_keys(self):
         data = {k: [] for k in list(spec.SOURCES) + list(spec.TABLES)}

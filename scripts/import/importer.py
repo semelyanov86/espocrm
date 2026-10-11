@@ -141,7 +141,8 @@ def execute(rundir, snapshot_dir=None, source_db=None, only=None, check_only=Fal
     checked, stray_check = bridge(plan.ops, "check", adopt, logdir, inventory=inventory_types(only))
     silence_after = silence_counts(logdir)
     log("check: " + fmt(Counter(r.get("status") for k, r in checked.items() if not k.startswith("inventory:"))))
-    report = reconcile(plan, applied, checked, census, fields, key_range, check_only, data["link_census"])
+    report = reconcile(plan, applied, checked, census, fields, key_range, check_only, data["link_census"],
+                       selected=only.split(",") if only else None, orphans=data["orphans"])
     report.update(started_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(started)),
                   finished_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), tool=tool_identity(),
                   snapshot=snapshot_dir.name if snapshot_dir else None, only=only, check_only=check_only,
@@ -198,6 +199,9 @@ def transport_check(data, census):
         bad += [f"{module}:{k}" for k, v in counts.items() if census[module].get(k, (None,))[0] != v]
     counts = source.reader_counts(data["vtiger_users"])
     bad += [f"Users:{k}" for k, v in counts.items() if census["Users"].get(k, (None,))[0] != v]
+    for table in spec.LINK_COLUMNS:
+        counts = source.reader_counts(data[table])
+        bad += [f"links:{k}" for k, v in counts.items() if census["links"].get(k, (None,))[0] != v]
     return bad
 
 
@@ -223,7 +227,8 @@ def fate_category(fate):
     return "excluded"
 
 
-def reconcile(plan, applied, checked, census, fields, key_range, check_only, link_census=None):
+def reconcile(plan, applied, checked, census, fields, key_range, check_only, link_census=None, selected=None,
+              orphans=None):
     """Every non-empty value of every column of every table read, every relation item, every record — accounted."""
     rows, physical = defaultdict(list), defaultdict(list)
     for r in fields:
@@ -255,9 +260,26 @@ def reconcile(plan, applied, checked, census, fields, key_range, check_only, lin
             entry["verified" if ok else "mismatch"] += 1
 
     col_report, problems, problem_columns = [], Counter(), defaultdict(list)
+    selected = set(selected or spec.SCOPE)
     for module, counts in sorted(census.items()):
         for name, (nonempty, meaningful) in sorted(counts.items()):
             key = (module, name)
+            if module == "links":
+                table, column = name.split(".", 1)
+                fate = spec.LINK_COLUMNS.get(table, {}).get(column)
+                item = {"module": module, "column": name, "fate": fate or "", "nonempty": nonempty,
+                        "meaningful": meaningful,
+                        "category": ("relation" if fate == "pair" else "pending" if fate and fate.startswith("pending")
+                                     else "excluded" if fate else "unmapped")}
+                if not fate and nonempty:
+                    problems["link_column_without_fate"] += 1
+                    problem_columns["link_column_without_fate"].append(name)
+                col_report.append(item)
+                continue
+            if module not in selected:
+                col_report.append({"module": module, "column": name, "category": "not_selected",
+                                   "nonempty": nonempty, "meaningful": meaningful})
+                continue
             fate_rows = rows.get(key, [])
             fate = fate_rows[0]["fate"] if fate_rows else ("правило без строки карты: " + spec.MAP_GAPS[key]
                                                            if key in spec.MAP_GAPS else "")
@@ -292,10 +314,19 @@ def reconcile(plan, applied, checked, census, fields, key_range, check_only, lin
                   for k, v in sorted(relations.items())]
     accounted_rows = link_rows_accounted(plan)
     link_tables = {t: {"source_rows": n, "accounted": accounted_rows.get(t, 0)} for t, n in sorted((link_census or {}).items())}
+    full_run = selected >= set(spec.SCOPE)
     for t, v in link_tables.items():
-        if v["source_rows"] != v["accounted"]:
+        if full_run and v["source_rows"] != v["accounted"]:  # a partial run plans only the selected modules
             problems["link_rows_unaccounted"] += 1
             problem_columns["link_rows_unaccounted"].append(t)
+    unhandled = {k.split(":", 1)[1]: n for k, n in plan.flags.items() if k.startswith("unhandled_rel:")}
+    if unhandled:  # a pair of modules the specification does not know: never accounted silently
+        problems["unhandled_relations"] = sum(unhandled.values())
+        problem_columns["unhandled_relations"] = sorted(unhandled)
+    lost = {k: n for k, n in (orphans or {}).items() if n}
+    if lost:
+        problems["live_without_base_row"] = sum(lost.values())
+        problem_columns["live_without_base_row"] = sorted(lost)
     errors = Counter()
     for entry in list(columns.values()) + list(relations.values()):
         for outcome, n in entry["outcomes"].items():
@@ -359,7 +390,7 @@ def reconcile(plan, applied, checked, census, fields, key_range, check_only, lin
     return {"status": status, "problems": dict(problems), "problem_columns": dict(problem_columns),
             "findings": dict(findings),
             "entities": {k: dict(v) for k, v in sorted(entities.items())}, "columns": col_report,
-            "relations": rel_report, "link_tables": link_tables, "inventory": inventory,
+            "relations": rel_report, "link_tables": link_tables, "orphans": orphans or {}, "inventory": inventory,
             "flags": {k: v for k, v in sorted(plan.flags.items()) if not k.startswith("pending_rel:")}}
 
 
@@ -387,6 +418,8 @@ def tool_identity():
 def render_summary(report, run_id):
     cat = defaultdict(lambda: Counter())
     for c in report["columns"]:
+        if c["module"] == "links":
+            continue
         cat[c["module"]][c["category"]] += 1
         cat[c["module"]]["values_" + c["category"]] += c["nonempty"]
         if c["category"] == "rule":
@@ -434,6 +467,14 @@ def render_summary(report, run_id):
     for r in report["relations"]:
         lines.append(f"| `{r['relation']}` | {fmt(Counter(r['outcomes']))} | {r.get('verified', '—')} | "
                      f"{r.get('mismatch', '—')} |")
+    lines += ["", "## Колонки таблиц связей", "", "Строки таблиц связей в границах этапа: «пара» — колонки, из которых "
+              "строится связь (строки сверены ниже), «ждёт этапа» — связи следующего этапа, «не переносится» — с причиной "
+              "(D-144).", "", "| Колонка | Судьба | Значений |", "|---|---|---|"]
+    for c in report["columns"]:
+        if c["module"] == "links":
+            fate = {"relation": "пара", "pending": "ждёт этапа 06.3", "unmapped": "**нет судьбы**"}.get(
+                c["category"], c["fate"].replace("excluded: ", "не переносится: "))
+            lines.append(f"| `{c['column']}` | {fate} | {c['nonempty']} |")
     lines += ["", "## Таблицы связей источника", "", "Строки таблиц связей по живым записям этапа (SQL) и строки, получившие "
               "исход планировщика — должны совпадать.", "", "| Таблица | Строк в источнике | Учтено |", "|---|---|---|"]
     for table, v in report.get("link_tables", {}).items():

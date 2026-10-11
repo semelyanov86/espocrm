@@ -161,10 +161,11 @@ class RecordWriter
 
         $reminders = in_array($type, self::EVENT_TYPES, true) && !$isNew ? $this->reminders($type, $entity->getId()) : [];
         $kept = $this->linkedIds($entity, $isNew);
+        $untouched = $this->untouchedLinks($entity, $op, $isNew);
 
         $this->entityManager->saveEntity($entity, $this->saveOptions($type));
         $this->keys->remember($type, $op->vtigerId, $entity->getId());
-        $forced = $this->force($entity, $op);
+        $forced = $this->force($entity, $op, $untouched);
         $this->relinkRemoved($entity, $kept);
 
         if (in_array($type, self::EVENT_TYPES, true)) {
@@ -294,7 +295,7 @@ class RecordWriter
      *
      * @return string[] Attributes rewritten.
      */
-    private function force(CoreEntity $entity, stdClass $op): array
+    private function force(CoreEntity $entity, stdClass $op, array $untouched = []): array
     {
         $type = $entity->getEntityType();
         $defs = $this->entityManager->getDefs()->getEntity($type);
@@ -329,6 +330,7 @@ class RecordWriter
             }
         }
 
+        $want = $untouched + $want; // links the operation leaves as they are: hooks must not change them either
         $scratch = $this->entityManager->getRDBRepository($type)->getNew();
         $fix = [];
 
@@ -346,6 +348,37 @@ class RecordWriter
         }
 
         return array_keys($fix);
+    }
+
+    /**
+     * Stored values of the single links an operation leaves untouched (`keep`: their target is imported by a later
+     * stage or not in this run). A hook of the save (Task ParentLink…) must not change them.
+     *
+     * @return array<string, mixed>
+     */
+    private function untouchedLinks(CoreEntity $entity, stdClass $op, bool $isNew): array
+    {
+        $out = [];
+
+        if ($isNew) {
+            return $out;
+        }
+
+        $defs = $this->entityManager->getDefs()->getEntity($entity->getEntityType());
+
+        foreach ($op->keep ?? [] as $link) {
+            if (!is_string($link) || !$defs->hasAttribute($link . 'Id')) {
+                continue;
+            }
+
+            $out[$link . 'Id'] = $entity->getFetched($link . 'Id');
+
+            if ($defs->tryGetRelation($link)?->isBelongsToParent()) {
+                $out[$link . 'Type'] = $entity->getFetched($link . 'Type');
+            }
+        }
+
+        return $out;
     }
 
     /**

@@ -55,6 +55,44 @@ FORBIDDEN = {"vtiger_users": {"user_password", "confirm_password", "user_hash", 
                               "address_postalcode", "user_preferences"}}
 
 
+# Columns of the link tables (read whole for the rows in scope): "pair" — the columns a link is made of (each row gets
+# one relation outcome, counted against the SQL row census); "pending:<stage>" — links of a later stage; anything else is
+# an explicit reason why the value is not carried (D-144). A non-empty column missing here fails the reconciliation.
+LINK_COLUMNS = {
+    "vtiger_user2role": {"userid": "pair", "roleid": "pair"},
+    "vtiger_users2group": {"groupid": "pair", "userid": "pair"},
+    "vtiger_groups": {"groupid": "pair", "groupname": "pair",
+                      "description": "excluded: группы воспроизводятся командами (D-39), описание не переносится"},
+    "vtiger_crmentityrel": {"crmid": "pair", "module": "pair", "relcrmid": "pair", "relmodule": "pair"},
+    "vtiger_contpotentialrel": {"contactid": "pair", "potentialid": "pair"},
+    "vtiger_seactivityrel": {"crmid": "pair", "activityid": "pair"},
+    "vtiger_cntactivityrel": {"contactid": "pair", "activityid": "pair"},
+    "vtiger_salesmanactivityrel": {"smid": "pair", "activityid": "pair"},
+    "vtiger_freetagged_objects": {"tag_id": "pair", "object_id": "pair", "module": "pair",
+                                  "tagger_id": "excluded: автор постановки тега — у значения multiEnum его нет",
+                                  "tagged_on": "excluded: время постановки тега — у значения multiEnum его нет"},
+    "vtiger_freetags": {"id": "pair", "raw_tag": "pair",
+                        "tag": "excluded: нормализованная форма raw_tag (значение тега — raw_tag)",
+                        "visibility": "excluded: видимость тега Vtiger (теги EspoCRM — значения поля)",
+                        "owner": "excluded: автор тега Vtiger"},
+    "vtiger_senotesrel": {"crmid": "pending:06.3", "notesid": "pending:06.3"},
+    "vtiger_seattachmentsrel": {"crmid": "pending:06.3", "attachmentsid": "pending:06.3"},
+}
+# Phone columns of each module (number type), in record order: they also fix the type of a shared number (first owner
+# in import order over the whole source, whatever modules a run selects).
+PHONE_COLUMNS = {
+    "Users": (("vtiger_users.phone_work", "Office", "phone_work"), ("vtiger_users.phone_mobile", "Mobile", "phone_mobile")),
+    "Accounts": (("vtiger_account.phone", "Office", "phone"), ("vtiger_account.otherphone", "Other", "otherphone"),
+                 ("vtiger_account.fax", "Fax", "fax")),
+    "Contacts": (("vtiger_contactdetails.phone", "Office", "phone"), ("vtiger_contactdetails.mobile", "Mobile", "mobile"),
+                 ("vtiger_contactsubdetails.homephone", "Home", "homephone"),
+                 ("vtiger_contactsubdetails.otherphone", "Other", "otherphone"),
+                 ("vtiger_contactdetails.fax", "Fax", "fax")),
+    "Leads": (("vtiger_leadaddress.phone", "Office", "phone"), ("vtiger_leadaddress.mobile", "Mobile", "mobile"),
+              ("vtiger_leadaddress.fax", "Fax", "fax")),
+}
+
+
 @dataclass(frozen=True)
 class Source:
     """Live rows of a module: vtiger_crmentity (deleted=0, setype) + the base table + one-to-one tables."""
@@ -158,6 +196,8 @@ class Op:
                 data[name] = getattr(self, name)
         if self.onlyIfExists:
             data["onlyIfExists"] = True
+        if self.keep:
+            data["keep"] = sorted(self.keep)  # single links left as they are: the writer protects them from hooks
         return data
 
 
@@ -175,7 +215,7 @@ class Context:
         self.activity_type = data["activity_type"]
         self.users = {int(r["vtiger_users.id"]): r for r in data["vtiger_users"]}  # live users only (source.load)
         self.groups = {int(r["vtiger_groups.groupid"]): r["vtiger_groups.groupname"] for r in data["vtiger_groups"]}
-        self.phone_types = {}           # number → type of its first owner (EspoCRM keeps the type on the shared row)
+        self.phone_types = phone_registry(data)  # number → type of its first owner over the whole source
 
     def dt(self, value):
         return T.vt_datetime(value, self.flags)
@@ -354,7 +394,7 @@ class Phones(Rule):
                 ctx.flags["phone_duplicate_in_record"] += 1
                 op.column(col, "duplicate", op.archive(key, raw))
                 continue
-            shared = ctx.phone_types.setdefault(number, ptype)
+            shared = ctx.phone_types.get(number, ptype)
             if shared != ptype:
                 ctx.flags["phone_type_conflict"] += 1
                 attrs.append(op.archive(key, raw))
@@ -362,6 +402,22 @@ class Phones(Rule):
             phones.append({"phoneNumber": number, "type": shared, "primary": not phones})
             op.column(col, outcome, *attrs)
         op.phones = phones
+
+
+def phone_registry(data):
+    """EspoCRM keeps a number's type on the shared PhoneNumber row: the first owner in import order over the WHOLE
+    source fixes it, so a run limited by --only never flips the type of a number another module uses."""
+    registry = {}
+    batches = [("Users", sorted(data.get("vtiger_users", []), key=lambda r: int(r["vtiger_users.id"])))]
+    batches += [(m, sorted(data.get(m, []), key=lambda r: int(r["vtiger_crmentity.crmid"])))
+                for m in ("Accounts", "Contacts", "Leads")]
+    for module, rows in batches:
+        for row in rows:
+            for col, ptype, _ in PHONE_COLUMNS[module]:
+                number, _cls = T.phone(row.get(col))
+                if number is not None:
+                    registry.setdefault(number, ptype)
+    return registry
 
 
 class Emails(Rule):
@@ -497,7 +553,7 @@ def rules_of(module):
     if module == "Accounts":
         return [
             Str(a + "accountname", "name"), Str(a + "account_no", "vtigerNo"), Str(a + "website", "website"),
-            Phones((a + "phone", "Office", "phone"), (a + "otherphone", "Other", "otherphone"), (a + "fax", "Fax", "fax")),
+            Phones(*PHONE_COLUMNS["Accounts"]),
             Str(a + "tickersymbol", "cShortName"), Int(a + "employees", "cEmployees", zero_empty=True),
             Emails((a + "email1", "email1"), (a + "email2", "email2")),
             Archive(a + "ownership", "ownership"),
@@ -521,8 +577,7 @@ def rules_of(module):
         return [
             Salutation(c + "salutation", "salutationName", entity="Contact"),
             Str(c + "firstname", "firstName"), Str(c + "contact_no", "vtigerNo"), Str(c + "lastname", "lastName"),
-            Phones((c + "phone", "Office", "phone"), (c + "mobile", "Mobile", "mobile"), (s + "homephone", "Home", "homephone"),
-                   (s + "otherphone", "Other", "otherphone"), (c + "fax", "Fax", "fax")),
+            Phones(*PHONE_COLUMNS["Contacts"]),
             Enum(s + "leadsource", "cLeadSource", vmap=("Lead", "source", "Contacts.leadsource"), key="leadsource"),
             ContactTitle(c + "title", "title"),
             Str(c + "department", "cDepartment"),
@@ -545,7 +600,7 @@ def rules_of(module):
         return [
             Salutation(l + "salutation", "salutationName", entity="Lead"),
             Str(l + "firstname", "firstName"), Str(l + "lead_no", "vtigerNo"), Str(l + "lastname", "lastName"),
-            Phones((a2 + "phone", "Office", "phone"), (a2 + "mobile", "Mobile", "mobile"), (a2 + "fax", "Fax", "fax")),
+            Phones(*PHONE_COLUMNS["Leads"]),
             Str(l + "company", "accountName"), Str(l + "designation", "title"),
             Enum(l + "leadsource", "source", vmap=("Lead", "source", "Leads.leadsource"), key="leadsource"),
             Emails((l + "email", "email"), (l + "secondaryemail", "secondaryemail")),
@@ -702,6 +757,10 @@ class ContactTitle(Rule):
 
     def apply(self, op, row, ctx):
         raw = T.string(self.value(row))
+        if "account" in op.keep:  # the account is not imported in this run: the title (its link role) is left as is
+            if raw is not None:
+                op.column(self.cols[0], "deferred")
+            return
         if raw is None:
             op.attributes["title"] = None
             return
@@ -764,8 +823,7 @@ def build_activity(module, row, ctx):
     op.attributes["name"] = T.string(row.get(a + "subject"))
     if op.attributes["name"] is not None:
         op.column(a + "subject", "carried", "name")
-    start = T.combine(row.get(a + "date_start"), row.get(a + "time_start"))
-    start_utc = T.to_utc(start, ctx.flags)
+    start_utc = pair_datetime(op, row, ctx, a + "date_start", a + "time_start", "dateStart")
     status_key = "Calendar.taskstatus" if module == "Calendar" else "Events.eventstatus"
     raw_status = row.get(a + ("status" if module == "Calendar" else "eventstatus"))
     status = ctx.maps.lookup(entity, "status", status_key, raw_status) if not T.is_empty(raw_status) else None
@@ -777,7 +835,6 @@ def build_activity(module, row, ctx):
                                                                  raw_status))
         else:
             op.column(status_col, "carried", "status")
-    date_cols = (a + "date_start", a + "time_start")
     if entity == "Task":
         op.attributes.update(dateStart=start_utc, dateStartDate=None, dateCompleted=None)
         if module == "Calendar":
@@ -793,53 +850,52 @@ def build_activity(module, row, ctx):
                 op.column(a + "priority", "mapped" if pv != prio else "carried", "priority",
                           *([op.archive("taskpriority", prio)] if pv != prio else []))
         else:
-            end = T.to_utc(T.combine(row.get(a + "due_date"), row.get(a + "time_end")), ctx.flags)
+            end = pair_datetime(op, row, ctx, a + "due_date", a + "time_end", "dateEnd")
             op.attributes.update(dateEnd=end, dateEndDate=None, priority=None, cTaskType="Письмо")
-            for col in (a + "due_date", a + "time_end"):
-                if not T.is_empty(row.get(col)) and end:
-                    op.column(col, "carried", "dateEnd")
             op.column(a + "activitytype", "mapped", "cTaskType")
-            duration(op, row, ctx, start, end)
+            duration(op, row, start_utc, end)
     else:
-        end = T.to_utc(T.combine(row.get(a + "due_date"), row.get(a + "time_end")), ctx.flags)
+        end = pair_datetime(op, row, ctx, a + "due_date", a + "time_end", "dateEnd")
         if entity == "Call" and end is None:
-            end = start_utc   # D-43: Call.dateEnd is required
+            end = start_utc   # D-43: Call.dateEnd is required; the source had no complete end
             if start_utc:
                 op.archive("dateEndMissing", True)
         op.attributes.update(dateStart=start_utc, dateEnd=end)
         if entity == "Meeting":
             op.attributes.update(dateStartDate=None, dateEndDate=None, isAllDay=False)
-        for col in (a + "due_date", a + "time_end"):
-            if not T.is_empty(row.get(col)) and end:
-                op.column(col, "carried", "dateEnd")
         op.column(a + "activitytype", "carried", "entityType")
-        duration(op, row, ctx, start, end)
+        duration(op, row, start_utc, end)
     if module == "Events":
         prio = row.get(a + "priority")
         if not T.is_empty(prio):
             op.column(a + "priority", "archived", op.archive("taskpriority", prio))
-    for col in date_cols:
-        if not T.is_empty(row.get(col)) and start_utc:
-            op.column(col, "carried", "dateStart")
-    for date_col, time_col in ((a + "date_start", a + "time_start"), (a + "due_date", a + "time_end")):
-        # a time without its date (or the reverse) has no place in a datetime: kept as a source fact
-        if T.is_empty(row.get(date_col)) != T.is_empty(row.get(time_col)) and time_col in row:
-            lone = time_col if T.is_empty(row.get(date_col)) else date_col
-            if not any(k == lone for _, k, _, _ in op.outcomes):
-                op.column(lone, "archived", op.archive(lone.split(".")[1], row[lone]))
     if module == "Calendar":
         op.column(a + "activitytype", "carried", "entityType")
     return op
 
 
-def duration(op, row, ctx, start_local, end_utc):
+def pair_datetime(op, row, ctx, date_col, time_col, attr):
+    """Vtiger keeps an activity's start/end as a date column plus a time column → one UTC datetime (D-30). Both parts
+    are carried only when the datetime is made of them; a part that has no place (the other one is empty) stays in
+    vtigerData under its column name — never a substituted value."""
+    value = T.to_utc(T.combine(row.get(date_col), row.get(time_col)), ctx.flags)
+    for col in (date_col, time_col):
+        if T.is_empty(row.get(col)):
+            continue
+        if value:
+            op.column(col, "carried", attr)
+        else:
+            op.column(col, "archived", op.archive(col.split(".")[1], row[col]))
+    return value
+
+
+def duration(op, row, start_utc, end_utc):
     """Call/Meeting duration is computed by EspoCRM from the dates; Vtiger hours+minutes are kept only when they
     disagree with the dates."""
     a = "vtiger_activity."
     hours, minutes = row.get(a + "duration_hours"), row.get(a + "duration_minutes")
     if T.is_empty(hours) and T.is_empty(minutes):
         return
-    start_utc = T.to_utc(start_local)
     try:
         source = int(hours or 0) * 3600 + int(minutes or 0) * 60
     except ValueError:
@@ -873,7 +929,7 @@ def build_user(row, ctx):
     op.column(u + "status", "mapped", "isActive")
     _set(op, u + "date_entered", "createdAt", T.utc_timestamp(row.get(u + "date_entered")))
     Emails((u + "email1", "email1")).apply(op, row, ctx)
-    Phones((u + "phone_work", "Office", "phone_work"), (u + "phone_mobile", "Mobile", "phone_mobile")).apply(op, row, ctx)
+    Phones(*PHONE_COLUMNS["Users"]).apply(op, row, ctx)
     if not T.is_empty(row.get(u + "department")):
         op.column(u + "department", "archived", op.archive("department", row[u + "department"]))
     prefs = {}
@@ -1067,7 +1123,8 @@ def attach_relations(ops, ctx):
             continue
         crmentityrel_pair(by_key, acts, ctx, rel, a_id, a_mod, b_id, b_mod)
     # tags (freetags) of cases and project tasks
-    tags = {int(r["vtiger_freetags.id"]): r["vtiger_freetags.tag"] for r in d["vtiger_freetags"]}
+    tags = {int(r["vtiger_freetags.id"]): r["vtiger_freetags.raw_tag"] if not T.is_empty(r.get("vtiger_freetags.raw_tag"))
+            else r["vtiger_freetags.tag"] for r in d["vtiger_freetags"]}
     for r in d["vtiger_freetagged_objects"]:
         module = r["vtiger_freetagged_objects.module"]
         entity, attr = {"HelpDesk": ("Case", "cTags"), "ProjectTask": ("ProjectTask", "tags")}.get(module, (None, None))
@@ -1321,6 +1378,10 @@ def check_coverage(fields, relations):
         elif all(r["fate"].startswith("исключено") for r in rows[key]) and key[1].split(".")[1] not in (
                 "activitytype", "description"):
             problems.append(f"rule for an excluded column: {key[0]} {key[1]}")
+    for r in fields:  # columns of the link tables: every mapped column has an explicit fate
+        table = r["source_table"]
+        if table in LINK_COLUMNS and not r["source_module"] and r["source_column"] not in LINK_COLUMNS[table]:
+            problems.append(f"link column without a fate: {table}.{r['source_column']}")
     for r in relations:
         ends = {r["from_module"], *r["to_module"].split("|")}
         if not ends & set(SCOPE) or r["kind"] in ("owner", "history"):

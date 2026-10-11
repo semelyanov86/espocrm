@@ -103,6 +103,10 @@ def load(db, uitypes):
     census["Users"] = db.census(LINK_ROWS["vtiger_users"], ("vtiger_users",), uitypes.get("Users", {}))
     census["Users"].update(db.census(LINK_ROWS["vtiger_user2role"], ("vtiger_user2role",), {}))
     data["link_census"] = link_census(db)
+    data["orphans"] = orphans(db)
+    census["links"] = {}
+    for table in spec.LINK_COLUMNS:
+        census["links"].update(db.census(LINK_ROWS[table], (table,), {}))
     data["crm"] = {crmid: (setype, deleted) for crmid, setype, deleted in _crm(db)}
     data["activity_type"] = _activity_types(db)
     return data, census
@@ -127,20 +131,32 @@ LINK_ROWS = {
                            f"AND (module IN ('{SCOPE_MODULES}') OR relmodule IN ('{SCOPE_MODULES}', 'Calendar'))",
     "vtiger_freetagged_objects": f"FROM vtiger_freetagged_objects WHERE module IN ('HelpDesk', 'ProjectTask') "
                                  f"AND object_id IN ({LIVE})",
+    "vtiger_groups": "FROM vtiger_groups",
     "vtiger_senotesrel": f"FROM vtiger_senotesrel WHERE crmid IN ({LIVE} AND setype IN ('{SCOPE_MODULES}', 'Calendar'))",
     "vtiger_seattachmentsrel": f"FROM vtiger_seattachmentsrel WHERE crmid IN "
                                f"({LIVE} AND setype IN ('{SCOPE_MODULES}', 'Calendar'))",
 }
 
 
+LINK_ROWS["vtiger_freetags"] = (f"FROM vtiger_freetags WHERE id IN "
+                               f"(SELECT tag_id {LINK_ROWS['vtiger_freetagged_objects']})")
+PAIR_TABLES = [t for t in LINK_ROWS if t not in ("vtiger_users", "vtiger_groups", "vtiger_freetags")]
+
+
 def link_census(db):
     """table → rows in scope, counted by SQL (the planner must give each of them one outcome)."""
+    return {table: int(db.lines(f"SELECT COUNT(*) {LINK_ROWS[table]};\n")[0]) for table in PAIR_TABLES}
+
+
+def orphans(db):
+    """Live source records of each module without a row in its base table: an INNER JOIN would drop them silently."""
     out = {}
-    for table, from_sql in LINK_ROWS.items():
-        if table in ("vtiger_users",):
-            continue
-        rows = db.lines(f"SELECT COUNT(*) {from_sql};\n")
-        out[table] = int(rows[0])
+    for module, src in spec.SOURCES.items():
+        table, key = src.base
+        sql = (f"SELECT COUNT(*) FROM vtiger_crmentity LEFT JOIN `{table}` ON `{table}`.`{key}` = vtiger_crmentity.crmid "
+               f"WHERE vtiger_crmentity.deleted = 0 AND vtiger_crmentity.setype = '{src.setype or module}' "
+               f"AND `{table}`.`{key}` IS NULL;\n")
+        out[src.setype or module] = int(db.lines(sql)[0])
     return out
 
 
