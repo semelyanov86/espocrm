@@ -43,7 +43,7 @@
 
 ## Служебные поля (D-41)
 
-На каждой импортируемой сущности (21 шт.: стандартные Account, Contact, Lead, Opportunity, Task, Call, Meeting, Email, Case, KnowledgeBaseArticle, Document, DocumentFolder, Note, User, Attachment и собственные): `vtigerId` (int, уникальный индекс, только чтение через API); где был номер — `vtigerNo`; кроме `VtigerArchive` и `ContactAccess` — `vtigerData` (JSON непустых исходных значений без рабочего поля; только чтение, видно только администраторам).
+На каждой импортируемой сущности (21 шт.: стандартные Account, Contact, Lead, Opportunity, Task, Call, Meeting, Email, Case, KnowledgeBaseArticle, Document, DocumentFolder, Note, User, Attachment и собственные): `vtigerId` (int, уникальный индекс, только чтение через API); где был номер — `vtigerNo`; кроме `VtigerArchive` и `ContactAccess` — `vtigerData` (JSON непустых исходных значений без рабочего поля; только чтение, видно только администраторам). Импорт 06.2 (`import.md`, D-141): `ContactAccess.vtigerId` = `crmid` контакта; `Contact.title` в EspoCRM — роль связи с основным контрагентом, у контакта без контрагента должность остаётся в `vtigerData.title` (D-144).
 
 ## Стандартные сущности
 

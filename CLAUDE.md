@@ -38,6 +38,10 @@ task snapshot:create                       # защищённый снимок �
 task snapshot:verify -- <id>               # повторная проверка снимка (временная база стенда создаётся и удаляется)
 task snapshot:list | snapshot:delete -- <id> --yes | snapshot:protocol -- <id>
 task test:snapshot                         # тест кодека снимка на стенде (синтетика, без production)
+task import:run -- --snapshot <id>         # импорт базовых сущностей (этап 06.2): backup стенда, запись, проверочный проход, сверка
+task import:run -- --snapshot <id> --check-only   # только план и сверка, без записи
+task import:summary -- <прогон>            # обезличенная сводка → docs/migration/import-summary.md
+task test:stage06.2                        # приёмочные тесты импорта (синтетический мини-Vtiger во временной базе стенда)
 ```
 
 - `docs/migration/field-map.csv` и `relations.csv` **не редактировать вручную**: правила — `scripts/audit/mapping.py`, генерация — `scripts/audit/build_maps.py` из приватного прогона.

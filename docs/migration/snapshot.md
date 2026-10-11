@@ -143,7 +143,7 @@ V3 и V4 повторно кодируют восстановленные зна
 
 ## Чтение снимка на следующих этапах
 
-- Таблицы: `verify.TempDatabases` + `verify.restore_sql` загружают схему во временную базу стенда; импорт 06.2 читает её SQL-запросами и удаляет. Режим «оставить базу на время импорта» добавит 06.2. Строки можно читать и напрямую: `db/<schema>/rows/*.hex.gz` + `tables.json` (классы колонок, `codec.literal`).
+- Таблицы: `verify.restored_databases(snapdir, root, logdir, schemas)` (этап 06.2) — V1, V0, V3 выбранных схем, восстановление во временную базу стенда и V4; отдаёт имена баз только когда все проверки прошли и удаляет их по точному имени при выходе (в том числе по исключению и SIGTERM). Импорт 06.2 читает базу SQL-запросами и сразу её удаляет (`import.md`). Строки можно читать и напрямую: `db/<schema>/rows/*.hex.gz` + `tables.json` (классы колонок, `codec.literal`).
 - Файлы: `reports/verify-*/attachments.tsv` (вложение → путь внутри `files/vtiger/`), опись `inventory/<part>.tsv`; логотип — `files/vtiger/test/logo/<logoname>`; записи — `files/monitor/<recordingpath без /var/spool/asterisk/monitor/>`.
 - Дельта (06.4): два снимка одного формата сравниваются по дайджестам таблиц (`tables.json`), затем — по строкам; нумерация (`vtiger_modentity_num`, `*_seq`) — обычные таблицы. Позиция binlog не фиксируется.
 

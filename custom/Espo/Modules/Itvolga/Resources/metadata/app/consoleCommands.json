@@ -39,6 +39,12 @@
             "id"
         ]
     },
+    "itvolgaImport": {
+        "className": "Espo\\Modules\\Itvolga\\Classes\\ConsoleCommands\\Import",
+        "listed": true,
+        "allowedFlags": [],
+        "allowedOptions": []
+    },
     "itvolgaSetupReports": {
         "className": "Espo\\Modules\\Itvolga\\Classes\\ConsoleCommands\\SetupReports",
         "listed": true,

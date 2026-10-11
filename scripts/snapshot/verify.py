@@ -9,6 +9,7 @@ field-map.csv / relations.csv, attachments, the legal-entity logo and telephony.
 Statuses: `fail` — the snapshot does not reproduce the source (create deletes it); `finding` — the
 copy is faithful but differs from the maps or misses source files (kept, reported); `info`.
 """
+import contextlib
 import csv
 import gzip
 import html
@@ -332,6 +333,42 @@ def compare_restored(snapdir, schema, tables, dbname, fingerprint, logdir, check
     checks.add(f"V4.{schema}", f"восстановленная копия {schema}: схема, число строк, дайджесты и счётчики колонок",
                bool(eos) and same_schema and not differ,
                {"tables": len(tables), "differ": len(differ), "schema_equal": int(same_schema), "tables_differ": differ[:20]})
+
+
+@contextlib.contextmanager
+def restored_databases(snapdir, root, logdir, schemas=("vtiger7",)):
+    """The verified source for a reader (import, stage 06.2): V1 seal, V0 contract and V3 rows of `schemas`, then a
+    temporary database per schema restored and compared (V4). Yields {schema: database name} only when every check
+    passed; the databases are dropped by exact name on exit (normal end, exception, SIGTERM → SystemExit). The file
+    parts are not checked: a reader of tables does not use them."""
+    snapdir = Path(snapdir)
+    manifest = read_json(snapdir / "MANIFEST.json")
+    if manifest.get("format") != FORMAT or manifest.get("format_version") != FORMAT_VERSION:
+        raise SnapshotError("unknown snapshot format/version")
+    db = manifest["db"]
+    if not set(schemas) <= set(db["schemas"]) or not all(codec.NAME_RE.match(s) for s in db["schemas"]):
+        raise SnapshotError("schema not in the snapshot")
+    checks = Checks()
+    check_seal(snapdir, checks)
+    tables = {s: read_json(snapdir / "db" / s / "tables.json") for s in db["schemas"]}
+    if check_contract(snapdir, manifest, tables, checks, full=False):
+        for s in schemas:
+            check_rows(snapdir, s, tables[s], checks)
+    if checks.status() == "fail":
+        raise SnapshotError("snapshot checks failed (V0/V1/V3); nothing restored")
+    with TempDatabases(root, logdir) as temp:
+        names = {}
+        for s in schemas:
+            charset, collation = db["schema_charsets"][s]
+            names[s] = temp.create(s, charset, collation)
+            log(f"restore {s}: loading into a temporary database")
+            Mysql.stand(database=names[s]).session(
+                restore_sql(snapdir, s, tables[s], manifest["source"]["sql_mode"]), lambda line: None,
+                logdir / "restore.log")
+            compare_restored(snapdir, s, tables[s], names[s], db["catalogue_fingerprints"][s], logdir, checks)
+        if checks.status() == "fail":
+            raise SnapshotError("restored copy differs from the snapshot (V4)")
+        yield names
 
 
 # --- completeness: audit on the restored copy and the maps ----------------------------------------
