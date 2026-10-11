@@ -512,7 +512,18 @@ def crmentity(op, row, ctx, owner=True, description=True):
         _set(op, e + "description", "description", T.text(row.get(e + "description")))
 
 
+def users_deferred(op, ctx, col, link):
+    """Users are not part of this run (--only): a link to a user is left as it is (and protected from hooks)."""
+    if "Users" in ctx.selected:
+        return False
+    op.keep.add(link)
+    op.column(col, "deferred")
+    return True
+
+
 def user_ref(op, ctx, col, link, value):
+    if not (T.is_empty(value) or int(value) == 0) and users_deferred(op, ctx, col, link):
+        return
     if T.is_empty(value) or int(value) == 0:
         op.links[link] = None
         if not T.is_empty(value):
@@ -532,6 +543,8 @@ def owner_ref(op, ctx, value):
     col = "vtiger_crmentity.smownerid"
     oid = int(value) if not T.is_empty(value) else 0
     op.linkMultiple["teams"] = {"items": [], "domain": [["Team", t] for t in GROUP_TEAMS]}
+    if oid in ctx.users and users_deferred(op, ctx, col, "assignedUser"):
+        return
     if oid in ctx.users:
         op.links["assignedUser"] = ["User", oid]
         op.column(col, "linked", "assignedUserId")
@@ -950,7 +963,7 @@ def build_user(row, ctx):
             raise T.TransformError(f"unmapped_{col}")
         prefs[key] = table[raw]
         attrs = [f"preferences.{key}"]
-        if col == "date_format" and table[raw].lower().replace(".", "-") != raw:
+        if col == "date_format" and table[raw] != raw:
             attrs.append(op.archive("date_format", raw))
         op.column(u + col, "mapped", *attrs)
     if not T.is_empty(row.get(u + "time_zone")):
@@ -992,7 +1005,9 @@ def build_note(row, ctx):
         op.column(m + "commentcontent", "carried", "post")
     author = row.get(m + "userid")
     creator = op.links.get("createdBy")
-    if not T.is_empty(author) and int(author) in ctx.users:
+    if not T.is_empty(author) and int(author) in ctx.users and "Users" not in ctx.selected:
+        op.column(m + "userid", "deferred")
+    elif not T.is_empty(author) and int(author) in ctx.users:
         op.links["createdBy"] = ["User", int(author)]
         op.column(m + "userid", "linked", "createdById")
         if creator and creator[1] != int(author):
@@ -1064,10 +1079,7 @@ def attach_relations(ops, ctx):
         if op is None:
             continue
         rel = f"seactivityrel:{ctx.crm.get(int(crmid), ('?',))[0]}->{op.entityType}"
-        if op.links.get("parent"):
-            parent_conflict(op, ctx, rel, crmid)
-            continue
-        link_ref(op, ctx, rel, "parent", crmid, kind="r")
+        parent_conflict(op, ctx, rel, crmid)
     # cntactivityrel: contacts of calls/meetings, the contact of a task
     task_contacts = defaultdict(list)
     for r in d["vtiger_cntactivityrel"]:
@@ -1097,7 +1109,9 @@ def attach_relations(ops, ctx):
             continue
         rel = f"salesmanactivityrel:Users->{op.entityType}"
         link = "collaborators" if op.entityType == "Task" else "users"
-        if uid in ctx.users:
+        if uid in ctx.users and "Users" not in ctx.selected:
+            op.relation(rel, "deferred")
+        elif uid in ctx.users:
             op.add_item(link, ["User", uid] + ([{"status": "None"}] if link == "users" else []))
             op.relation(rel, "linked", link)
         else:
@@ -1240,8 +1254,8 @@ def crmentityrel_pair(by_key, acts, ctx, rel, a_id, a_mod, b_id, b_mod):
             single_or_conflict(op, ctx, rel, "contact", a_id, status, target)
             return
         if op.entityType in ("Call", "Meeting") and a_mod in ("Contacts", "Leads"):
-            if a_mod == "Leads" and not op.links.get("parent"):
-                link_ref(op, ctx, rel, "parent", a_id, kind="r")
+            if a_mod == "Leads" and not (op.links.get("parent") or "parent" in op.keep):
+                single_or_conflict(op, ctx, rel, "parent", a_id, status, target)
             elif a_mod == "Leads" and status == "ok" and op.links.get("parent") == list(target):
                 op.relation(rel, "duplicate", "parentId")
             else:  # attendees: contacts and leads of a call or meeting

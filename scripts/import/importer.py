@@ -264,6 +264,8 @@ def reconcile(plan, applied, checked, census, fields, key_range, check_only, lin
             entry["outcomes"][outcome] += 1
             if outcome.split(":")[0] not in VERIFIED or not sent:
                 continue
+            if check_only and c.get("status") in ("missing", "absent"):
+                continue  # a dry run before the first import: nothing to compare yet
             ok = c.get("status") == "equal" or (c.get("status") == "differs" and not differs & set(attrs))
             entry["verified" if ok else "mismatch"] += 1
 
@@ -381,6 +383,7 @@ def reconcile(plan, applied, checked, census, fields, key_range, check_only, lin
         live = [v for v in r.get("live", []) if (entity, v) not in keys]
         inventory[entity] = {
             "missing_in_source": sum(1 for v in live if key_range[0] <= v <= key_range[1]),
+            "missing_keys": sorted(v for v in live if key_range[0] <= v <= key_range[1]),  # private report only
             "other_range_live": sum(1 for v in live if not key_range[0] <= v <= key_range[1]),
             "deleted_in_target": len(r.get("deleted", [])),
         }

@@ -242,6 +242,7 @@ def fixture_sql():
                time_start="12:00", due_date="2020-03-01", time_end="12:10", eventstatus="Held"),
         insert("vtiger_seactivityrel", crmid=INV, activityid=E9),       # parent of stage 06.3 first …
         insert("vtiger_crmentityrel", crmid=A1, module="Accounts", relcrmid=E9, relmodule="Calendar"),  # … then another
+        insert("vtiger_crmentityrel", crmid=L1, module="Leads", relcrmid=E9, relmodule="Calendar"),  # a lead: attendee
         entity(E2, "Calendar"),
         insert("vtiger_activity", activityid=E2, subject=f"{PREFIX} E2", activitytype="Call", date_start="2020-03-01",
                time_start="12:00", due_date="2020-03-01", time_end="12:30", duration_hours="0",
@@ -297,7 +298,8 @@ class Stage062(unittest.TestCase):
         fcntl.flock(lock, fcntl.LOCK_EX)  # one run at a time: the key block check and the cleanup assume it
         cls.addClassCleanup(lock.close)
         ROOT = Path(tempfile.mkdtemp(prefix="vtimp-test-"))
-        cls.addClassCleanup(shutil.rmtree, ROOT, True)
+        cls.addClassCleanup(lambda: cls.cleaned and shutil.rmtree(ROOT, True))  # kept (journals) if cleanup failed
+        cls.cleaned = False
         taken = sum(int(one(f"SELECT COUNT(*) FROM `{t}` WHERE vtiger_id BETWEEN {KEYS[0]} AND {KEYS[1]}")[0])
                     for t in IMPORT_TABLES.values())   # deleted rows included: they keep their key (D-41)
         assert taken == 0, "the random key block is in use: run again"
@@ -339,7 +341,10 @@ class Stage062(unittest.TestCase):
         # the writer's answers, journalled as they come: also records of a run that failed midway
         for journal in ROOT.glob("run-*/applied.jsonl"):
             for line in journal.read_text().splitlines():
-                rec = json.loads(line)
+                try:
+                    rec = json.loads(line)
+                except ValueError:
+                    continue  # a torn last line (full disk)
                 ids.setdefault(rec["key"].split(":")[0], set()).add(rec["id"])
         tables = IMPORT_TABLES
         junctions = ["DELETE FROM entity_team WHERE entity_id IN ({0})", "DELETE FROM entity_email_address WHERE entity_id IN ({0})",
@@ -357,6 +362,7 @@ class Stage062(unittest.TestCase):
                      "DELETE FROM user_data WHERE id IN ({0})", "DELETE FROM auth_token WHERE user_id IN ({0})"]
         all_ids = ",".join("'" + i + "'" for s in ids.values() for i in sorted(s))
         if not all_ids:
+            cls.cleaned = True
             return
         # shared address/number rows: only those linked to this test's records, new since setUp and not used elsewhere
         shared = {}
@@ -373,12 +379,18 @@ class Stage062(unittest.TestCase):
             if ids.get(etype):
                 script.append(f"DELETE FROM `{table}` WHERE id IN ({','.join(chr(39) + i + chr(39) for i in sorted(ids[etype]))});")
         Mysql.stand(database="espocrm").lines("\n".join(script) + "\n", ROOT / "cleanup.log")
+        cls.cleaned = True
 
     def id_of(self, table, key):
         row = one(f"SELECT id FROM `{table}` WHERE vtiger_id = {key} AND deleted = 0")
         return row[0] if row else None
 
     # --- scenarios (run in order) ------------------------------------------------------------------
+
+    def test_00_dry_run_before_the_first_import(self):
+        report, recs = self.run_import(check_only=True)
+        self.assertEqual(report["problems"], {}, report.get("problem_columns"))
+        self.assertEqual({r["check"] for r in recs.values() if not r["held"]} - {"absent"}, {"missing"})
 
     def test_01_deferred_then_full(self):
         report, recs = self.run_import(only="Users,Contacts")
@@ -393,7 +405,7 @@ class Stage062(unittest.TestCase):
         self.assertEqual(report["silence"], {k: 0 for k in importer.SILENCE})
         statuses = {r["check"] for r in recs.values() if not r["held"] and r["key"].split(":")[0] != "ContactAccess"}
         self.assertEqual(statuses, {"equal"})
-        self.assertEqual(report["link_tables"]["vtiger_crmentityrel"], {"source_rows": 3, "accounted": 3})
+        self.assertEqual(report["link_tables"]["vtiger_crmentityrel"], {"source_rows": 4, "accounted": 4})
         self.assertEqual(report["link_tables"]["vtiger_senotesrel"], {"source_rows": 1, "accounted": 1})
 
     def test_02_values(self):
@@ -442,6 +454,8 @@ class Stage062(unittest.TestCase):
         e9 = one(f"SELECT parent_id IS NULL, vtiger_data FROM `call` WHERE vtiger_id={E9}")
         self.assertEqual(e9[0], "1")                                          # the 06.3 parent waits, not replaced
         self.assertEqual(json.loads(e9[1])["parentAlternatives"], [A1])       # the second source is kept
+        self.assertEqual(one(f"SELECT COUNT(*) FROM call_lead cl JOIN `call` c ON c.id = cl.call_id WHERE c.vtiger_id={E9} "
+                             f"AND cl.deleted=0"), ["1"])                     # the lead: an attendee, not the parent
         e6 = one(f"SELECT date_end, vtiger_data FROM `call` WHERE vtiger_id={E6}")
         self.assertEqual(e6[0], "2020-03-01 09:00:00")                       # D-43: required end = start
         self.assertEqual(json.loads(e6[1]), {"dateEndMissing": True, "due_date": "2020-03-02"})  # the date is kept
@@ -454,6 +468,8 @@ class Stage062(unittest.TestCase):
                  f"modified_at FROM note WHERE vtiger_id={N1}")
         self.assertEqual(n1, ["Post", "Opportunity", "1", "2023-07-01 10:00:00", "2023-07-01 10:00:00"])
         self.assertIsNone(one(f"SELECT id FROM note WHERE vtiger_id={N2}"))   # FAQ comment waits for 06.3
+        self.assertEqual(json.loads(one(f"SELECT vtiger_data FROM user WHERE vtiger_id={U_ADMIN}")[0]),
+                         {"date_format": "dd-mm-yyyy"})                        # converted preference: source kept
         admin = one(f"SELECT vtiger_id, type FROM user WHERE user_name={Mysql_quote(ADMIN_NAME)} AND deleted=0")
         self.assertEqual(admin, [str(U_ADMIN), "admin"])                      # adopted, not duplicated
         deputy = one(f"SELECT type, is_active, password <> '' FROM user WHERE vtiger_id={U_DEPUTY}")
@@ -577,6 +593,12 @@ class Stage062(unittest.TestCase):
         self.assertEqual(report["problems"], {}, report.get("problem_columns"))
         c1 = self.id_of("contact", C1)
         self.assertEqual(one(f"SELECT role FROM account_contact WHERE contact_id='{c1}' AND deleted=0"), ["Директор"])
+        owner = one(f"SELECT assigned_user_id FROM contact WHERE vtiger_id={C1}")
+        source_sql(f"UPDATE vtiger_crmentity SET smownerid={U_DEPUTY} WHERE crmid={C1};")
+        report, recs = self.run_import(only="Contacts")                 # users not in the run: owner left as is
+        self.assertEqual(report["problems"], {}, report.get("problem_columns"))
+        self.assertEqual(one(f"SELECT assigned_user_id FROM contact WHERE vtiger_id={C1}"), owner)
+        source_sql(f"UPDATE vtiger_crmentity SET smownerid={U_SALES} WHERE crmid={C1};")
         source_sql(f"INSERT INTO vtiger_seactivityrel (crmid, activityid) VALUES ({A2}, {E4});"
                    f"UPDATE vtiger_crmentity SET modifiedtime='2024-04-01 10:00:00' WHERE crmid={E4};")
         report, recs = self.run_import(only="Users,Accounts,Events")   # contacts not in the run: E4's contact is kept
