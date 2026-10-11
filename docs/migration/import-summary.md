@@ -2,7 +2,7 @@
 
 Генерируется: `task import:summary -- <прогон>` (`scripts/import/importer.py summary`). Только счётчики: ни значений, ни идентификаторов записей. Машинный отчёт с причинами по каждой записи и колонке — вне Git (`/data/itvolga/espo-private/import/<прогон>/`). Контракт импорта — `import.md`.
 
-- Прогон: `20261011T133152`; снимок: `20261006T201216`; код: `8af73eb` (незакоммиченных файлов инструмента: 4).
+- Прогон: `20261011T133339`; снимок: `20261006T201216`; код: `ff5c5cc` (незакоммиченных файлов инструмента: 0).
 - Итог: **findings**; проблемы: нет; находки: conflict=8, dangling=1, missing_in_source=0, no_target=14, pending=931, records_held=3, type_conflict=22.
 - «Тишина» (изменение числа строк стенда: уведомления, напоминания, подписки, записи ленты без vtigerId, письма, вебхуки, журнал действий): action_history_record=0, email=0, note_not_imported=0, notification=0, reminder=0, stream_subscription=0, webhook_queue_item=0.
 
