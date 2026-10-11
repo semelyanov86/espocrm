@@ -45,6 +45,7 @@ KEYS = (VT, VT + 999)
 PREFIX = f"SYNTH-fin-{HEX}"
 ADMIN_NAME = f"synth-fin-{HEX}-admin"
 ONLY = ",".join(m for m in spec.SCOPE if m != "OrganizationDetails")  # never the real legal entity
+CATEGORY = f"{PREFIX} Общее"  # the FAQ category of the test: the real «Общее» is never touched
 
 U_ADMIN, U_SALES = VT + 1, VT + 2
 A1, C1, C2, O1, V1, S1, P1 = VT + 101, VT + 201, VT + 202, VT + 401, VT + 301, VT + 311, VT + 312
@@ -323,6 +324,9 @@ class Stage063(unittest.TestCase):
             cls.bytes[att] = data
         cls.preexisting = {t: {r[0] for r in sql(f"SELECT id FROM {t}")}
                            for t in ("email_address", "phone_number", "knowledge_base_category")}
+        category = mock.patch.dict(spec.C.KB_CATEGORY, {"General": CATEGORY})  # the planner runs in this process
+        category.start()
+        cls.addClassCleanup(category.stop)
         cls.client = Client(*admin_credentials())
         cls.created = []
         cls.addClassCleanup(cls.cleanup)
@@ -412,8 +416,7 @@ class Stage063(unittest.TestCase):
     def test_00_dry_run_before_the_first_import(self):
         report, recs, _ = self.run_import(check_only=True)
         self.assertEqual(report["problems"], {}, report.get("problem_columns"))
-        self.assertEqual({r["check"] for k, r in recs.items() if not r["held"]  # the category may exist (real import)
-                          and not k.startswith("KnowledgeBaseCategory:")} - {"absent"}, {"missing"})
+        self.assertEqual({r["check"] for r in recs.values() if not r["held"]} - {"absent"}, {"missing"})
 
     def test_01_full_import(self):
         report, recs, rundir = self.run_import()
@@ -493,7 +496,7 @@ class Stage063(unittest.TestCase):
         kb = self.id_of("knowledge_base_article", F1)
         self.assertEqual(one(f"SELECT c.name FROM knowledge_base_article_knowledge_base_category r JOIN "
                              f"knowledge_base_category c ON c.id = r.knowledge_base_category_id WHERE "
-                             f"r.knowledge_base_article_id = '{kb}' AND r.deleted = 0")[0], "Общее")
+                             f"r.knowledge_base_article_id = '{kb}' AND r.deleted = 0")[0], CATEGORY)
         self.assertEqual(one(f"SELECT status, c_tags FROM knowledge_base_article WHERE id = '{kb}'"),
                          ["In Review", '["synth-faq"]'])
         note = one(f"SELECT id, parent_type, parent_id FROM note WHERE vtiger_id = {N1}")
@@ -783,14 +786,26 @@ class Stage063(unittest.TestCase):
         self.assertEqual(report["problems"], {}, report.get("problem_columns"))
         outcomes = {key: outcome for _kind, key, outcome in recs[f"Contact:{C1}"]["outcomes"]}
         self.assertEqual(outcomes["vtiger_contactdetails.imagename"], "deferred")
-        live = one("SELECT id FROM knowledge_base_category WHERE name = 'Общее' AND deleted = 0")[0]
+        live = one(f"SELECT id FROM knowledge_base_category WHERE name = '{CATEGORY}' AND deleted = 0")[0]
         sql(f"INSERT INTO knowledge_base_category (id, name, deleted, created_at) VALUES "
-            f"('000itv{HEX}del', 'Общее', 1, NOW())")
+            f"('000itv{HEX}del', '{CATEGORY}', 1, NOW())")
         self.created.append(("KnowledgeBaseCategory", f"000itv{HEX}del"))
         report, recs, _ = self.run_import()
         self.assertEqual(report["problems"], {}, report.get("problem_columns"))
         self.assertEqual(one(f"SELECT deleted FROM knowledge_base_category WHERE id = '000itv{HEX}del'")[0], "1")
-        self.assertEqual(recs["KnowledgeBaseCategory:Общее"]["id"], live)
+        self.assertEqual(recs[f"KnowledgeBaseCategory:{CATEGORY}"]["id"], live)
+
+    def test_18_partial_runs_converge(self):
+        """`--only Assets`: links to modules outside the run wait (kept, not compared) — the run is equal at once.
+        `--only Documents`: the file name, size and type wait for the Attachment operation (deferred)."""
+        report, recs, _ = self.run_import(only="Assets")
+        self.assertEqual(report["problems"], {}, report.get("problem_columns"))
+        self.assertEqual(recs[f"VtigerArchive:{AS1}"]["check"], "equal")
+        report, recs, _ = self.run_import(only="Documents")
+        self.assertEqual(report["problems"], {}, report.get("problem_columns"))
+        outcomes = {key: outcome for _kind, key, outcome in recs[f"Document:{D1}"]["outcomes"]}
+        self.assertEqual(outcomes["vtiger_notes.filename"], "deferred")
+        self.assertEqual(outcomes["vtiger_notes.filelocationtype"], "deferred")
 
 
 def load_tests(loader, tests, pattern):

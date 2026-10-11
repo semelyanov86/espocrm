@@ -92,9 +92,10 @@ class RecordWriter
 
     /**
      * One operation in one transaction. The core decrements its transaction counter before PDO::commit(): a COMMIT
-     * that throws leaves the PDO transaction open and the core's rollback refuses. The transaction is ended here
-     * before `$afterFailure` looks at the database; after a failed COMMIT the outcome is uncertain and the command
-     * stops (`transaction_failed`) instead of writing more on that connection.
+     * that throws may leave the PDO transaction open, and the core's rollback then throws instead of the COMMIT's
+     * error. The transaction is ended here before `$afterFailure` looks at the database; whatever fails after the
+     * write returned is the COMMIT, whose outcome is unknown: the command stops (`transaction_failed`) instead of
+     * writing more on that connection.
      *
      * @param callable(): array<string, mixed> $write
      * @param ?callable(): void $afterFailure
@@ -102,14 +103,21 @@ class RecordWriter
      */
     private function transaction(callable $write, ?callable $afterFailure = null): array
     {
+        $committing = false;
+
         try {
-            return $this->entityManager->getTransactionManager()->run($write);
+            return $this->entityManager->getTransactionManager()->run(function () use ($write, &$committing) {
+                $result = $write();
+                $committing = true;
+
+                return $result;
+            });
         } catch (Throwable $e) {
             $pdo = $this->entityManager->getPDO();
-            $uncertain = $pdo->inTransaction();
+            $uncertain = $committing || $pdo->inTransaction();
 
             try {
-                if ($uncertain) {
+                if ($pdo->inTransaction()) {
                     $pdo->rollBack();
                 }
 

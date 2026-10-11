@@ -155,8 +155,9 @@ def build_document(row, ctx, files):
             elif not T.is_empty(raw):
                 op.column(col, "zero_empty")
         return op
+    in_run = "Attachments" in ctx.selected  # the file and its pointer are verified by the Attachment operation
     if location == "I" and attachment:
-        op.column(n + "filelocationtype", "mapped", "fileId")
+        op.column(n + "filelocationtype", "mapped" if in_run else "deferred", "fileId")
     elif not T.is_empty(location):
         # D-23: an internal document without a file in the source (accepted loss), or an unknown location type
         op.column(n + "filelocationtype", "not_applicable:D-23" if location == "I" else "error:location_unknown")
@@ -166,7 +167,7 @@ def build_document(row, ctx, files):
         if T.is_empty(raw):
             continue
         if have is not None and raw == have:
-            op.column(col, "derived_equal", "fileId")
+            op.column(col, "derived_equal" if in_run else "deferred", "fileId")
         elif key == "filesize" and raw.strip() == "0":
             op.column(col, "zero_empty")
         else:
@@ -315,6 +316,8 @@ def build_archive(module, row, ctx, lines=()):
         except ValueError:
             continue  # stays in data only (archived)
         target = S.link_ref(op, ctx, None, link, raw, accept=accept)
+        if link in op.keep:
+            del op.links[link]  # waits for its module: the stored pointer stays and is not compared
         ctx.flags[f"archive_link:{module}.{link}:{'linked' if target else 'kept'}"] += 1
     title, number = ARCHIVE_TITLE[module]
     op.attributes["name"] = T.string(row.get(title)) if title else None
