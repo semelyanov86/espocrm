@@ -24,6 +24,11 @@ use Throwable;
  * notification, websocket and stream-time hooks ignore `SILENT`. Reminders the core creates for imported historical
  * events from attendees' preferences are removed. Finance records deleted in EspoCRM are not restored and documents
  * recalculated in EspoCRM keep their calculation data (FinanceRules); files are written by AttachmentWriter.
+ *
+ * Stage 06.4 (protocol 3, owner's answers 2026-10-12): records gone from the source are removed by RemovalWriter; an
+ * activity whose type changed in the source is created (or restored) in its new type and the live record of the
+ * previous type is removed in the same transaction; link-multiple and relation items the source owns follow it
+ * (DesiredState); a finance tombstone of the delta comes back with the source.
  */
 class RecordWriter
 {
@@ -55,12 +60,13 @@ class RecordWriter
         private FinanceRules $finance,
         private FinanceCheck $financeCheck,
         private AttachmentWriter $attachments,
+        private RemovalWriter $removals,
     ) {}
 
     /**
      * @return array<string, mixed>
      */
-    public function handle(stdClass $op, bool $check, ?string $adoptUserName, ?Blob $blob = null): array
+    public function handle(stdClass $op, bool $check, RunContext $run, ?Blob $blob = null): array
     {
         $type = $op->entityType ?? null;
 
@@ -73,21 +79,47 @@ class RecordWriter
                 return $this->attachments->check($op);
             }
 
-            return $this->transaction(fn () => $this->attachments->write($op, $blob),
-                fn () => $this->attachments->discardUncommitted()); // the transaction is over: its record decides
+            $result = $this->transaction(fn () => $this->attachments->write($op, $blob),
+                fn () => $this->attachments->discardUncommitted());
+            $this->attachments->placeCommitted(); // the record committed: now the bytes (stage 06.4)
+
+            return $result;
         }
 
         if ($check) {
-            return $this->check($op);
+            return $this->check($op, $run);
         }
 
-        $result = $this->transaction(fn () => $this->write($op, $adoptUserName));
+        $result = $this->transaction(fn () => $this->write($op, $run));
 
         if (isset($result['id']) && in_array($result['status'], ['created', 'restored', 'adopted', 'updated'], true)) {
             $this->keys->remember($type, $this->key($op), $result['id']); // only once the transaction committed
         }
 
+        if (isset($result['retyped'])) {
+            $this->keys->forget($result['retyped']['from'], $this->key($op));
+        }
+
         return $result;
+    }
+
+    /**
+     * A record gone from the source (protocol 3): removed, deactivated or kept by RemovalWriter, in one transaction;
+     * the check pass answers the same policy read-only.
+     *
+     * @return array<string, mixed>
+     */
+    public function remove(stdClass $op, bool $check, RunContext $run): array
+    {
+        if ($check) {
+            return $this->removals->state($op, $run);
+        }
+
+        try {
+            return $this->transaction(fn () => $this->removals->remove($op, $run));
+        } finally {
+            $this->keys->reset(); // a removal may cascade to records whose ids are cached
+        }
     }
 
     /**
@@ -113,6 +145,7 @@ class RecordWriter
                 return $result;
             });
         } catch (Throwable $e) {
+            $this->keys->reset(); // ids seen inside the rolled-back transaction may not exist
             $pdo = $this->entityManager->getPDO();
             $uncertain = $committing || $pdo->inTransaction();
 
@@ -133,7 +166,10 @@ class RecordWriter
     }
 
     /**
-     * @return array{inventory: string, live: int[], deleted: int[]}
+     * Source keys of the target: live and deleted records with a vtigerId; users also by `inactive` (a user gone from
+     * the source is deactivated, not deleted — stage 06.4).
+     *
+     * @return array{inventory: string, live: int[], deleted: int[], inactive?: int[]}
      */
     public function inventory(string $entityType): array
     {
@@ -141,39 +177,47 @@ class RecordWriter
             throw new ImportError('bad_operation');
         }
 
+        $user = $entityType === 'User';
         $query = SelectBuilder::create()
             ->from($entityType)
-            ->select(['vtigerId', 'deleted'])
+            ->select($user ? ['vtigerId', 'deleted', 'isActive'] : ['vtigerId', 'deleted'])
             ->where(['vtigerId!=' => null])
             ->withDeleted()
             ->build();
 
-        $live = $deleted = [];
+        $live = $deleted = $inactive = [];
 
         foreach ($this->entityManager->getQueryExecutor()->execute($query) as $row) {
             if ($row['deleted']) {
                 $deleted[] = (int) $row['vtigerId'];
             } else {
                 $live[] = (int) $row['vtigerId'];
+
+                if ($user && !$row['isActive']) {
+                    $inactive[] = (int) $row['vtigerId'];
+                }
             }
         }
 
-        return ['inventory' => $entityType, 'live' => $live, 'deleted' => $deleted];
+        return ['inventory' => $entityType, 'live' => $live, 'deleted' => $deleted] +
+            ($user ? ['inactive' => $inactive] : []);
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function check(stdClass $op): array
+    private function check(stdClass $op, RunContext $run): array
     {
         $entity = $this->keys->findWithDeleted($op->entityType, $this->key($op));
+        $previous = $this->previousType($op);
 
         if ($guarded = $this->finance->guard($op, $entity, true)) {
             return $guarded; // a finance record deleted in EspoCRM, an item of a recalculated document: findings
         }
 
         if (!$entity instanceof CoreEntity) {
-            return ['status' => ($op->onlyIfExists ?? false) ? 'absent' : 'missing'];
+            return ['status' => ($op->onlyIfExists ?? false) ? 'absent' : 'missing'] +
+                ($previous ? ['retypeFrom' => $previous->getEntityType()] : []);
         }
 
         if ($entity->get('deleted')) {
@@ -181,9 +225,10 @@ class RecordWriter
         }
 
         $protected = $this->finance->protect($op, $entity);
-        $diff = $this->desired->apply($entity, $op, false);
-        $related = $this->desired->relate($entity, $op, false);
-        $differs = array_merge($diff['changed'], $related['changed'], $this->unreadEmail($entity) ? ['users.isRead'] : []);
+        $diff = $this->desired->apply($entity, $op, false, $run);
+        $related = $this->desired->relate($entity, $op, false, $run);
+        $differs = array_merge($diff['changed'], $related['changed'], $this->unreadEmail($entity) ? ['users.isRead'] : [],
+            $previous ? ['retype.' . $previous->getEntityType()] : []);
 
         if ($op->entityType === 'User') {
             $differs = array_merge($differs, $this->desired->preferencesDiff($entity->getId(), $op->preferences ?? null));
@@ -211,16 +256,11 @@ class RecordWriter
     /**
      * @return array<string, mixed>
      */
-    private function write(stdClass $op, ?string $adoptUserName): array
+    private function write(stdClass $op, RunContext $run): array
     {
         $type = $op->entityType;
         $this->finance->lock($op); // first: the reads below see a recalculation committed before the lock
-
-        foreach ($op->keyAlsoIn ?? [] as $other) {
-            if (in_array($other, self::EVENT_TYPES, true) && $this->keys->findWithDeleted($other, $op->vtigerId)) {
-                throw new ImportError('type_changed'); // a source activity changed its type: delta policy (06.4)
-            }
-        }
+        $previous = $this->previousType($op); // a source activity that changed its type (stage 06.4)
 
         $entity = $this->keys->findWithDeleted($type, $this->key($op));
 
@@ -239,7 +279,8 @@ class RecordWriter
                 throw new ImportError('legal_entity_missing'); // the singleton comes from itvolga-setup-finance
             }
 
-            [$entity, $status] = $type === 'User' ? $this->newUser($op, $adoptUserName) : [$this->newRecord($type), 'created'];
+            [$entity, $status] = $type === 'User' ? $this->newUser($op, $run->adoptUserName) :
+                [$this->newRecord($type), 'created'];
         } elseif ($entity->get('deleted')) {
             $entity = $this->restore($type, $entity->getId(), $op);
             $status = 'restored';
@@ -253,19 +294,19 @@ class RecordWriter
         }
 
         $protected = $isNew ? [] : $this->finance->protect($op, $entity);
-        $diff = $this->desired->apply($entity, $op, $isNew);
+        $diff = $this->desired->apply($entity, $op, $isNew, $run);
 
         if ($isNew && $diff['unresolved'] && $this->finance->isFinance($type)) {
             throw new ImportError('unresolved_links', $diff['unresolved']); // never a finance row without its owner
         }
 
-        $related = $isNew ? null : $this->desired->relate($entity, $op, false);
+        $related = $isNew ? null : $this->desired->relate($entity, $op, false, $run);
         $preferences = $type === 'User' && !$isNew ?
             $this->desired->preferencesDiff($entity->getId(), $op->preferences ?? null) : [];
         $save = $isNew || $diff['changed'] || $preferences || $status !== 'updated';
         $unread = !$isNew && $this->unreadEmail($entity);
 
-        if (!$save && !$related['changed'] && !$unread) {
+        if (!$save && !$related['changed'] && !$unread && !$previous) {
             return ['status' => 'unchanged', 'id' => $entity->getId(), 'unresolved' => $diff['unresolved'],
                 'deletedTargets' => array_merge($diff['deletedTargets'], $related['deletedTargets'])] +
                 ($protected ? ['protected' => $protected] : []);
@@ -297,17 +338,73 @@ class RecordWriter
             }
         }
 
-        $related = $this->desired->relate($entity, $op, true);
+        $related = $this->desired->relate($entity, $op, true, $run);
 
         if ($type === 'Email') {
             $this->markEmailRead($entity->getId()); // owner's answer 2026-10-11: archived mail is not «new»
         }
 
+        $retyped = $previous ? $this->retire($previous, $entity) : null;
+        $removedLinks = $diff['removedLinks'] + $related['removedLinks'];
+
         return ['status' => $status, 'id' => $entity->getId(),
-            'changed' => array_merge($diff['changed'], $preferences, $related['changed'], $unread ? ['users.isRead'] : []),
+            'changed' => array_merge($diff['changed'], $preferences, $related['changed'], $unread ? ['users.isRead'] : [],
+                $retyped ? ['retype.' . $retyped['from']] : []),
             'forced' => $forced, 'unresolved' => array_merge($diff['unresolved'], $related['unresolved']),
             'deletedTargets' => array_merge($diff['deletedTargets'], $related['deletedTargets'])] +
-            ($protected ? ['protected' => $protected] : []);
+            ($protected ? ['protected' => $protected] : []) + ($retyped ? ['retyped' => $retyped] : []) +
+            ($removedLinks ? ['removedLinks' => $removedLinks] : []);
+    }
+
+    /**
+     * The live record of an activity's source key in another activity type (Task, Call, Meeting share the Calendar
+     * key space): the source changed the type. Tombstones of other types are history, not a conflict.
+     *
+     * @throws ImportError type_ambiguous — live records in two other types
+     */
+    private function previousType(stdClass $op): ?CoreEntity
+    {
+        $found = [];
+
+        foreach ($op->keyAlsoIn ?? [] as $other) {
+            if (!in_array($other, self::EVENT_TYPES, true) || $other === $op->entityType) {
+                continue;
+            }
+
+            $entity = $this->keys->findWithDeleted($other, $op->vtigerId);
+
+            if ($entity instanceof CoreEntity && !$entity->get('deleted')) {
+                $found[] = $entity;
+            }
+        }
+
+        if (count($found) > 1) {
+            throw new ImportError('type_ambiguous');
+        }
+
+        return $found[0] ?? null;
+    }
+
+    /**
+     * Retires the record of the previous type in the transaction that wrote the new one (owner's answer 2026-10-12):
+     * its reminders move to the new record (users keep them, nothing is deleted), notes made in EspoCRM on it are
+     * counted (a finding; imported comments follow the source to the new record later in the run), then a silent
+     * soft delete.
+     *
+     * @return array{from: string, id: string, notesLeft: int}
+     */
+    private function retire(CoreEntity $previous, CoreEntity $entity): array
+    {
+        $from = $previous->getEntityType();
+        $this->entityManager->getQueryExecutor()->execute($this->entityManager->getQueryBuilder()->update()
+            ->in('Reminder')->set(['entityType' => $entity->getEntityType(), 'entityId' => $entity->getId()])
+            ->where(['entityType' => $from, 'entityId' => $previous->getId()])->build());
+        $notesLeft = $this->entityManager->getRDBRepository('Note')
+            ->where(['parentType' => $from, 'parentId' => $previous->getId(), 'vtigerId' => null])->count();
+        $this->entityManager->removeEntity($previous, [SaveOption::IMPORT => true, SaveOption::SILENT => true,
+            SaveOption::NO_NOTIFICATIONS => true]);
+
+        return ['from' => $from, 'id' => $previous->getId(), 'notesLeft' => $notesLeft];
     }
 
     private function validKey(stdClass $op): bool
@@ -438,9 +535,14 @@ class RecordWriter
 
         $repository = $this->entityManager->getRDBRepository($type);
         $repository->restoreDeleted($id);
+        $values += $this->finance->revivalReset($type); // a finance tombstone of the delta (stage 06.4)
 
         if ($this->entityManager->getDefs()->getEntity($type)->hasAttribute('deleteId')) {
-            $this->update($type, $id, $values + ['deleteId' => '0']);
+            $values['deleteId'] = '0';
+        }
+
+        if ($values) {
+            $this->update($type, $id, $values);
         }
 
         $entity = $repository->getById($id);

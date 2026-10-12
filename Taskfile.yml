@@ -216,6 +216,11 @@ tasks:
     cmds:
       - python3 scripts/snapshot/snapshot.py protocol {{.CLI_ARGS}}
 
+  snapshot:diff:
+    desc: Count-only difference of two snapshots (-- <A> <B> [--out docs/migration/snapshot-delta.md]); private JSON in snapshots/diffs/
+    cmds:
+      - python3 scripts/snapshot/snapshot.py diff {{.CLI_ARGS}}
+
   test:snapshot:
     desc: Snapshot codec round trip on the stand MySQL (synthetic source, no production)
     cmds:
@@ -242,6 +247,21 @@ tasks:
     desc: Acceptance tests of the import of finances, documents and files (synthetic source and file part, import into the stand, D-11 parity with the core, cleanup by id)
     cmds:
       - python3 -m unittest discover -s tests/stage06_3 -p 'test_*.py' -v
+
+  test:stage06.4:
+    desc: Acceptance tests of the delta (removals, owned links, retyped activities, finance revival, rail, interruption, ledger, taxes; synthetic, cleanup by id) and pure checks
+    cmds:
+      - python3 -m unittest discover -s tests/stage06_4 -p 'test_*.py' -v
+
+  import:drill:
+    desc: Interruption and idempotency drill on the stand (-- --snapshot ID [--restore BACKUP] [--term-after N] [--allow-mass-removal]); stand backup first
+    cmds:
+      - python3 scripts/import/drill.py {{.CLI_ARGS}}
+
+  stand:fingerprint:
+    desc: Whole-stand fingerprint (-- take LABEL | diff A.json B.json); private JSON
+    cmds:
+      - python3 scripts/stand/fingerprint.py {{.CLI_ARGS}}
 
   check:secrets:
     desc: Scan files that would be committed for secrets and personal data

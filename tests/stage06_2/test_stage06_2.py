@@ -619,7 +619,9 @@ class Stage062(unittest.TestCase):
         finally:
             source_sql(f"DELETE FROM vtiger_crmentity WHERE crmid={A4};")
 
-    def test_15_manual_account_and_role_stay(self):
+    def test_15_manual_link_between_imported_records_goes(self):
+        """Stage 06.4 (owner's answer 2026-10-12): the source owns the links between imported records — a manual link
+        of an imported contact to an imported account goes like a manual edit of a field (D-141)."""
         c2, a2 = self.id_of("contact", C2), self.id_of("account", A2)
         status, _, _ = self.client.put(f"Contact/{c2}", {"accountId": a2, "title": "manual role"})
         self.assertEqual(status, 200)
@@ -627,8 +629,8 @@ class Stage062(unittest.TestCase):
         report, recs = self.run_import()
         self.assertEqual(recs[f"Contact:{C2}"]["apply"], "updated")
         self.assertEqual(one(f"SELECT account_id IS NULL FROM contact WHERE id='{c2}'"), ["1"])          # source wins
-        self.assertEqual(one(f"SELECT role FROM account_contact WHERE contact_id='{c2}' AND account_id='{a2}' "
-                             f"AND deleted=0"), ["manual role"])                                    # manual link stays
+        self.assertEqual(one(f"SELECT COUNT(*) FROM account_contact WHERE contact_id='{c2}' AND account_id='{a2}' "
+                             f"AND deleted=0"), ["0"])                                       # the manual link goes
         self.assertEqual(recs[f"Contact:{C2}"]["check"], "equal")
 
     def test_16_dry_run_reports_a_changed_target(self):

@@ -17,8 +17,9 @@ use stdClass;
  * `Email.attachments`) — `parent` + `field`. A replaced attachment of an owner field is left as it is.
  *
  * Bytes land in the core upload storage (`data/upload/<id>`) only after their size and sha256 were checked against
- * the source; a stored file with the source sha256 is not written again, so a re-run touches nothing. A new
- * attachment's file is removed again when its record could not be saved.
+ * the source and only after the record's transaction committed (stage 06.4): an interrupted or failed write never
+ * leaves a stored file without its record — at worst a committed record without its bytes, which the check pass sees
+ * and the next run writes. A stored file with the source sha256 is not written again, so a re-run touches nothing.
  */
 class AttachmentWriter
 {
@@ -33,8 +34,8 @@ class AttachmentWriter
     ];
     private const STORAGE = 'EspoUploadDir';
 
-    /** @var ?array{string, string} id and file of a new attachment whose record is not committed yet */
-    private ?array $uncommitted = null;
+    /** @var ?array{Blob, string} received bytes and their storage path, placed once the record committed */
+    private ?array $pending = null;
 
     public function __construct(
         private EntityManager $entityManager,
@@ -89,7 +90,7 @@ class AttachmentWriter
      */
     public function write(stdClass $op, ?Blob $blob): array
     {
-        $this->uncommitted = null;
+        $this->pending = null;
 
         if (!$blob) {
             throw new ImportError('file_bytes_missing');
@@ -125,9 +126,8 @@ class AttachmentWriter
         if ($file === 'equal') {
             $this->blobs->discard($blob->path);
         } else {
-            $this->blobs->place($blob, $path);
+            $this->pending = [$blob, $path]; // placed by placeCommitted() after the COMMIT
             $placed = true;
-            $this->uncommitted = $isNew ? [$attachment->getId(), $path] : null;
         }
 
         $pointer = $kind === 'single' && $owner->get($field . 'Id') !== $attachment->getId();
@@ -154,17 +154,32 @@ class AttachmentWriter
     }
 
     /**
-     * After the transaction of write() failed — a save or the COMMIT itself: the file placed for a new attachment is
-     * removed unless its record is in the database (a COMMIT that failed on the way may have succeeded); a file that
-     * cannot be checked stays (the error is reported, the next run finds it by the record or not at all).
+     * After the transaction of write() committed: the received bytes move to their storage path (atomic within the
+     * upload directory). A failure leaves the committed record without its file — reported, written by the next run.
+     *
+     * @throws ImportError file_storage
+     */
+    public function placeCommitted(): void
+    {
+        [$blob, $path] = $this->pending ?? [null, null];
+        $this->pending = null;
+
+        if ($blob !== null) {
+            $this->blobs->place($blob, $path);
+        }
+    }
+
+    /**
+     * After the transaction of write() failed — a save or the COMMIT itself: nothing was placed, the received bytes
+     * are dropped (a COMMIT that succeeded on the way leaves its record without the file: the next run writes it).
      */
     public function discardUncommitted(): void
     {
-        [$id, $path] = $this->uncommitted ?? [null, null];
-        $this->uncommitted = null;
+        [$blob] = $this->pending ?? [null];
+        $this->pending = null;
 
-        if ($id !== null && !$this->entityManager->getRDBRepository('Attachment')->getById($id)) {
-            @unlink($path);
+        if ($blob !== null) {
+            $this->blobs->discard($blob->path);
         }
     }
 

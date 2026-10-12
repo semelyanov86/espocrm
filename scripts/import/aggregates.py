@@ -1,6 +1,8 @@
 """Exact aggregates of the finance import (stage 06.3, docs/migration/import.md «Сверка финансов»): the same measures
 three ways — SQL on the restored source, the planner's own values, SQL on the stand — compared as decimals, no
-tolerance. Source SQL = planned (all records) proves the reader; planned (imported records) = stand SQL proves the
+tolerance. Stage 06.4 adds the taxes (TAX_MEASURES): the tax mode of the documents, the shipping tax rate, the tax a
+document's totals carry (grand total − pre-tax total − adjustment), the archived tax rates 2 and 3 of the lines and the
+header tax of the custom fields, and the lines with any tax rate. Source SQL = planned (all records) proves the reader; planned (imported records) = stand SQL proves the
 writer. Records the owner's answers keep out of the import (deleted or recalculated in EspoCRM) are excluded on both
 sides of the second comparison and listed. Amounts stay in the private report; Git gets equal/differs only.
 """
@@ -24,6 +26,72 @@ LINE = {"quantity": ("quantity", "quantity", "quantity"), "unitPrice": ("listpri
         "purchaseCost": ("purchase_cost", "purchase_cost", "purchaseCost")}
 ITEM_TABLES = {"Quotes": ("quote_item", "quote_id"), "SalesOrder": ("sales_order_item", "sales_order_id"),
                "Act": ("act_item", "act_id"), "Invoice": ("invoice_item", "invoice_id")}
+TAX_MODES = ("individual", "group", "group_tax_inc")  # vtigerValueMap: the identity map of taxtype → taxMode
+HEADER_TAX = {"Quotes": "vtiger_quotescf", "SalesOrder": "vtiger_salesordercf", "Invoice": "vtiger_invoicecf"}
+
+
+def _json_dec(path, column="vtiger_data"):
+    return f"IFNULL(CAST(JSON_UNQUOTE(JSON_EXTRACT({column}, '$.{path}')) AS DECIMAL(65,30)), 0)"
+
+
+def tax_source_sql(module, table, key, live, lines):
+    """Stage 06.4 tax measures on the restored source (the predicates of source_sql)."""
+    implied = "IFNULL(t.total, 0) - IFNULL(t.pre_tax_total, 0) - IFNULL(t.adjustment, 0)"
+    out = [(f"{module}.taxMode.{m}.count", f"SELECT COUNT(*) FROM {table} t {live} WHERE t.taxtype = '{m}'")
+           for m in TAX_MODES]
+    out += [(f"{module}.taxMode.none.count", f"SELECT COUNT(*) FROM {table} t {live} WHERE IFNULL(t.taxtype, '') = ''"),
+            (f"{module}.shippingTaxPercent", f"SELECT IFNULL(SUM(t.s_h_percent), 0) FROM {table} t {live}"),
+            (f"{module}.impliedTax", f"SELECT IFNULL(SUM({implied}), 0) FROM {table} t {live}"),
+            (f"{module}.impliedTax.nonzero", f"SELECT IFNULL(SUM({implied} <> 0), 0) FROM {table} t {live}"),
+            (f"{module}.lines.tax2", f"SELECT IFNULL(SUM(l.tax2), 0) {lines}"),
+            (f"{module}.lines.tax3", f"SELECT IFNULL(SUM(l.tax3), 0) {lines}"),
+            (f"{module}.lines.taxed.count", f"SELECT IFNULL(SUM(IFNULL(l.tax1, 0) + IFNULL(l.tax2, 0) "
+                                            f"+ IFNULL(l.tax3, 0) <> 0), 0) {lines}")]
+    if module in HEADER_TAX:
+        cf = HEADER_TAX[module]
+        out.append((f"{module}.headerTax", f"SELECT IFNULL(SUM(c.tax), 0) FROM {table} t {live} "
+                                           f"LEFT JOIN {cf} c ON c.{key} = t.{key}"))
+    return out
+
+
+def tax_planned(op, add):
+    """The same measures from an operation (a document or an item)."""
+    module = op.module
+    if op.entityType in ("Quote", "SalesOrder", "Act", "Invoice"):
+        mode = op.attributes.get("taxMode")
+        add(f"{module}.taxMode.{mode if mode in TAX_MODES else 'none'}.count", 1)
+        add(f"{module}.shippingTaxPercent", op.attributes.get("shippingTaxPercent"))
+        with localcontext(F.EXACT):
+            implied = _dec(op.attributes.get("grandTotal")) - _dec(op.attributes.get("preTaxTotal")) - \
+                _dec(op.attributes.get("adjustment"))
+        add(f"{module}.impliedTax", implied)
+        add(f"{module}.impliedTax.nonzero", 1 if implied != 0 else 0)
+        if module in HEADER_TAX:
+            add(f"{module}.headerTax", op.vtigerData.get("tax"))
+    else:
+        tax2, tax3 = _dec(op.vtigerData.get("tax2")), _dec(op.vtigerData.get("tax3"))
+        add(f"{module}.lines.tax2", tax2)
+        add(f"{module}.lines.tax3", tax3)
+        with localcontext(F.EXACT):
+            taxed = _dec(op.attributes.get("taxRate")) + tax2 + tax3 != 0
+        add(f"{module}.lines.taxed.count", 1 if taxed else 0)
+
+
+def tax_target_sql(module, where, lines):
+    """The same measures on the stand (`where`/`lines`: the FROM … WHERE of target_sql)."""
+    implied = "IFNULL(grand_total, 0) - IFNULL(pre_tax_total, 0) - IFNULL(adjustment, 0)"
+    out = [(f"{module}.taxMode.{m}.count", f"SELECT COUNT(*) {where} AND tax_mode = '{m}'") for m in TAX_MODES]
+    out += [(f"{module}.taxMode.none.count", f"SELECT COUNT(*) {where} AND IFNULL(tax_mode, '') = ''"),
+            (f"{module}.shippingTaxPercent", f"SELECT IFNULL(SUM(shipping_tax_percent), 0) {where}"),
+            (f"{module}.impliedTax", f"SELECT IFNULL(SUM({implied}), 0) {where}"),
+            (f"{module}.impliedTax.nonzero", f"SELECT IFNULL(SUM({implied} <> 0), 0) {where}"),
+            (f"{module}.lines.tax2", f"SELECT IFNULL(SUM({_json_dec('tax2')}), 0) {lines}"),
+            (f"{module}.lines.tax3", f"SELECT IFNULL(SUM({_json_dec('tax3')}), 0) {lines}"),
+            (f"{module}.lines.taxed.count", f"SELECT IFNULL(SUM(IFNULL(tax_rate, 0) + {_json_dec('tax2')} "
+                                            f"+ {_json_dec('tax3')} <> 0), 0) {lines}")]
+    if module in HEADER_TAX:
+        out.append((f"{module}.headerTax", f"SELECT IFNULL(SUM({_json_dec('tax')}), 0) {where}"))
+    return out
 
 
 def _dec(value):
@@ -48,6 +116,7 @@ def source_sql():
         out.append((f"{module}.lines.amount", "SELECT IFNULL(SUM(l.quantity * l.listprice - IFNULL(l.discount_amount, 0) "
                                               "- l.quantity * l.listprice * IFNULL(l.discount_percent, 0) / 100), 0) "
                                               + lines))
+        out += tax_source_sql(module, table, key, live, lines)
     pay = "FROM sp_payments p JOIN vtiger_crmentity e ON e.crmid = p.payid AND e.deleted = 0 AND e.setype = 'SPPayments'"
     for raw, direction in (("Приход", "incoming"), ("Expense", "outgoing")):
         out.append((f"Payment.{direction}.count", f"SELECT COUNT(*) {pay} WHERE p.pay_type = '{raw}'"))
@@ -99,11 +168,13 @@ def planned(ops, include):
                 add(f"{module}.{name}", op.attributes.get(attr))
             if module == "Invoice":
                 add("Invoice.balanceSource", op.attributes.get("balanceSource"))
+            tax_planned(op, add)
         elif op.entityType in ("QuoteItem", "SalesOrderItem", "ActItem", "InvoiceItem"):
             add(f"{module}.lines.count", 1)
             for name, (_c, _s, attr) in LINE.items():
                 add(f"{module}.lines.{name}", op.attributes.get(attr))
             add(f"{module}.lines.amount", op.attributes.get("amount"))
+            tax_planned(op, add)
         elif op.entityType == "Payment":
             direction = op.attributes.get("direction")
             add(f"Payment.{direction}.count", 1)
@@ -137,6 +208,7 @@ def target_sql(keys):
         for name, (_c, col, _a) in LINE.items():
             out.append((f"{module}.lines.{name}", f"SELECT IFNULL(SUM({col}), 0) {lines}"))
         out.append((f"{module}.lines.amount", f"SELECT IFNULL(SUM(amount), 0) {lines}"))
+        out += tax_target_sql(module, where, lines)
     for direction in ("incoming", "outgoing"):
         where = f"FROM payment WHERE deleted = 0 AND direction = '{direction}' AND vtiger_id IN ({ids('Payment')})"
         out.append((f"Payment.{direction}.count", f"SELECT COUNT(*) {where}"))

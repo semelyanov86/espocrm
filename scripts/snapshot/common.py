@@ -9,6 +9,7 @@ import fcntl
 import hashlib
 import json
 import os
+import signal
 import re
 import subprocess
 import sys
@@ -169,11 +170,13 @@ class Mysql:
 
     def session(self, script, consume, errlog):
         """Feed `script` to one client session; call consume(line_bytes) for every output line.
-        stderr (it may quote values) goes to the private `errlog` only."""
+        stderr (it may quote values) goes to the private `errlog` only. The client runs in a process group of its
+        own (bash → sudo → mysql or php): an interruption stops the whole group, not just its shell (stage 06.4)."""
         errlog.parent.mkdir(parents=True, exist_ok=True)
         fd = os.open(errlog, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
         with os.fdopen(fd, "ab") as err:
-            proc = subprocess.Popen(self.argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=err)
+            proc = subprocess.Popen(self.argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=err,
+                                    start_new_session=True)
             failed = []
             writer = threading.Thread(target=_feed, args=(proc.stdin, script, failed), daemon=True)
             writer.start()
@@ -184,8 +187,7 @@ class Mysql:
                             raise SnapshotError(f"{self.label}: truncated client output")
                         consume(raw[:-1])
             except BaseException:
-                proc.kill()
-                proc.wait()
+                stop_group(proc)
                 raise
             rc = proc.wait()
             writer.join()
@@ -199,6 +201,26 @@ class Mysql:
         out = []
         self.session(script, out.append, errlog)
         return out
+
+
+def stop_group(proc, grace=15):
+    """SIGTERM to the client's process group (sudo passes it on to its command; a killed writer's transaction is
+    rolled back by MySQL), SIGKILL after `grace` seconds; stdin is closed only then — a feeder blocked on a full pipe
+    holds the buffer's lock until the reader is gone, so closing it first could hang."""
+    for sig, wait in ((signal.SIGTERM, grace), (signal.SIGKILL, None)):
+        try:
+            os.killpg(proc.pid, sig)
+        except (ProcessLookupError, PermissionError):
+            pass
+        try:
+            proc.wait(timeout=wait)
+            break
+        except subprocess.TimeoutExpired:
+            continue
+    try:
+        proc.stdin.close()
+    except (OSError, ValueError):
+        pass
 
 
 def _feed(pipe, script, failed):

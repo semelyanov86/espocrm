@@ -5,7 +5,9 @@ namespace Espo\Modules\Itvolga\Tools\Import;
 use Espo\Core\ORM\Entity as CoreEntity;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\DocumentProcessor;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\DocumentTypes;
+use Espo\Modules\Itvolga\Tools\FinanceDocument\NumberAllocator;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\RowLock;
+use Espo\Modules\Itvolga\Tools\FinancePayment\AllocationRows;
 use Espo\ORM\Entity;
 use stdClass;
 
@@ -19,7 +21,11 @@ use stdClass;
  *   totals, items — and its snapshot; the other fields still follow the source (`protected`); the write of a document
  *   or an item holds the document's row from its first read (`lock`), so a concurrent recalculation is kept too;
  * - the finance hooks own the derived values (legal entity, settlement, allocation name, order and rounding, payment
- *   name, source marks): the post-save enforcement of the generic writer restores only the provenance attributes.
+ *   name, source marks): the post-save enforcement of the generic writer restores only the provenance attributes;
+ * - stage 06.4 (owner's answers 2026-10-12): a finance record gone from the source is removed through its hooks under
+ *   the payment-side lock order, a recalculated document and its items are kept; the delta's own tombstones carry
+ *   `vtigerData.deletedInSource` (set by the hook FinanceDeltaMark, cleared by it on any other removal) and come back
+ *   when the source has the record again (D-148 still holds for a record deleted in EspoCRM).
  */
 class FinanceRules
 {
@@ -30,10 +36,14 @@ class FinanceRules
     /** What the generic writer may put back after a save of a finance record. */
     public const FORCEABLE = ['createdAt', 'modifiedAt', 'createdById', 'modifiedById'];
 
+    /** Mark of a finance tombstone made by the delta (the record left the source), not by a user. */
+    public const DELETED_IN_SOURCE = 'deletedInSource';
+
     public function __construct(
         private DocumentTypes $types,
         private KeyResolver $keys,
         private RowLock $rowLock,
+        private NumberAllocator $numberAllocator,
     ) {}
 
     public function isFinance(string $entityType): bool
@@ -135,11 +145,92 @@ class FinanceRules
             }
         }
 
-        if ($stored?->get('deleted')) {
+        if ($stored?->get('deleted') && !$this->isDeletedInSource($stored)) {
             return ['status' => 'deleted_in_target', 'reason' => 'self', 'id' => $id];
         }
 
+        return null; // a delta's tombstone back in the source is restored like any record (stage 06.4)
+    }
+
+    public function isDeletedInSource(Entity $entity): bool
+    {
+        $data = $entity->get('vtigerData');
+
+        return $data instanceof stdClass && ($data->{self::DELETED_IN_SOURCE} ?? false) === true;
+    }
+
+    /**
+     * Locks what the removal of a finance record goes through, in the order of the payment side (PaymentProcessor):
+     * the payment ledger first for an invoice, an order, a payment or an allocation — their removal hooks take it, and
+     * a document row locked before it would invert the order —, then the record's own row (a document, a payment) or
+     * the row of the item's document (as an upsert of an item, FinanceRules::lock). The policy below reads the locked
+     * rows: a recalculation committed meanwhile is seen, a later one waits.
+     */
+    public function lockForRemoval(string $entityType, Entity $stored): void
+    {
+        $payment = $this->types->findPayment($entityType) ?? $this->types->findPaymentByAllocation($entityType)
+            ?? $this->types->findPaymentByTarget($entityType);
+
+        if ($payment) {
+            $this->numberAllocator->lock($payment->series());
+        }
+
+        if ($this->isDocument($entityType) || $this->types->findPayment($entityType)) {
+            $this->rowLock->one($entityType, $stored->getId());
+        } elseif (($itemOf = $this->types->findByItem($entityType)) && $stored->get($itemOf->parentLink . 'Id')) {
+            $this->rowLock->one($itemOf->entityType, $stored->get($itemOf->parentLink . 'Id'));
+        }
+    }
+
+    /**
+     * Why a finance record gone from the source stays (a finding), or null: a document recalculated in EspoCRM keeps its
+     * calculation (D-51) and its items; a document an imported allocation still points to stays until the allocation
+     * goes by its own removal (its removal by the document's hook would not carry the delta's mark, D-158).
+     */
+    public function keptOnRemoval(string $entityType, Entity $stored): ?string
+    {
+        if ($this->isDocument($entityType)) {
+            $document = $this->rowLock->one($entityType, $stored->getId());
+
+            if ($document && $this->isRecalculated($document)) {
+                return 'recalculated_in_target';
+            }
+
+            $payment = $this->types->findPaymentByTarget($entityType);
+            $link = $payment?->linkOf($entityType);
+
+            return $link && $this->rowLock->query($payment->allocationEntityType)
+                ->where([$link . 'Id' => $stored->getId(), 'vtigerId!=' => null])->findOne() ? 'allocated_in_target' : null;
+        }
+
+        if ($itemOf = $this->types->findByItem($entityType)) {
+            $documentId = $stored->get($itemOf->parentLink . 'Id');
+            $document = $documentId ? $this->rowLock->one($itemOf->entityType, $documentId) : null;
+
+            return $document && !$document->get('deleted') && $this->isRecalculated($document) ?
+                'recalculated_in_target' : null;
+        }
+
         return null;
+    }
+
+    /**
+     * Attributes a restored finance tombstone resets: the item's «removed by an edit» and the allocation's «removed with
+     * its owner» marks (an owner restored through the API refuses rows with the latter, OwnerRestorer).
+     *
+     * @return array<string, mixed>
+     */
+    public function revivalReset(string $entityType): array
+    {
+        if ($this->types->findByItem($entityType)) {
+            return [DocumentProcessor::REMOVED_BY_EDIT => false];
+        }
+
+        if ($this->types->findPaymentByAllocation($entityType)) {
+            return [AllocationRows::REMOVED_WITH => null];
+        }
+
+        return [];
     }
 
     public function isRecalculated(Entity $document): bool

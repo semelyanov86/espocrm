@@ -129,8 +129,41 @@ def load(db, uitypes):
     data["modentity_num"] = [{k.split(".", 1)[1]: v for k, v in r.items()}
                              for r in db.select(COUNTERS, ("vtiger_modentity_num",))]
     data["excluded_files"] = _counts(db, EXCLUDED_FILES)
+    data["census_deleted"] = deleted_census(db, uitypes)
     data["reader"] = reader
     return data, census
+
+
+def deleted_census(db, uitypes):
+    """Non-empty values of the rows of records deleted in Vtiger, per module (stage 06.4, counts only): the same tables
+    and predicates as the live census with `deleted = 1` (D-07: not imported). The whole-snapshot ledger shows them as a
+    part of their columns of their own."""
+    out = {}
+    for module, src in spec.SOURCES.items():
+        out.setdefault(module, {}).update(db.census(src.from_sql(deleted=True), src.tables(), uitypes.get(module, {})))
+    for module in spec.LINE_MODULES:
+        for k, v in db.census(LINES_DELETED.format(module=module), ("vtiger_inventoryproductrel",), {}).items():
+            a, b = out.setdefault(module, {}).get(k, (0, 0))
+            out[module][k] = (a + v[0], b + v[1])
+    out["Users"] = db.census("FROM vtiger_users WHERE deleted = 1", ("vtiger_users",), uitypes.get("Users", {}))
+    out["Attachments"] = db.census(DELETED_ATTACHMENTS, ("vtiger_attachments",), {})
+    return out
+
+
+def column_counts(db):
+    """table → {column: [nonempty, nonzero]} of a source database by the snapshot's own expressions (codec.stat_sql),
+    for a synthetic source without a snapshot (the stage tests)."""
+    out = {}
+    for table, columns in db.columns().items():
+        exprs = []
+        for column, data_type in columns:
+            exprs.append(f"COALESCE({gen_sql.nonempty_expr(column, data_type, '')}, 0)")
+            exprs.append(f"COALESCE(SUM(`{column}` IS NOT NULL AND `{column}` <> 0), 0)"
+                         if data_type in gen_sql.NUMERIC_TYPES else "NULL")
+        line = db.lines(f"SELECT {', '.join(exprs)} FROM `{table}`;\n")[0].decode("ascii").split("\t")
+        out[table] = {c: [int(line[2 * i]), None if line[2 * i + 1] == "NULL" else int(line[2 * i + 1])]
+                      for i, (c, _) in enumerate(columns)}
+    return out
 
 
 # Rows of the plain tables that belong to the scope (D-07: deleted source records are not imported). The same
@@ -146,10 +179,18 @@ SCOPE_MODULES = "', '".join(spec.SCOPE)
 ATTACHMENT_SETYPES = "', '".join(("Documents Attachment", "Contacts Image", "ModComments Attachment",
                                   "Emails Attachment", "Users Image"))
 LIVE_ATTACHMENT = f"{LIVE} AND setype IN ('{ATTACHMENT_SETYPES}')"
+DELETED_ATTACHMENTS = ("FROM vtiger_attachments WHERE attachmentsid IN (SELECT crmid FROM vtiger_crmentity WHERE "
+                       f"deleted = 1 AND setype IN ('{ATTACHMENT_SETYPES}'))")
 LINES = ("FROM vtiger_inventoryproductrel WHERE id IN "
          f"({LIVE} AND setype = '{{module}}')")
+LINES_DELETED = ("FROM vtiger_inventoryproductrel WHERE id IN "
+                 "(SELECT crmid FROM vtiger_crmentity WHERE deleted = 1 AND setype = '{module}')")
 PLAIN_ROWS = {
-    "vtiger_attachments": f"FROM vtiger_attachments WHERE attachmentsid IN ({LIVE_ATTACHMENT})",
+    # a live attachment of a live owner (stage 06.4: Vtiger keeps the attachments of a deleted record live — they are
+    # not imported, the whole-snapshot ledger counts them outside the scope)
+    "vtiger_attachments": f"FROM vtiger_attachments WHERE attachmentsid IN ({LIVE_ATTACHMENT}) AND (attachmentsid IN "
+                          f"(SELECT attachmentsid FROM vtiger_seattachmentsrel WHERE crmid IN ({LIVE})) OR attachmentsid "
+                          f"IN (SELECT attachmentsid FROM vtiger_salesmanattachmentsrel WHERE smid IN ({LIVE_USER})))",
     "vtiger_organizationdetails": "FROM vtiger_organizationdetails",
     "vtiger_attachmentsfolder": "FROM vtiger_attachmentsfolder",
 }

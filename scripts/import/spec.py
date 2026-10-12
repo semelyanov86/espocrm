@@ -9,7 +9,9 @@ in-scope relation must be handled, pending for a later stage or excluded by its 
 An operation is the desired state of one target record (owner's rules 2026-10-11): attributes owned by the import are
 always sent (null when empty: no EspoCRM defaults, D-38); a single link to a record of a later stage is not sent (left
 as it is), to a deleted or missing source record it is sent as null; link-multiple items are added (manual links stay),
-except the domains `teams` (Vtiger groups) and `roles` (the four Vtiger roles), which follow the source.
+except the domains `teams` (Vtiger groups) and `roles` (the four Vtiger roles), which follow the source. Stage 06.4
+(owner's answer 2026-10-12): the links of OWNED_LINKS and the document relations are `owned` — their items pointing to
+imported records follow the source too (the writer applies it to the types whose every source module is in the run).
 """
 import csv
 import datetime as dt
@@ -50,6 +52,12 @@ MODULE_ENTITIES = {"Users": ("User",), "Accounts": ("Account",), "Contacts": ("C
                    "Act": ("Act", "ActItem"), "SPPayments": ("Payment", "PaymentAllocation"),
                    **{m: ("VtigerArchive",) for m in ARCHIVES}, "Faq": ("KnowledgeBaseArticle",),
                    "Emails": ("Email",), "Documents": ("Document", "DocumentFolder"), "Attachments": ("Attachment",)}
+# Stage 06.4: link-multiple fields whose items between imported records follow the source (`owned`); the relations of a
+# Document (vtiger_senotesrel) are owned as a whole (spec_content.DOCUMENT_LINKS). Teams, roles and KB categories keep
+# their `domain`.
+OWNED_LINKS = {"Contact": ("accounts",), "Case": ("contacts",), "Opportunity": ("contacts", "cProducts"),
+               "Call": ("contacts", "leads", "users"), "Meeting": ("contacts", "leads", "users"),
+               "Task": ("collaborators",)}
 # Import order: a reference always points to an entity type imported earlier in the run.
 ORDER = ("User", "Vendor", "Product", "LegalEntity", "Account", "Contact", "ContactAccess", "Lead", "Opportunity",
          "Project", "ProjectTask", "Case", "Quote", "QuoteItem", "SalesOrder", "SalesOrderItem", "Act", "ActItem",
@@ -144,13 +152,14 @@ class Source:
     def tables(self):
         return ("vtiger_crmentity", self.base[0], *(t for t, _ in self.joins))
 
-    def from_sql(self):
+    def from_sql(self, deleted=False):
+        """Live rows; `deleted` — the rows of records deleted in Vtiger instead (stage 06.4: counted by the ledger)."""
         t, k = self.base
         sql = f"FROM vtiger_crmentity JOIN `{t}` ON `{t}`.`{k}` = vtiger_crmentity.crmid"
         for jt, jk in self.joins:
             sql += f" LEFT JOIN `{jt}` ON `{jt}`.`{jk}` = vtiger_crmentity.crmid"
-        return sql + f" WHERE vtiger_crmentity.deleted = 0 AND vtiger_crmentity.setype = '{self.setype or self.module}'" \
-            + self.where
+        return sql + f" WHERE vtiger_crmentity.deleted = {1 if deleted else 0} AND vtiger_crmentity.setype = " \
+                     f"'{self.setype or self.module}'" + self.where
 
 
 SOURCES = {
@@ -244,6 +253,7 @@ class Op:
     file: dict = None                               # Attachment: {size, sha256} of the source file
     file_ref: bytes = None                          # Attachment: path of the file in the snapshot (never sent)
     name_override: str = None                       # key of an operation without a numeric source key
+    owned_relate: tuple = ()                        # relate links owned by the source (06.4: every link of a Document)
 
     @property
     def key(self):
@@ -272,7 +282,8 @@ class Op:
             items.append(list(target))
 
     def payload(self):
-        """The operation sent to the writer. vtigerData is owned as a whole: its keys are the source facts kept."""
+        """The operation sent to the writer. vtigerData is owned as a whole: its keys are the source facts kept;
+        an owned relation goes as {"items": […], "owned": true} (protocol 3)."""
         attributes = dict(self.attributes)
         if self.entityType not in NO_VTIGER_DATA:
             attributes["vtigerData"] = dict(sorted(self.vtigerData.items())) or None
@@ -286,7 +297,8 @@ class Op:
             if getattr(self, name) is not None:
                 data[name] = getattr(self, name)
         if self.relate:
-            data["relate"] = {k: sorted(v) for k, v in sorted(self.relate.items())}
+            data["relate"] = {k: ({"items": sorted(v), "owned": True} if k in self.owned_relate else sorted(v))
+                              for k, v in sorted(self.relate.items())}
         if self.file is not None:
             data["file"] = dict(self.file)
         if self.onlyIfExists:
@@ -729,6 +741,30 @@ def user_ref(op, ctx, col, link, value):
     else:
         op.links[link] = None
         op.column(col, "dangling:not_a_user")
+
+
+def owned_types(selected=None):
+    """Target entity types whose every source module is selected (stage 06.4): their records gone from the source are
+    removed, and their records are the owned targets of link items. A partial run never removes, nor unlinks, records of
+    a type another module fills too (Product: Products and Services; VtigerArchive: every archive module)."""
+    selected = set(selected or SCOPE)
+    types = {e for m in selected for e in MODULE_ENTITIES.get(m, ())}
+    return sorted(t for t in types if all(m in selected for m, es in MODULE_ENTITIES.items() if t in es))
+
+
+def claim_links(ops):
+    """Marks the owned links of every operation sent, with empty items too: a record whose last source link is gone
+    must still reach the writer's ownership rule (stage 06.4)."""
+    for op in ops:
+        if op.skip or op.pending:
+            continue
+        for link in OWNED_LINKS.get(op.entityType, ()):
+            op.linkMultiple.setdefault(link, {"items": []})["owned"] = True
+        if op.entityType == "Document":
+            links = sorted(set(C.DOCUMENT_LINKS.values()))
+            op.owned_relate = tuple(links)
+            for link in links:
+                op.relate.setdefault(link, [])
 
 
 def owner_ref(op, ctx, value):
@@ -1553,6 +1589,7 @@ class Plan:
     flags: Counter
     counters: dict = field(default_factory=dict)   # entity type → next number (vtiger_modentity_num.cur_id)
     problems: list = field(default_factory=list)   # plan-level problems (identifiers only)
+    held_keys: set = field(default_factory=set)    # (type, key) kept without an operation (06.4: never removed)
 
 
 def _crm_sorted(rows):
@@ -1564,7 +1601,7 @@ def build(data, selected=None, key_range=(1, SYNTHETIC_KEY_MIN - 1), effective_a
     snapshot file ({status, rel, size, sha256}) and the snapshot inventory under the key `inventory`."""
     files = files or {}
     ctx = Context(data, selected, key_range, effective_admin)
-    ops = []
+    ops, held_keys = [], set()
     if "Users" in ctx.selected:
         ops += [build_user(r, ctx) for r in sorted(data["vtiger_users"], key=lambda r: int(r["vtiger_users.id"]))]
     for module in ("Vendors", "Products", "Services"):
@@ -1613,11 +1650,14 @@ def build(data, selected=None, key_range=(1, SYNTHETIC_KEY_MIN - 1), effective_a
         for row in _crm_sorted(data["SPPayments"]):
             payment = record_or_error("SPPayments", row, ctx, F.build_payment)
             ops.append(payment)
-            if payment.skip:
+            if payment.skip:  # a held payment holds its allocation too (stage 06.4: never removed meanwhile)
+                held_keys.add(("PaymentAllocation", payment.vtigerId))
                 continue
             allocation = F.build_allocation(payment, row, invoice_links.get(payment.vtigerId, []), ctx)
             if allocation:
                 ops.append(allocation)
+            elif any(o[2].startswith("error:allocation") for o in payment.outcomes):
+                held_keys.add(("PaymentAllocation", payment.vtigerId))  # unresolved, not absent
     for module in ARCHIVES:
         if module in ctx.selected:
             ops += [record_or_error(module, r, ctx, lambda m, row, c: C.build_archive(
@@ -1645,6 +1685,7 @@ def build(data, selected=None, key_range=(1, SYNTHETIC_KEY_MIN - 1), effective_a
     if "Attachments" in ctx.selected:
         ops += build_attachments(data, files, ctx)
     attach_relations([o for o in ops if not o.skip], ctx)
+    claim_links(ops)
     held = {(o.entityType, o.vtigerId) for o in ops if o.skip or o.pending}
     for op in ops:  # a file waits with its owner (a comment held, an owner not created)
         if op.entityType == "Attachment" and not (op.skip or op.pending) and \
@@ -1657,7 +1698,7 @@ def build(data, selected=None, key_range=(1, SYNTHETIC_KEY_MIN - 1), effective_a
     send = [o for o in ops if not (o.skip or o.pending)]
     send.sort(key=lambda o: order[o.entityType])   # stable: comments keep their chronological order
     counters, problems = F.counters(data) if FINANCE_COUNTERS & ctx.selected else ({}, [])
-    return Plan(send, [o for o in ops if o.skip or o.pending], ctx.flags, counters, problems)
+    return Plan(send, [o for o in ops if o.skip or o.pending], ctx.flags, counters, problems, held_keys)
 
 
 FINANCE_COUNTERS = {"Quotes", "SalesOrder", "Invoice", "Act", "SPPayments"}

@@ -38,11 +38,16 @@ task snapshot:create                       # защищённый снимок �
 task snapshot:verify -- <id>               # повторная проверка снимка (временная база стенда создаётся и удаляется)
 task snapshot:list | snapshot:delete -- <id> --yes | snapshot:protocol -- <id>
 task test:snapshot                         # тест кодека снимка на стенде (синтетика, без production)
-task import:run -- --snapshot <id>         # импорт (этапы 06.2–06.3): backup стенда, запись, финансы, файлы, проверочный проход, сверка
+task import:run -- --snapshot <id>         # импорт и дельта (этапы 06.2–06.4): backup стенда, запись, удаления, финансы, файлы, проверочный проход, сверка
 task import:run -- --snapshot <id> --check-only   # только план и сверка, без записи
 task import:summary -- <прогон>            # обезличенная сводка → docs/migration/import-summary.md
 task test:stage06.2                        # приёмочные тесты импорта (синтетический мини-Vtiger во временной базе стенда)
 task test:stage06.3                        # приёмочные тесты импорта финансов, документов и файлов (синтетика, паритет D-11)
+task test:stage06.4                        # приёмочные тесты дельты: удаления, связи, смена типа, возврат финансов, прерывание, реестр колонок, налоги
+task import:run -- --snapshot <id> --allow-mass-removal   # дельта сверх предохранителя max(25, 5 %) (этап 06.4)
+task snapshot:diff -- <A> <B> [--out docs/migration/snapshot-delta.md]   # что изменилось в Vtiger между снимками (счётчики)
+task stand:fingerprint -- take <метка> | diff A B   # отпечаток стенда (CHECKSUM таблиц + sha256 data/upload), приватно
+task import:drill -- --snapshot <id> [--restore <backup>]   # учение: backup, SIGTERM/SIGKILL посреди записи, сходимость, повтор без записи
 ```
 
 - `docs/migration/field-map.csv` и `relations.csv` **не редактировать вручную**: правила — `scripts/audit/mapping.py`, генерация — `scripts/audit/build_maps.py` из приватного прогона.

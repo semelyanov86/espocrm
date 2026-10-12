@@ -27,6 +27,13 @@ class DesiredState
     private const EMAIL_ADDRESS_FIELDS = ['from', 'to', 'cc', 'bcc'];
     private const FORBIDDEN = ['id', 'deleted', 'deleteId', 'password', 'passwordVersion', 'apiKey', 'secretKey',
         'authMethod', 'authLogRecordId', 'hasAnydeskPassword', 'anydeskPassword'];
+    /**
+     * Link-multiple items the core adds by itself on every save (stage 06.4): the assigned user of a call or meeting
+     * (Meeting\Users, Call\Users unless `eventAssignedUserIsAttendeeDisabled`) and of a task (Common\Collaborators).
+     * An owned link never removes them — the next save would add them again.
+     */
+    private const CORE_DERIVED = ['Call' => ['users' => 'assignedUserId'], 'Meeting' => ['users' => 'assignedUserId'],
+        'Task' => ['collaborators' => 'assignedUserId']];
 
     public function __construct(
         private EntityManager $entityManager,
@@ -37,15 +44,18 @@ class DesiredState
     ) {}
 
     /**
-     * @return array{changed: string[], unresolved: string[], deletedTargets: string[]}
+     * `$run` (protocol 3) lets an owned link drop the items the source no longer has (stage 06.4).
+     *
+     * @return array{changed: string[], unresolved: string[], deletedTargets: string[], removedLinks: array<string, int>}
      * @throws ImportError invalid values (codes and attribute names only)
      */
-    public function apply(CoreEntity $entity, stdClass $op, bool $isNew): array
+    public function apply(CoreEntity $entity, stdClass $op, bool $isNew, ?RunContext $run = null): array
     {
         $type = $entity->getEntityType();
         $changed = [];
         $unresolved = [];
         $deletedTargets = [];
+        $removedLinks = [];
         $invalid = [];
 
         foreach (get_object_vars($op->attributes ?? new stdClass()) as $attribute => $value) {
@@ -97,7 +107,8 @@ class DesiredState
         }
 
         foreach (get_object_vars($op->linkMultiple ?? new stdClass()) as $link => $spec) {
-            $this->applyLinkMultiple($entity, $link, $spec, $isNew, $changed, $unresolved, $deletedTargets);
+            $this->applyLinkMultiple($entity, $link, $spec, $isNew, $changed, $unresolved, $deletedTargets, $run,
+                $removedLinks);
         }
 
         if ($entity->hasLinkMultipleField('teams') && $this->hierarchyTeams->getRules($type) &&
@@ -123,35 +134,41 @@ class DesiredState
         }
 
         return ['changed' => array_values(array_unique($changed)), 'unresolved' => array_values(array_unique($unresolved)),
-            'deletedTargets' => array_values(array_unique($deletedTargets))];
+            'deletedTargets' => array_values(array_unique($deletedTargets)), 'removedLinks' => $removedLinks];
     }
 
     /**
-     * Add-only relation items of links without a link-multiple field (stage 06.3: a Document and the records it is
-     * attached to, `vtiger_senotesrel`): `{"<link>": [[entityType, key], …]}`. Rows made in EspoCRM stay; rows are
-     * written without hooks (no stream notes, no notifications).
+     * Relation items of links without a link-multiple field (stage 06.3: a Document and the records it is attached
+     * to, `vtiger_senotesrel`): `{"<link>": [[entityType, key], …]}` adds; `{"<link>": {"items": […], "owned": true}}`
+     * (protocol 3, stage 06.4) also removes the related records of the run's key range the source no longer has.
+     * Rows made in EspoCRM to other records stay; rows are written without hooks (no stream notes, no notifications).
      *
-     * @return array{changed: string[], unresolved: string[], deletedTargets: string[]}
+     * @return array{changed: string[], unresolved: string[], deletedTargets: string[], removedLinks: array<string, int>}
      */
-    public function relate(CoreEntity $entity, stdClass $op, bool $write): array
+    public function relate(CoreEntity $entity, stdClass $op, bool $write, ?RunContext $run = null): array
     {
-        $changed = $unresolved = $deleted = [];
+        $changed = $unresolved = $deleted = $removedLinks = [];
         $defs = $this->entityManager->getDefs()->getEntity($entity->getEntityType());
         $repository = $this->entityManager->getRDBRepository($entity->getEntityType());
+        $options = [SaveOption::SILENT => true, SaveOption::SKIP_HOOKS => true];
 
-        foreach (get_object_vars($op->relate ?? new stdClass()) as $link => $items) {
+        foreach (get_object_vars($op->relate ?? new stdClass()) as $link => $spec) {
             $relationDefs = $defs->tryGetRelation($link);
+            $owned = $spec instanceof stdClass && ($spec->owned ?? false) === true;
+            $items = $spec instanceof stdClass ? ($spec->items ?? null) : $spec;
 
             if (!$relationDefs || !$relationDefs->isManyToMany() || !is_array($items)) {
                 throw new ImportError('invalid', ["$link:unknown_link"]);
             }
 
+            $foreignType = $relationDefs->getForeignEntityType();
             $relation = $repository->getRelation($entity, $link);
+            $desired = [];
 
             foreach ($items as $item) {
-                [$foreignType, $key] = $item;
+                [$itemType, $key] = $item;
 
-                if ($relationDefs->getForeignEntityType() !== $foreignType) {
+                if ($foreignType !== $itemType) {
                     throw new ImportError('invalid', ["$link:entity_type"]);
                 }
 
@@ -167,20 +184,46 @@ class DesiredState
                     continue;
                 }
 
+                $desired[] = $id;
+
                 if ($relation->isRelatedById($id)) {
                     continue;
                 }
 
                 if ($write) {
-                    $relation->relateById($id, null, [SaveOption::SILENT => true, SaveOption::SKIP_HOOKS => true]);
+                    $relation->relateById($id, null, $options);
                 }
 
                 $changed[] = "relate.$link";
             }
+
+            if (!$owned || !$run?->ownsType($foreignType)) {
+                continue;
+            }
+
+            $stale = [];
+
+            foreach ($relation->select(['id', 'vtigerId'])->find() as $related) {
+                if (!in_array($related->getId(), $desired, true) && $run->inRange($related->get('vtigerId'))) {
+                    $stale[] = $related->getId();
+                }
+            }
+
+            foreach ($stale as $id) {
+                if ($write) {
+                    $relation->unrelateById($id, $options);
+                }
+
+                $changed[] = "relate.$link";
+            }
+
+            if ($stale) {
+                $removedLinks["relate.$link"] = count($stale);
+            }
         }
 
         return ['changed' => array_values(array_unique($changed)), 'unresolved' => array_values(array_unique($unresolved)),
-            'deletedTargets' => array_values(array_unique($deleted))];
+            'deletedTargets' => array_values(array_unique($deleted)), 'removedLinks' => $removedLinks];
     }
 
     /**
@@ -276,10 +319,15 @@ class DesiredState
     }
 
     /**
-     * Items are added (links made in EspoCRM stay); a `domain` is owned: its members not in the items are removed.
+     * Items are added; a `domain` is owned: its members not in the items are removed. An `owned` link (protocol 3,
+     * stage 06.4, owner's answer 2026-10-12) also removes its items pointing to records of the run's key range that
+     * the source no longer links (D-141 «source wins» on links between imported records); items pointing to records
+     * made in EspoCRM (no vtigerId, or another key range) and the items the core derives by itself stay.
+     *
+     * @param array<string, int> $removedLinks
      */
     private function applyLinkMultiple(CoreEntity $entity, string $link, stdClass $spec, bool $isNew, array &$changed,
-        array &$unresolved, array &$deletedTargets): void
+        array &$unresolved, array &$deletedTargets, ?RunContext $run, array &$removedLinks): void
     {
         if (!$entity->hasLinkMultipleField($link)) {
             throw new ImportError('invalid', ["$link:unknown_link"]);
@@ -323,7 +371,15 @@ class DesiredState
             }
         }
 
-        $final = array_values(array_unique(array_merge(array_diff($current, array_diff($domain, $desired)), $desired)));
+        $owned = !$isNew && ($spec->owned ?? false) === true && $run ?
+            $this->ownedItems($entity, $link, array_diff($current, $desired), $run) : [];
+
+        if ($owned) {
+            $removedLinks[$link] = count($owned);
+        }
+
+        $final = array_values(array_unique(array_merge(
+            array_diff($current, array_diff(array_merge($domain, $owned), $desired)), $desired)));
 
         if (!$isNew && $this->sameSet($current, $final)) {
             return;
@@ -565,6 +621,36 @@ class DesiredState
      * @param string[] $a
      * @param string[] $b
      */
+    /**
+     * Ids among `$candidates` (current items not desired) that the source owns: the foreign record has a vtigerId in
+     * the run's key range, its type is owned by the run, and the core does not derive the item itself.
+     *
+     * @param string[] $candidates
+     * @return string[]
+     */
+    private function ownedItems(CoreEntity $entity, string $link, array $candidates, RunContext $run): array
+    {
+        $foreignType = $this->entityManager->getDefs()->getEntity($entity->getEntityType())->getRelation($link)
+            ->tryGetForeignEntityType();
+
+        if (!$candidates || !$foreignType || !$run->ownsType($foreignType)) {
+            return [];
+        }
+
+        $derived = self::CORE_DERIVED[$entity->getEntityType()][$link] ?? null;
+        $keep = $derived ? $entity->get($derived) : null;
+        $owned = [];
+
+        foreach ($this->entityManager->getRDBRepository($foreignType)->select(['id', 'vtigerId'])
+                     ->where(['id' => array_values($candidates)])->find() as $foreign) {
+            if ($foreign->getId() !== $keep && $run->inRange($foreign->get('vtigerId'))) {
+                $owned[] = $foreign->getId();
+            }
+        }
+
+        return $owned;
+    }
+
     private function sameSet(array $a, array $b): bool
     {
         sort($a);

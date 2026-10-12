@@ -23,6 +23,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import capture  # noqa: E402
+import diff  # noqa: E402
 import verify  # noqa: E402
 from common import (FORMAT, FORMAT_VERSION, ID_RE, REPO, SNAPSHOT_ROOT, SOURCE_HOST, SOURCE_SCHEMAS,  # noqa: E402
                     TEMP_DB_RE, Mysql, SnapshotError, ensure_root, log, mib, read_json, root_lock,
@@ -132,6 +133,35 @@ def cmd_verify(args):
         report = verify.verify(snapshot_dir(root, args.id), root, restore=not args.no_restore,
                                completeness=not args.no_restore)
     return report_exit(report)
+
+
+def cmd_diff(args):
+    """Count-only difference of two published snapshots (stage 06.4): private JSON in diffs/, optional Markdown
+    for Git (scanned for secrets before it is written)."""
+    root = ensure_root()
+    with root_lock(root, exclusive=False):
+        dirs = [snapshot_dir(root, i) for i in (args.a, args.b)]
+        report = diff.compare(*dirs)
+    out = root / "diffs" / f"{args.a}__{args.b}.json"
+    out.parent.mkdir(mode=0o700, exist_ok=True)
+    write_private(out, diff.to_json(report))
+    for schema, s in report["schemas"].items():
+        log(f"{schema}: tables {s['tables_a']} → {s['tables_b']}, changed {len(s['changed'])}, "
+            f"added {len(s['added_tables'])}, dropped {len(s['dropped_tables'])}")
+    log("records: " + (", ".join(f"{m} {dict(c)}" for m, c in report["records"].items()) or "no changes"))
+    log(f"report (private): {out}")
+    if args.out:
+        text = diff.render(report)
+        sys.path.insert(0, str(REPO / "scripts"))
+        import check_secrets  # noqa: E402
+        findings = []
+        check_secrets.scan_text(Path(args.out).name, text, check_secrets.load_hashes(), check_secrets.load_allow(),
+                                findings)
+        if findings:
+            raise SnapshotError("difference not written: secret scanner rules " + ", ".join(sorted({x[2] for x in findings})))
+        Path(args.out).write_text(text, encoding="utf-8")
+        log(f"summary written: {args.out}")
+    return 0
 
 
 def latest_report(snapdir):
@@ -279,13 +309,17 @@ def main():
     p = sub.add_parser("protocol")
     p.add_argument("id")
     p.add_argument("--out", default=str(REPO / "docs" / "migration" / "snapshot-protocol.md"))
+    f = sub.add_parser("diff")
+    f.add_argument("a")
+    f.add_argument("b")
+    f.add_argument("--out")
     args = ap.parse_args()
     if os.geteuid() == 0:
         log("run as the developer user, not root")
         return 1
     try:
         return {"create": cmd_create, "verify": cmd_verify, "list": cmd_list, "delete": cmd_delete,
-                "protocol": cmd_protocol}[args.cmd](args) or 0
+                "protocol": cmd_protocol, "diff": cmd_diff}[args.cmd](args) or 0
     except SnapshotError as e:
         log(f"ERROR: {e}")
         return 1

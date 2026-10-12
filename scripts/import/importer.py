@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Repeatable import of the base entities of Vtiger into the EspoCRM stand (stage 06.2, docs/migration/import.md).
 
-  importer.py run --snapshot ID [--only Accounts,Contacts,…] [--check-only]
+  importer.py run --snapshot ID [--only Accounts,Contacts,…] [--check-only] [--allow-mass-removal]
       verify the snapshot (V0–V4) and restore it into a temporary stand database, read, drop it; build the plan;
-      apply it through `task espo -- itvolga-import` (stdin), then a check pass in a new process; reconcile every
-      non-empty source column and relation; private report in IMPORT_ROOT/<run>/.
+      take the target inventory and plan the removals of records gone from the source (stage 06.4, the mass-removal
+      rail refuses the run before any write); apply upserts, then removals through `task espo -- itvolga-import`
+      (stdin), then a check pass in a new process; reconcile every non-empty source column and relation, and the whole
+      snapshot's columns (ledger); private report in IMPORT_ROOT/<run>/.
   importer.py summary RUN [--out docs/migration/import-summary.md]
       the anonymised summary of a run (counts only, checked by the secret scanner before it is written).
 
@@ -30,6 +32,8 @@ import transforms as T  # noqa: E402
 import verify  # noqa: E402
 import aggregates  # noqa: E402
 import files as F  # noqa: E402
+import ledger  # noqa: E402
+import removals as R  # noqa: E402
 from common import (SNAPSHOT_ROOT, ID_RE, Mysql, SnapshotError, ensure_root, root_lock, sha256_file,  # noqa: E402
                     write_json, write_private)
 
@@ -59,16 +63,18 @@ def log(msg):
 
 # --- writer bridge ----------------------------------------------------------------------------------
 
-def bridge(ops, mode, adopt, logdir, inventory=(), journal=None, files=None):
+def bridge(ops, mode, adopt, logdir, inventory=(), journal=None, files=None, run=None, meta=None):
     """One `itvolga-import` process: operations on stdin, `#itv#<nonce>#<json>` results on stdout. Lines without the
     nonce (PHP notices) are counted only; stderr goes to a private log. In apply mode the bytes of a file follow its
-    Attachment operation (protocol 2: `file.chunks` lines), read from the snapshot as they are sent."""
+    Attachment operation (`file.chunks` lines), read from the snapshot as they are sent. `run` ({keyRange, ownedTypes},
+    stage 06.4) makes it a protocol-3 session: removals and owned links; `meta` receives the writer's `swept` count."""
     nonce = secrets.token_hex(16)
     prefix = f"#itv#{nonce}#".encode()
     results, stray, done = {}, [0], []
+    header = {"protocol": 3 if run else 2, "mode": mode, "nonce": nonce, "adoptUserName": adopt, **(run or {})}
 
     def stream():
-        yield (json.dumps({"protocol": 2, "mode": mode, "nonce": nonce, "adoptUserName": adopt}) + "\n").encode()
+        yield (json.dumps(header) + "\n").encode()
         for op in ops:
             payload = op.payload()
             if op.file is not None and mode == "apply":
@@ -86,6 +92,8 @@ def bridge(ops, mode, adopt, logdir, inventory=(), journal=None, files=None):
         data = json.loads(line[len(prefix):])
         if "done" in data:
             done.append(data["done"])
+            if meta is not None:
+                meta["swept"] = meta.get("swept", 0) + int(data.get("swept") or 0)
         else:
             results[data.get("key")] = data
             if journal is not None and data.get("id"):  # written at once: a run that fails later is still known
@@ -132,10 +140,13 @@ def uitypes_by_module(fields):
 
 
 def execute(rundir, snapshot_dir=None, source_db=None, only=None, check_only=False, adopt="admin",
-            key_range=REAL_KEYS, effective_admin=spec.EFFECTIVE_ADMIN, files_root=None, download=None):
+            key_range=REAL_KEYS, effective_admin=spec.EFFECTIVE_ADMIN, files_root=None, download=None,
+            allow_mass_removal=False, rail=None):
     """The whole run; returns the report (also written to `rundir`). `source_db` (an already restored or synthetic
     source database) and `files_root` (a directory as the file part) are for the stage tests; real runs always come
-    from a verified snapshot, whose shared lock is held for the whole run (its files are read while writing)."""
+    from a verified snapshot, whose shared lock is held for the whole run (its files are read while writing).
+    `allow_mass_removal` lets removals beyond the rail through (`rail`: removals.RAIL, tests may lower it)."""
+    options = {"allow_mass_removal": allow_mass_removal, "rail": rail}
     logdir = rundir / "logs"
     logdir.mkdir(parents=True, exist_ok=True)
     fields, relations = spec.load_maps(REPO)
@@ -147,14 +158,14 @@ def execute(rundir, snapshot_dir=None, source_db=None, only=None, check_only=Fal
     if snapshot_dir is not None:
         with root_lock(SNAPSHOT_ROOT, exclusive=False):
             return _execute(rundir, logdir, fields, uitypes, snapshot_dir, None, F.SnapshotFiles(snapshot_dir), only,
-                            check_only, adopt, key_range, effective_admin, download)
+                            check_only, adopt, key_range, effective_admin, download, options)
     return _execute(rundir, logdir, fields, uitypes, None, source_db,
                     F.DirectoryFiles(files_root) if files_root else None, only, check_only, adopt, key_range,
-                    effective_admin, download)
+                    effective_admin, download, options)
 
 
 def _execute(rundir, logdir, fields, uitypes, snapshot_dir, source_db, files, only, check_only, adopt, key_range,
-             effective_admin, download):
+             effective_admin, download, options):
     started = time.time()
     selected = only.split(",") if only else None
     if snapshot_dir is not None:
@@ -164,10 +175,12 @@ def _execute(rundir, logdir, fields, uitypes, snapshot_dir, source_db, files, on
             data, census = source.load(db, uitypes)
             source_totals = aggregates.run(db.lines, aggregates.source_sql())
         log("temporary source database dropped")
+        counts = ledger.snapshot_counts(snapshot_dir)
     else:
         db = source.SourceDb(source_db, logdir)
         data, census = source.load(db, uitypes)
         source_totals = aggregates.run(db.lines, aggregates.source_sql())
+        counts = {"vtiger7": source.column_counts(db)}
     transport = transport_check(data, census)
     if transport:
         raise SnapshotError(f"reader and census disagree on {len(transport)} columns: nothing written")
@@ -177,24 +190,39 @@ def _execute(rundir, logdir, fields, uitypes, snapshot_dir, source_db, files, on
     log(f"plan: {len(plan.ops)} operations, {len(plan.held)} records held")
     if plan.problems:
         raise SnapshotError(f"plan problems: {', '.join(plan.problems)}: nothing written")
+    types = spec.owned_types(selected)
+    run = {"keyRange": list(key_range), "ownedTypes": types}
+    before, _ = bridge([], "check", adopt, logdir, inventory=types, run=run)  # the target's source keys, no values
+    blocked = R.blocked_types(data["orphans"], selected)
+    removal = R.plan_removals(plan, {r["inventory"]: r for r in before.values()}, types, key_range, options["rail"],
+                              blocked)
+    write_json(rundir / "removal-plan.json", {**removal.report(), "keys": {
+        t: [o.vtigerId for o in removal.ops if o.entityType == t] for t in removal.by_type}})
+    log(f"removals: {len(removal.ops)} planned, retyped {sum(removal.retyped.values())}"
+        + (f", beyond the rail: {', '.join(removal.refused)}" if removal.refused else ""))
+    if removal.refused and not options["allow_mass_removal"] and not check_only:
+        raise SnapshotError(f"mass removal refused ({', '.join(removal.refused)}; --allow-mass-removal): nothing written")
     silence_before = silence_counts(logdir)
+    meta = {}
     if check_only:
         applied, stray_apply, targets_before = {}, 0, set()
     else:
-        targets_before = allocation_targets(plan, logdir)
+        targets_before = allocation_targets(plan, logdir, removal.ops)
         fd = os.open(rundir / "applied.jsonl", os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
         with os.fdopen(fd, "a") as journal:  # keys and EspoCRM ids of written records, as the writer answers
-            applied, stray_apply = bridge(plan.ops, "apply", adopt, logdir, journal=journal, files=files)
-            # a lower source amount of a payment fits only once its allocation is lowered (the payment hook keeps the
-            # stored allocations and refuses an amount below them): failed payments are written once more after them
+            applied, stray_apply = bridge(plan.ops + removal.ops, "apply", adopt, logdir, journal=journal, files=files,
+                                          run=run, meta=meta)
+            # a lower source amount of a payment fits only once its allocation is lowered or removed (the payment hook
+            # keeps the stored allocations and refuses an amount below them): failed payments are written once more
             retry = [op for op in plan.ops if op.entityType == "Payment" and applied[op.key].get("status") == "error"]
             if retry:
-                again, stray_again = bridge(retry, "apply", adopt, logdir, journal=journal, files=files)
+                again, stray_again = bridge(retry, "apply", adopt, logdir, journal=journal, files=files, run=run,
+                                            meta=meta)
                 applied.update(again)
                 stray_apply += stray_again
         log("apply: " + fmt(Counter(r.get("status") for r in applied.values())))
     finance = finance_steps(plan, check_only, logdir, targets_before)
-    checked, stray_check = bridge(plan.ops, "check", adopt, logdir, inventory=inventory_types(only))
+    checked, stray_check = bridge(plan.ops + removal.ops, "check", adopt, logdir, inventory=types, run=run)
     silence_after = silence_counts(logdir)
     log("check: " + fmt(Counter(r.get("status") for k, r in checked.items() if not k.startswith("inventory:"))))
     downloads = file_downloads(plan, checked, download)
@@ -203,16 +231,20 @@ def _execute(rundir, logdir, fields, uitypes, snapshot_dir, source_db, files, on
                        selected=selected, orphans=data["orphans"])
     extend_report(report, plan, applied, checked, downloads, finance, source_totals, target_totals, excluded, data,
                   resolved, rundir, check_only, selected)
+    expected = removal_report(report, plan, removal, applied, checked, types, key_range, check_only, blocked)
+    ledger_report(report, rundir, counts, fields, census, data, ledger.maps_check(snapshot_dir) if snapshot_dir else None)
     report.update(started_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(started)),
                   finished_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), tool=tool_identity(),
                   snapshot=snapshot_dir.name if snapshot_dir else None, only=only, check_only=check_only,
-                  stray_writer_lines={"apply": stray_apply, "check": stray_check},
-                  silence={k: silence_after[k] - silence_before[k] for k in SILENCE})
+                  stray_writer_lines={"apply": stray_apply, "check": stray_check}, swept=meta.get("swept", 0),
+                  silence={k: silence_after[k] - silence_before[k] - expected.get(k, 0) for k in SILENCE},
+                  silence_expected=expected)
     if any(report["silence"].values()) or stray_apply or stray_check or report["problems"]:
         report["status"] = "fail"
     write_json(rundir / "report.json", report)
     write_private(rundir / "records.jsonl", "".join(
-        json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in records(plan, applied, checked)))
+        json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n"
+        for r in list(records(plan, applied, checked)) + removal_records(removal, applied, checked)))
     return report
 
 
@@ -278,10 +310,10 @@ def stand_ids(entity, keys, logdir):
     return [v.decode("ascii") for v in Mysql.stand(database="espocrm").lines(sql, logdir / "stand.log")]
 
 
-def allocation_targets(plan, logdir):
+def allocation_targets(plan, logdir, extra=()):
     """EspoCRM ids of the documents the run's allocations point to on the stand: read before the write too, so a
-    document an allocation leaves is settled as well."""
-    keys = sorted({op.vtigerId for op in plan.ops if op.entityType == "PaymentAllocation"})
+    document an allocation leaves (or a removed one left, `extra`: the run's removals) is settled as well."""
+    keys = sorted({op.vtigerId for op in list(plan.ops) + list(extra) if op.entityType == "PaymentAllocation"})
     if not keys:
         return set()
     sql = ("SET SESSION TRANSACTION READ ONLY;\nSELECT IFNULL(invoice_id, sales_order_id) FROM payment_allocation "
@@ -331,14 +363,6 @@ def target_aggregates(plan, checked, logdir):
     queries = aggregates.target_sql(keys)
     totals = aggregates.run(lambda q: Mysql.stand(database="espocrm").lines(sql + q, logdir / "stand.log"), queries)
     return totals, {k: sorted(v) for k, v in excluded.items()}
-
-
-def inventory_types(only):
-    """Target entity types whose every source module is selected: their records with a vtigerId not in the source
-    are reported (also when the source has none of them any more)."""
-    selected = set(only.split(",")) if only else set(spec.SCOPE)
-    types = {e for m in selected for e in spec.MODULE_ENTITIES.get(m, ())}
-    return sorted(t for t in types if all(m in selected for m, es in spec.MODULE_ENTITIES.items() if t in es))
 
 
 LINK_PREFIXES = {  # link table → keys of its outcomes and planner counters (spec.attach_relations, build_user)
@@ -550,7 +574,8 @@ def reconcile(plan, applied, checked, census, fields, key_range, check_only, lin
         if not k.startswith("inventory:"):
             continue
         entity = r["inventory"]
-        live = [v for v in r.get("live", []) if (entity, v) not in keys]
+        inactive = set(r.get("inactive", []))  # a user gone from the source is deactivated (stage 06.4)
+        live = [v for v in r.get("live", []) if (entity, v) not in keys and v not in inactive]
         inventory[entity] = {
             "missing_in_source": sum(1 for v in live if key_range[0] <= v <= key_range[1]),
             "missing_keys": sorted(v for v in live if key_range[0] <= v <= key_range[1]),  # private report only
@@ -580,6 +605,97 @@ def reconcile(plan, applied, checked, census, fields, key_range, check_only, lin
             "entities": {k: dict(v) for k, v in sorted(entities.items())}, "columns": col_report,
             "relations": rel_report, "link_tables": link_tables, "orphans": orphans or {}, "inventory": inventory,
             "flags": {k: v for k, v in sorted(plan.flags.items()) if not k.startswith("pending_rel:")}}
+
+
+# --- stage 06.4: removals, retyped activities, owned links, the whole-snapshot column ledger -----------------------
+
+def removal_report(report, plan, removal, applied, checked, types, key_range, check_only, blocked=()):
+    """Removals of the run (planned, applied, checked), activities retyped by their upserts, link items the source
+    owns that were removed, and the proof: after the run no live target record outside the source but the kept ones
+    (problem `live_outside_source`). Returns the silence effects the removals are expected to have."""
+    problems, findings = Counter(report["problems"]), Counter(report["findings"])
+    problem_columns = defaultdict(list, report["problem_columns"])
+    by_type, expected = defaultdict(Counter), Counter()
+    kept = set()
+    for op in removal.ops:
+        a, c = applied.get(op.key, {}), checked.get(op.key, {})
+        by_type[op.entityType]["planned"] += 1
+        by_type[op.entityType][f"apply:{a.get('status', 'none')}"] += 1
+        by_type[op.entityType][f"check:{c.get('status')}"] += 1
+        if "error" in (a.get("status"), c.get("status")):
+            problems["removal_errors"] += 1
+        if c.get("status") == "kept":
+            kept.add((op.entityType, op.vtigerId))
+            findings[f"kept_in_target:{c.get('reason')}"] += 1
+        elif c.get("status") == "live":
+            if check_only:
+                findings["would_remove"] += 1
+            else:
+                problems["removal_not_applied"] += 1
+                problem_columns["removal_not_applied"].append(op.entityType)
+        for name, n in (a.get("effects") or {}).items():
+            expected[name] += n
+    if removal.refused:
+        findings["mass_removal_refused" if check_only else "mass_removal_allowed"] += len(removal.refused)
+    retyped, links = Counter(), Counter()
+    for op in plan.ops:
+        a = applied.get(op.key, {})
+        if a.get("retyped"):
+            retyped[f"{a['retyped']['from']}->{op.entityType}"] += 1
+            findings["retyped_notes_left"] += a["retyped"].get("notesLeft", 0)
+        for link, n in (a.get("removedLinks") or {}).items():
+            links[f"{op.entityType}.{link}"] += n
+    after = {r["inventory"]: r for k, r in checked.items() if k.startswith("inventory:")}
+    left = R.plan_removals(plan, after, types, key_range, blocked=blocked)
+    outside = sorted({o.entityType for o in left.ops if (o.entityType, o.vtigerId) not in kept})
+    if not check_only:
+        n = sum(1 for o in left.ops if (o.entityType, o.vtigerId) not in kept)
+        if n:
+            problems["live_outside_source"] = n
+            problem_columns["live_outside_source"] = outside
+        if left.retyped:
+            problems["retype_incomplete"] = sum(left.retyped.values())
+    elif left.retyped:
+        findings["would_retype"] += sum(left.retyped.values())
+    report.update(problems=dict(problems), problem_columns=dict(problem_columns),
+                  findings={k: v for k, v in findings.items() if v},
+                  removals={"by_type": {k: dict(v) for k, v in sorted(by_type.items())}, "plan": removal.report(),
+                            "retyped": dict(retyped), "removed_links": dict(links), "blocked": sorted(blocked)})
+    if problems:
+        report["status"] = "fail"
+    elif report["status"] == "pass" and report["findings"]:
+        report["status"] = "findings"
+    return dict(expected)
+
+
+def removal_records(removal, applied, checked):
+    """Per removal (private): the record's key (as the other records of the run), id, statuses, reason."""
+    out = []
+    for op in removal.ops:
+        a, c = applied.get(op.key, {}), checked.get(op.key, {})
+        out.append({"key": f"{op.entityType}:{op.vtigerId}", "removal": True, "module": op.module,
+                    "id": c.get("id") or a.get("id"), "apply": a.get("status"), "check": c.get("status"),
+                    "reason": c.get("reason") or a.get("reason"), "error": a.get("error") or c.get("error"),
+                    "state": c.get("state") or a.get("state")})
+    return out
+
+
+def ledger_report(report, rundir, counts, fields, census, data, maps):
+    """The whole-snapshot column ledger: every non-empty column of every table of both schemas gets a class (the
+    reader takes the census of every module whatever the run selects; columns of modules a partial run leaves out are
+    `not_selected` in the reconciliation); a column without a fate, a transfer fate nobody reads, counts that do not
+    add up or stale map fates are problems. Rows (identifiers and counts) go to the private ledger.jsonl."""
+    result = ledger.build(counts, fields, census, data.get("census_deleted", {}), report["columns"], maps)
+    write_private(rundir / "ledger.jsonl", "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n"
+                                                   for r in result["rows"]))
+    report["ledger"] = {k: v for k, v in result.items() if k != "rows"}
+    if result["problems"]:
+        problems = Counter(report["problems"])
+        problem_columns = defaultdict(list, report["problem_columns"])
+        for name, cols in result["problems"].items():
+            problems[f"ledger_{name}"] = len(cols)
+            problem_columns[f"ledger_{name}"] = cols[:50]
+        report.update(problems=dict(problems), problem_columns=dict(problem_columns), status="fail")
 
 
 # --- stage 06.3: finance discrepancies, files, aggregates ------------------------------------------------------
@@ -774,7 +890,7 @@ def render_summary(report, run_id):
             cat[c["module"]]["values_mismatch"] += c.get("mismatch", 0)
             cat[c["module"]]["values_unaccounted"] += c.get("unaccounted", 0)
     lines = [
-        "# Импорт Vtiger — сводка прогона (этапы 06.2–06.3)", "",
+        "# Импорт Vtiger — сводка прогона (этапы 06.2–06.4)", "",
         "Генерируется: `task import:summary -- <прогон>` (`scripts/import/importer.py summary`). Только счётчики: ни "
         "значений, ни идентификаторов записей. Машинный отчёт с причинами по каждой записи и колонке — вне Git "
         "(`/data/itvolga/espo-private/import/<прогон>/`). Контракт импорта — `import.md`.", "",
@@ -834,8 +950,45 @@ def render_summary(report, run_id):
         lines.append(f"| {entity} | {i['missing_in_source']} | {i['other_range_live']} | {i['deleted_in_target']} | "
                      f"{i.get('other_range_deleted', 0)} |")
     lines += render_063(report)
+    lines += render_064(report)
     lines += ["", "## Счётчики преобразований", "", ", ".join(f"`{k}` {v}" for k, v in report["flags"].items()) or "—", ""]
     return "\n".join(lines)
+
+
+def render_064(report):
+    """Stage 06.4 sections of the summary: removals, owned links, retyped activities, the whole-snapshot ledger."""
+    rem, led = report.get("removals") or {}, report.get("ledger") or {}
+    if not (rem or led):
+        return []
+    plan = rem.get("plan") or {}
+    lines = ["", "## Дельта: удаления, связи, смена типа (этап 06.4)", "",
+             "Записи цели с vtigerId, которых нет в источнике, — удаляются (пользователи деактивируются; пересчитанные в "
+             "EspoCRM документы и администратор остаются); связи между импортированными записями следуют источнику; "
+             "активность, сменившая тип, пересоздаётся в новом типе. Предохранитель — до любой записи.", "",
+             f"- Удаления по плану: {plan.get('operations', 0)}; сменили тип: "
+             f"{fmt(Counter(plan.get('retyped') or {})) or 'нет'}; за порогом: {', '.join(plan.get('refused') or []) or 'нет'}.",
+             f"- Итоги удалений: " + ("; ".join(f"{t}: {fmt(Counter(c))}" for t, c in (rem.get("by_type") or {}).items())
+                                     or "нет"),
+             f"- Снятые элементы связей (источник владеет): {fmt(Counter(rem.get('removed_links') or {})) or 'нет'}.",
+             f"- Сменили тип в прогоне: {fmt(Counter(rem.get('retyped') or {})) or 'нет'}.",
+             f"- Ожидаемые эффекты удалений в «тишине»: {fmt(Counter(report.get('silence_expected') or {})) or 'нет'}; "
+             f"убрано `.part`-файлов убитого писателя: {report.get('swept', 0)}."]
+    if led:
+        imp = led.get("import") or {}
+        lines += ["", "## Полная сверка колонок снимка (этап 06.4)", "",
+                  "Каждая непустая колонка каждой таблицы обеих схем снимка (счётчики сервера в `tables.json`) — класс по "
+                  "судьбе карты; колонки таблиц импорта — значения живых записей сверены по одному, значения удалённых в "
+                  "Vtiger записей и строк вне границ импорта — отдельными счётчиками. Строки — в приватном `ledger.jsonl`.",
+                  "", f"- Итог: **{led.get('status')}**; колонок: {led.get('columns', 0)}; значений: {led.get('values', 0)}; "
+                  f"проверка карт снимка (C4/C5): {(led.get('maps') or {}).get('status', '—')}.",
+                  f"- Проблемы: {fmt(Counter({k: len(v) for k, v in (led.get('problems') or {}).items()})) or 'нет'}.",
+                  f"- Таблицы импорта: значений живых записей {imp.get('live', 0)} (сверено {imp.get('verified', 0)}, "
+                  f"расхождений {imp.get('mismatch', 0)}, неучтённых {imp.get('unaccounted', 0)}), удалённых в Vtiger "
+                  f"записей {imp.get('deleted', 0)}, вне границ импорта {imp.get('outside_scope', 0)}.", "",
+                  "| Класс | Колонок | Значений |", "|---|---|---|"]
+        for cls, (n, v) in (led.get("by_class") or {}).items():
+            lines.append(f"| {cls} | {n} | {v} |")
+    return lines
 
 
 def render_063(report):
@@ -899,7 +1052,8 @@ def cmd_run(args):
         rundir = root / run_id
         rundir.mkdir()
         log(f"run {run_id} (private directory {rundir})")
-        report = execute(rundir, snapshot_dir=snapdir, only=args.only, check_only=args.check_only)
+        report = execute(rundir, snapshot_dir=snapdir, only=args.only, check_only=args.check_only,
+                         allow_mass_removal=args.allow_mass_removal)
     log(f"status {report['status']}; problems: {fmt(Counter(report['problems'])) or 'none'}; "
         f"findings: {fmt(Counter(report['findings'])) or 'none'}")
     for entity, c in report["entities"].items():
@@ -933,6 +1087,7 @@ def main():
     r.add_argument("--snapshot", required=True)
     r.add_argument("--only")
     r.add_argument("--check-only", action="store_true")
+    r.add_argument("--allow-mass-removal", action="store_true")
     s = sub.add_parser("summary")
     s.add_argument("run")
     s.add_argument("--out", default=str(REPO / "docs" / "migration" / "import-summary.md"))

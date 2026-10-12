@@ -9,6 +9,7 @@ use Espo\Core\Utils\Log;
 use Espo\Modules\Itvolga\Tools\Import\BlobReceiver;
 use Espo\Modules\Itvolga\Tools\Import\ImportError;
 use Espo\Modules\Itvolga\Tools\Import\RecordWriter;
+use Espo\Modules\Itvolga\Tools\Import\RunContext;
 use Monolog\Handler\NullHandler;
 use PDOException;
 use stdClass;
@@ -24,17 +25,23 @@ use Throwable;
  *   {"key": "Attachment:9", "entityType": "Attachment", "vtigerId": 9, …, "file": {"size": n, "sha256": "…",
  *    "chunks": k}}  followed (apply only) by k lines {"seq": i, "data": "<base64>"} — the bytes of the file (06.3)
  *   {"op": "inventory", "entityType": "Contact"}
+ *   {"op": "remove", "key": "remove:Contact:123", "entityType": "Contact", "vtigerId": 123}   protocol 3 (06.4)
  *
  * Every operation line is answered on stdout with `#itv#<nonce>#<json>` (status, ids, attribute names, closed error
- * codes — never values), then `{"done": n}`; after a COMMIT that failed (`transaction_failed`) the command stops there
- * and `done` counts the lines read. Exception messages are never printed (they may quote values); the
+ * codes — never values), then `{"done": n, "swept": k}`; after a COMMIT that failed (`transaction_failed`) the command
+ * stops there and `done` counts the lines read. Exception messages are never printed (they may quote values); the
  * application log is muted while the command runs (a failed SQL statement would be logged with its values). Protocol 1
- * (stage 06.2) is the same without files.
+ * (stage 06.2) is the same without files; protocol 3 (stage 06.4) adds `keyRange` and `ownedTypes` to the header
+ * (RunContext: removals, owned links), and the `remove` operation.
+ *
+ * An apply session holds an exclusive lock (one writer per installation) and first removes the part files of a writer
+ * that was killed (`swept`): under the lock no other writer can own them.
  */
 class Import implements Command
 {
-    private const PROTOCOLS = [1, 2];
+    private const PROTOCOLS = [1, 2, 3];
     private const MAX_LINE = 8 * 1024 * 1024;
+    private const LOCK = 'data/.itvolga-import.lock';
 
     public function __construct(
         private RecordWriter $writer,
@@ -58,7 +65,26 @@ class Import implements Command
         }
 
         $prefix = "#itv#{$header->nonce}#";
-        $adopt = is_string($header->adoptUserName ?? null) ? $header->adoptUserName : null;
+
+        try {
+            $run = RunContext::fromHeader($header);
+        } catch (ImportError) {
+            $io->writeErrorLine('itvolga-import: bad header');
+            $io->setExitStatus(1);
+
+            return;
+        }
+
+        $lock = $header->mode === 'apply' ? fopen(self::LOCK, 'c') : null;
+
+        if ($lock === false || ($lock && !flock($lock, LOCK_EX | LOCK_NB))) {
+            $io->writeErrorLine('itvolga-import: busy'); // another writer applies to this installation
+            $io->setExitStatus(1);
+
+            return;
+        }
+
+        $swept = $lock ? $this->blobs->sweep() : 0;
         $count = 0;
 
         while (($line = fgets($stdin, self::MAX_LINE)) !== false) {
@@ -76,12 +102,15 @@ class Import implements Command
                 }
 
                 // the bytes of a file follow its operation: read (and checked) before the operation runs
-                $blob = $header->mode === 'apply' && isset($op->file->chunks) && $header->protocol === 2 ?
+                $blob = $header->mode === 'apply' && isset($op->file->chunks) && $header->protocol >= 2 ?
                     $this->blobs->receive($stdin, $op->file, self::MAX_LINE) : null;
 
-                $result += ($op->op ?? null) === 'inventory' ?
-                    $this->writer->inventory((string) ($op->entityType ?? '')) :
-                    $this->writer->handle($op, $header->mode === 'check', $adopt, $blob);
+                $result += match ($op->op ?? null) {
+                    null => $this->writer->handle($op, $header->mode === 'check', $run, $blob),
+                    'inventory' => $this->writer->inventory((string) ($op->entityType ?? '')),
+                    'remove' => $this->writer->remove($op, $header->mode === 'check', $run),
+                    default => throw new ImportError('bad_operation'),
+                };
             } catch (ImportError $e) {
                 $result += ['status' => 'error', 'error' => $e->reason, 'attributes' => $e->attributes];
             } catch (PDOException $e) {
@@ -100,7 +129,7 @@ class Import implements Command
             }
         }
 
-        echo $prefix, json_encode(['done' => $count]), "\n";
+        echo $prefix, json_encode(['done' => $count, 'swept' => $swept]), "\n";
     }
 
     private function decode(string|false $line): ?stdClass

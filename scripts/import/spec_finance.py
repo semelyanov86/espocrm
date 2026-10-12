@@ -238,6 +238,11 @@ def build_allocation(payment, row, links, ctx):
     if not T.is_empty(related) and not has_related:
         payment.column(col, "zero_empty")  # 0 = no related record
     if decision == "unresolved":
+        if reason == "related_to_not_document" and not links and ctx.crm.get(int(related), ("", False))[1]:
+            # stage 06.4: the document of related_to was deleted in Vtiger — nothing to allocate (the resolver and its
+            # parity are unchanged); an allocation imported before is removed by the delta
+            payment.column(col, "dangling:deleted")
+            return None
         if has_related:
             payment.column(col, f"error:allocation_{reason}")
         for _ in links:

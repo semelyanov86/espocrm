@@ -112,6 +112,25 @@ class BlobReceiver
         unset($this->parts[$path]);
     }
 
+    /**
+     * Part files left by a writer that was killed (its `finally` never ran). Called at the start of an apply session
+     * under the writer lock (no other writer is alive), so every part file left is stale (stage 06.4).
+     *
+     * @return int part files removed
+     */
+    public function sweep(): int
+    {
+        $removed = 0;
+
+        foreach (glob(self::DIR . self::PART . '*.part') ?: [] as $path) {
+            if ($this->isPart($path) && is_file($path) && @unlink($path)) {
+                $removed++;
+            }
+        }
+
+        return $removed;
+    }
+
     private function isPart(string $path): bool
     {
         return str_starts_with($path, self::DIR . self::PART) && !str_contains(substr($path, strlen(self::DIR)), '/');

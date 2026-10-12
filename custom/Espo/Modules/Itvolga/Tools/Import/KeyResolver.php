@@ -17,8 +17,13 @@ class KeyResolver
     public const NATURAL_KEYS = ['LegalEntity' => 'vtigerCompanyKey', 'KnowledgeBaseCategory' => 'name',
         'Team' => 'name', 'Role' => 'name'];
 
-    /** @var array<string, array<string, string>> */
-    private array $ids = [];
+    /**
+     * One cache per writer process: the injectable factory gives every dependent its own instance, and a removal or
+     * a type change must reach all of them (stage 06.4).
+     *
+     * @var array<string, array<string, string>>
+     */
+    private static array $ids = [];
 
     public function __construct(private EntityManager $entityManager) {}
 
@@ -60,8 +65,8 @@ class KeyResolver
     {
         $cacheKey = (string) $key;
 
-        if (isset($this->ids[$entityType][$cacheKey])) {
-            return $this->ids[$entityType][$cacheKey];
+        if (isset(self::$ids[$entityType][$cacheKey])) {
+            return self::$ids[$entityType][$cacheKey];
         }
 
         if (!$this->entityManager->hasRepository($entityType)) {
@@ -76,7 +81,7 @@ class KeyResolver
         }
 
         foreach ($found as $entity) {
-            return $this->ids[$entityType][$cacheKey] = $entity->getId();
+            return self::$ids[$entityType][$cacheKey] = $entity->getId();
         }
 
         return null;
@@ -99,7 +104,24 @@ class KeyResolver
      */
     public function remember(string $entityType, int|string $key, string $id): void
     {
-        $this->ids[$entityType][(string) $key] = $id;
+        self::$ids[$entityType][(string) $key] = $id;
+    }
+
+    /**
+     * A removed record (or the previous type of a retyped activity) is no longer an id of its key.
+     */
+    public function forget(string $entityType, int|string $key): void
+    {
+        unset(self::$ids[$entityType][(string) $key]);
+    }
+
+    /**
+     * After a removal (cascades may delete records whose keys the caller does not know) or a failed transaction (an id
+     * seen inside it may have been rolled back).
+     */
+    public function reset(): void
+    {
+        self::$ids = [];
     }
 
     private function typed(string $entityType, int|string $key): int|string
