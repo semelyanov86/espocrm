@@ -9,8 +9,10 @@
   4. run C — converges: no problems; part files of the killed writer swept;
   5. fingerprint F1, run D, fingerprint F2: run D writes nothing (every answer unchanged/kept) and F1 = F2.
 
-Every run is the real importer CLI (`importer.py run --snapshot`), each in a session of its own. The protocol (statuses,
-counts, run ids — no values) goes to IMPORT_ROOT/drills/<time>/protocol.json; the console shows the same counts.
+Every run is the real importer CLI (`importer.py run --snapshot`), each in a session of its own; whatever ends the drill
+(a failed step, an error, SIGTERM or Ctrl+C) stops every run still alive, its whole process group (the importer, its
+mysql and writer clients), before the drill exits. The protocol (statuses, counts, run ids — no values) goes to
+IMPORT_ROOT/drills/<time>/protocol.json; the console shows the same counts.
 
   drill.py --snapshot ID [--restore BACKUP] [--term-after N] [--allow-mass-removal]
 """
@@ -28,12 +30,14 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "scripts" / "stand"))
 sys.path.insert(0, str(REPO / "scripts" / "snapshot"))
 import fingerprint  # noqa: E402
-from common import SnapshotError, write_private  # noqa: E402
+from common import SnapshotError, _group_alive, stop_group, write_private  # noqa: E402
 
 IMPORT_ROOT = Path(os.environ.get("IMPORT_ROOT", "/data/itvolga/espo-private/import"))
 WRITER = "command.php itvolga-import"
 WRITES = ("created", "updated", "restored", "adopted", "removed", "deactivated")
 QUIET = ("unchanged", "skipped", "kept", "absent", "protected", "deleted_in_target")  # answers that write nothing
+IMPORTER = [sys.executable, str(REPO / "scripts" / "import" / "importer.py"), "run"]
+POINT_TIMEOUT = 3600  # seconds a run may take to reach its interruption point
 
 
 def log(msg):
@@ -63,11 +67,15 @@ class Run:
     def __init__(self, snapshot, logdir, name, extra=()):
         self.name, self.err = name, logdir / f"{name}.stderr"
         fd = os.open(self.err, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        self.proc = subprocess.Popen([sys.executable, str(REPO / "scripts" / "import" / "importer.py"), "run",
-                                      "--snapshot", snapshot, *extra], cwd=REPO, stdout=fd, stderr=fd,
+        self.proc = subprocess.Popen([*IMPORTER, "--snapshot", snapshot, *extra], cwd=REPO, stdout=fd, stderr=fd,
                                      start_new_session=True)
         os.close(fd)
         self.rundir = None
+
+    def stop(self):
+        """The run's whole process group, if anything of it is left (SIGTERM, then SIGKILL; common.stop_group)."""
+        if self.proc.poll() is None or _group_alive(self.proc.pid):
+            stop_group(self.proc)
 
     def find_rundir(self):
         if self.rundir is None and self.err.exists():
@@ -89,8 +97,8 @@ class Run:
                 pass  # a line torn by the kill
         return out
 
-    def wait_for(self, predicate, timeout=3600):
-        deadline = time.time() + timeout
+    def wait_for(self, predicate, timeout=None):
+        deadline = time.time() + (POINT_TIMEOUT if timeout is None else timeout)
         while time.time() < deadline:
             if self.proc.poll() is not None:
                 raise SnapshotError(f"run {self.name} ended (exit {self.proc.returncode}) before the interruption point")
@@ -124,6 +132,17 @@ def main():
     drilldir = IMPORT_ROOT / "drills" / time.strftime("%Y%m%dT%H%M%S")
     drilldir.mkdir(parents=True, mode=0o700)
     protocol = {"snapshot": args.snapshot, "restore": args.restore, "steps": []}
+    runs = []
+
+    def start(name):
+        runs.append(Run(args.snapshot, drilldir, name, extra))
+        return runs[-1]
+
+    def interrupted(signum, _frame):
+        raise SnapshotError(f"interrupted by signal {signum}")
+
+    signal.signal(signal.SIGTERM, interrupted)
+    signal.signal(signal.SIGINT, interrupted)
 
     def step(name, **data):
         protocol["steps"].append({"step": name, **data})
@@ -140,7 +159,7 @@ def main():
             raise SnapshotError("a writer is already running")
 
         failures = []
-        a = Run(args.snapshot, drilldir, "A-term", extra)
+        a = start("A-term")
         a.wait_for(lambda j: sum(1 for e in j if e.get("status") in WRITES) >= args.term_after)
         os.kill(a.proc.pid, signal.SIGTERM)
         rc = a.wait(timeout=120)
@@ -151,7 +170,7 @@ def main():
         if rc != 130 or left:
             failures.append("A")
 
-        b = Run(args.snapshot, drilldir, "B-kill", extra)
+        b = start("B-kill")
         # files are the last operations of a run (spec.ORDER): the first answered Attachment means the next file is
         # in flight — its part file, if the kill lands while its frames arrive, is left for run C to sweep
         b.wait_for(lambda j: any(str(e.get("key", "")).startswith("Attachment:") for e in j))
@@ -167,7 +186,7 @@ def main():
         if left:
             failures.append("B")
 
-        c = Run(args.snapshot, drilldir, "C-converge", extra)
+        c = start("C-converge")
         rc = c.wait()
         rep = c.report() or {}
         step("C: converging run", exit=rc, run=c.rundir.name if c.rundir else None, status=rep.get("status"),
@@ -177,7 +196,7 @@ def main():
             failures.append("C")
 
         f1, d1 = fingerprint.take("drill-before-d")
-        d = Run(args.snapshot, drilldir, "D-repeat", extra)
+        d = start("D-repeat")
         rc = d.wait()
         f2, d2 = fingerprint.take("drill-after-d")
         rep = d.report() or {}
@@ -198,6 +217,11 @@ def main():
         protocol["result"] = "error"
         step("error", message=str(e))
         return 1
+    finally:
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        for run in runs:  # a run left by a failed step or an interruption must not go on writing to the stand
+            run.stop()
 
 
 if __name__ == "__main__":

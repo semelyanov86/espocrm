@@ -601,6 +601,65 @@ class Stage064(t3.Stage063):
         self.assertEqual(one(f"SELECT deleted, invoice_id FROM payment_allocation WHERE id='{allocation}'"),
                          ["0", other])
 
+    def test_20_document_with_a_held_item_stays(self):
+        """A document gone from the source stays with all its items when one of them is still in the source but held
+        (moved to another document with an error): the run does not remove it, the core's cascade would."""
+        quote = self.id_of("quote", Q2)
+        q1 = one(f"SELECT id FROM quote WHERE vtiger_id={Q1}")[0]
+        # Q2's second line moves to Q1 with an amount of more than 8 decimals (error amount_scale: the line is held)
+        t3.source_sql(f"UPDATE vtiger_inventoryproductrel SET id={Q1}, quantity='1.001', listprice='0.1234567' "
+                      f"WHERE lineitem_id={L11}; UPDATE vtiger_crmentity SET deleted=1 WHERE crmid={Q2};")
+        try:
+            report, recs, _ = self.run_import()
+            self.assertEqual(recs[f"QuoteItem:{L11}"]["held"], "error:amount_scale")
+            for key in (f"Quote:{Q2}", f"QuoteItem:{L10}"):
+                self.assertEqual((recs[key]["check"], recs[key]["reason"]), ("kept", "items_outside_run"), key)
+            self.assertEqual(one(f"SELECT deleted FROM quote WHERE id='{quote}'"), ["0"])
+            self.assertEqual(one(f"SELECT COUNT(*) FROM quote_item WHERE quote_id='{quote}' AND deleted=0"), ["2"])
+            self.assertEqual(one(f"SELECT COUNT(*) FROM quote_item WHERE quote_id='{q1}' AND vtiger_id={L11}"), ["0"])
+        finally:
+            t3.source_sql(f"UPDATE vtiger_inventoryproductrel SET id={Q2}, quantity='2.000', listprice='5.00000000' "
+                          f"WHERE lineitem_id={L11}; UPDATE vtiger_crmentity SET deleted=0 WHERE crmid={Q2};")
+        report, recs, _ = self.run_import()
+        self.assertClean(report)
+        self.assertEqual(self.unchanged(recs), {})
+
+    def test_21_manual_deletion_during_the_wait_stays_manual(self):
+        """A document a user deletes while the delta's removal of it waits for its row stays a manual deletion — not
+        marked `deletedInSource`, never brought back by the source (D-148): the removal locks the row, tombstone
+        included, before its first plain read. Its items, gone from the source too, are removed by their own
+        operations (the user's raw deletion here does not cascade)."""
+        quote = self.id_of("quote", Q2)
+        t3.source_sql(f"UPDATE vtiger_crmentity SET deleted=1 WHERE crmid={Q2};")
+        argv = t3.Mysql.stand(database="espocrm").argv
+        user = subprocess.Popen(argv[:4] + ["--unbuffered"] + argv[4:], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, bufsize=0)
+        user.stdin.write(f"BEGIN; UPDATE quote SET deleted = 1 WHERE id = '{quote}'; SELECT 'locked';\n".encode())
+        while user.stdout.readline().strip() != b"locked":
+            pass
+        import threading
+        result = {}
+        run = threading.Thread(target=lambda: result.update(run=self.run_import(only="Quotes")))
+        run.start()
+        waiting, deadline = [], time.time() + 300
+        while not waiting and run.is_alive() and time.time() < deadline:
+            waiting = sql("SELECT trx_query FROM information_schema.innodb_trx WHERE trx_state = 'LOCK WAIT'")
+            time.sleep(0.2)
+        user.stdin.write(b"COMMIT;\n")
+        user.stdin.close()
+        user.wait()
+        user.stdout.close()
+        run.join()
+        self.assertTrue(waiting)
+        report, recs, _ = result["run"]
+        self.assertEqual(report["problems"], {}, report.get("problem_columns"))
+        self.assertEqual(recs[f"Quote:{Q2}"]["apply"], "unchanged")
+        self.assertEqual(one(f"SELECT deleted, JSON_EXTRACT(vtiger_data, '$.deletedInSource') IS NULL FROM quote "
+                             f"WHERE id='{quote}'"), ["1", "1"])
+        t3.source_sql(f"UPDATE vtiger_crmentity SET deleted=0 WHERE crmid={Q2};")      # back in Vtiger
+        report, recs, _ = self.run_import()
+        self.assertEqual(recs[f"Quote:{Q2}"]["check"], "deleted_in_target")
+
 
 class Pure(unittest.TestCase):
     """Planner, ledger and snapshot difference without the stand."""
@@ -612,13 +671,18 @@ class Pure(unittest.TestCase):
         ops = [spec.Op("Account", 10, "Accounts"), spec.Op("Meeting", 20, "Events"), spec.Op("InvoiceItem", 31, "Invoice")]
         held = [spec.Op("Account", 11, "Accounts")]
         inventory = {"Account": {"live": [10, 11, 12, 900000001]}, "Call": {"live": [20, 21]},
-                     "InvoiceItem": {"live": [30, 31]}, "User": {"live": [5, 6], "inactive": [6]}}
-        out = removals.plan_removals(self.plan(ops, held), inventory, ["Account", "Call", "InvoiceItem", "User"],
+                     "InvoiceItem": {"live": [30, 31]}, "User": {"live": [5, 6], "inactive": [6]},
+                     "Invoice": {"live": [40]}, "PaymentAllocation": {"live": [50]}, "Payment": {"live": [50]}}
+        out = removals.plan_removals(self.plan(ops, held), inventory, ["Account", "Call", "InvoiceItem", "User",
+                                                                       "Invoice", "Payment", "PaymentAllocation"],
                                      (1, 899999999), rail={"floor": 25, "share": Decimal("0.05")})
+        # reverse ORDER — allocations before payments and documents —, but a document before its items (its removal
+        # takes them in its transaction)
         self.assertEqual([(o.entityType, o.vtigerId) for o in out.ops],
-                         [("Call", 21), ("InvoiceItem", 30), ("Account", 12), ("User", 5)])  # reverse ORDER
+                         [("Call", 21), ("PaymentAllocation", 50), ("Payment", 50), ("Invoice", 40),
+                          ("InvoiceItem", 30), ("Account", 12), ("User", 5)])
         self.assertEqual(dict(out.retyped), {"Call": 1})                       # Call 20 is now a Meeting
-        self.assertEqual(out.refused, ["Call", "User"])                         # nothing of the type left in the source
+        self.assertEqual(out.refused, ["Call", "PaymentAllocation", "Payment", "Invoice", "User"])  # none left
         out = removals.plan_removals(self.plan(ops, held), inventory, ["Account"], (1, 899999999),
                                      rail={"floor": 0, "share": Decimal(0)})
         self.assertEqual(out.refused, ["Account"])
@@ -728,6 +792,32 @@ class Pure(unittest.TestCase):
         threading.Thread(target=lambda: (stop_group(proc, grace=1), done.set()), daemon=True).start()
         self.assertTrue(done.wait(20))
         self.assertIsNotNone(proc.poll())
+
+    def test_drill_stops_its_runs_on_any_exit(self):
+        """A drill step that fails while its run is alive (here: the interruption point is never reached) stops the
+        run's whole process group before the drill returns."""
+        sys.path.insert(0, str(REPO / "scripts" / "import"))
+        import drill
+        from unittest import mock
+        started = []
+        real = drill.Run.__init__
+
+        def init(run, *a, **kw):
+            real(run, *a, **kw)
+            started.append(run.proc)
+
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(drill, "IMPORT_ROOT", Path(tmp)), mock.patch.object(drill, "stand"), \
+                mock.patch.object(drill, "writers_alive", return_value=[]), \
+                mock.patch.object(drill, "POINT_TIMEOUT", 2), mock.patch.object(drill.Run, "__init__", init), \
+                mock.patch.object(drill, "IMPORTER", [sys.executable, "-c", "import time; time.sleep(120)"]), \
+                mock.patch.object(sys, "argv", ["drill.py", "--snapshot", "synthetic"]):
+            self.assertEqual(drill.main(), 1)
+            protocol = json.loads(next(Path(tmp).glob("drills/*/protocol.json")).read_text())
+        self.assertEqual(protocol["result"], "error")
+        self.assertEqual(len(started), 1)
+        self.assertIsNotNone(started[0].poll())                                   # stopped, not left running
+        self.assertEqual(signal.getsignal(signal.SIGTERM), signal.SIG_DFL)
 
     def test_snapshot_difference(self):
         import diff

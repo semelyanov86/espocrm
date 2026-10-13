@@ -243,10 +243,11 @@ def stop_group(proc, grace=15):
         proc.wait(timeout=5)
     except subprocess.TimeoutExpired:
         pass
-    try:
-        proc.stdin.close()
-    except (OSError, ValueError):
-        pass
+    if proc.stdin is not None:  # a client fed through a pipe (the drill's importer runs have none)
+        try:
+            proc.stdin.close()
+        except (OSError, ValueError):
+            pass
 
 
 def _feed(pipe, script, failed):

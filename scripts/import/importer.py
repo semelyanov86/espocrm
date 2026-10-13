@@ -202,8 +202,10 @@ def _execute(rundir, logdir, fields, uitypes, snapshot_dir, source_db, files, on
         + (f", beyond the rail: {', '.join(removal.refused)}" if removal.refused else ""))
     if removal.refused and not options["allow_mass_removal"] and not check_only:
         raise SnapshotError(f"mass removal refused ({', '.join(removal.refused)}; --allow-mass-removal): nothing written")
-    # the finance documents the run removes: their items go first and stay whenever the document will (writer, D-158)
-    run["removing"] = {t: [o.vtigerId for o in removal.ops if o.entityType == t] for t in DOCUMENT_TABLES}
+    # the finance documents and items the run removes: a document keeps an item the run does not remove, and its items
+    # stay with a document the writer keeps (FinanceRules::keptOnRemoval)
+    run["removing"] = {t: [o.vtigerId for o in removal.ops if o.entityType == t]
+                       for t in (*R.DOCUMENT_OF.values(), *R.DOCUMENT_OF)}
     silence_before = silence_counts(logdir)
     meta = {}
     if check_only:

@@ -8,9 +8,10 @@ use stdClass;
  * What a protocol-3 writer session may do beyond upserts (stage 06.4, docs/migration/import.md «Дельта»): the source key
  * range of the run (real keys or a test block) and the entity types whose every source module is part of it. Only
  * records of those types with a key in the range are removed, and only link items pointing to such records are owned
- * by the source. `removing` names the finance documents the run removes (type => source keys, planned before the
- * session): their items, removed first, stay whenever the document will stay (FinanceRules::keptOnRemoval). Protocols 1
- * and 2 get an empty context: no removal, add-only links.
+ * by the source. `removing` names the finance documents and items the run removes (type => source keys, planned
+ * before the session): a document with a live imported item the run does not remove stays, and the items of a document
+ * the run removes but keeps stay with it (FinanceRules::keptOnRemoval). Protocols 1 and 2 get an empty context: no
+ * removal, add-only links.
  */
 final class RunContext
 {

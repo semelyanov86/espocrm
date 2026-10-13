@@ -116,7 +116,9 @@ class RecordWriter
         }
 
         try {
-            return $this->transaction(fn () => $this->removals->remove($op, $run));
+            $documentId = $this->removals->documentOf($op, $run); // before the transaction: its locks come first
+
+            return $this->transaction(fn () => $this->removals->remove($op, $run, $documentId));
         } finally {
             $this->keys->reset(); // a removal may cascade to records whose ids are cached
         }

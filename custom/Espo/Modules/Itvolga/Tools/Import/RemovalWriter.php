@@ -13,11 +13,13 @@ use stdClass;
  * decides which keys left the source, this class decides how a record of each type leaves EspoCRM —
  *
  * - User: deactivated, never deleted (its records keep their owner); an administrator is kept;
- * - finance records: under the payment-side locks, a document recalculated in EspoCRM and its items are kept, so is a
- *   document an imported allocation still points to (its allocation is not part of the run, or held: the finance hook
- *   would remove it unmarked); anything else is removed through the finance hooks with the delta's option — the hook
- *   FinanceDeltaMark marks it `vtigerData.deletedInSource` (allocations go, settlement is recalculated); Python sends
- *   children before their owners, so each row carries its own mark;
+ * - finance records: under the payment-side locks, taken before the first plain read, a document recalculated in
+ *   EspoCRM is kept, so is a document an imported allocation still points to (its allocation is not part of the run,
+ *   or held: the finance hook would remove it unmarked) and a document with a live imported item the run does not
+ *   remove; anything else is removed through the finance hooks with the delta's option — the hook FinanceDeltaMark
+ *   marks it `vtigerData.deletedInSource` (allocations go, settlement is recalculated). Python sends allocations
+ *   before payments and documents, and a document before its items: the document's removal takes its items in its
+ *   transaction (the core's cascade, marked the same way), a kept document keeps them;
  * - Attachment: the owner's file or image field is cleared when it still points to it, the core hook removes the bytes
  *   (unless another attachment shares them);
  * - anything else: a silent soft delete (`IMPORT` + `SILENT` + `NO_NOTIFICATIONS`, comments without hooks, as saves).
@@ -29,6 +31,9 @@ class RemovalWriter
 {
     private const EVENT_TYPES = ['Task', 'Call', 'Meeting'];
 
+    /** @var array<string, true> finance documents this writer session removed (with their items) */
+    private array $removedDocuments = [];
+
     public function __construct(
         private EntityManager $entityManager,
         private KeyResolver $keys,
@@ -36,16 +41,32 @@ class RemovalWriter
     ) {}
 
     /**
-     * Inside the writer's transaction (apply).
+     * Before the writer's transaction (apply): the document of a finance item, read plainly in autocommit — the read
+     * ends with its statement, so the removal can lock that document before the first read of its transaction.
+     */
+    public function documentOf(stdClass $op, RunContext $run): ?string
+    {
+        $type = $op->entityType ?? null;
+        $key = $op->vtigerId ?? null;
+
+        if (!is_string($type) || !$this->finance->isFinance($type) || !$run->ownsType($type) || !$run->inRange($key)) {
+            return null;
+        }
+
+        return $this->finance->documentOf($type, $this->keys->findWithDeleted($type, $key));
+    }
+
+    /**
+     * Inside the writer's transaction (apply). `$documentId`: documentOf() of a finance item.
      *
      * @return array<string, mixed>
      */
-    public function remove(stdClass $op, RunContext $run): array
+    public function remove(stdClass $op, RunContext $run, ?string $documentId = null): array
     {
         [$type, $key] = $this->validated($op, $run);
 
         if ($this->finance->isFinance($type)) {
-            $this->finance->lockLedger($type); // before the first plain read: the transaction's snapshot
+            $this->finance->lockForRemoval($type, $key, $documentId); // before the first plain read
         }
 
         $entity = $this->keys->findWithDeleted($type, $key);
@@ -54,22 +75,19 @@ class RemovalWriter
             return ['status' => 'absent'];
         }
 
-        if ($this->finance->isFinance($type) && !$entity->get('deleted')) {
-            $this->finance->lockForRemoval($type, $entity);
-            $entity = $this->keys->findWithDeleted($type, $key); // after the locks: what a concurrent write left
-        }
-
-        if (!$entity instanceof CoreEntity) {
-            return ['status' => 'absent'];
-        }
-
         $id = $entity->getId();
 
         if ($entity->get('deleted')) {
+            // an item its document's removal took earlier in this session (Python sends a document before its items)
+            if (isset($this->removedDocuments[(string) $this->finance->documentOf($type, $entity)]) &&
+                $this->finance->isDeletedInSource($entity)) {
+                return ['status' => 'removed', 'id' => $id, 'by' => 'document'];
+            }
+
             return ['status' => 'unchanged', 'id' => $id, 'state' => 'deleted'];
         }
 
-        if ($kept = $this->kept($type, $entity, $run)) {
+        if ($kept = $this->kept($type, $entity, $run, true)) {
             return ['status' => 'kept', 'id' => $id, 'reason' => $kept];
         }
 
@@ -92,6 +110,10 @@ class RemovalWriter
 
         // finance: the hook FinanceDeltaMark marks the record (vtigerData.deletedInSource) with deleted = 1
         $this->entityManager->removeEntity($entity, $this->options($type) + [FinanceDeltaMark::OPTION => true]);
+
+        if ($this->finance->isDocument($type)) {
+            $this->removedDocuments[$id] = true;
+        }
 
         return ['status' => 'removed', 'id' => $id] + ($reminders ? ['effects' => ['reminder' => -$reminders]] : []);
     }
@@ -116,7 +138,7 @@ class RemovalWriter
             return ['status' => 'removed', 'id' => $id, 'state' => 'deleted'];
         }
 
-        if ($kept = $this->kept($type, $entity, $run)) {
+        if ($kept = $this->kept($type, $entity, $run, false)) {
             return ['status' => 'kept', 'id' => $id, 'reason' => $kept];
         }
 
@@ -143,13 +165,13 @@ class RemovalWriter
         return [$type, $key];
     }
 
-    private function kept(string $type, CoreEntity $entity, RunContext $run): ?string
+    private function kept(string $type, CoreEntity $entity, RunContext $run, bool $apply): ?string
     {
         if ($type === 'User') {
             return in_array($entity->get('type'), ['admin', 'super-admin'], true) ? 'administrator' : null;
         }
 
-        return $this->finance->isFinance($type) ? $this->finance->keptOnRemoval($type, $entity, $run) : null;
+        return $this->finance->isFinance($type) ? $this->finance->keptOnRemoval($type, $entity, $run, $apply) : null;
     }
 
     /**

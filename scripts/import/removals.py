@@ -6,19 +6,22 @@ A source key of the run is every operation planned or held (a record held by an 
 live in the source and never removed). Task, Call and Meeting share the Calendar key space: a live record whose key the
 source now has as another activity type is retired by the upsert of that type (RecordWriter), not removed here. A user
 gone from the source is deactivated by the writer; an inactive one is already in that state. Removals run after every
-upsert, children before their owners (reverse spec.ORDER), so each finance row is removed — and marked — by its own
-operation.
+upsert, children before their owners (reverse spec.ORDER: allocations before payments and documents), except that a
+finance document goes before its items: its removal takes them in its transaction (the core's cascade, marked by the
+same hook), and a document the writer keeps keeps them (review of stage 06.4, round 3).
 """
 from collections import Counter
 from dataclasses import dataclass, field
 from decimal import Decimal
 
 import spec
+import spec_finance
 
 EVENT_TYPES = ("Task", "Call", "Meeting")
 # Refuse the run before any write when a type would lose more than max(floor, share of its live records) or every one
 # of them (owner's answer 2026-10-12): `--allow-mass-removal` lets it through.
 RAIL = {"floor": 25, "share": Decimal("0.05")}
+DOCUMENT_OF = {item: document for document, item, *_ in spec_finance.DOCUMENTS.values()}  # finance item → document
 
 
 @dataclass(frozen=True)
@@ -80,8 +83,9 @@ def plan_removals(plan, inventory, types, key_range, rail=None, blocked=()):
     source = source_keys(plan)
     events = set().union(*(source.get(t, set()) for t in EVENT_TYPES))
     order = {e: i for i, e in enumerate(spec.ORDER)}
+    rank = {e: -order[DOCUMENT_OF[e]] + 0.5 if e in DOCUMENT_OF else -i for e, i in order.items()}
     out = RemovalPlan()
-    for entity in sorted(types, key=lambda t: (-order.get(t, -1), t)):
+    for entity in sorted(types, key=lambda t: (rank.get(t, 1), t)):
         if entity in spec.NATURAL_KEY_TYPES or entity not in inventory or entity in blocked:
             continue
         inv = inventory[entity]

@@ -176,30 +176,43 @@ class FinanceRules
     }
 
     /**
-     * Locks what the removal of a finance record goes through, in the order of the payment side (PaymentProcessor):
-     * the payment ledger first for an invoice, an order, a payment or an allocation — their removal hooks take it, and
-     * a document row locked before it would invert the order —, then the record's own row (a document, a payment) or
-     * the row of the item's document (as an upsert of an item, FinanceRules::lock). The policy below reads the locked
-     * rows: a recalculation committed meanwhile is seen, a later one waits.
+     * Every lock of the removal of a finance record, taken before the first plain read of its transaction (stage 06.4):
+     * the snapshot of that read — and of the core's cascades, which read plainly — then shows what the locks guard.
+     * In the order of the payment side (PaymentProcessor): the payment ledger (lockLedger), the row of the item's
+     * document (as every item write, DocumentProcessor; its id is read before the transaction, RemovalWriter::documentOf),
+     * then the record's own row with its tombstone — a manual deletion committed meanwhile is seen as such and never
+     * marked as the delta's (D-148). The policy below reads locked rows: a recalculation committed meanwhile is seen, a
+     * later one waits.
      */
-    public function lockForRemoval(string $entityType, Entity $stored): void
+    public function lockForRemoval(string $entityType, int $key, ?string $documentId): void
     {
-        $this->lockLedger($entityType); // taken already by RemovalWriter before its first read; re-entrant
+        $this->lockLedger($entityType);
 
-        if ($this->isDocument($entityType) || $this->types->findPayment($entityType)) {
-            $this->rowLock->one($entityType, $stored->getId());
-        } elseif (($itemOf = $this->types->findByItem($entityType)) && $stored->get($itemOf->parentLink . 'Id')) {
-            $this->rowLock->one($itemOf->entityType, $stored->get($itemOf->parentLink . 'Id'));
+        if ($documentId !== null && ($itemOf = $this->types->findByItem($entityType))) {
+            $this->rowLock->lockWithDeleted($itemOf->entityType, ['id' => $documentId]);
         }
+
+        $this->rowLock->lockWithDeleted($entityType, ['vtigerId' => $key]);
+    }
+
+    /**
+     * The document id of a finance item (null for any other record).
+     */
+    public function documentOf(string $entityType, ?Entity $stored): ?string
+    {
+        $itemOf = $this->types->findByItem($entityType);
+        $id = $itemOf && $stored ? $stored->get($itemOf->parentLink . 'Id') : null;
+
+        return is_string($id) && $id !== '' ? $id : null;
     }
 
     /**
      * The payment ledger of every finance record whose removal touches the payment side — a payment, an allocation, a
-     * document allocations point to and its items — locked before the first plain read of the removal's transaction
-     * (stage 06.4): every allocation write takes the ledger first, so the consistent reads of the core's cascades see
-     * the allocations as they are while the removal runs, not as they were before a concurrent move.
+     * document allocations point to and its items: every allocation write takes the ledger first, so the consistent
+     * reads of the core's cascades see the allocations as they are while the removal runs, not as they were before a
+     * concurrent move.
      */
-    public function lockLedger(string $entityType): void
+    private function lockLedger(string $entityType): void
     {
         $itemOf = $this->types->findByItem($entityType);
         $payment = $this->types->findPayment($entityType) ?? $this->types->findPaymentByAllocation($entityType)
@@ -213,13 +226,15 @@ class FinanceRules
     /**
      * Why a finance record gone from the source stays (a finding), or null. A document stays when it was recalculated
      * in EspoCRM (D-51), when an imported allocation still points to it (the allocation goes by its own removal: the
-     * document's hook would remove it without the delta's mark, D-158) or when it has live items of another key range
-     * (the core's cascade would remove them past the run's boundary). An item stays when its document is recalculated
-     * and, when the run removes the document too (items go first, RunContext::removes), whenever the document will stay
-     * — a document kept with its totals and allocations keeps its items. An item gone from a document the source still
-     * has goes (Vtiger writes the lines of a document anew on every save).
+     * document's hook would remove it without the delta's mark, D-158) or when it has a live imported item this run
+     * does not remove (another key range, held by an error, …: the core's cascade would remove it). Python sends a
+     * document before its items: its removal takes them in its transaction (the cascade, with the delta's mark), so an
+     * item whose document is live although the run removes it was kept by the document's operation and stays with it —
+     * with the document's reason, or `document_not_removed` when that operation failed (`$apply`; the check pass
+     * predicts or confirms the reason). An item of a document the source still has goes unless the document is
+     * recalculated (Vtiger writes the lines of a document anew on every save).
      */
-    public function keptOnRemoval(string $entityType, Entity $stored, RunContext $run): ?string
+    public function keptOnRemoval(string $entityType, Entity $stored, RunContext $run, bool $apply): ?string
     {
         if ($this->isDocument($entityType)) {
             $document = $this->rowLock->one($entityType, $stored->getId());
@@ -228,10 +243,10 @@ class FinanceRules
         }
 
         if ($itemOf = $this->types->findByItem($entityType)) {
-            $documentId = $stored->get($itemOf->parentLink . 'Id');
-            $document = $documentId ? $this->rowLock->one($itemOf->entityType, $documentId) : null;
+            $documentId = $this->documentOf($entityType, $stored);
+            $document = $documentId ? $this->rowLock->one($itemOf->entityType, $documentId) : null; // live only
 
-            if (!$document || $document->get('deleted')) {
+            if (!$document) {
                 return null;
             }
 
@@ -239,8 +254,11 @@ class FinanceRules
                 return 'recalculated_in_target';
             }
 
-            return $run->removes($itemOf->entityType, $document->get('vtigerId')) ?
-                $this->documentKept($document, $run) : null;
+            if (!$run->removes($itemOf->entityType, $document->get('vtigerId'))) {
+                return null;
+            }
+
+            return $this->documentKept($document, $run) ?? ($apply ? 'document_not_removed' : null);
         }
 
         return null;
@@ -267,7 +285,7 @@ class FinanceRules
         foreach ($this->rowLock->query($documentType->itemEntityType)
                      ->where([$documentType->parentLink . 'Id' => $document->getId(), 'vtigerId!=' => null])->find()
                  as $item) {
-            if (!$run->inRange($item->get('vtigerId'))) {
+            if (!$run->removes($documentType->itemEntityType, $item->get('vtigerId'))) {
                 return 'items_outside_run';
             }
         }
