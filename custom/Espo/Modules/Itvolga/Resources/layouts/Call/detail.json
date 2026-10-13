@@ -43,7 +43,7 @@
         ]
     },
     {
-        "label": "Телефония (история Vtiger)",
+        "label": "Телефония",
         "rows": [
             [
                 {
@@ -55,11 +55,39 @@
             ],
             [
                 {
+                    "name": "cLiveState"
+                },
+                {
                     "name": "cCallStatusRaw"
+                }
+            ],
+            [
+                {
+                    "name": "cExtension"
                 },
                 {
                     "name": "cBillDuration"
                 }
+            ],
+            [
+                {
+                    "name": "cAnsweredAt"
+                },
+                {
+                    "name": "cClickToCall"
+                }
+            ],
+            [
+                {
+                    "name": "cRecording",
+                    "fullWidth": true
+                }
+            ],
+            [
+                {
+                    "name": "cAsteriskLinkedId"
+                },
+                false
             ],
             [
                 {

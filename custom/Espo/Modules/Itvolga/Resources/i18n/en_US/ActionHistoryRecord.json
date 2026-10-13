@@ -1,0 +1,8 @@
+{
+    "options": {
+        "action": {
+            "reveal": "Password reveal",
+            "listen": "Recording playback"
+        }
+    }
+}

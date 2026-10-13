@@ -1,0 +1,69 @@
+# Isolated test PBX of the local stand (stage 07.1, D-172): scripts/stand/telephony.sh up|down. The network is
+# internal (no route to the outside world: no SIP can reach a real provider), nothing is published on the host; the
+# EspoCRM side reaches the AMI only through the Unix socket in ${TELEPHONY_RUN_DIR}. Numbers are synthetic.
+name: itvolga-espo-telephony
+
+x-asterisk: &asterisk
+  image: itvolga-espo-telephony:22.5.2
+  build:
+    context: .
+  restart: "no"
+  init: true
+
+networks:
+  tel:
+    internal: true
+    ipam:
+      config:
+        - subnet: ${TELEPHONY_NET_PREFIX}.0/24
+
+services:
+  pbx:
+    <<: *asterisk
+    hostname: pbx
+    environment:
+      ITVOLGA_ROLE: pbx
+      ESPO_GID: ${ESPO_GID}
+    env_file: ${TELEPHONY_PRIVATE_DIR}/secrets.env
+    networks:
+      tel:
+        ipv4_address: ${TELEPHONY_NET_PREFIX}.10
+    volumes:
+      - ./pbx/modules.conf:/etc/asterisk/modules.conf:ro
+      - ./pbx/logger.conf:/etc/asterisk/logger.conf:ro
+      - ./pbx/manager.conf:/etc/asterisk/manager.conf:ro
+      - ./pbx/pjsip.conf:/etc/asterisk/pjsip.conf:ro
+      - ./pbx/extensions.conf:/etc/asterisk/extensions.conf:ro
+      - ../production/telephony/manager.d-itvolga-espo.conf.example:/opt/itvolga/manager.d-itvolga-espo.conf.example:ro
+      - ${TELEPHONY_MONITOR_DIR}:/var/spool/asterisk/monitor
+      - ${TELEPHONY_RUN_DIR}:/run/ami
+
+  phones:
+    <<: *asterisk
+    hostname: phones
+    environment:
+      ITVOLGA_ROLE: phones
+    networks:
+      tel:
+        ipv4_address: ${TELEPHONY_NET_PREFIX}.11
+    volumes:
+      - ./pbx/modules.conf:/etc/asterisk/modules.conf:ro
+      - ./pbx/logger.conf:/etc/asterisk/logger.conf:ro
+      - ./phones/manager.conf:/etc/asterisk/manager.conf:ro
+      - ./phones/pjsip.conf:/etc/asterisk/pjsip.conf:ro
+      - ./phones/extensions.conf:/etc/asterisk/extensions.conf:ro
+
+  pstn:
+    <<: *asterisk
+    hostname: pstn
+    environment:
+      ITVOLGA_ROLE: pstn
+    networks:
+      tel:
+        ipv4_address: ${TELEPHONY_NET_PREFIX}.12
+    volumes:
+      - ./pbx/modules.conf:/etc/asterisk/modules.conf:ro
+      - ./pbx/logger.conf:/etc/asterisk/logger.conf:ro
+      - ./pstn/manager.conf:/etc/asterisk/manager.conf:ro
+      - ./pstn/pjsip.conf:/etc/asterisk/pjsip.conf:ro
+      - ./pstn/extensions.conf:/etc/asterisk/extensions.conf:ro

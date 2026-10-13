@@ -1,0 +1,220 @@
+{
+    "fields": {
+        "status": {
+            "readOnlySaved": {
+                "conditionGroup": [
+                    {
+                        "type": "isNotEmpty",
+                        "attribute": "cAsteriskLinkedId"
+                    }
+                ]
+            }
+        },
+        "direction": {
+            "readOnlySaved": {
+                "conditionGroup": [
+                    {
+                        "type": "isNotEmpty",
+                        "attribute": "cAsteriskLinkedId"
+                    }
+                ]
+            }
+        },
+        "dateStart": {
+            "readOnlySaved": {
+                "conditionGroup": [
+                    {
+                        "type": "isNotEmpty",
+                        "attribute": "cAsteriskLinkedId"
+                    }
+                ]
+            }
+        },
+        "dateEnd": {
+            "readOnlySaved": {
+                "conditionGroup": [
+                    {
+                        "type": "isNotEmpty",
+                        "attribute": "cAsteriskLinkedId"
+                    }
+                ]
+            }
+        },
+        "duration": {
+            "readOnlySaved": {
+                "conditionGroup": [
+                    {
+                        "type": "isNotEmpty",
+                        "attribute": "cAsteriskLinkedId"
+                    }
+                ]
+            }
+        },
+        "reminders": {
+            "readOnlySaved": {
+                "conditionGroup": [
+                    {
+                        "type": "isNotEmpty",
+                        "attribute": "cAsteriskLinkedId"
+                    }
+                ]
+            }
+        },
+        "cLiveState": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "isNotEmpty",
+                        "attribute": "cAsteriskLinkedId"
+                    }
+                ]
+            }
+        },
+        "cExtension": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "isNotEmpty",
+                        "attribute": "cAsteriskLinkedId"
+                    }
+                ]
+            }
+        },
+        "cAnsweredAt": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "isNotEmpty",
+                        "attribute": "cAsteriskLinkedId"
+                    }
+                ]
+            }
+        },
+        "cClickToCall": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "isNotEmpty",
+                        "attribute": "cAsteriskLinkedId"
+                    }
+                ]
+            }
+        },
+        "cRecording": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "isNotEmpty",
+                        "attribute": "cAsteriskLinkedId"
+                    }
+                ]
+            }
+        },
+        "cAsteriskLinkedId": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "isNotEmpty",
+                        "attribute": "cAsteriskLinkedId"
+                    }
+                ]
+            }
+        },
+        "cConnectorCallId": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "isNotEmpty",
+                        "attribute": "cConnectorCallId"
+                    }
+                ]
+            }
+        },
+        "cLegacyRecordingUrl": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "isNotEmpty",
+                        "attribute": "cConnectorCallId"
+                    }
+                ]
+            }
+        },
+        "cPhoneNumber": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "or",
+                        "value": [
+                            {
+                                "type": "isNotEmpty",
+                                "attribute": "cAsteriskLinkedId"
+                            },
+                            {
+                                "type": "isNotEmpty",
+                                "attribute": "cConnectorCallId"
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        "cIncomingLine": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "or",
+                        "value": [
+                            {
+                                "type": "isNotEmpty",
+                                "attribute": "cAsteriskLinkedId"
+                            },
+                            {
+                                "type": "isNotEmpty",
+                                "attribute": "cConnectorCallId"
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        "cCallStatusRaw": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "or",
+                        "value": [
+                            {
+                                "type": "isNotEmpty",
+                                "attribute": "cAsteriskLinkedId"
+                            },
+                            {
+                                "type": "isNotEmpty",
+                                "attribute": "cConnectorCallId"
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        "cBillDuration": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "or",
+                        "value": [
+                            {
+                                "type": "isNotEmpty",
+                                "attribute": "cAsteriskLinkedId"
+                            },
+                            {
+                                "type": "isNotEmpty",
+                                "attribute": "cConnectorCallId"
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    }
+}

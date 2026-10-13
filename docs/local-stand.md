@@ -74,6 +74,7 @@ task model:check          # сверка field-map.csv / relations.csv с мет
 | `task espo -- <команда>` | консоль EspoCRM (`rebuild`, `clear-cache`, `app-check`, `run-job Cleanup`, `version`…) |
 | `task espo:rebuild` | `clear-cache` + `rebuild` |
 | `task db:shell` | MySQL-консоль базы `espocrm` от MySQL root |
+| `task telephony:up` / `telephony:down` / `telephony:status [-- --check]` | изолированная тестовая АТС и слушатель AMI (этап 07.1, раздел «Тестовая телефония») |
 
 **Не запускать `bin/command` напрямую:** его shebang `#!/usr/bin/env php` может выбрать другую версию PHP, а созданные файлы достанутся не тому пользователю. Только `task espo -- …` (`scripts/stand/espo.sh`).
 
@@ -105,6 +106,33 @@ Restore (`restore.sh`):
 Хранение backup не ограничено — лишние удалять вручную из `/data/itvolga/espo-private/stand/backups/`.
 
 Проверка защищённого снимка (этап 06.1, `docs/migration/snapshot.md`) на время работы создаёт на MySQL стенда временные базы `vtsnap_<время>_<hex>_<схема>` с данными production: имена — в журнале `snapshots/tempdbs.journal`, все сессии с `sql_log_bin=0`, удаление — по точному имени сразу после проверки. В backup стенда они не входят; `task stand:restore` и `stand:restore-cleanup` их не трогают; `uninstall --purge` удаляет их вместе с каталогом данных. Оставшуюся после аварии базу показывает `task snapshot:list`, удаляет `task snapshot:delete -- vtsnap_… --yes`.
+
+## Тестовая телефония (этап 07.1)
+
+Контракт интеграции — `docs/migration/telephony.md`. `task telephony:up` (`scripts/stand/telephony.sh up`):
+
+1. секреты AMI стенда — `/data/itvolga/espo-private/stand/telephony/secrets.env` (600, создаются один раз);
+2. каталог записей `/var/lib/itvolga-espo/telephony/monitor` (владелец — asterisk контейнера, `750`, ACL `u:espocrm:rx`
+   и default ACL) и каталог сокета `/run/itvolga-espo-telephony` (`root:espocrm 750`);
+3. образ `itvolga-espo-telephony:22.5.2` (Ubuntu 26.04 по digest + пакет Asterisk production + socat) и три контейнера
+   `pbx`, `phones`, `pstn` во внутренней сети `<TELEPHONY_NET_PREFIX>.0/24` (`stand.conf`) (без выхода наружу и опубликованных портов);
+4. ожидание версии 22.5.2 и регистрации 8 телефонов; настройки EspoCRM (`itvolga-setup-telephony`, stdin; запасной
+   внутренний номер 119 — только если в EspoCRM он не задан) и самопроверка прав AMI (`--check`);
+5. служба `itvolga-espo-telephony` (шаблон `deploy/local/templates/itvolga-espo-telephony.service.tmpl`, пользователь
+   `espocrm`, без автозапуска при загрузке) и ожидание подключения слушателя.
+
+`task telephony:down` выключает интеграцию в EspoCRM (ссылки на телефон снова `tel:`, карточек нет), останавливает
+службу и контейнеры; записи остаются. `task telephony:status` — состояние слушателя (без номеров), контейнеров,
+регистраций; `-- --check` — ещё и права AMI. `task model:apply` перезапускает работающего слушателя (новые метаданные).
+`stand:backup`, `stand:restore`, `stand:stop` и `stand:uninstall` останавливают слушателя вместе с прочими писателями и
+возвращают его, если он работал; `stand:start` запускает слушателя, если тестовая АТС работает (`uninstall` также
+вызывает `telephony.sh down`, `--purge` удаляет каталог записей — только с меткой `.itvolga-espo-telephony` — и образ). Health-check проверяет шаблон службы, подключение слушателя, общие внутренние номера и чтение записей
+пользователем `espocrm` — только когда служба установлена.
+
+Ручная проверка: `docker exec itvolga-espo-telephony-pstn-1 asterisk -rx "channel originate Local/<номер>*290001@call-pbx application Wait 20"`
+— входящий с синтетического номера; `docker exec itvolga-espo-telephony-phones-1 asterisk -rx "channel originate Local/<внутр.>*<номер>@desk application Wait 10"`
+— звонок с телефона; поведение телефонов и провайдеров — `database put phone <внутр.> answer,<звонок с>,<разговор с>|busy|noanswer`
+и `database put pstn <номер> …` в соответствующем контейнере. Номера — только синтетические (`+7 999 …`).
 
 ## Удаление и установка с нуля
 

@@ -1,5 +1,13 @@
 {
     "messages": {
-        "auth2FARequired": "You need to set up two-factor authentication. Choose the method in the next window: an authenticator app on your phone (for example, Google Authenticator) or a security key (YubiKey), if the administrator allows it."
+        "auth2FARequired": "You need to set up two-factor authentication. Choose the method in the next window: an authenticator app on your phone (for example, Google Authenticator) or a security key (YubiKey), if the administrator allows it.",
+        "phoneExtensionTaken": "Another active user has this extension.",
+        "phoneExtensionInvalid": "An extension is 2 to 10 digits."
+    },
+    "fields": {
+        "cPhoneExtension": "Extension"
+    },
+    "tooltips": {
+        "cPhoneExtension": "The desk phone extension in the PBX (Vtiger phone_crm_extension). Only administrators change it: calls are assigned and call cards shown by it, calls from the CRM ring it. Active users never share an extension."
     }
 }

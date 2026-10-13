@@ -89,9 +89,25 @@ tasks:
     cmds:
       - scripts/stand/ctl.sh db-shell
 
+  # --- isolated test telephony (stage 07.1) ------------------------------------------------------
+  telephony:up:
+    desc: Start the isolated test PBX (Docker, internal network, Asterisk 22.5.2 as in production) and the AMI listener
+    cmds:
+      - scripts/stand/telephony.sh up
+
+  telephony:down:
+    desc: Switch the telephony off in EspoCRM, stop the AMI listener and the test PBX (recordings are kept)
+    cmds:
+      - scripts/stand/telephony.sh down
+
+  telephony:status:
+    desc: State of the AMI listener and the test PBX (-- --check also tests the AMI rights)
+    cmds:
+      - scripts/stand/telephony.sh status {{.CLI_ARGS}}
+
   # --- model, access control and tests (stage 03) ---------------------------------------------
   model:apply:
-    desc: Deploy the Itvolga module to the stand (rebuild, roles/teams/tabs, legal entity and counters, settlement of documents, report folders and standard reports, client timestamp)
+    desc: Deploy the Itvolga module to the stand (rebuild, roles/teams/tabs, legal entity and counters, settlement of documents, report folders and standard reports, client timestamp, restart of the telephony listener if it runs)
     cmds:
       - scripts/stand/espo.sh clear-cache
       - scripts/stand/espo.sh rebuild
@@ -100,6 +116,7 @@ tasks:
       - scripts/stand/espo.sh itvolga-finance-settle --silent
       - scripts/stand/espo.sh itvolga-setup-reports
       - scripts/stand/espo.sh update-app-timestamp
+      - scripts/stand/telephony.sh reload
 
   model:check:
     desc: Check field-map.csv / relations.csv targets against the merged EspoCRM metadata and that finance-coverage.md is current
@@ -169,6 +186,16 @@ tasks:
       - python3 -m unittest discover -s tests/security_key_stand -v
 
   # --- finance contract and calculation core (stage 04.1) --------------------------------------
+  test:telephony:
+    desc: Telephony core tests without the stand (AMI framing, call tracker on synthetic transcripts, numbers and dial strings against the test dialplan, byte ranges, recording paths; stage 07.1)
+    cmds:
+      - php tests/telephony/run.php {{.CLI_ARGS}}
+
+  test:stage07.1:
+    desc: Stage 07.1 acceptance tests on the stand with the isolated test PBX (calls, cards, click-to-call, recordings and their access, AMI rights, listener restart; synthetic users and numbers; needs task telephony:up)
+    cmds:
+      - python3 -m unittest discover -s tests/stage07_1 -p 'test_*.py' -v
+
   test:finance:
     desc: Finance core tests (synthetic structures; the private source snapshot when available, counts only)
     cmds:

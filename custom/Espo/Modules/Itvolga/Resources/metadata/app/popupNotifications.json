@@ -1,0 +1,10 @@
+{
+    "itvolgaCall": {
+        "url": "Telephony/cards",
+        "interval": 3,
+        "view": "itvolga:views/telephony/call-card",
+        "portalDisabled": true,
+        "grouped": false,
+        "useWebSocket": false
+    }
+}

@@ -137,6 +137,9 @@ phase=configure
 log "re-applying permissions, DB credentials and cron"
 "$STAND_DIR/install.sh" perms fpm espo cron   # starts PHP-FPM, writes a fresh cron entry
 as_root rm -f "$CRON_FILE.paused"
+# The telephony listener (stage 07.1) runs again if it ran; a backup without telephony settings leaves it
+# stopped with «not configured» until `task telephony:up`.
+if [[ "${WRITERS_TELEPHONY:-0}" == 1 ]]; then as_root systemctl start "$TELEPHONY_UNIT"; fi
 
 phase=health
 wait_cron_run || true

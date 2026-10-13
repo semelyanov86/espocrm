@@ -6,6 +6,27 @@
         "vtigerData": {
             "readOnly": true,
             "onlyAdmin": true
+        },
+        "cAsteriskLinkedId": {
+            "readOnly": true
+        },
+        "cLiveState": {
+            "readOnly": true
+        },
+        "cExtension": {
+            "readOnly": true
+        },
+        "cAnsweredAt": {
+            "readOnly": true
+        },
+        "cClickToCall": {
+            "readOnly": true
+        },
+        "cRecording": {
+            "readOnly": true
+        },
+        "cRecordingPath": {
+            "forbidden": true
         }
     },
     "links": {

@@ -15,6 +15,8 @@ done
 [[ $yes == 1 ]] || die "refusing to run without --yes"
 [[ $EUID -ne 0 ]] || die "run as the developer user, not root"
 
+# The test telephony (stage 07.1): integration off, listener and containers stopped; recordings stay unless --purge.
+"$STAND_DIR/telephony.sh" down || warn "telephony down failed"
 pause_writers
 # Only files rendered by the stand are removed (every template carries this marker), so an
 # overridden name in stand.conf can never delete a foreign unit, site or cron file.
@@ -31,7 +33,7 @@ if as_root grep -qsF "$STAND_MARKER" "$APACHE_SITE_FILE"; then
 fi
 remove_rendered "$APACHE_SITE_FILE"
 as_root apache2ctl -t >/dev/null 2>&1 && as_root systemctl reload apache2
-for unit in "$FPM_UNIT" "$MYSQL_UNIT"; do
+for unit in "$TELEPHONY_UNIT" "$FPM_UNIT" "$MYSQL_UNIT"; do
     if as_root grep -qsF "$STAND_MARKER" "/etc/systemd/system/$unit.service"; then
         as_root systemctl disable --now --quiet "$unit" 2>/dev/null || true
     fi
@@ -82,6 +84,13 @@ if [[ $purge == 1 ]]; then
     for dir in custom/Espo/Custom custom/Espo/Modules client/custom; do
         if [[ -d "$ESPO_ROOT/$dir" ]]; then as_root setfacl -R -b "$ESPO_ROOT/$dir"; fi
     done
+    # Test telephony recordings: only a directory created by telephony.sh (marker), never another path.
+    if as_root test -f "$TELEPHONY_STATE_DIR/$TELEPHONY_MARKER"; then
+        as_root rm -rf "$TELEPHONY_STATE_DIR"
+    elif as_root test -e "$TELEPHONY_STATE_DIR"; then
+        warn "skip $TELEPHONY_STATE_DIR: no $TELEPHONY_MARKER marker"
+    fi
+    docker image rm -f itvolga-espo-telephony:22.5.2 >/dev/null 2>&1 || true
     if id -u "$ESPO_USER" >/dev/null 2>&1; then as_root userdel "$ESPO_USER"; fi
     log "purge finished (paths without the stand markers were skipped, see warnings above)"
 fi

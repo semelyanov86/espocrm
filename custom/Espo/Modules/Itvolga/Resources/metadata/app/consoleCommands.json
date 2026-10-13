@@ -52,5 +52,19 @@
             "dryRun"
         ],
         "allowedOptions": []
+    },
+    "itvolgaTelephonyListen": {
+        "className": "Espo\\Modules\\Itvolga\\Classes\\ConsoleCommands\\TelephonyListen",
+        "listed": true,
+        "allowedFlags": [],
+        "allowedOptions": []
+    },
+    "itvolgaSetupTelephony": {
+        "className": "Espo\\Modules\\Itvolga\\Classes\\ConsoleCommands\\SetupTelephony",
+        "listed": true,
+        "allowedFlags": [
+            "check"
+        ],
+        "allowedOptions": []
     }
 }

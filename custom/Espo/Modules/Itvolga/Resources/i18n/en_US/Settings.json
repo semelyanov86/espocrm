@@ -3,5 +3,11 @@
         "auth2FAMethodList": {
             "ItvolgaSecurityKey": "Security key (YubiKey)"
         }
+    },
+    "fields": {
+        "itvolgaTelephonyFallbackExtension": "Extension for missed calls"
+    },
+    "tooltips": {
+        "itvolgaTelephonyFallbackExtension": "The assignee of an inbound call hung up in the voice menu before any phone rang: the user with this extension (production: 108, first in the ring order)."
     }
 }

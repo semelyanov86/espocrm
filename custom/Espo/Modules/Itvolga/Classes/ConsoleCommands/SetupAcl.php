@@ -210,7 +210,11 @@ class SetupAcl implements Command
 
             $data = json_decode(json_encode($definition['data'], JSON_THROW_ON_ERROR));
             $role->set('data', $data);
-            $role->set('fieldData', (object) []);
+            if ($isNew) {
+                // Field-level restrictions belong to the administrator (e.g. «Запись разговора» of Call, D-168):
+                // only a new role starts without them.
+                $role->set('fieldData', (object) []);
+            }
             $role->setMultiple($definition['permissions']);
 
             if ($isNew || $role->isAttributeChanged('data') || $this->permissionsChanged($role, $definition['permissions'])) {

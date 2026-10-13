@@ -1,0 +1,69 @@
+{
+    "fields": {
+        "extension": {
+            "type": "varchar",
+            "maxLength": 20
+        },
+        "number": {
+            "type": "varchar",
+            "maxLength": 40
+        },
+        "status": {
+            "type": "enum",
+            "options": [
+                "queued",
+                "observed",
+                "unanswered",
+                "failed"
+            ],
+            "default": "queued"
+        },
+        "createdAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "modifiedAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "user": {
+            "type": "link"
+        },
+        "parent": {
+            "type": "linkParent",
+            "entityList": [
+                "Account",
+                "Contact",
+                "Lead",
+                "Opportunity",
+                "Case",
+                "Invoice"
+            ]
+        }
+    },
+    "links": {
+        "user": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "parent": {
+            "type": "belongsToParent",
+            "entityList": [
+                "Account",
+                "Contact",
+                "Lead",
+                "Opportunity",
+                "Case",
+                "Invoice"
+            ]
+        }
+    },
+    "indexes": {
+        "userIdCreatedAt": {
+            "columns": [
+                "userId",
+                "createdAt"
+            ]
+        }
+    }
+}

@@ -1,0 +1,15 @@
+{
+    "itvolgaTelephony": {
+        "label": "Telephony",
+        "order": 16,
+        "itemList": [
+            {
+                "url": "#Admin/itvolgaTelephony",
+                "label": "Telephony",
+                "iconClass": "fas fa-phone",
+                "description": "itvolgaTelephony",
+                "recordView": "itvolga:views/admin/telephony"
+            }
+        ]
+    }
+}

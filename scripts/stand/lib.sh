@@ -100,6 +100,11 @@ random_secret() { # length
 
 unit_active() { systemctl is-active --quiet "$1"; }
 
+# The test PBX of the stand telephony (stage 07.1) is running.
+telephony_pbx_running() {
+    docker ps -q --filter "name=^${TELEPHONY_PROJECT}-pbx-1\$" 2>/dev/null | grep -q .
+}
+
 # Exact row count of every base table of a database (default: the stand DB): "<table>\t<count>", sorted.
 table_counts() { # [db]
     local db="${1:-$DB_NAME}" sql
@@ -147,11 +152,15 @@ wait_cron_run() { # [since]
     return 1
 }
 
-# Stop every writer of the stand DB and files: the cron entry is parked (cron ignores file names
-# with a dot), PHP-FPM is stopped, then we wait until no process of $ESPO_USER is left (cron.php and
-# its parallel job processes). resume_writers restores exactly what pause_writers stopped.
+# Stop every writer of the stand DB and files: the telephony listener (stage 07.1) is stopped, the cron
+# entry is parked (cron ignores file names with a dot), PHP-FPM is stopped, then we wait until no process
+# of $ESPO_USER is left (cron.php and its parallel job processes). resume_writers restores exactly what
+# pause_writers stopped.
 pause_writers() {
-    WRITERS_CRON=0 WRITERS_FPM=0
+    WRITERS_CRON=0 WRITERS_FPM=0 WRITERS_TELEPHONY=0
+    if unit_active "$TELEPHONY_UNIT"; then
+        as_root systemctl stop "$TELEPHONY_UNIT"; WRITERS_TELEPHONY=1
+    fi
     if as_root grep -qsF "$STAND_MARKER" "$CRON_FILE"; then
         as_root mv "$CRON_FILE" "$CRON_FILE.paused"; WRITERS_CRON=1
     fi
@@ -172,5 +181,6 @@ resume_writers() {
     if [[ "${WRITERS_CRON:-0}" == 1 ]] && as_root test -f "$CRON_FILE.paused"; then
         as_root mv "$CRON_FILE.paused" "$CRON_FILE"
     fi
-    WRITERS_CRON=0 WRITERS_FPM=0
+    if [[ "${WRITERS_TELEPHONY:-0}" == 1 ]]; then as_root systemctl start "$TELEPHONY_UNIT"; fi
+    WRITERS_CRON=0 WRITERS_FPM=0 WRITERS_TELEPHONY=0
 }

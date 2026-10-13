@@ -3,6 +3,25 @@
         "itvolgaSecurityKeyRpId": {
             "level": "system",
             "readOnly": true
+        },
+        "itvolgaTelephonyEnabled": {
+            "level": "default",
+            "readOnly": true
+        },
+        "itvolgaTelephonyFallbackExtension": {
+            "level": "admin"
+        },
+        "itvolgaTelephonyAmi": {
+            "level": "system",
+            "readOnly": true
+        },
+        "itvolgaTelephonyRules": {
+            "level": "system",
+            "readOnly": true
+        },
+        "itvolgaTelephonyRecordings": {
+            "level": "system",
+            "readOnly": true
         }
     }
 }

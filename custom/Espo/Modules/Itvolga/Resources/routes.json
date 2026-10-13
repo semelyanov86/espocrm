@@ -53,5 +53,20 @@
         "route": "/ReportMetricSet/:id/values",
         "method": "get",
         "actionClassName": "Espo\\Modules\\Itvolga\\Tools\\Report\\Api\\GetMetricValues"
+    },
+    {
+        "route": "/Telephony/cards",
+        "method": "get",
+        "actionClassName": "Espo\\Modules\\Itvolga\\Tools\\Telephony\\Api\\GetCards"
+    },
+    {
+        "route": "/Telephony/cards/:id/dismiss",
+        "method": "post",
+        "actionClassName": "Espo\\Modules\\Itvolga\\Tools\\Telephony\\Api\\PostDismiss"
+    },
+    {
+        "route": "/Telephony/dial",
+        "method": "post",
+        "actionClassName": "Espo\\Modules\\Itvolga\\Tools\\Telephony\\Api\\PostDial"
     }
 ]

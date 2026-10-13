@@ -5,6 +5,7 @@ namespace Espo\Modules\Itvolga\Classes\Acl\Call;
 use Espo\Core\Acl\ScopeData;
 use Espo\Entities\User;
 use Espo\Modules\Crm\Classes\Acl\Call\AccessChecker as CallAccessChecker;
+use Espo\Modules\Itvolga\Tools\Telephony\CallFacts;
 use Espo\ORM\Entity;
 
 /**
@@ -26,11 +27,19 @@ class AccessChecker extends CallAccessChecker
 
     public function checkEntityDelete(User $user, Entity $entity, ScopeData $data): bool
     {
-        if (!$user->isAdmin() && self::isTelephonyHistory($entity)) {
+        if (!$user->isAdmin() && (self::isTelephonyHistory($entity) || self::isLiveTelephony($entity))) {
             return false;
         }
 
         return parent::checkEntityDelete($user, $entity, $data);
+    }
+
+    /**
+     * A call of the live telephony (stage 07.1, D-168): editable except its facts, deleted only by administrators.
+     */
+    private static function isLiveTelephony(Entity $entity): bool
+    {
+        return (string) $entity->get(CallFacts::KEY) !== '';
     }
 
     private static function isTelephonyHistory(Entity $entity): bool

@@ -1,0 +1,27 @@
+# Rendered from deploy/local/templates/itvolga-espo-telephony.service.tmpl — do not edit here.
+# AMI listener of the stand telephony (stage 07.1): started by `task telephony:up`, not at boot (the test PBX is a
+# set of containers started on demand). Exit 78 = not configured: no restart; any other failure: a new process
+# reconciles the calls with the PBX.
+[Unit]
+Description=AMI listener of the EspoCRM stand telephony (@@ESPO_SITE_HOST@@)
+After=network.target @@MYSQL_UNIT@@.service
+Wants=@@MYSQL_UNIT@@.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=@@ESPO_USER@@
+Group=@@ESPO_USER@@
+WorkingDirectory=@@ESPO_ROOT@@
+Environment=PATH=@@STAND_PATH@@
+ExecStart=@@PHP_BIN@@ @@ESPO_ROOT@@/command.php itvolga-telephony-listen
+Restart=always
+RestartSec=5
+RestartPreventExitStatus=78
+KillSignal=SIGTERM
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+UMask=0007
+SyslogIdentifier=@@TELEPHONY_UNIT@@

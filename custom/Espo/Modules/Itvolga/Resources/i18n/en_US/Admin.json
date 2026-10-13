@@ -1,0 +1,8 @@
+{
+    "labels": {
+        "Telephony": "Telephony"
+    },
+    "descriptions": {
+        "itvolgaTelephony": "Asterisk integration: the assignee of missed calls."
+    }
+}

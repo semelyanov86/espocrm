@@ -3,5 +3,11 @@
         "auth2FAMethodList": {
             "ItvolgaSecurityKey": "Ключ безопасности (YubiKey)"
         }
+    },
+    "fields": {
+        "itvolgaTelephonyFallbackExtension": "Внутренний номер для пропущенных"
+    },
+    "tooltips": {
+        "itvolgaTelephonyFallbackExtension": "Ответственный за входящий звонок, сброшенный в голосовом меню до звонка на телефоны: пользователь с этим внутренним номером (production — 108, первый в очереди обзвона)."
     }
 }

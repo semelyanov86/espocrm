@@ -1,0 +1,8 @@
+{
+    "labels": {
+        "Telephony": "Телефония"
+    },
+    "descriptions": {
+        "itvolgaTelephony": "Интеграция с Asterisk: ответственный за пропущенные звонки."
+    }
+}

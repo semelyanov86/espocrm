@@ -1,0 +1,10 @@
+#!/bin/sh
+# Read access of the EspoCRM user to the call recordings (stage 07.1, D-171; applied at stage 10). Production
+# (read-only check 2026-10-13): /var/spool/asterisk/monitor is asterisk:asterisk 0750, the date directories 0755,
+# the files 0644 (Asterisk umask 0022). An ACL entry for one user — not membership in the asterisk group, which
+# could read /etc/asterisk with the SIP secrets. The default ACL covers directories Asterisk creates later.
+set -eu
+ESPO_USER="${1:?usage: recordings-acl.sh <espo-user>}"
+MONITOR=/var/spool/asterisk/monitor
+setfacl -m "u:${ESPO_USER}:rx" -m "d:u:${ESPO_USER}:rx" "$MONITOR"
+getfacl -p "$MONITOR" | grep "user:${ESPO_USER}:"

@@ -48,6 +48,10 @@ task import:run -- --snapshot <id> --allow-mass-removal   # дельта све�
 task snapshot:diff -- <A> <B> [--out docs/migration/snapshot-delta.md]   # что изменилось в Vtiger между снимками (счётчики)
 task stand:fingerprint -- take <метка> | diff A B   # отпечаток стенда (CHECKSUM таблиц + sha256 data/upload), приватно
 task import:drill -- --snapshot <id> [--restore <backup>]   # учение: backup, SIGTERM/SIGKILL посреди записи, сходимость, повтор без записи
+task telephony:up | telephony:down          # изолированная тестовая АТС (Docker) и слушатель AMI стенда (этап 07.1)
+task telephony:status [-- --check]          # состояние слушателя, контейнеров, регистраций; --check — права AMI
+task test:telephony                         # юнит-тесты ядра телефонии без стенда (AMI, автомат звонков, номера, диалплан)
+task test:stage07.1                         # приёмочные тесты телефонии на стенде (нужен task telephony:up)
 ```
 
 - `docs/migration/field-map.csv` и `relations.csv` **не редактировать вручную**: правила — `scripts/audit/mapping.py`, генерация — `scripts/audit/build_maps.py` из приватного прогона.

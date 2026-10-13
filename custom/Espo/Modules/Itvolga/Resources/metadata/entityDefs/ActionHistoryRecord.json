@@ -6,7 +6,8 @@
                 "update",
                 "create",
                 "delete",
-                "reveal"
+                "reveal",
+                "listen"
             ]
         }
     }

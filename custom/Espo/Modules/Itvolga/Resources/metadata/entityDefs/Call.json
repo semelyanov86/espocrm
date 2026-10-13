@@ -64,6 +64,75 @@
                 "__APPEND__",
                 "Invoice"
             ]
+        },
+        "cAsteriskLinkedId": {
+            "type": "varchar",
+            "maxLength": 100,
+            "readOnly": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true,
+            "customizationDisabled": true
+        },
+        "cLiveState": {
+            "type": "enum",
+            "options": [
+                "",
+                "ringing",
+                "talking",
+                "ended",
+                "lost"
+            ],
+            "readOnly": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true,
+            "customizationDisabled": true,
+            "style": {
+                "ringing": "warning",
+                "talking": "success",
+                "lost": "danger"
+            }
+        },
+        "cExtension": {
+            "type": "varchar",
+            "maxLength": 20,
+            "readOnly": true,
+            "tooltip": true,
+            "layoutMassUpdateDisabled": true,
+            "customizationDisabled": true
+        },
+        "cAnsweredAt": {
+            "type": "datetime",
+            "readOnly": true,
+            "layoutMassUpdateDisabled": true,
+            "customizationDisabled": true
+        },
+        "cClickToCall": {
+            "type": "bool",
+            "readOnly": true,
+            "layoutMassUpdateDisabled": true,
+            "customizationDisabled": true
+        },
+        "cRecording": {
+            "type": "bool",
+            "readOnly": true,
+            "tooltip": true,
+            "view": "itvolga:views/call/fields/recording",
+            "layoutMassUpdateDisabled": true,
+            "customizationDisabled": true
+        },
+        "cRecordingPath": {
+            "type": "varchar",
+            "maxLength": 255,
+            "readOnly": true,
+            "layoutListDisabled": true,
+            "layoutDetailDisabled": true,
+            "layoutMassUpdateDisabled": true,
+            "layoutFiltersDisabled": true,
+            "layoutDefaultSidePanelDisabled": true,
+            "exportDisabled": true,
+            "importDisabled": true,
+            "textFilterDisabled": true,
+            "customizationDisabled": true
         }
     },
     "indexes": {
@@ -71,6 +140,17 @@
             "type": "unique",
             "columns": [
                 "vtigerId"
+            ]
+        },
+        "cAsteriskLinkedId": {
+            "type": "unique",
+            "columns": [
+                "cAsteriskLinkedId"
+            ]
+        },
+        "cLiveState": {
+            "columns": [
+                "cLiveState"
             ]
         }
     }

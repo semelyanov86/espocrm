@@ -1,0 +1,62 @@
+{
+    "fields": {
+        "cPhoneNumber": "Client number",
+        "cCallStatusRaw": "Source call status",
+        "cLegacyRecordingUrl": "Recording link (archive, unavailable)",
+        "cBillDuration": "Talk time, s",
+        "cConnectorCallId": "Connector call ID",
+        "cIncomingLine": "Incoming line",
+        "cAsteriskLinkedId": "Asterisk call ID",
+        "cLiveState": "Call state",
+        "cExtension": "Extension",
+        "cAnsweredAt": "Answered at",
+        "cClickToCall": "Call from CRM",
+        "cRecording": "Call recording",
+        "cRecordingPath": "Recording file"
+    },
+    "options": {
+        "cLiveState": {
+            "": "",
+            "ringing": "Ringing",
+            "talking": "Talking",
+            "ended": "Ended",
+            "lost": "Ended (not observed)"
+        }
+    },
+    "tooltips": {
+        "cBillDuration": "Seconds of conversation: from the human answer to the first hang-up (PBXManager history: Vtiger billduration).",
+        "cAsteriskLinkedId": "Asterisk linkedid, the key of a live telephony call (stage 07.1); the CDR history of stage 07.2 uses it too.",
+        "cLiveState": "Set by the Asterisk integration. «Ended (not observed)»: the call ended while the AMI listener was down; the end time is the last one known.",
+        "cExtension": "The extension that called (outbound) or answered or rang first (inbound).",
+        "cRecording": "Playback is for those who may read the call unless their roles forbid this field. Every playback is logged in Action History."
+    },
+    "labels": {
+        "Incoming call": "Incoming call",
+        "Outgoing call": "Outgoing call",
+        "Call from CRM": "Call from CRM",
+        "Ringing": "Ringing",
+        "Dialing": "Dialing",
+        "Pick up the phone": "Pick up your phone",
+        "Talking": "Talking",
+        "Ended": "Ended",
+        "Hidden number": "Hidden number",
+        "Possible match": "possible",
+        "No client found": "No client found",
+        "Open call": "Open call",
+        "Create Contact": "Create Contact",
+        "Create Lead": "Create Lead",
+        "Line": "Line",
+        "Recording is not available": "No recording",
+        "Recording is being written": "The recording appears when the call ends",
+        "Calling…": "Calling…"
+    },
+    "messages": {
+        "telephonyFactsReadOnly": "The direction, times, status, number and recording of a telephony call are changed only by the Asterisk integration.",
+        "telephonyCallInitiated": "Your phone {extension} will ring now: pick it up and the number is dialled automatically.",
+        "telephonyNoExtension": "Your account has no extension (or another user has the same one): calls from the CRM are not available. Ask the administrator.",
+        "telephonyNumberRefused": "This number cannot be dialled from the CRM (several numbers in one value, an extension or a non-standard format).",
+        "telephonyRateLimited": "A call from the CRM has just been requested, wait a few seconds.",
+        "telephonyPbxUnavailable": "The PBX is not available now, the call was not started.",
+        "telephonyDisabled": "Telephony is not configured."
+    }
+}

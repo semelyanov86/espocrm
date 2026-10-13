@@ -54,12 +54,12 @@
 | Lead | `cRating`, `cPriority`, `cJivositeId`, `cVkUrl` | опции `status`, `source`, `salutationName`; `opportunityAmount` decimal(25,8) | `cVtigerArchives` |
 | Opportunity | `cOpportunityType`, `cProducts` | опции и вероятности `stage`; `amount` decimal(25,8), необязательно | `cProducts` (M:N Product), `cProjects` |
 | Task | `cTaskType` (вид «Письмо», D-24) | опции `status` (+`Planned`, `Pending Input`), `priority` (+пусто); родитель — и счёт (D-61) | — |
-| Call | `cPhoneNumber`, `cCallStatusRaw`, `cLegacyRecordingUrl` (не воспроизводится, D-10), `cBillDuration`, `cConnectorCallId`, `cIncomingLine` — только чтение | родитель — и счёт (D-61) | — |
+| Call | `cPhoneNumber`, `cCallStatusRaw`, `cLegacyRecordingUrl` (не воспроизводится, D-10), `cBillDuration` (секунды разговора), `cConnectorCallId`, `cIncomingLine` — только чтение; живая телефония (07.1, D-164…D-171): `cAsteriskLinkedId` (уникальный ключ звонка), `cLiveState`, `cExtension`, `cAnsweredAt`, `cClickToCall`, `cRecording` (поле прав на прослушивание), `cRecordingPath` (закрыт для всех через API) — пишет только интеграция | родитель — и счёт (D-61) | — |
 | Meeting | — | `dateStart/dateEnd` необязательны (D-43); родитель — и счёт (D-61) | — |
 | Case | `cSeverity`, `cSolution`, `cTags` | опции `status`/`priority` (подписи Vtiger), `type` | `cDocuments` |
 | KnowledgeBaseArticle | `cTags` | `name` до 500 символов, опции `status`; лента включена (`scopes.stream`, 06.3, D-152: комментарии Vtiger к FAQ) | `cDocuments` |
 | Document | `cExternalUrl` | `file` необязателен и без ограничения типов, `publishDate` необязательна | `cCases`, `cKnowledgeBaseArticles`, `cProjects`, `cProjectTasks`, `cVtigerArchives`, `cPayments` |
-| User | `cPhoneExtension` | — | — |
+| User | `cPhoneExtension` (правит только администратор, у активных пользователей не повторяется — D-168) | — | — |
 | UserData | `cSecurityKeys` (JSON ключей безопасности, только чтение, D-129) | — | — |
 | Email, Note, DocumentFolder, Attachment | только служебные поля | — | — |
 | ActionHistoryRecord | — | действие `reveal` («Показ пароля») | — |
@@ -120,7 +120,7 @@
 | Quote, SalesOrder, Invoice, Act, Payment | all | — | — | — |
 | QuoteItem, SalesOrderItem, InvoiceItem, ActItem, PaymentAllocation, LegalEntity | чтение all (позиции — по доступу к документу, распределения — к платежу; запись позиций и распределений — никому) | — | — | — |
 
-`team` = свои записи + записи команд пользователя: групп Vtiger и иерархических команд («Подчинённые заместителей» — записи менеджеров, «Заместители директора» — контакты заместителей). Иерархические команды записи восстанавливаются при любом сохранении, связь `teams` не меняется через API link/unlink не-администраторами; членство следует ролям сразу при их изменении. Назначение — всем пользователям; экспорт, импорт и массовое обновление разрешены (кроме ContactAccess). Звонки из истории PBXManager не редактируются и не удаляются не-администраторами. Пользователь без ролей не имеет доступа ни к чему.
+`team` = свои записи + записи команд пользователя: групп Vtiger и иерархических команд («Подчинённые заместителей» — записи менеджеров, «Заместители директора» — контакты заместителей). Иерархические команды записи восстанавливаются при любом сохранении, связь `teams` не меняется через API link/unlink не-администраторами; членство следует ролям сразу при их изменении. Назначение — всем пользователям; экспорт, импорт и массовое обновление разрешены (кроме ContactAccess). Звонки из истории PBXManager не редактируются и не удаляются не-администраторами. Звонки живой телефонии (07.1) правятся по ролям, кроме фактов звонка (D-168), удаляет их только администратор; запись разговора слушает тот, кто может читать звонок и поле «Запись разговора» (D-171). Служебные `TelephonyCard` и `TelephonyCallIntent` — без API и прав ролей (`telephony.md`). Пользователь без ролей не имеет доступа ни к чему.
 
 ## Отложено
 

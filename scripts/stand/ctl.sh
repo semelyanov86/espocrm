@@ -5,13 +5,17 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 case "${1:-}" in
     status)
-        systemctl --no-pager status "$MYSQL_UNIT" "$FPM_UNIT" apache2 cron 2>/dev/null \
+        systemctl --no-pager status "$MYSQL_UNIT" "$FPM_UNIT" "$TELEPHONY_UNIT" apache2 cron 2>/dev/null \
             | grep -E '^(●|○|×)|Active:' || true
         if [[ -f "$CRON_FILE" ]]; then echo "cron entry: $CRON_FILE"; else echo "cron entry: absent (stand stopped)"; fi
         ;;
     start)
         as_root systemctl start "$MYSQL_UNIT" "$FPM_UNIT"
         "$STAND_DIR/install.sh" cron
+        # The test telephony stays up across stand:stop (its containers keep running): its listener comes back too.
+        if as_root test -f "/etc/systemd/system/$TELEPHONY_UNIT.service" && telephony_pbx_running; then
+            as_root systemctl start "$TELEPHONY_UNIT"
+        fi
         ;;
     stop)
         # Writers first (cron entry, PHP-FPM, running job processes), then the database.
@@ -27,7 +31,8 @@ case "${1:-}" in
         log "restarted $MYSQL_UNIT, $FPM_UNIT; reloaded apache2"
         ;;
     logs)
-        as_root journalctl --no-pager -n "${LINES:-30}" -u "$MYSQL_UNIT" -u "$FPM_UNIT" -t "$CRON_TAG" -t "$FPM_UNIT"
+        as_root journalctl --no-pager -n "${LINES:-30}" -u "$MYSQL_UNIT" -u "$FPM_UNIT" -u "$TELEPHONY_UNIT" \
+            -t "$CRON_TAG" -t "$FPM_UNIT"
         echo "--- apache: /var/log/apache2/$ESPO_SITE_HOST-error.log"
         as_root tail -n "${LINES:-30}" "/var/log/apache2/$ESPO_SITE_HOST-error.log" 2>/dev/null || true
         latest="$(as_root find "$ESPO_ROOT/data/logs" -name '*.log' -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -n1 | cut -d' ' -f2-)"

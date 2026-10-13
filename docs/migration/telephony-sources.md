@@ -36,6 +36,14 @@
 - Слушаются: UDP 5060 (SIP), UDP 4569 (IAX), TCP 127.0.0.1:5038 (AMI).
 - Контексты CDR (MySQL): call-out ANSWERED 63 / NO ANSWER 5, call-in 20/4, german-training 10, incoming-menu 3/1. По README роли `asterisk` в `cdr.conf` задано `unanswered=no` (неотвеченные вызовы без ответа системы не пишутся) — на сервере **не проверено**.
 
+**Перепроверено 2026-10-13 (этап 07.1, только чтение: `asterisk -rx "… show …"`, адресные `grep`, счётчики CDR):**
+- ОС — Ubuntu 26.04 LTS; пакет `asterisk 1:22.5.2~dfsg+~cs6.15.60671435-1` (тот же собран в тестовую АТС стенда); аптайм 4 дня, рестартов не было.
+- AMI: `enabled=yes`, `bindaddr=127.0.0.1:5038`, web manager выключен, пользователей нет, `manager.conf` заканчивается `#include "manager.d/*.conf"` (в `manager.d` только README) — пользователь интеграции добавляется файлом и `manager reload`. `cdr_manager` загружен, но выключен (`enabled = no`). CDR: `Log unanswered calls: No`.
+- PJSIP: 15 телефонов (100–110, 205–208) — контекст `call-out`, у каждого `callerid="<номер>" <номер>`; транки `trunk-russia`, `trunk-megafon` → `call-in`, `trunk-easybell` → `easybell-in`. Контексты диалплана совпадают с шаблоном Ansible (`call-out`, `call-in`, `sub-monitor`, `sub-ifrussia`, `phones-local`, `phones-out`, `phones-in`, `incoming-menu`, `chose-client`, `german-training`, `easybell-in` и др.); `sub-monitor` — `MixMonitor` в `/var/spool/asterisk/monitor/%Y/%m/%d/…wav` и `CDR(recordingpath)`.
+- Каталог записей `asterisk:asterisk 750`, файлы `644`, umask Asterisk `0022`. PHP-FPM production — `www-data`.
+- Форматы номеров в CDR (только счётчики): входящий `src` — `7XXXXXXXXXX` или `8XXXXXXXXXX`; исходящий `dst` — `+7…` или `7/8…`; DID — шесть цифр.
+- Интеграция этапа 07.1 — `telephony.md`; на production ничего не менялось.
+
 ## 5. CDR: MySQL и CSV
 
 - MySQL `asteriskcdrdb.cdr` — колонки `id, calldate, clid, src, dst, dcontext, channel, dstchannel, lastapp, lastdata, duration, billsec, disposition, amaflags, accountcode, uniqueid, linkedid, peeraccount, sequence, userfield, recordingpath`; 106 строк (2026-08-… 2026-09-28), 102 различных `uniqueid`, 98 `linkedid` (плечи одного звонка), `recordingpath` у 90 строк (86 различных путей).

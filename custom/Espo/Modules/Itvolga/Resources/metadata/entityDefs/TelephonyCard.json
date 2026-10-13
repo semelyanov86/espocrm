@@ -1,0 +1,93 @@
+{
+    "fields": {
+        "linkedId": {
+            "type": "varchar",
+            "maxLength": 100
+        },
+        "extension": {
+            "type": "varchar",
+            "maxLength": 20
+        },
+        "direction": {
+            "type": "varchar",
+            "maxLength": 10
+        },
+        "state": {
+            "type": "enum",
+            "options": [
+                "ringing",
+                "dialing",
+                "talking",
+                "ended",
+                "closed"
+            ]
+        },
+        "number": {
+            "type": "varchar",
+            "maxLength": 100
+        },
+        "matches": {
+            "type": "jsonArray"
+        },
+        "viaCrm": {
+            "type": "bool"
+        },
+        "dismissed": {
+            "type": "bool"
+        },
+        "startedAt": {
+            "type": "datetime"
+        },
+        "answeredAt": {
+            "type": "datetime"
+        },
+        "endedAt": {
+            "type": "datetime"
+        },
+        "createdAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "modifiedAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "call": {
+            "type": "link"
+        },
+        "user": {
+            "type": "link"
+        }
+    },
+    "links": {
+        "call": {
+            "type": "belongsTo",
+            "entity": "Call"
+        },
+        "user": {
+            "type": "belongsTo",
+            "entity": "User"
+        }
+    },
+    "indexes": {
+        "linkedIdUserId": {
+            "type": "unique",
+            "columns": [
+                "linkedId",
+                "userId"
+            ]
+        },
+        "userIdDismissedModifiedAt": {
+            "columns": [
+                "userId",
+                "dismissed",
+                "modifiedAt"
+            ]
+        },
+        "modifiedAt": {
+            "columns": [
+                "modifiedAt"
+            ]
+        }
+    }
+}

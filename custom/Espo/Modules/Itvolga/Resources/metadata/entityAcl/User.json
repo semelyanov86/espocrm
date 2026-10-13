@@ -6,6 +6,9 @@
         "vtigerData": {
             "readOnly": true,
             "onlyAdmin": true
+        },
+        "cPhoneExtension": {
+            "nonAdminReadOnly": true
         }
     },
     "links": {

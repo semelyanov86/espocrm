@@ -148,6 +148,40 @@ else
     report WARN "config: templates" "differs: ${drift[*]} (re-run task stand:install)"
 fi
 
+# --- telephony (stage 07.1): only when the listener unit is installed (task telephony:up) ------------------
+tel_unit_file="/etc/systemd/system/$TELEPHONY_UNIT.service"
+if as_root test -f "$tel_unit_file"; then
+    if python3 "$STAND_DIR/render.py" "$TEMPLATE_DIR/itvolga-espo-telephony.service.tmpl" | as_root cmp -s - "$tel_unit_file"; then
+        report OK "telephony: unit" "matches the Git template"
+    else
+        report WARN "telephony: unit" "differs from the template (task telephony:up)"
+    fi
+    if unit_active "$TELEPHONY_UNIT"; then
+        tel_state="$(as_root python3 -c '
+import json, sys, datetime
+d = json.load(open(sys.argv[1]))
+age = (datetime.datetime.now(datetime.timezone.utc) - datetime.datetime.strptime(d["aliveAt"], "%Y-%m-%dT%H:%M:%SZ")
+       .replace(tzinfo=datetime.timezone.utc)).total_seconds()
+print(d.get("state"), int(age), d.get("ambiguousExtensions", 0))' "$ESPO_ROOT/data/itvolga-telephony-status.json" 2>/dev/null || echo "none 9999 0")"
+        read -r tel_s tel_age tel_amb <<<"$tel_state"
+        [[ "$tel_s" == connected && "$tel_age" -le 30 ]] && s=OK || s=WARN
+        report "$s" "telephony: listener" "$tel_s, alive ${tel_age}s ago"
+        [[ "$tel_amb" == 0 ]] && s=OK || s=WARN
+        report "$s" "telephony: extensions" "$tel_amb shared by several active users"
+        if as_user "$ESPO_USER" test -r "$TELEPHONY_MONITOR_DIR" -a -x "$TELEPHONY_MONITOR_DIR"; then
+            report OK "telephony: recordings" "$ESPO_USER can read $TELEPHONY_MONITOR_DIR"
+        else
+            report FAIL "telephony: recordings" "$ESPO_USER cannot read $TELEPHONY_MONITOR_DIR"
+        fi
+    elif telephony_pbx_running; then
+        report WARN "telephony: listener" "stopped while the test PBX runs (task telephony:up)"
+    else
+        report OK "telephony: listener" "stopped (task telephony:up)"
+    fi
+else
+    report OK "telephony" "not installed (task telephony:up)"
+fi
+
 # --- leftovers of failed restores (kept on purpose for a manual rollback) --------------------
 # restore.sh runs this check before it drops its own leftovers; it passes their timestamp here.
 own="${RESTORE_TS:-none}"
