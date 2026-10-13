@@ -232,7 +232,8 @@ def _execute(rundir, logdir, fields, uitypes, snapshot_dir, source_db, files, on
     extend_report(report, plan, applied, checked, downloads, finance, source_totals, target_totals, excluded, data,
                   resolved, rundir, check_only, selected)
     expected = removal_report(report, plan, removal, applied, checked, types, key_range, check_only, blocked)
-    ledger_report(report, rundir, counts, fields, census, data, ledger.maps_check(snapshot_dir) if snapshot_dir else None)
+    ledger_report(report, rundir, counts, fields, census, data,
+                  ledger.maps_check(snapshot_dir, REPO) if snapshot_dir else None)
     report.update(started_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(started)),
                   finished_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), tool=tool_identity(),
                   snapshot=snapshot_dir.name if snapshot_dir else None, only=only, check_only=check_only,

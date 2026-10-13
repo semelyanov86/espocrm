@@ -32,7 +32,7 @@ import spec  # noqa: E402
 import test_stage06_3 as t3  # noqa: E402
 from common import SnapshotError, write_private  # noqa: E402
 from test_stage06_3 import (A1, ACT1, ADMIN_NAME, AT2, AT3, C1, D1, D2, D3, EM1, I1, I2, KEYS, L4, L5, L6, N1, O1,  # noqa
-                            PAY1, PAY4, PREFIX, Q1, SO1, U_ADMIN, U_SALES, VT, entity, insert, one, sql)
+                            PAY1, PAY4, PAY5, PREFIX, Q1, SO1, U_ADMIN, U_SALES, VT, entity, insert, one, sql)
 
 A2, A3, C3, U3, CL1, N2 = VT + 102, VT + 103, VT + 203, VT + 3, VT + 961, VT + 912
 L8, L9 = VT + 608, VT + 609
@@ -482,6 +482,46 @@ class Stage064(t3.Stage063):
         self.assertEqual(recs[f"SalesOrder:{SO1}"]["check"], "deleted_in_target")
 
 
+    def test_17_revival_waits_for_the_tombstone_lock(self):
+        """A payment removed by the delta comes back with the source — unless a user restored and deleted it again
+        meanwhile: the import locks the tombstone (after the payment ledger) before it decides, so a user's change
+        that commits while the import waits is seen (D-148, D-158)."""
+        payment = self.id_of("payment", PAY5)
+        t3.source_sql(f"UPDATE vtiger_crmentity SET deleted=1 WHERE crmid={PAY5};")
+        report, recs, _ = self.run_import()
+        self.assertClean(report)
+        self.assertEqual(one(f"SELECT deleted, JSON_EXTRACT(vtiger_data, '$.deletedInSource') FROM payment "
+                             f"WHERE id='{payment}'"), ["1", "true"])
+        t3.source_sql(f"UPDATE vtiger_crmentity SET deleted=0 WHERE crmid={PAY5};")
+        argv = t3.Mysql.stand(database="espocrm").argv
+        user = subprocess.Popen(argv[:4] + ["--unbuffered"] + argv[4:], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, bufsize=0)
+        # a user's restore and a new deletion (the hook would clear the mark), committed while the import waits
+        user.stdin.write(f"BEGIN; SELECT id FROM payment WHERE id = '{payment}' FOR UPDATE; UPDATE payment SET "
+                         f"vtiger_data = JSON_REMOVE(vtiger_data, '$.deletedInSource') WHERE id = '{payment}'; "
+                         f"SELECT 'locked';\n".encode())
+        while user.stdout.readline().strip() != b"locked":
+            pass
+        import threading
+        result = {}
+        run = threading.Thread(target=lambda: result.update(run=self.run_import()))
+        run.start()
+        waited, deadline = False, time.time() + 300
+        while not waited and run.is_alive() and time.time() < deadline:
+            waited = one("SELECT COUNT(*) FROM information_schema.innodb_trx WHERE trx_state = 'LOCK WAIT'")[0] != "0"
+            time.sleep(0.2)
+        user.stdin.write(b"COMMIT;\n")
+        user.stdin.close()
+        user.wait()
+        user.stdout.close()
+        run.join()
+        self.assertTrue(waited)
+        report, recs, _ = result["run"]
+        self.assertClean(report)
+        self.assertEqual(recs[f"Payment:{PAY5}"]["check"], "deleted_in_target")       # not brought back
+        self.assertEqual(one(f"SELECT deleted FROM payment WHERE id='{payment}'"), ["1"])
+
+
 class Pure(unittest.TestCase):
     """Planner, ledger and snapshot difference without the stand."""
 
@@ -528,7 +568,7 @@ class Pure(unittest.TestCase):
              "target_field": "Account.v"},
         ]
         counts = {"vtiger7": {"t_unread": {"a": [3, None]}, "t_pbx": {"k": [1, 1], "b": [2, None]},
-                              "t_lost": {"c": [1, None]}, "t_read": {"v": [5, None], "w": [0, None]},
+                              "t_lost": {"c": [1, None]}, "t_read": {"v": [5, None], "w": [0, None], "x": [2, None]},
                               "t_new": {"z": [1, None]}},
                   "asteriskcdrdb": {"cdr": {"src": [9, None]}}}
         census = {"Accounts": {"t_read.v": (3, 3)}}
@@ -539,10 +579,62 @@ class Pure(unittest.TestCase):
         self.assertEqual(rows[("vtiger7", "t_read", "v")]["outside_scope"], 1)
         self.assertEqual(rows[("vtiger7", "t_pbx", "b")]["cls"], "pending:07.2")  # physical row of a pending table
         self.assertEqual(rows[("asteriskcdrdb", "cdr", "src")]["cls"], "pending:07.2")
-        self.assertEqual(out["problems"], {"no_fate": ["vtiger7.t_new.z"], "transfer_unread": ["vtiger7.t_lost.c"],
-                                           "maps_outdated": ["fail"]})
+        self.assertEqual(out["problems"], {"no_fate": ["vtiger7.t_new.z", "vtiger7.t_read.x"],  # x: deleted rows only
+                                           "transfer_unread": ["vtiger7.t_lost.c"], "maps_outdated": ["fail"]})
         out = ledger.build(counts, fields, {"Accounts": {"t_read.v": (9, 9)}}, {}, columns, None)
         self.assertIn("vtiger7.t_read.v", out["problems"]["counts_disagree"])
+
+    def test_maps_check_against_the_current_maps(self):
+        """The verify's regenerated maps are compared with the maps in Git now, not trusted from the verify's day."""
+        import csv
+        from common import write_private
+        import verify
+        root = Path(tempfile.mkdtemp(prefix="vtmaps-"))
+        self.addCleanup(shutil.rmtree, root, True)
+        snap, repo = root / "snap", root / "repo"
+        maps = snap / "reports" / "verify-1" / "audit" / "maps"
+        for name in ("field-map.csv", "relations.csv"):
+            write_private(maps / name, (REPO / "docs" / "migration" / name).read_bytes())
+            write_private(repo / "docs" / "migration" / name, (REPO / "docs" / "migration" / name).read_bytes())
+        write_private(snap / "SHA256SUMS", b"")
+        write_private(snap / "reports" / "verify-1" / "report.json",
+                      json.dumps({"seal_digest": hashlib.sha256(b"").hexdigest()}))
+        self.assertEqual(ledger.maps_check(snap, repo)["status"], "pass")
+        rows = verify.read_csv(repo / "docs" / "migration" / "field-map.csv")
+        rows[0]["fate"] = "исключено: synthetic"                          # Git maps changed after the verify
+        with open(repo / "docs" / "migration" / "field-map.csv", "w", newline="", encoding="utf-8") as fh:
+            w = csv.DictWriter(fh, fieldnames=list(rows[0]), lineterminator="\n")
+            w.writeheader()
+            w.writerows(rows)
+        self.assertEqual(ledger.maps_check(snap, repo)["status"], "fail")
+
+    def test_allocation_of_a_payment_with_another_deleted_record_is_held(self):
+        """related_to of a deleted invoice: nothing to allocate; of a deleted contact: an error, the allocation held."""
+        import types
+        from collections import Counter
+        import spec_finance
+        for setype, outcome in (("Invoice", "dangling:deleted"), ("Contacts", "error:allocation_related_to_not_document")):
+            ctx = types.SimpleNamespace(crm={7: (setype, True)}, flags=Counter())
+            payment = spec.Op("Payment", 10, "SPPayments")
+            payment.attributes.update(direction="incoming", amount="10")
+            self.assertIsNone(spec_finance.build_allocation(payment, {"sp_payments.related_to": "7"}, [], ctx))
+            self.assertEqual([o[2] for o in payment.outcomes], [outcome])
+
+    def test_stop_group_kills_a_member_outliving_its_leader(self):
+        """The shell exits on SIGTERM, its member ignores it and keeps the pipe: the group is killed, nothing hangs."""
+        import threading
+        from common import stop_group
+        child = "import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(60)"
+        proc = subprocess.Popen(["bash", "-c", f"( {sys.executable} -c '{child}' ) <&0 & wait"], stdin=subprocess.PIPE,
+                                start_new_session=True)
+        feeder = threading.Thread(target=lambda: _write_quietly(proc.stdin, b"x" * (16 << 20)), daemon=True)
+        feeder.start()
+        time.sleep(1)
+        done = threading.Event()
+        threading.Thread(target=lambda: (stop_group(proc, grace=1), done.set()), daemon=True).start()
+        self.assertTrue(done.wait(30))
+        with self.assertRaises(ProcessLookupError):
+            os.killpg(proc.pid, 0)                                            # no member of the group left
 
     def test_stop_group_does_not_hang_on_a_full_pipe(self):
         """A client that reads nothing while the feeder is blocked on a full pipe is still stopped."""

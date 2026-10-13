@@ -57,26 +57,42 @@ class FinanceRules
     }
 
     /**
-     * Locks the document a write depends on — the document itself, the document of an item — by its key, before the
-     * first plain read of the transaction. A recalculation in EspoCRM locks the same row first (DocumentProcessor):
-     * it either committed before, and every later read of this transaction sees it, or it waits for the import.
-     * Without the lock a recalculation committed between the import's read and its save would be overwritten.
+     * Locks what a write depends on, by key, before the first plain read of the transaction: the document itself or
+     * the document of an item (a recalculation in EspoCRM locks the same row first, DocumentProcessor: it either
+     * committed before, and every later read of this transaction sees it, or it waits for the import); a payment or an
+     * allocation takes the payment ledger first and then its own row (the order of PaymentProcessor). The record's own
+     * row is locked with its tombstone (stage 06.4): whether a deleted record comes back (`deletedInSource`, D-158) is
+     * decided while nobody can restore it or delete it again.
      */
     public function lock(stdClass $op): void
     {
         $type = $op->entityType;
+        $key = $op->vtigerId ?? null;
 
-        if ($this->isDocument($type)) {
-            [$documentType, $key] = [$type, $op->vtigerId];
-        } elseif ($itemOf = $this->types->findByItem($type)) {
-            $ref = $op->links->{$itemOf->parentLink} ?? null;
-            [$documentType, $key] = [$itemOf->entityType, is_array($ref) ? $ref[1] : null];
-        } else {
+        if ($payment = $this->types->findPayment($type) ?? $this->types->findPaymentByAllocation($type)) {
+            $this->numberAllocator->lock($payment->series());
+
+            if (is_int($key)) {
+                $this->rowLock->lockWithDeleted($type, ['vtigerId' => $key]);
+            }
+
             return;
         }
 
-        if (is_int($key)) {
-            $this->rowLock->query($documentType)->where(['vtigerId' => $key])->findOne();
+        if ($this->isDocument($type)) {
+            if (is_int($key)) {
+                $this->rowLock->lockWithDeleted($type, ['vtigerId' => $key]);
+            }
+
+            return;
+        }
+
+        if ($itemOf = $this->types->findByItem($type)) {
+            $ref = $op->links->{$itemOf->parentLink} ?? null;
+
+            if (is_array($ref) && is_int($ref[1])) {
+                $this->rowLock->query($itemOf->entityType)->where(['vtigerId' => $ref[1]])->findOne();
+            }
         }
     }
 

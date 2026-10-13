@@ -7,6 +7,7 @@ namespace Espo\Modules\Itvolga\Tools\FinanceDocument;
 use Espo\ORM\Defs\AttributeDefs;
 use Espo\ORM\Entity;
 use Espo\ORM\EntityManager;
+use Espo\ORM\Query\SelectBuilder;
 use Espo\ORM\Repository\RDBSelectBuilder;
 use Espo\ORM\Type\AttributeType;
 
@@ -29,6 +30,19 @@ class RowLock
     public function one(string $entityType, string $id): ?Entity
     {
         return $this->query($entityType)->where(['id' => $id])->findOne();
+    }
+
+    /**
+     * Locks the rows matching `$where`, soft-deleted ones included (stage 06.4: the import decides about a tombstone —
+     * restore or not — only once nobody can restore or delete it meanwhile).
+     *
+     * @param array<string, mixed> $where
+     */
+    public function lockWithDeleted(string $entityType, array $where): void
+    {
+        $query = SelectBuilder::create()->from($entityType)->select(['id'])->where($where)->withDeleted()->forUpdate()
+            ->build();
+        $this->entityManager->getQueryExecutor()->execute($query);
     }
 
     /**

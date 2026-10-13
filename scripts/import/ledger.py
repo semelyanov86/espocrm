@@ -45,19 +45,26 @@ def snapshot_counts(snapdir):
     return out
 
 
-def maps_check(snapdir):
-    """Checks C4/C5 of the snapshot's latest full verify (maps regenerated from this snapshot = Git maps), tied to this
-    snapshot by its seal digest."""
-    from common import sha256_file  # scripts/snapshot (source.py puts it on sys.path)
+def maps_check(snapdir, repo):
+    """The maps regenerated from this snapshot by its latest full verify (`reports/verify-*/audit/maps/`, the verify
+    tied to this snapshot by its seal digest) compared now with the maps in Git (`repo`): decisions and fates equal —
+    the C4/C5 rule of the verify, checked against the current maps, not the ones of the verify's day."""
+    import verify  # scripts/snapshot (source.py puts it on sys.path)
+    from common import sha256_file
     reports = sorted((snapdir / "reports").glob("verify-*/report.json"), key=lambda p: p.stat().st_mtime)
-    if not reports:
+    fresh = [p.parent / "audit" / "maps" for p in reports if (p.parent / "audit" / "maps" / "field-map.csv").is_file()]
+    if not fresh:
         return {"status": "missing"}
-    report = json.loads(reports[-1].read_text(encoding="utf-8"))
-    checks = {c["id"]: c["status"] for c in report.get("checks", [])}
+    report = json.loads((fresh[-1].parent.parent / "report.json").read_text(encoding="utf-8"))
     sealed = report.get("seal_digest") == sha256_file(snapdir / "SHA256SUMS")
-    ok = sealed and checks.get("C4") == "pass" and checks.get("C5") == "pass"
-    return {"status": "pass" if ok else "fail", "C4": checks.get("C4"), "C5": checks.get("C5"), "sealed": sealed,
-            "verified_utc": report.get("finished_utc")}
+    out = {"sealed": sealed, "verified_utc": report.get("finished_utc")}
+    for name, path, key, counts in (("field_map", "field-map.csv", verify.FIELD_KEY, verify.FIELD_COUNTS),
+                                    ("relations", "relations.csv", ("relation_id",), verify.REL_COUNTS)):
+        d = verify.diff_rows(verify.read_csv(repo / "docs" / "migration" / path), verify.read_csv(fresh[-1] / path),
+                             key, counts)
+        out[name] = {k: d[k] for k in ("only_committed", "only_fresh", "decision_changed")}
+    ok = sealed and not any(v for m in ("field_map", "relations") for v in out[m].values())
+    return {"status": "pass" if ok else "fail", **out}
 
 
 def fate_class(row, module=None):
@@ -83,6 +90,12 @@ def build(counts, fields, census, census_deleted, columns, maps=None):
         rows_of[(r["source_table"], r["source_column"])].append(r)
         if r["source_module"]:
             table_modules[r["source_table"]].add(r["source_module"])
+    rule_only = {k[1] for k in list(spec.MAP_GAPS) + list(spec.EXTRA_FATES)}  # fates of the specification, no map row
+
+    def has_fate(table, column):
+        if table in spec.LINK_COLUMNS:
+            return column in spec.LINK_COLUMNS[table]
+        return bool(rows_of.get((table, column))) or f"{table}.{column}" in rule_only
 
     def classes(table, column, skip=()):
         only = next(iter(table_modules[table])) if len(table_modules[table]) == 1 else None
@@ -118,6 +131,9 @@ def build(counts, fields, census, census_deleted, columns, maps=None):
                 fates = classes(table, column)
                 if schema == TELEPHONY_SCHEMA:
                     row.update(cls="pending:07.2", reason="telephony (07.2)")
+                elif not has_fate(table, column):  # a read table too: values may sit in deleted rows only
+                    row.update(cls="no_fate")
+                    problems["no_fate"].append(f"{schema}.{key}")
                 elif table in read_modules:
                     other = nonempty - live[key] - deleted[key]
                     entry = recon.get(key)
@@ -128,9 +144,6 @@ def build(counts, fields, census, census_deleted, columns, maps=None):
                                outside_fates=classes(table, column, read_modules[table]))
                     if other < 0:
                         problems["counts_disagree"].append(f"{schema}.{key}")
-                elif not fates:
-                    row.update(cls="no_fate")
-                    problems["no_fate"].append(f"{schema}.{key}")
                 else:
                     row.update(cls="/".join(fates), fates=fates)
                     if {"transfer", "archive"} & set(fates):

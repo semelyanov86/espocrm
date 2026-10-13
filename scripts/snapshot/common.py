@@ -14,6 +14,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
 # Every artifact of this package is private: directories 700, files 600 from the first byte, whoever
@@ -203,20 +204,45 @@ class Mysql:
         return out
 
 
+def _group_alive(pgid):
+    try:
+        os.killpg(pgid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:  # members of another user (php under sudo) are alive
+        return True
+
+
+def _signal_group(pgid, sig):
+    try:
+        os.killpg(pgid, sig)
+    except ProcessLookupError:
+        return
+    except PermissionError:
+        pass
+    if sig == signal.SIGKILL and _group_alive(pgid):  # members the developer may not signal: as root
+        subprocess.run(["sudo", "-n", "kill", "-KILL", "--", f"-{pgid}"], stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, check=False)
+
+
 def stop_group(proc, grace=15):
     """SIGTERM to the client's process group (sudo passes it on to its command; a killed writer's transaction is
-    rolled back by MySQL), SIGKILL after `grace` seconds; stdin is closed only then — a feeder blocked on a full pipe
-    holds the buffer's lock until the reader is gone, so closing it first could hang."""
-    for sig, wait in ((signal.SIGTERM, grace), (signal.SIGKILL, None)):
-        try:
-            os.killpg(proc.pid, sig)
-        except (ProcessLookupError, PermissionError):
-            pass
-        try:
-            proc.wait(timeout=wait)
+    rolled back by MySQL), SIGKILL to whatever of the group is left after `grace` seconds — the group, not just its
+    leader: a member may outlive the shell and keep the pipe. stdin is closed only then — a feeder blocked on a full
+    pipe holds the buffer's lock until the reader is gone, so closing it first could hang."""
+    pgid = proc.pid
+    for sig, wait in ((signal.SIGTERM, grace), (signal.SIGKILL, 10)):
+        _signal_group(pgid, sig)
+        deadline = time.monotonic() + wait
+        while time.monotonic() < deadline and (proc.poll() is None or _group_alive(pgid)):
+            time.sleep(0.05)
+        if proc.poll() is not None and not _group_alive(pgid):
             break
-        except subprocess.TimeoutExpired:
-            continue
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        pass
     try:
         proc.stdin.close()
     except (OSError, ValueError):
