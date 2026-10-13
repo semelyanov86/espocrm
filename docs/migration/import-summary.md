@@ -2,7 +2,7 @@
 
 Генерируется: `task import:summary -- <прогон>` (`scripts/import/importer.py summary`). Только счётчики: ни значений, ни идентификаторов записей. Машинный отчёт с причинами по каждой записи и колонке — вне Git (`/data/itvolga/espo-private/import/<прогон>/`). Контракт импорта — `import.md`.
 
-- Прогон: `20261012T213018`; снимок: `20261012T191003`; код: `fe21c5b` (незакоммиченных файлов инструмента: 20).
+- Прогон: `20261013T185215`; снимок: `20261012T191003`; код: `5864e59` (незакоммиченных файлов инструмента: 0).
 - Итог: **findings**; проблемы: нет; находки: conflict=47, dangling=1, discrepancy:invoice_act_total=5, external_url_invalid=1, no_target=66, pending=9, type_conflict=23.
 - «Тишина» (изменение числа строк стенда: уведомления, напоминания, подписки, записи ленты без vtigerId, письма, вебхуки, журнал действий): action_history_record=0, email_not_imported=0, note_not_imported=0, notification=0, reminder=0, stream_subscription=0, webhook_queue_item=0.
 
@@ -264,9 +264,9 @@
 
 | Сущность | Живые с vtigerId вне источника | Вне диапазона ключей | Удалённые (реальные ключи) | Удалённые (вне диапазона) |
 |---|---|---|---|---|
-| Account | 0 | 0 | 0 | 56 |
-| Act | 0 | 0 | 312 | 2 |
-| ActItem | 0 | 0 | 361 | 0 |
+| Account | 0 | 0 | 0 | 57 |
+| Act | 0 | 0 | 336 | 2 |
+| ActItem | 0 | 0 | 389 | 0 |
 | Attachment | 0 | 0 | 0 | 0 |
 | Call | 0 | 0 | 0 | 0 |
 | Case | 0 | 0 | 0 | 0 |
@@ -275,19 +275,19 @@
 | Document | 0 | 0 | 0 | 0 |
 | DocumentFolder | 0 | 0 | 0 | 0 |
 | Email | 0 | 0 | 0 | 0 |
-| Invoice | 0 | 0 | 37 | 685 |
-| InvoiceItem | 0 | 0 | 55 | 0 |
+| Invoice | 0 | 0 | 41 | 719 |
+| InvoiceItem | 0 | 0 | 61 | 0 |
 | KnowledgeBaseArticle | 0 | 0 | 0 | 0 |
-| Lead | 0 | 0 | 0 | 52 |
+| Lead | 0 | 0 | 0 | 53 |
 | Meeting | 0 | 0 | 0 | 0 |
 | Note | 0 | 0 | 0 | 0 |
 | Opportunity | 0 | 0 | 0 | 0 |
-| Payment | 0 | 0 | 64 | 0 |
+| Payment | 0 | 0 | 68 | 0 |
 | PaymentAllocation | 0 | 0 | 0 | 0 |
 | Product | 0 | 0 | 0 | 0 |
 | Project | 0 | 0 | 0 | 0 |
 | ProjectTask | 0 | 0 | 0 | 0 |
-| Quote | 0 | 0 | 154 | 6 |
+| Quote | 0 | 0 | 160 | 6 |
 | QuoteItem | 0 | 0 | 0 | 0 |
 | SalesOrder | 0 | 0 | 0 | 0 |
 | SalesOrderItem | 0 | 0 | 0 | 0 |
