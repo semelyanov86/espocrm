@@ -184,12 +184,7 @@ class FinanceRules
      */
     public function lockForRemoval(string $entityType, Entity $stored): void
     {
-        $payment = $this->types->findPayment($entityType) ?? $this->types->findPaymentByAllocation($entityType)
-            ?? $this->types->findPaymentByTarget($entityType);
-
-        if ($payment) {
-            $this->numberAllocator->lock($payment->series());
-        }
+        $this->lockLedger($entityType); // taken already by RemovalWriter before its first read; re-entrant
 
         if ($this->isDocument($entityType) || $this->types->findPayment($entityType)) {
             $this->rowLock->one($entityType, $stored->getId());
@@ -199,32 +194,82 @@ class FinanceRules
     }
 
     /**
-     * Why a finance record gone from the source stays (a finding), or null: a document recalculated in EspoCRM keeps its
-     * calculation (D-51) and its items; a document an imported allocation still points to stays until the allocation
-     * goes by its own removal (its removal by the document's hook would not carry the delta's mark, D-158).
+     * The payment ledger of every finance record whose removal touches the payment side — a payment, an allocation, a
+     * document allocations point to and its items — locked before the first plain read of the removal's transaction
+     * (stage 06.4): every allocation write takes the ledger first, so the consistent reads of the core's cascades see
+     * the allocations as they are while the removal runs, not as they were before a concurrent move.
      */
-    public function keptOnRemoval(string $entityType, Entity $stored): ?string
+    public function lockLedger(string $entityType): void
+    {
+        $itemOf = $this->types->findByItem($entityType);
+        $payment = $this->types->findPayment($entityType) ?? $this->types->findPaymentByAllocation($entityType)
+            ?? $this->types->findPaymentByTarget($itemOf?->entityType ?? $entityType);
+
+        if ($payment) {
+            $this->numberAllocator->lock($payment->series());
+        }
+    }
+
+    /**
+     * Why a finance record gone from the source stays (a finding), or null. A document stays when it was recalculated
+     * in EspoCRM (D-51), when an imported allocation still points to it (the allocation goes by its own removal: the
+     * document's hook would remove it without the delta's mark, D-158) or when it has live items of another key range
+     * (the core's cascade would remove them past the run's boundary). An item stays when its document is recalculated
+     * and, when the run removes the document too (items go first, RunContext::removes), whenever the document will stay
+     * — a document kept with its totals and allocations keeps its items. An item gone from a document the source still
+     * has goes (Vtiger writes the lines of a document anew on every save).
+     */
+    public function keptOnRemoval(string $entityType, Entity $stored, RunContext $run): ?string
     {
         if ($this->isDocument($entityType)) {
             $document = $this->rowLock->one($entityType, $stored->getId());
 
-            if ($document && $this->isRecalculated($document)) {
-                return 'recalculated_in_target';
-            }
-
-            $payment = $this->types->findPaymentByTarget($entityType);
-            $link = $payment?->linkOf($entityType);
-
-            return $link && $this->rowLock->query($payment->allocationEntityType)
-                ->where([$link . 'Id' => $stored->getId(), 'vtigerId!=' => null])->findOne() ? 'allocated_in_target' : null;
+            return $document ? $this->documentKept($document, $run) : null;
         }
 
         if ($itemOf = $this->types->findByItem($entityType)) {
             $documentId = $stored->get($itemOf->parentLink . 'Id');
             $document = $documentId ? $this->rowLock->one($itemOf->entityType, $documentId) : null;
 
-            return $document && !$document->get('deleted') && $this->isRecalculated($document) ?
-                'recalculated_in_target' : null;
+            if (!$document || $document->get('deleted')) {
+                return null;
+            }
+
+            if ($this->isRecalculated($document)) {
+                return 'recalculated_in_target';
+            }
+
+            return $run->removes($itemOf->entityType, $document->get('vtigerId')) ?
+                $this->documentKept($document, $run) : null;
+        }
+
+        return null;
+    }
+
+    private function documentKept(Entity $document, RunContext $run): ?string
+    {
+        $type = $document->getEntityType();
+
+        if ($this->isRecalculated($document)) {
+            return 'recalculated_in_target';
+        }
+
+        $payment = $this->types->findPaymentByTarget($type);
+        $link = $payment?->linkOf($type);
+
+        if ($link && $this->rowLock->query($payment->allocationEntityType)
+                ->where([$link . 'Id' => $document->getId(), 'vtigerId!=' => null])->findOne()) {
+            return 'allocated_in_target';
+        }
+
+        $documentType = $this->types->find($type);
+
+        foreach ($this->rowLock->query($documentType->itemEntityType)
+                     ->where([$documentType->parentLink . 'Id' => $document->getId(), 'vtigerId!=' => null])->find()
+                 as $item) {
+            if (!$run->inRange($item->get('vtigerId'))) {
+                return 'items_outside_run';
+            }
         }
 
         return null;

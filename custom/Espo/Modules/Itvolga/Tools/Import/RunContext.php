@@ -8,18 +8,22 @@ use stdClass;
  * What a protocol-3 writer session may do beyond upserts (stage 06.4, docs/migration/import.md «Дельта»): the source key
  * range of the run (real keys or a test block) and the entity types whose every source module is part of it. Only
  * records of those types with a key in the range are removed, and only link items pointing to such records are owned
- * by the source. Protocols 1 and 2 get an empty context: no removal, add-only links.
+ * by the source. `removing` names the finance documents the run removes (type => source keys, planned before the
+ * session): their items, removed first, stay whenever the document will stay (FinanceRules::keptOnRemoval). Protocols 1
+ * and 2 get an empty context: no removal, add-only links.
  */
 final class RunContext
 {
     /**
      * @param ?array{int, int} $keyRange
      * @param string[] $ownedTypes
+     * @param array<string, array<int, true>> $removing
      */
     private function __construct(
         public readonly ?string $adoptUserName,
         private readonly ?array $keyRange,
         private readonly array $ownedTypes,
+        private readonly array $removing = [],
     ) {}
 
     public static function fromHeader(stdClass $header): self
@@ -32,13 +36,26 @@ final class RunContext
 
         $range = $header->keyRange ?? null;
         $types = $header->ownedTypes ?? null;
+        $removing = $header->removing ?? new stdClass();
 
         if (!is_array($range) || count($range) !== 2 || !is_int($range[0]) || !is_int($range[1]) || $range[0] < 1 ||
-            $range[0] > $range[1] || !is_array($types) || array_filter($types, static fn ($t) => !is_string($t))) {
+            $range[0] > $range[1] || !is_array($types) || array_filter($types, static fn ($t) => !is_string($t)) ||
+            !$removing instanceof stdClass) {
             throw new ImportError('bad_header');
         }
 
-        return new self($adopt, [$range[0], $range[1]], array_values(array_intersect($types, RecordWriter::ENTITY_TYPES)));
+        $keys = [];
+
+        foreach (get_object_vars($removing) as $type => $list) {
+            if (!is_array($list) || array_filter($list, static fn ($k) => !is_int($k))) {
+                throw new ImportError('bad_header');
+            }
+
+            $keys[$type] = array_fill_keys($list, true);
+        }
+
+        return new self($adopt, [$range[0], $range[1]], array_values(array_intersect($types, RecordWriter::ENTITY_TYPES)),
+            $keys);
     }
 
     public function removalsEnabled(): bool
@@ -54,6 +71,15 @@ final class RunContext
     public function inRange(mixed $key): bool
     {
         return $this->keyRange !== null && is_int($key) && $key >= $this->keyRange[0] && $key <= $this->keyRange[1];
+    }
+
+    /**
+     * Whether this run removes the record of that type and source key as well (its `remove` operation comes later).
+     */
+    public function removes(string $entityType, mixed $key): bool
+    {
+        return is_int($key) && $this->ownsType($entityType) && $this->inRange($key) &&
+            isset($this->removing[$entityType][$key]);
     }
 
     /**

@@ -31,11 +31,13 @@ import removals  # noqa: E402
 import spec  # noqa: E402
 import test_stage06_3 as t3  # noqa: E402
 from common import SnapshotError, write_private  # noqa: E402
-from test_stage06_3 import (A1, ACT1, ADMIN_NAME, AT2, AT3, C1, D1, D2, D3, EM1, I1, I2, KEYS, L4, L5, L6, N1, O1,  # noqa
-                            PAY1, PAY4, PAY5, PREFIX, Q1, SO1, U_ADMIN, U_SALES, VT, entity, insert, one, sql)
+from test_stage06_3 import (A1, ACT1, ADMIN_NAME, AT2, AT3, C1, D1, D2, D3, EM1, I1, I2, KEYS, L2, L4, L5, L6, N1,  # noqa
+                            O1, PAY1, PAY4, PAY5, PREFIX, Q1, SO1, U_ADMIN, U_SALES, VT, entity, insert, one, sql)
 
 A2, A3, C3, U3, CL1, N2 = VT + 102, VT + 103, VT + 203, VT + 3, VT + 961, VT + 912
-L8, L9 = VT + 608, VT + 609
+L8, L9, L10, L11 = VT + 608, VT + 609, VT + 610, VT + 611
+Q2, I4 = VT + 511, VT + 512           # a quote with two lines, an invoice without lines (stage 06.4 review round 2)
+OTHER_RANGE = VT + 1611               # a source key of another range (KEYS covers VT … VT + 999)
 WRITER = "command.php itvolga-import"
 
 
@@ -70,6 +72,17 @@ def extras():
         insert("vtiger_modcomments", modcommentsid=N2, commentcontent=f"{PREFIX} N2", related_to=CL1, userid=U_SALES,
                customer=0),
         insert("vtiger_modcommentscf", modcommentsid=N2),
+        *t3.document("Quotes", Q2, ("vtiger_quotes", "quoteid"),
+                     t3.header("quote_no", "ПРЕД_9002", quotestage="Принято", inventorymanager=U_SALES,
+                               subtotal="20.00000000", pre_tax_total="20.00000000", total="20.00000000", region_id=0),
+                     [(L10, t3.S1, "1.000", "10.00000000", {"margin": "10.00000000"}),
+                      (L11, t3.S1, "2.000", "5.00000000", {"margin": "10.00000000"})],
+                     "vtiger_quotesbillads", "vtiger_quotesshipads", ("vtiger_quotescf", "quoteid")),
+        *t3.document("Invoice", I4, ("vtiger_invoice", "invoiceid"),
+                     t3.header("invoice_no", "СЧЕТ_9004", invoicestatus="", invoicedate="2024-03-01",
+                               balance="0.00000000", received="0.00000000", subtotal="0.00000000",
+                               pre_tax_total="0.00000000", total="0.00000000", region_id=0, spcompany=""),
+                     [], "vtiger_invoicebillads", "vtiger_invoiceshipads", ("vtiger_invoicecf", "invoiceid")),
     ]
 
 
@@ -458,18 +471,22 @@ class Stage064(t3.Stage063):
         self.assertClean(report)
 
     def test_16_allocated_document_waits_and_a_manual_deletion_is_final(self):
-        """A document an imported allocation outside the run points to stays (its hook would remove the allocation
-        without the delta's mark); a delta tombstone restored and deleted by a user loses its mark (D-148)."""
+        """A document an imported allocation outside the run points to stays with its items (its hook would remove the
+        allocation without the delta's mark; the items go first and stay whenever their document will); a delta
+        tombstone restored and deleted by a user loses its mark (D-148)."""
         order = self.id_of("sales_order", SO1)
         allocation = one(f"SELECT id FROM payment_allocation WHERE vtiger_id={PAY4} AND deleted=0")[0]
+        item = one(f"SELECT id FROM sales_order_item WHERE vtiger_id={L2} AND deleted=0")[0]
         t3.source_sql(f"UPDATE vtiger_crmentity SET deleted=1 WHERE crmid={SO1};")
         report, recs, _ = self.run_import(only="SalesOrder", allow_mass_removal=True)
         self.assertEqual(report["problems"], {}, report.get("problem_columns"))
-        self.assertEqual(recs[f"SalesOrder:{SO1}"]["check"], "kept")
-        self.assertEqual(recs[f"SalesOrder:{SO1}"]["reason"], "allocated_in_target")
+        for key in (f"SalesOrder:{SO1}", f"SalesOrderItem:{L2}"):
+            self.assertEqual((recs[key]["check"], recs[key]["reason"]), ("kept", "allocated_in_target"), key)
+        self.assertEqual(one(f"SELECT deleted FROM sales_order_item WHERE id='{item}'"), ["0"])
         report, recs, _ = self.run_import(allow_mass_removal=True)               # the allocation goes first
         self.assertClean(report)
-        for table, eid in (("sales_order", order), ("payment_allocation", allocation)):
+        self.assertEqual(recs[f"SalesOrderItem:{L2}"]["apply"], "removed")
+        for table, eid in (("sales_order", order), ("sales_order_item", item), ("payment_allocation", allocation)):
             self.assertEqual(one(f"SELECT deleted, JSON_EXTRACT(vtiger_data, '$.deletedInSource') FROM {table} "
                                  f"WHERE id='{eid}'"), ["1", "true"], table)
         sql(f"UPDATE sales_order SET deleted=0 WHERE id='{order}'")              # restored by a user (mark kept) …
@@ -520,6 +537,69 @@ class Stage064(t3.Stage063):
         self.assertClean(report)
         self.assertEqual(recs[f"Payment:{PAY5}"]["check"], "deleted_in_target")       # not brought back
         self.assertEqual(one(f"SELECT deleted FROM payment WHERE id='{payment}'"), ["1"])
+
+    def test_18_document_with_an_item_of_another_range_stays(self):
+        """A document gone from the source whose live item has a key outside the run's range stays with all its items:
+        the core's cascade would remove that item past the run's boundary (`items_outside_run`)."""
+        quote = self.id_of("quote", Q2)
+        outer = one(f"SELECT id FROM quote_item WHERE vtiger_id={L11} AND deleted=0")[0]
+        sql(f"UPDATE quote_item SET vtiger_id={OTHER_RANGE} WHERE id='{outer}'")
+        t3.source_sql(f"UPDATE vtiger_crmentity SET deleted=1 WHERE crmid={Q2};")
+        try:
+            report, recs, _ = self.run_import()
+            self.assertClean(report)
+            for key in (f"Quote:{Q2}", f"QuoteItem:{L10}"):
+                self.assertEqual((recs[key]["check"], recs[key]["reason"]), ("kept", "items_outside_run"), key)
+            self.assertEqual(one(f"SELECT deleted FROM quote WHERE id='{quote}'"), ["0"])
+            self.assertEqual(one(f"SELECT COUNT(*) FROM quote_item WHERE quote_id='{quote}' AND deleted=0"), ["2"])
+        finally:
+            sql(f"UPDATE quote_item SET vtiger_id={L11} WHERE id='{outer}'")
+            t3.source_sql(f"UPDATE vtiger_crmentity SET deleted=0 WHERE crmid={Q2};")
+        report, recs, _ = self.run_import()
+        self.assertClean(report)
+        self.assertEqual(self.unchanged(recs), {})
+
+    def test_19_removal_reads_after_the_payment_ledger(self):
+        """An allocation a user moves from a document the delta removes to another one, committed while the removal
+        waits for the payment ledger, stays: the removal takes the ledger before its first plain read, so the core's
+        cascade (a plain read) sees the allocation where it is now, not where the transaction's snapshot had it."""
+        invoice, other = self.id_of("invoice", I4), self.id_of("invoice", I1)
+        allocation = f"000itv{t3.HEX}alc"
+        sql(f"INSERT INTO payment_allocation (id, deleted, amount, amount_currency, source, payment_id, invoice_id, "
+            f"created_at) SELECT '{allocation}', 0, 0.01, amount_currency, 'manual', payment_id, '{invoice}', NOW() "
+            f"FROM payment_allocation WHERE vtiger_id={PAY1} AND deleted=0")
+        self.created.append(("PaymentAllocation", allocation))
+        t3.source_sql(f"UPDATE vtiger_crmentity SET deleted=1 WHERE crmid={I4};")
+        argv = t3.Mysql.stand(database="espocrm").argv
+        user = subprocess.Popen(argv[:4] + ["--unbuffered"] + argv[4:], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, bufsize=0)
+        # the user's move takes the ledger first, as every allocation write does (PaymentProcessor)
+        user.stdin.write(f"BEGIN; SELECT id FROM next_number WHERE entity_type = 'Payment' AND field_name = 'number' "
+                         f"FOR UPDATE; UPDATE payment_allocation SET invoice_id = '{other}' WHERE id = '{allocation}'; "
+                         f"SELECT 'locked';\n".encode())
+        while user.stdout.readline().strip() != b"locked":
+            pass
+        import threading
+        result = {}
+        run = threading.Thread(target=lambda: result.update(run=self.run_import(only="Invoice")))
+        run.start()
+        waiting, deadline = [], time.time() + 300
+        while not waiting and run.is_alive() and time.time() < deadline:
+            waiting = sql("SELECT trx_query FROM information_schema.innodb_trx WHERE trx_state = 'LOCK WAIT'")
+            time.sleep(0.2)
+        user.stdin.write(b"COMMIT;\n")
+        user.stdin.close()
+        user.wait()
+        user.stdout.close()
+        run.join()
+        self.assertTrue(waiting)
+        self.assertIn("next_number", waiting[0][0])                                  # the ledger, not a row
+        report, recs, _ = result["run"]
+        self.assertClean(report)
+        self.assertEqual(recs[f"Invoice:{I4}"]["apply"], "removed")
+        self.assertEqual(one(f"SELECT deleted FROM invoice WHERE id='{invoice}'"), ["1"])
+        self.assertEqual(one(f"SELECT deleted, invoice_id FROM payment_allocation WHERE id='{allocation}'"),
+                         ["0", other])
 
 
 class Pure(unittest.TestCase):

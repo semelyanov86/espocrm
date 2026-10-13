@@ -43,6 +43,11 @@ class RemovalWriter
     public function remove(stdClass $op, RunContext $run): array
     {
         [$type, $key] = $this->validated($op, $run);
+
+        if ($this->finance->isFinance($type)) {
+            $this->finance->lockLedger($type); // before the first plain read: the transaction's snapshot
+        }
+
         $entity = $this->keys->findWithDeleted($type, $key);
 
         if (!$entity instanceof CoreEntity) {
@@ -64,7 +69,7 @@ class RemovalWriter
             return ['status' => 'unchanged', 'id' => $id, 'state' => 'deleted'];
         }
 
-        if ($kept = $this->kept($type, $entity)) {
+        if ($kept = $this->kept($type, $entity, $run)) {
             return ['status' => 'kept', 'id' => $id, 'reason' => $kept];
         }
 
@@ -111,7 +116,7 @@ class RemovalWriter
             return ['status' => 'removed', 'id' => $id, 'state' => 'deleted'];
         }
 
-        if ($kept = $this->kept($type, $entity)) {
+        if ($kept = $this->kept($type, $entity, $run)) {
             return ['status' => 'kept', 'id' => $id, 'reason' => $kept];
         }
 
@@ -138,13 +143,13 @@ class RemovalWriter
         return [$type, $key];
     }
 
-    private function kept(string $type, CoreEntity $entity): ?string
+    private function kept(string $type, CoreEntity $entity, RunContext $run): ?string
     {
         if ($type === 'User') {
             return in_array($entity->get('type'), ['admin', 'super-admin'], true) ? 'administrator' : null;
         }
 
-        return $this->finance->isFinance($type) ? $this->finance->keptOnRemoval($type, $entity) : null;
+        return $this->finance->isFinance($type) ? $this->finance->keptOnRemoval($type, $entity, $run) : null;
     }
 
     /**
