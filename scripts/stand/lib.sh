@@ -105,14 +105,15 @@ telephony_pbx_running() {
     docker ps -q --filter "name=^${TELEPHONY_PROJECT}-pbx-1\$" 2>/dev/null | grep -q .
 }
 
-# Exact row count of every base table of a database (default: the stand DB): "<table>\t<count>", sorted.
+# Exact row count of every base table of a database (default: the stand DB): "<table>\t<count>", sorted in the C
+# locale (the same order on the stand and on production, D-187; comparisons sort both sides again for old backups).
 table_counts() { # [db]
     local db="${1:-$DB_NAME}" sql
     sql="$(mysql_root -N -B -e "SET SESSION group_concat_max_len = 1048576; SELECT GROUP_CONCAT(CONCAT('SELECT ''', table_name, ''', COUNT(*) FROM \`',
             table_name, '\`') ORDER BY table_name SEPARATOR ' UNION ALL ') FROM information_schema.tables
             WHERE table_schema='$db' AND table_type='BASE TABLE'" 2>/dev/null)"
     [[ -n "$sql" && "$sql" != NULL ]] || return 1
-    mysql_root -N -B "$db" <<<"$sql;" | sort
+    mysql_root -N -B "$db" <<<"$sql;" | LC_ALL=C sort
 }
 
 # Move every base table of database FROM into database TO with one atomic RENAME TABLE.

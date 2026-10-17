@@ -124,9 +124,13 @@ espocrm_install_settings:
   avatarsDisabled: true
 
 # --- Настройки, которые роль держит при каждом прогоне (как код; правка в интерфейсе откатится) ----------------
-# cleanupDeletedRecords: ядро физически вычищает мягко удалённые записи через 2 месяца, а с ними «надгробия»
-# D-148 и отметки дельты deletedInSource — до последней дельты (этап 11) выключено (D-185).
-espocrm_cleanup_deleted_records: false
+# cleanupDeletedRecords: ядро физически вычищает мягко удалённые записи старше 2 месяцев (с ними — «надгробия» D-148
+# и отметки дельты deletedInSource); включено решением владельца 2026-10-17 (Q-57, D-185).
+espocrm_cleanup_deleted_records: true
+# Исходящая почта — настройки Vtiger (vtiger7.vtiger_systems на этом сервере), решение владельца 2026-10-17 (Q-55,
+# D-189). false — почта EspoCRM задаётся в интерфейсе, роль её не трогает.
+espocrm_mail_from_vtiger: true
+espocrm_vtiger_db: vtiger7
 # Вход без HTTP Basic Auth: пароль EspoCRM + обязательная 2FA (TOTP или ключ безопасности) — решение владельца
 # 2026-10-17 (D-183). auth2FAForced ядро применяет к обычным пользователям; администраторы включают 2FA сами
 # (health-check предупреждает).
@@ -148,8 +152,8 @@ espocrm_security_key_rp_id: ""
 # --- Телефония (этап 07.1, docs/migration/telephony.md) --------------------------------------------------------
 # Настройки EspoCRM (корень записей, правила, учётки AMI) пишутся всегда: прослушивание истории звонков работает и
 # без живой интеграции. espocrm_telephony_enabled — живая интеграция: пользователи AMI в Asterisk (manager reload,
-# без рестарта), служба слушателя, звонок из CRM; включается на этапе 10 решением владельца.
-espocrm_telephony_enabled: false
+# без рестарта), служба слушателя, звонок из CRM; с этапа 10, до переключения (решение владельца 2026-10-17, Q-56).
+espocrm_telephony_enabled: true
 espocrm_telephony_unit: espocrm-telephony
 espocrm_ami_address: "tcp://127.0.0.1:5038"
 espocrm_ami_listener_user: itvolga-espo-listener

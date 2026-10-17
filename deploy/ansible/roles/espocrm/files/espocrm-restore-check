@@ -79,7 +79,7 @@ if [[ -n "$mysql_db" ]]; then
         || { report FAIL "mysql $mysql_db: restored" "no tables in the restored dump"; exit 1; }
     table_counts "$mysql_db" >"$work/mysql-live.tsv" || : >"$work/mysql-live.tsv"
     same_tables="$(diff <(cut -f1 "$work/mysql-restored.tsv") <(cut -f1 "$work/mysql-live.tsv") >/dev/null && echo yes || echo no)"
-    differ="$(join -t $'\t' "$work/mysql-restored.tsv" "$work/mysql-live.tsv" | awk -F'\t' '$2 != $3' | wc -l)"
+    differ="$(LC_ALL=C join -t $'\t' "$work/mysql-restored.tsv" "$work/mysql-live.tsv" | awk -F'\t' '$2 != $3' | wc -l)"
     R[mysql_db]="$mysql_db" R[mysql_tables]="$(wc -l <"$work/mysql-restored.tsv")"
     R[mysql_rows]="$(awk '{s+=$2} END{print s+0}' "$work/mysql-restored.tsv")" R[mysql_tables_differ]="$differ"
     [[ "$same_tables" == yes ]] && s=OK || s=FAIL
@@ -116,10 +116,11 @@ if [[ $check_bundle == 1 ]]; then
     tables="$(wc -l <"$work/counts.tsv")"
     rows="$(awk '{s+=$2} END{print s+0}' "$work/counts.tsv")"
     R[tables]="$tables" R[rows]="$rows"
-    if cmp -s "$work/counts.tsv" "$dir/table-counts.tsv"; then
+    LC_ALL=C sort "$dir/table-counts.tsv" >"$work/counts-bundle.tsv"
+    if cmp -s "$work/counts.tsv" "$work/counts-bundle.tsv"; then
         report OK "db: row counts" "$tables tables, $rows rows — identical to the bundle record"
     elif [[ "$counts_exact" == 1 ]]; then
-        report FAIL "db: row counts" "$(diff "$work/counts.tsv" "$dir/table-counts.tsv" | grep -c '^[<>]') lines differ"
+        report FAIL "db: row counts" "$(diff "$work/counts.tsv" "$work/counts-bundle.tsv" | grep -c '^[<>]') lines differ"
     else
         report WARN "db: row counts" "online bundle, counts taken next to the dump differ"
     fi

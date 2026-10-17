@@ -115,10 +115,10 @@ log "importing the dump into staging database $stage_db ($db_cs / $db_coll)"
 mysql_root -e "CREATE DATABASE \`$stage_db\` CHARACTER SET $db_cs COLLATE $db_coll"
 bundle_cat_db "$dir" | mysql_root "$stage_db"
 [[ "$(db_extra_objects "$stage_db")" == 0 ]] || die "the dump contains views/triggers/routines/events; not supported"
-if diff -q <(table_counts "$stage_db") "$dir/table-counts.tsv" >/dev/null; then
+if diff -q <(table_counts "$stage_db") <(LC_ALL=C sort "$dir/table-counts.tsv") >/dev/null; then
     log "staging database verified: $(wc -l <"$dir/table-counts.tsv") tables, row counts identical to the bundle"
 elif [[ "$counts_exact" == 1 ]]; then
-    diff <(table_counts "$stage_db") "$dir/table-counts.tsv" | head -20 >&2 || true
+    diff <(table_counts "$stage_db") <(LC_ALL=C sort "$dir/table-counts.tsv") | head -20 >&2 || true
     die "row counts of the dump differ from the bundle record"
 else
     warn "online bundle: row counts differ from the ones taken next to the dump (expected under load)"

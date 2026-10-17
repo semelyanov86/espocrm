@@ -44,14 +44,15 @@ ops_lock() {
 
 unit_active() { systemctl is-active --quiet "$1"; }
 
-# Exact row count of every base table: "<table>\t<count>", sorted (the same format as the stand, restore checks it).
+# Exact row count of every base table: "<table>\t<count>", sorted in the C locale — the same order on the stand and
+# here, whatever the locale of the shell or of systemd (restore and the check sort the bundle record again).
 table_counts() { # [db]
     local db="${1:-$DB_NAME}" sql
     sql="$(mysql_root -N -B -e "SET SESSION group_concat_max_len = 1048576; SELECT GROUP_CONCAT(CONCAT('SELECT ''',
             table_name, ''', COUNT(*) FROM \`', table_name, '\`') ORDER BY table_name SEPARATOR ' UNION ALL ')
             FROM information_schema.tables WHERE table_schema='$db' AND table_type='BASE TABLE'" 2>/dev/null)"
     [[ -n "$sql" && "$sql" != NULL ]] || return 1
-    mysql_root -N -B "$db" <<<"$sql;" | sort
+    mysql_root -N -B "$db" <<<"$sql;" | LC_ALL=C sort
 }
 
 # Move every base table of database FROM into database TO with one atomic RENAME TABLE.
@@ -130,6 +131,9 @@ wait_cron_run() { # [since]
 # Server-owned configuration: what makes this installation this server, not data. A restore keeps these values
 # of the live configuration and takes everything else (cryptKey, passwordSalt, settings of the users) from the
 # bundle — ContactAccess passwords are encrypted with the bundle's cryptKey (D-184). The fallback extension belongs
-# to the PBX of this server (the stand's test PBX uses 119, production 108).
+# to the PBX of this server (the stand's test PBX uses 119, production 108); the outgoing mail to this server too
+# (the mail server of Vtiger, D-189 — a stand never sends with it).
 SERVER_CONFIG_KEYS=(database itvolgaTelephonyEnabled itvolgaTelephonyAmi itvolgaTelephonyRules
-                    itvolgaTelephonyRecordings itvolgaTelephonyFallbackExtension)
+                    itvolgaTelephonyRecordings itvolgaTelephonyFallbackExtension
+                    smtpServer smtpPort smtpAuth smtpSecurity smtpUsername smtpPassword
+                    outboundEmailFromAddress outboundEmailFromName outboundEmailIsShared)

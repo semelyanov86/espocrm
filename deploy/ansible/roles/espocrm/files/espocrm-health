@@ -67,7 +67,8 @@ report "$s" "module: commit" "${commit:0:12}"
 
 # --- settings that the role keeps (values without secrets) -----------------------------------------------------
 settings="$(espo_config get siteUrl useWebSocket auth2FA auth2FAForced auth2FAMethodList cleanupDeletedRecords \
-    adminExtensionUpload maintenanceMode 2>/dev/null || echo '{}')"
+    adminExtensionUpload maintenanceMode smtpServer smtpPort smtpSecurity smtpAuth outboundEmailFromAddress \
+    2>/dev/null || echo '{}')"
 while IFS=$'\t' read -r status name detail; do report "$status" "$name" "$detail"; done < <(
     SETTINGS="$settings" python3 - <<'PY'
 import json, os
@@ -84,6 +85,11 @@ row(s.get("cleanupDeletedRecords") is want, "settings: cleanupDeletedRecords", f
 row(s.get("adminExtensionUpload") is False, "settings: extension upload", f"{s.get('adminExtensionUpload')}")
 maint = bool(s.get("maintenanceMode"))
 row(not (maint and os.environ["CRM_MODE"] == "espocrm"), "settings: maintenanceMode", f"{maint}", warn=True)
+# Outgoing mail (D-189): configured, without values — the port and the security mode only.
+mail_ok = bool(s.get("smtpServer")) and bool(s.get("outboundEmailFromAddress"))
+row(mail_ok, "settings: outgoing mail",
+    f"configured: {mail_ok}, port {s.get('smtpPort')}, {s.get('smtpSecurity') or 'no TLS'}, auth {s.get('smtpAuth')}",
+    warn=True)
 PY
 )
 if row="$(mysql_root -N -B "$DB_NAME" -e "SELECT

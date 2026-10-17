@@ -97,14 +97,14 @@ log "importing the dump into staging database $stage_db ($db_cs / $db_coll)"
 mysql_root -e "CREATE DATABASE \`$stage_db\` CHARACTER SET $db_cs COLLATE $db_coll"
 gunzip -c "$dir/db.sql.gz" | mysql_root "$stage_db"
 [[ "$(db_extra_objects "$stage_db")" == 0 ]] || die "the dump contains views/triggers/routines/events; not supported"
-if diff -q <(table_counts "$stage_db") "$dir/table-counts.tsv" >/dev/null; then
+if diff -q <(table_counts "$stage_db") <(LC_ALL=C sort "$dir/table-counts.tsv") >/dev/null; then
     log "staging database verified: $(wc -l <"$dir/table-counts.tsv") tables, row counts identical to the backup"
 elif [[ "$counts_exact" == 1 ]]; then
-    diff <(table_counts "$stage_db") "$dir/table-counts.tsv" | head -20 >&2 || true
+    diff <(table_counts "$stage_db") <(LC_ALL=C sort "$dir/table-counts.tsv") | head -20 >&2 || true
     die "row counts of the dump differ from the backup record"
 else
     warn "online backup: row counts differ from the ones taken next to the dump (expected under load):"
-    diff <(table_counts "$stage_db") "$dir/table-counts.tsv" | head -20 >&2 || true
+    diff <(table_counts "$stage_db") <(LC_ALL=C sort "$dir/table-counts.tsv") | head -20 >&2 || true
 fi
 
 phase=swap
@@ -135,7 +135,15 @@ if [[ $custom == 1 ]]; then as_root chown -R "$DEV_USER:$DEV_USER" "${custom_dir
 
 phase=configure
 log "re-applying permissions, DB credentials and cron"
-"$STAND_DIR/install.sh" perms fpm espo cron   # starts PHP-FPM, writes a fresh cron entry
+"$STAND_DIR/install.sh" perms
+# A bundle of production (stages 10-11, D-187) carries the outgoing mail of production (D-189): the stand must never
+# send with it — switched off before PHP-FPM and cron start.
+if [[ "$(manifest origin)" == production ]]; then
+    log "bundle of production: its outgoing mail is switched off on the stand"
+    printf '%s' '{"smtpServer": "", "smtpUsername": "", "smtpPassword": "", "outboundEmailIsShared": false}' \
+        | as_user "$ESPO_USER" "$PHP_BIN" "$STAND_DIR/php/set-config.php" "$ESPO_ROOT"
+fi
+"$STAND_DIR/install.sh" fpm espo cron   # starts PHP-FPM, writes a fresh cron entry
 as_root rm -f "$CRON_FILE.paused"
 # The telephony listener (stage 07.1) runs again if it ran; a backup without telephony settings leaves it
 # stopped with «not configured» until `task telephony:up`.

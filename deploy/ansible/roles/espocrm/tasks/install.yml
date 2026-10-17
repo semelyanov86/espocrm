@@ -20,12 +20,12 @@
   no_log: true
 
 # Каждый прогон: реквизиты БД (config-internal.php), siteUrl режима, настройки входа и 2FA, websocket, очистка
-# удалённых записей. Помощник пишет только отличающееся и называет изменённые параметры (без значений).
+# удалённых записей, исходящая почта Vtiger (mail.yml). Помощник пишет только отличающееся и называет изменённые параметры (без значений).
 # В --check — то же сравнение без записи (diff): дрейф виден, ничего не пишется.
 - name: Enforce the database settings and the settings of the role
   ansible.builtin.command:
     cmd: "{{ espocrm_sbin_dir }}/espocrm-config {{ 'diff' if ansible_check_mode else 'set' }}"
-    stdin: "{{ espocrm_database_settings | combine(espocrm_server_settings) | to_json }}"
+    stdin: "{{ espocrm_database_settings | combine(espocrm_server_settings) | combine(espocrm_mail_settings | default({})) | to_json }}"
   register: espocrm_settings_applied
   changed_when: (espocrm_settings_applied.stdout | from_json).changed | length > 0
   check_mode: false

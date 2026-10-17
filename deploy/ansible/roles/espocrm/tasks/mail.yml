@@ -1,0 +1,53 @@
+---
+# Исходящая почта EspoCRM — та же, что у Vtiger (решение владельца 2026-10-17, Q-55, D-189): роль читает
+# vtiger7.vtiger_systems (server_type = 'email', одна строка; пароль Vtiger хранит как есть) на этом же сервере и
+# переводит в настройки SMTP EspoCRM. Значения не выводятся (no_log); ключи SMTP — серверные: restore пакета их
+# сохраняет, стенд их не получает (scripts/stand/restore.sh выключает почту пакета production).
+- name: Read the outgoing mail server of Vtiger
+  community.mysql.mysql_query:
+    login_db: "{{ espocrm_vtiger_db }}"
+    query: >-
+      SELECT server, server_port, server_username, server_password, smtp_auth, server_tls, from_email_field, from_name
+      FROM vtiger_systems WHERE server_type = 'email' ORDER BY id LIMIT 1
+    login_user: root
+    login_password: "{{ espocrm_mysql_login_password }}"
+    login_unix_socket: "{{ espocrm_mysql_socket }}"
+  register: espocrm_vtiger_mail
+  check_mode: false
+  when: espocrm_mail_from_vtiger | bool
+  no_log: true
+
+- name: Assert Vtiger has an outgoing mail server
+  ansible.builtin.assert:
+    that:
+      - espocrm_vtiger_mail.query_result[0] | length == 1
+      - espocrm_vtiger_mail.query_result[0][0].server | default('') | length > 0
+      # Vtiger раскодирует HTML-сущности пароля (html_entity_decode); у production их нет (проверено 2026-10-17).
+      - espocrm_vtiger_mail.query_result[0][0].server_password | default('') is not search('&[A-Za-z0-9#]+;')
+    fail_msg: >-
+      В {{ espocrm_vtiger_db }}.vtiger_systems нет исходящего сервера (server_type = 'email') или пароль содержит
+      HTML-сущности: задайте почту EspoCRM вручную и espocrm_mail_from_vtiger=false.
+    quiet: true
+  when: espocrm_mail_from_vtiger | bool
+  no_log: true
+
+# Одним выражением: словарь сохраняет типы EspoCRM (порт — число, авторизация — булево); по полям set_fact дал бы строки.
+- name: Translate the outgoing mail server of Vtiger into the SMTP settings of EspoCRM
+  vars:
+    espocrm_vm: "{{ espocrm_vtiger_mail.query_result[0][0] }}"
+    espocrm_vm_port: "{{ espocrm_vm.server_port | int }}"
+  ansible.builtin.set_fact:
+    espocrm_mail_settings: >-
+      {{ {'smtpServer': espocrm_vm.server | regex_replace('^[a-z]+://', ''),
+          'smtpPort': (espocrm_vm_port | int) if (espocrm_vm_port | int) > 0 else 587,
+          'smtpAuth': (espocrm_vm.smtp_auth | string | lower) in ['true', 'on', '1'],
+          'smtpSecurity': {'ssl': 'SSL', 'tls': 'TLS'}.get(espocrm_vm.server_tls | default('', true) | string | lower, ''),
+          'smtpUsername': espocrm_vm.server_username,
+          'smtpPassword': espocrm_vm.server_password,
+          'outboundEmailFromAddress': espocrm_vm.from_email_field
+                                      if espocrm_vm.from_email_field | default('', true) | length > 0
+                                      else espocrm_vm.server_username,
+          'outboundEmailFromName': espocrm_vm.from_name | default('', true),
+          'outboundEmailIsShared': true} }}
+  when: espocrm_mail_from_vtiger | bool
+  no_log: true

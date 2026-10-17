@@ -36,7 +36,7 @@ fail2ban…). До этапа 10 он только читается, поэто�
 | Каталоги записи | `data/` (espocrm 0770; `data/upload`, `data/logs` создаются сразу — урок этапа 08), `custom/Espo/Custom` (espocrm 0770), `custom/Espo/Modules` и `client/custom` (`root:espocrm 1775`: запись через группу, sticky-бит) | | `check-file-permissions` ядра проверяет верхний уровень этих четырёх; код модуля внутри — root, переименовать его `espocrm` не может |
 | Cron | `cron.php` каждую минуту от `espocrm`, вывод — `journalctl -t espocrm-cron` | `/etc/cron.d/espocrm` | как стенд; backup/restore паркуют файл как `espocrm.paused` |
 | Vhost | `/etc/apache2/sites-available/espocrm.conf` (ссылка в `sites-enabled`): `public/` + alias `/client/`, остальное корня недоступно, PHP — в свой пул | | схема документации EspoCRM, как на стенде |
-| Телефония | настройки EspoCRM (корень записей, правила, учётки AMI) — всегда; живая интеграция (`espocrm_telephony_enabled`) — пользователи AMI `manager.d/itvolga-espo.conf` (root:asterisk 0640, `manager reload` без рестарта), служба `espocrm-telephony` | §6 | прослушивание истории работает и без живой интеграции |
+| Телефония | настройки EspoCRM (корень записей, правила, учётки AMI) — всегда; живая интеграция (`espocrm_telephony_enabled`, по умолчанию **включена** — с этапа 10, до переключения, D-190) — пользователи AMI `manager.d/itvolga-espo.conf` (root:asterisk 0640, `manager reload` без рестарта), служба `espocrm-telephony` | §6 | прослушивание истории работает и без живой интеграции |
 | fail2ban | jail `espocrm-auth`: отдельный журнал входа `espocrm_auth.log` (только `/api/v1/App/user`, с `X-Status-Reason`), 401 кроме `second-step-required` (верный пароль учётки с 2FA), 8 за 10 мин → бан на час | `/etc/fail2ban/{filter.d/espocrm-auth.conf,jail.d/espocrm.local}` | `ignoreip` роли fail2ban (офис, VPN) действует; обычный журнал `combined` не меняется |
 | Инструменты | `espocrm`, `espocrm-config`, `espocrm-apply`, `espocrm-backup`, `espocrm-restore`, `espocrm-restore-check`, `espocrm-health`, `espocrm-fingerprint`, `espocrm-changes-since` | `/usr/local/sbin` (root 0750), библиотеки — `/usr/local/lib/espocrm`, настройки без секретов — `/etc/espocrm/espocrm.env` | §7 |
 
@@ -81,7 +81,7 @@ fail2ban…). До этапа 10 он только читается, поэто�
 Каждый прогон роли сравнивает и, если отличаются, пишет (`espocrm-config set` — значения через stdin, в ответе только
 имена): блок `database` (реквизиты из vault), `siteUrl` режима, `useWebSocket=false`, `jobRunInParallel=true`,
 `adminExtensionUpload=false`, `adminUpgradeDisabled=true`, 2FA и пароли (§4), `defaultPermissions` = `espocrm`,
-`cleanupDeletedRecords=false` (до последней дельты, D-185), `itvolgaSecurityKeyRpId` (если задан). В `--check` то же
+`cleanupDeletedRecords=true` (решение владельца, D-185), исходящая почта Vtiger (§5а), `itvolgaSecurityKeyRpId` (если задан). В `--check` то же
 сравнение без записи (`diff`) — дрейф виден. Правка этих настроек в интерфейсе откатится следующим прогоном. Первичная
 установка (`files/install.sh`) — последовательность стенда (`config:populate`, `defaultPermissions`, реквизиты, `rebuild`,
 администратор, язык Russian/пояс Europe/Moscow/RUB/формат дат стенда, задания, `app-check`, `isInstalled` последним).
@@ -93,6 +93,17 @@ PHP-FPM, рестарт работающего слушателя) — когд�
 прогон применится следующим. Рестарты PHP-FPM, слушателя и `manager reload` — задачами роли, не обработчиками: в роли
 нет `flush_handlers`, Apache перечитывает конфигурацию один раз в конце play. Пароль администратора ставится при установке; после restore пакета
 стенда (он приносит своего администратора) — разово `-e espocrm_admin_reset=true`.
+
+## 5а. Исходящая почта — из Vtiger (D-189)
+
+Роль при каждом прогоне читает на сервере `vtiger7.vtiger_systems` (`server_type = 'email'`; пароль Vtiger хранит как есть)
+и пишет SMTP EspoCRM: сервер, порт, SSL/TLS из `server_tls`, авторизация, логин и пароль, адрес и имя отправителя,
+`outboundEmailIsShared = true` — пользователи отправляют через общий ящик, как в Vtiger. На 2026-10-17 (только чтение,
+флаги): Migadu, 465, SSL, с авторизацией, адрес отправителя = логин. Значения не выводятся (`no_log`), health показывает
+только «настроено», порт и режим. Ключи SMTP — серверные: restore пакета сохраняет почту сервера, а стенд при restore
+пакета production выключает у себя SMTP до запуска PHP-FPM и cron. Режим SalesPlatform «отправлять через ящик
+пользователя» (3 ящика MailManager) не переносится: личные ящики подключаются в EspoCRM. `espocrm_mail_from_vtiger: false`
+— почта задаётся в интерфейсе EspoCRM, роль её не трогает.
 
 ## 6. Телефония (этап 07.1, D-171)
 
@@ -125,7 +136,8 @@ PHP-FPM, рестарт работающего слушателя) — когд�
 
 ## 8. Backup и восстановление (D-186)
 
-- **Формат пакета** — как у стенда (`scripts/stand/backup.sh`): `db.sql.gz` (mysqldump `--single-transaction`),
+- **Формат пакета** — как у стенда (`scripts/stand/backup.sh`; `table-counts.tsv` сортируется в локали C, сравнения сортируют
+  обе стороны заново — локаль консоли и systemd не влияет): `db.sql.gz` (mysqldump `--single-transaction`),
   `files.tar.gz` (`data/` без `cache`/`tmp`, `custom/Espo/{Custom,Modules}`, `client/custom`), `table-counts.tsv`,
   `MANIFEST` (+ `origin=production`, `host`; `git_head` — коммит модуля), `SHA256SUMS`. По умолчанию слушатель, cron и
   PHP-FPM приостановлены на секунды (`counts_exact=1`). Пакеты — `/var/backups/espocrm/bundles/` (700/600).
@@ -140,7 +152,7 @@ PHP-FPM, рестарт работающего слушателя) — когд�
 - **Восстановление** `espocrm-restore` — порт `scripts/stand/restore.sh`: проверка SHA256SUMS и версии; блокировка и
   остановка писателей **до** страховочного пакета `pre-restore` (он снимается под той же блокировкой и описывает ровно
   заменяемое состояние); сохранение серверных ключей конфигурации — `database`, `itvolgaTelephony*`, включая запасной
-  внутренний номер (у тестовой АТС стенда 119, на production 108); отсутствующий ключ после restore удаляется; после
+  внутренний номер (у тестовой АТС стенда 119, на production 108), и ключи исходящей почты (D-189); отсутствующий ключ после restore удаляется; после
   сбоя живая конфигурация может отсутствовать или быть чужой, поэтому откат получает файл неудачного прогона
   (`--server-config`); импорт во временную БД и сверка чисел строк (строго для `counts_exact=1`), атомарный
   `RENAME TABLE`, замена `data/` (и для пакета этого сервера — `custom/Espo/Custom`, `client/custom` кроме модуля; модуль
@@ -172,10 +184,9 @@ production, синтетические WAV, страница-маркер и cro
 
 - Не проверено на production (этап 09 его не меняет): выпуск и продление сертификата для этого vhost, объёмы данных
   production, restic в Облако Mail.ru, соседство с `php74-fpm` (контейнер PHP 7.4 в проверку не входит), бан fail2ban
-  (jail загружается, фильтр проверен `fail2ban-regex`, срабатывание бана не моделировалось), пакет production → `scripts/stand/restore.sh` стенда (формат тот
-  же по построению; проверить на этапе 10 до окна, `cutover.md`).
+  (jail загружается, фильтр проверен `fail2ban-regex`, срабатывание бана не моделировалось), отправка писем через
+  Migadu. Обратный путь production → стенд проверен пакетом проверочной машины (`evidence.md`, «Этап 09»).
 - Обновление EspoCRM не автоматизировано: другая версия в `.espocrm-core` останавливает роль.
-- Исходящая почта EspoCRM (рассылка отчётов, сброс пароля) не настроена — Q-55; живая телефония до переключения — Q-56.
 - `htpasswd` роли apache требует `python3-passlib` на сервере (есть на production; на проверочной машине — фикстура).
 - `/usr/bin/test` Ubuntu 26.04 — `rust-coreutils` (на production тот же пакет, `dpkg -S`, только чтение 2026-10-17):
   `test -r/-w` не учитывает ACL (проверено на проверочной машине: `ls` каталога записей от `espocrm` работает, `test -r`

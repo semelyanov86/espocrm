@@ -166,6 +166,24 @@
     - role: backup
 
   post_tasks:
+    # The outgoing mail server of Vtiger the role espocrm takes over (D-189): synthetic values only.
+    - name: Create a synthetic outgoing mail server of Vtiger
+      community.mysql.mysql_query:
+        login_db: vtiger7
+        query:
+          - >-
+            CREATE TABLE IF NOT EXISTS vtiger_systems (id INT NOT NULL PRIMARY KEY, server VARCHAR(100),
+            server_port INT, server_username VARCHAR(100), server_password VARCHAR(100), server_type VARCHAR(20),
+            smtp_auth VARCHAR(5), server_path VARCHAR(256), from_email_field VARCHAR(50), server_tls VARCHAR(20),
+            from_name VARCHAR(200), use_sendmail VARCHAR(5), use_mail_account VARCHAR(5))
+          - >-
+            INSERT IGNORE INTO vtiger_systems VALUES (1, 'smtp.example.org', 465, 'crm@example.org',
+            'synthetic-smtp-pass', 'email', 'true', NULL, 'crm@example.org', 'ssl', 'Synthetic CRM', NULL, 'on')
+        login_user: root
+        login_password: "{{ vault_mysql_root_password }}"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+      no_log: true
+
     # The off-site remote of the test: rclone type local (/server/<tier>) under the name the role expects.
     - name: Point the rclone remote of the role backup to a local directory
       ansible.builtin.copy:

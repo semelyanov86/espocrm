@@ -85,8 +85,18 @@ argument_specs:
       espocrm_cleanup_deleted_records:
         type: bool
         required: false
-        default: false
-        description: cleanupDeletedRecords of EspoCRM; stays false until the last delta import.
+        default: true
+        description: cleanupDeletedRecords of EspoCRM (enabled by the owner's decision, Q-57).
+      espocrm_mail_from_vtiger:
+        type: bool
+        required: false
+        default: true
+        description: SMTP of EspoCRM from vtiger_systems of the Vtiger database on the same server (Q-55).
+      espocrm_vtiger_db:
+        type: str
+        required: false
+        default: vtiger7
+        description: Vtiger database the outgoing mail server is read from.
       espocrm_enforced_settings:
         type: dict
         required: false
@@ -99,8 +109,8 @@ argument_specs:
       espocrm_telephony_enabled:
         type: bool
         required: false
-        default: false
-        description: Live telephony (AMI users, listener, click-to-call); the history player works without it.
+        default: true
+        description: Live telephony (AMI users, listener, click-to-call) from stage 10 on (Q-56); the history player works without it.
       espocrm_telephony_rules:
         type: dict
         required: false

@@ -17,7 +17,8 @@ Taskfile `/data/server` (после установки наложения); «н
   `:8443`, действуют и после переключения (RP ID = `serv.itvolga.com`, D-182).
 - Vtiger, PHP 7.4/`php74-fpm`, cron Vtiger (закомментирован), БД `vtiger7`, файлы и роли **не удаляются**; удаление —
   отдельное решение после периода проверки.
-- `cleanupDeletedRecords` EspoCRM выключен до последней дельты (D-185); включить — решение владельца после периода проверки.
+- `cleanupDeletedRecords` EspoCRM включён (решение владельца, D-185); исходящая почта EspoCRM — сервер Vtiger (D-189); живая
+  телефония — с этапа 10 (D-190).
 
 ## 1. Этап 10 — EspoCRM рядом с Vtiger
 
@@ -63,9 +64,10 @@ task backup:run tier=recordings         # первый снимок записе
 
 ```bash
 C=$(git -C /data/itvolga/espo rev-parse HEAD)     # коммит модуля = коммит, с которым пройдёт импорт на стенде
-cd /data/server && task ansible:espocrm -- -e espocrm_module_ref=$C [-e espocrm_telephony_enabled=true]   # Q-56
+cd /data/server && task ansible:espocrm -- -e espocrm_module_ref=$C   # живая телефония и почта Vtiger — по умолчанию роли
 ```
-Ожидание: health — 0 FAIL (предупреждения: администратор без 2FA, ночного пакета ещё нет); `serv.itvolga.com` — по-прежнему
+Ожидание: health — 0 FAIL (предупреждения: администратор без 2FA, ночного пакета ещё нет; «outgoing mail: configured: True,
+port 465, SSL»; слушатель телефонии `connected`); `serv.itvolga.com` — по-прежнему
 Vtiger; EspoCRM — `https://serv.itvolga.com:8443` только на `127.0.0.1`. Повтор `task ansible:espocrm` — `changed=0`;
 `task ansible:espocrm-check` — `changed=0`. На проверочной машине первый прогон — 1 мин 3 с плюс ожидание cron.
 
@@ -97,7 +99,7 @@ task ansible:espocrm -- -e espocrm_module_ref=$C -e espocrm_admin_reset=true
   сценарии этапа 08 (реальные данные — только признаки DOM и коды).
 - Проба обратного пути (до окна): сервер `task espocrm:backup label=roundtrip-test` → `scripts/deploy/bundle.sh pull <имя>`
   → `ESPO_HEALTH_LOGIN=0 task stand:restore -- <имя> --yes --skip-custom` (пакет несёт администратора production — его
-  пароль и 2FA: вход health стенда пропускается) → `scripts/deploy/stand-admin.sh park` (хеш пароля и 2FA
+  пароль и 2FA: вход health стенда пропускается; почту production restore стенда выключает сам, D-189) → `scripts/deploy/stand-admin.sh park` (хеш пароля и 2FA
   администратора — в приватный файл, стенду — пароль `local.env` без 2FA: импорт скачивает файлы как администратор) →
   `task telephony:up && task telephony:down` → `task import:run -- --snapshot <S> --check-only` (все equal) →
   `scripts/deploy/stand-admin.sh unpark` (отпечаток стенда = до `park`, проверено 2026-10-17) → стенд вернуть

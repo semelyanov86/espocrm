@@ -147,6 +147,17 @@ run="$(date +%s)"   # unique names: a repeated scenario must not hit the duplica
 step "health after the deployment"
 espocrm-health
 
+step "outgoing mail taken over from Vtiger (synthetic vtiger_systems)"
+espocrm-config get smtpServer smtpPort smtpSecurity smtpAuth outboundEmailFromAddress outboundEmailIsShared \
+    | python3 -c 'import json, sys; d = json.load(sys.stdin); print(d)
+assert d == {"smtpServer": "smtp.example.org", "smtpPort": 465, "smtpSecurity": "SSL", "smtpAuth": True,
+             "outboundEmailFromAddress": "crm@example.org", "outboundEmailIsShared": True}, "mail settings"'
+if [[ "$(espocrm-config get smtpPassword | python3 -c 'import json, sys; print(json.load(sys.stdin)["smtpPassword"] == "synthetic-smtp-pass")')" == True ]]; then
+    echo "smtpPassword: taken over (not printed)"
+else
+    echo "FAIL smtpPassword not taken over"; exit 1
+fi
+
 step "synthetic records: an account and a document with a file"
 api POST Account "{\"name\": \"Synthetic test account A $run\"}" | id_of
 att="$(api POST Attachment "{\"name\": \"synthetic.txt\", \"type\": \"text/plain\", \"role\": \"Attachment\",
@@ -249,7 +260,7 @@ SCENARIO
         tail -60 "$LOGS/verify.log" >&2
         die "scenario failed, log $LOGS/verify.log"
     fi
-    grep -E '^(=== |FAIL|WARN|health:|restore check:|fingerprint|bundle:|rollback:|rename|Lines:|changes against)' \
+    grep -E '^(=== |FAIL|WARN|health:|restore check:|fingerprint|bundle:|rollback:|rename|Lines:|changes against|\{.smtp|smtpPassword)' \
         "$LOGS/verify.log" | sed 's/^/    /' >&2
 }
 
@@ -274,10 +285,11 @@ telephony() {
     else
         die "the AMI users file of the role differs from the example of stage 07.1"
     fi
-    playbook 11-espocrm.yml telephony-off
+    playbook 11-espocrm.yml telephony-off -e espocrm_telephony_enabled=false
     in_target "$CONTAINER" bash -c 'test ! -e /etc/asterisk/manager.d/itvolga-espo.conf && ! systemctl is-active --quiet espocrm-telephony' \
         || die "telephony off: the AMI users or the listener remain"
     log "telephony off: AMI users removed, listener stopped"
+    playbook 11-espocrm.yml telephony-back   # the default: live telephony from stage 10 on (Q-56)
 }
 
 # The switch of serv.itvolga.com: maintenance → espocrm → rollback to vtiger, each with its checks and a repeat.

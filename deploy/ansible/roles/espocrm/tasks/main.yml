@@ -23,6 +23,9 @@
 - name: Configure the dedicated PHP-FPM master
   ansible.builtin.import_tasks: fpm.yml
 
+- name: Read the outgoing mail server of Vtiger
+  ansible.builtin.import_tasks: mail.yml
+
 - name: Install EspoCRM and enforce its settings
   ansible.builtin.import_tasks: install.yml
 
