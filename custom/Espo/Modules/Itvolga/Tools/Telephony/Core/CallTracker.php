@@ -149,6 +149,16 @@ final class CallTracker
         return count($this->calls);
     }
 
+    /**
+     * Linkedids of every call in memory, stored or not (a click-to-call before the number is dialled).
+     *
+     * @return list<string>
+     */
+    public function trackedIds(): array
+    {
+        return array_map('strval', array_keys($this->calls));
+    }
+
     // --- events --------------------------------------------------------------------------------------------------
 
     /**

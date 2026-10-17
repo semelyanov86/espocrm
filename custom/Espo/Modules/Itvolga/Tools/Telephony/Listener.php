@@ -15,7 +15,8 @@ use Throwable;
  * After login it asks CoreShowChannels and reconciles the channels with the calls the CRM stored as live (calls that
  * ended while nobody listened are closed as lost), then follows the events. Every 15 s the live calls are marked as
  * seen and the settings re-read (the fallback extension of the administrator page applies to the next call), every
- * 10 min the channels are compared again, every 30 s a Ping proves the session (no data for 90 s → exit).
+ * 10 min the channels are compared again, every 30 s a Ping proves the session (no data for 90 s → exit); an
+ * integration switched off in the settings ends the process (exit 78, not restarted).
  * Any AMI or database failure ends the process with a code; systemd starts a new one, which reconciles — a single
  * recovery path, a fresh database connection and the current code and settings every time. SIGTERM stops it cleanly.
  * Nothing it logs or writes to the status file carries numbers, names or secrets.
@@ -36,6 +37,7 @@ class Listener
     private const RECONCILE_STALE = 60.0;
     private const SWEEP_EVERY = 60.0;
     private const PURGE_EVERY = 3600.0;
+    private const CARD_GRACE = 30.0;
 
     private bool $stop = false;
     private int $events = 0;
@@ -106,6 +108,14 @@ class Listener
                     $this->writer->touch($tracker->liveStoredIds(), $now);
                     $this->config->refresh();
                     $last['touch'] = $now;
+
+                    if (!$this->config->isEnabled()) {
+                        // switched off (itvolga-setup-telephony {"enabled": false}): no more calls; 78 — systemd
+                        // does not restart; the next start reconciles the calls left in progress (review 2026-10-17)
+                        $status->write($this->counters($tracker, 'disabled'));
+
+                        return self::EXIT_NOT_CONFIGURED;
+                    }
                 }
 
                 if ($now - $last['ping'] >= self::PING_EVERY) {
@@ -162,8 +172,18 @@ class Listener
     private function reconcile(AmiConnection $ami, CallTracker $tracker, float $staleAfter, bool $adoptUnknown): void
     {
         $channels = $ami->requestList('CoreShowChannels', 'CoreShowChannel', 'CoreShowChannelsComplete', 15.0);
-        $this->apply($tracker->reconcile($channels, $this->writer->openCalls(), microtime(true), $staleAfter,
-            $adoptUnknown));
+        $now = microtime(true);
+        $this->apply($tracker->reconcile($channels, $this->writer->openCalls(), $now, $staleAfter, $adoptUnknown));
+
+        // A card or a click-to-call request of a call that is neither on the PBX nor in memory (it ended while the
+        // listener was away before any Call was stored) is closed too (review 2026-10-17).
+        $alive = $tracker->trackedIds();
+
+        foreach ($channels as $item) {
+            $alive[] = (string) $item->get('Linkedid');
+        }
+
+        $this->writer->closeStale(array_values(array_unique(array_filter($alive))), $now - self::CARD_GRACE);
     }
 
     /**

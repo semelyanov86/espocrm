@@ -174,6 +174,45 @@ class CallWriter
     }
 
     /**
+     * After a reconciliation: the cards still active and the click-to-call requests still queued of calls that are
+     * neither on the PBX nor in the tracker's memory — a click-to-call that ended while the listener was away before
+     * a Call was stored — are closed (the request: «unanswered»). Only rows untouched since `$before`: an Originate
+     * whose channel is just being created keeps its card.
+     *
+     * @param list<string> $aliveLinkedIds
+     */
+    public function closeStale(array $aliveLinkedIds, float $before): void
+    {
+        $this->entityManager->getTransactionManager()->run(function () use ($aliveLinkedIds, $before) {
+            $where = [
+                'state' => [CallSnapshot::CARD_RINGING, CallSnapshot::CARD_DIALING, CallSnapshot::CARD_TALKING],
+                'modifiedAt<' => self::date($before),
+            ];
+
+            if ($aliveLinkedIds !== []) {
+                $where['linkedId!='] = $aliveLinkedIds;
+            }
+
+            foreach ($this->rowLock->query('TelephonyCard')->where($where)->find() as $card) {
+                $card->set(['state' => CallSnapshot::CARD_CLOSED, 'endedAt' => $card->get('modifiedAt')]);
+                $this->entityManager->saveEntity($card, [SaveOption::SILENT => true]);
+            }
+
+            $prefix = $this->config->trackerSettings()->originatePrefix;
+            $intents = $this->rowLock->query('TelephonyCallIntent')
+                ->where(['status' => 'queued', 'modifiedAt<' => self::date($before)])
+                ->find();
+
+            foreach ($intents as $intent) {
+                if (!in_array($prefix . $intent->getId(), $aliveLinkedIds, true)) {
+                    $intent->set('status', 'unanswered');
+                    $this->entityManager->saveEntity($intent, [SaveOption::SILENT => true]);
+                }
+            }
+        });
+    }
+
+    /**
      * Removes the call cards and click-to-call requests nobody needs any more.
      */
     public function purge(float $now): void

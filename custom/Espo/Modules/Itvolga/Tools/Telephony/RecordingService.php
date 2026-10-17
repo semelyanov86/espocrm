@@ -14,6 +14,7 @@ use Espo\Modules\Itvolga\Tools\Telephony\Core\ByteRange;
 use Espo\Modules\Itvolga\Tools\Telephony\Core\CallSnapshot;
 use Espo\Modules\Itvolga\Tools\Telephony\Core\RecordingPath;
 use Espo\ORM\EntityManager;
+use Espo\ORM\Query\SelectBuilder;
 use GuzzleHttp\Psr7\LimitStream;
 use GuzzleHttp\Psr7\Stream;
 use Psr\Http\Message\StreamInterface;
@@ -22,7 +23,8 @@ use Psr\Http\Message\StreamInterface;
  * Playback of a call recording (owner decision 2026-10-13, D-171): read access to the Call and to its field
  * «Запись разговора» (cRecording: roles may forbid it), a finished call with a recording. The file is found only from
  * the path the integration stored on the Call, below the configured recordings root, with no symbolic link anywhere
- * on the way and as a regular WAV file; the request names a Call, never a file. A range request (seeking) is
+ * on the way and as a regular WAV file, and only while no other Call claims that path; the request names a Call,
+ * never a file. A range request (seeking) is
  * answered with 206. Every playback is logged in Action History (action «listen»): a response is logged unless
  * the same user's playback of the same call is already logged for the last 10 minutes (seeking would add rows).
  */
@@ -55,7 +57,7 @@ class RecordingService
         $relative = (string) $call->get('cRecordingPath');
 
         if (!$call->get(self::FIELD) || !in_array($call->get('cLiveState'), [CallSnapshot::ENDED, CallSnapshot::LOST], true)
-            || !RecordingPath::isSafe($relative)) {
+            || !RecordingPath::isSafe($relative) || $this->isShared($relative, $call->getId())) {
             throw new NotFound('No recording.');
         }
 
@@ -86,6 +88,25 @@ class RecordingService
         }
 
         return ['status' => 200, 'headers' => $headers, 'body' => $stream];
+    }
+
+    /**
+     * The file name of the production dialplan (sub-monitor) carries the minute and the two numbers, not the call: a
+     * second call between the same numbers within a minute overwrites the file of the first. A path stored on more
+     * than one Call (deleted ones too) has no certain owner — it is played for none of them (external review
+     * 2026-10-17), so nobody hears a conversation through another call's card.
+     */
+    private function isShared(string $relative, string $callId): bool
+    {
+        $query = SelectBuilder::create()
+            ->from('Call')
+            ->select(['id'])
+            ->where(['cRecordingPath' => $relative, 'id!=' => $callId])
+            ->withDeleted()
+            ->limit(0, 1)
+            ->build();
+
+        return iterator_to_array($this->entityManager->getQueryExecutor()->execute($query), false) !== [];
     }
 
     /**

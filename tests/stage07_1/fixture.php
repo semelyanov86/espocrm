@@ -7,8 +7,10 @@
  *   {"phone": {"entityType": "Lead", "id": "<id>", "value": "<raw>"}} → stores the phone value as the Vtiger import
  *                             does (no API sanitizer: «… доб. 5» stays); prints {"ok": true}.
  *   {"guard": "<Call id>"}  → tries to change the status without the integration's save option, plainly and with
- *                             SaveOption::IMPORT, and to create a new Call with an Asterisk key;
- *                             prints {"ok": true, "plain": <exception class|saved>, "import": …, "create": …}.
+ *                             SaveOption::IMPORT, to create a new Call with an Asterisk key, and through an entity
+ *                             built by id (never fetched) to strip the key or change the status;
+ *                             prints {"ok": true, "plain": <exception class|saved>, "import": …, "create": …,
+ *                             "partialStrip": …, "partialFact": …, "statusAfter": …, "keyKept": bool}.
  */
 
 declare(strict_types=1);
@@ -81,7 +83,19 @@ if (isset($op['guard'])) {
             'cAsteriskLinkedId' => 'synth-guard-probe',
         ]);
     });
+    // An entity built by id, never fetched (external review 2026-10-17): its empty fetched key must not pass it off as
+    // a plain call — neither stripping the key nor changing a fact.
+    $partial = function (array $values) use ($entityManager, $op): void {
+        $call = $entityManager->getRDBRepository('Call')->getNew();
+        $call->set('id', $op['guard']);
+        $call->setAsNotNew();
+        $call->set($values);
+        $entityManager->saveEntity($call);
+    };
+    $result['partialStrip'] = $attempt(fn () => $partial(['status' => $status, 'cAsteriskLinkedId' => null]));
+    $result['partialFact'] = $attempt(fn () => $partial(['status' => $status]));
     $result['statusAfter'] = $entityManager->getEntityById('Call', $op['guard'])?->get('status');
+    $result['keyKept'] = (string) $entityManager->getEntityById('Call', $op['guard'])?->get('cAsteriskLinkedId') !== '';
 
     echo json_encode($result) . "\n";
     exit;

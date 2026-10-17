@@ -8,8 +8,8 @@ import subprocess
 import time
 import unittest
 
-from harness import (REPO, MONITOR, Client, Run, ast, desk, inbound, last_provider_call, must, phone, probe, provider,
-                     reset_pbx, setup_check, sql, wait, wait_idle)
+from harness import (REPO, MONITOR, Client, Run, active_channels, ast, desk, inbound, last_provider_call,
+                     listener_state, must, phone, probe, provider, reset_pbx, setup_check, sql, wait, wait_idle)
 
 R = None
 STATE = {}
@@ -317,8 +317,9 @@ class TelephonyTest(unittest.TestCase):
         self.assertEqual(before["status"], must(R.admin.get(f"Call/{call_id}"), "call")["status"], "mass update")
 
         answer = probe({"guard": call_id})
-        self.assertEqual(("Forbidden", "Forbidden", "Forbidden", before["status"]),
-                         (answer["plain"], answer["import"], answer["create"], answer["statusAfter"]))
+        self.assertEqual(("Forbidden",) * 5 + (before["status"], True),
+                         (answer["plain"], answer["import"], answer["create"], answer["partialStrip"],
+                          answer["partialFact"], answer["statusAfter"], answer["keyKept"]))
 
         self.assertEqual(403, R.clients["director"].delete(f"Call/{call_id}")[0], "only administrators delete")
 
@@ -394,6 +395,72 @@ class TelephonyTest(unittest.TestCase):
         finally:
             must(R.admin.put("Settings", {"itvolgaTelephonyFallbackExtension": "119"}), "fallback 119")
             wait_idle()
+
+    def test_21_two_calls_within_a_minute_play_no_recording(self):
+        """sub-monitor names the file by the minute and the two numbers: a second call from the same number within a
+        minute overwrites the first one's file. The path has no certain owner — neither call plays it (external
+        review 2026-10-17); a path of one call only still plays (test_10)."""
+        while time.localtime().tm_sec > 10:  # both calls inside one minute
+            time.sleep(0.5)
+        for _ in range(2):
+            phone("118", "answer,1,2")
+            inbound(R.number(15), 6)
+            wait(lambda: active_channels() > 0, 10, "call started")
+            wait_idle(30)
+        number = R.canonical(15)
+
+        def finished():
+            rows = [r for r in R.call_rows() if r["c_phone_number"] == number]
+            return rows if len(rows) == 2 and all(r["c_live_state"] in ("ended", "lost") for r in rows) else None
+
+        rows = wait(finished, 60, "two finished calls")
+        self.assertEqual(rows[0]["c_recording_path"], rows[1]["c_recording_path"], "one file name for both calls")
+        for row in rows:
+            self.assertEqual("1", row["c_recording"])
+            self.assertEqual(404, R.clients["u118"].entry_point("itvolgaRecording", id=row["id"])[0])
+            self.assertEqual(404, R.admin.entry_point("itvolgaRecording", id=row["id"])[0])
+
+    def test_22_click_to_call_card_closed_after_the_listener_was_away(self):
+        """The desk phone rings for a click-to-call (card «dialing», no Call yet); the listener stops; the attempt ends
+        unanswered while nobody listens. The new listener closes the card and the request (review 2026-10-17)."""
+        phone("116", "noanswer")
+        time.sleep(5)  # one click-to-call per user every 5 s
+        must(R.clients["u116"].post("Telephony/dial", {"phoneNumber": R.canonical(16)}), "dial")
+        started = time.time()
+        wait(lambda: [c for c in R.cards("u116") if c["data"]["viaCrm"] and c["data"]["state"] == "dialing"], 20,
+             "dialing card")
+        subprocess.run(["sudo", "-n", "systemctl", "stop", "itvolga-espo-telephony"], check=True)
+        try:
+            wait_idle(60)  # the Originate timeout ends the attempt
+            time.sleep(max(0.0, started + 32 - time.time()))  # the card is older than the grace period
+        finally:
+            subprocess.run(["sudo", "-n", "systemctl", "start", "itvolga-espo-telephony"], check=True)
+        wait(lambda: listener_state() == "connected", 30, "listener connected")
+        wait(lambda: not [c for c in R.cards("u116") if c["data"]["state"] in ("dialing", "ringing", "talking")], 10,
+             "no active card")
+        intent = sql(f"SELECT status FROM telephony_call_intent WHERE user_id = '{R.uid['u116']}' "
+                     f"ORDER BY created_at DESC LIMIT 1")
+        self.assertEqual("unanswered", intent[0][0])
+        self.assertEqual([], [r for r in R.call_rows() if r["c_phone_number"] == R.canonical(16)], "no Call")
+
+    def test_23_switching_the_integration_off_stops_the_listener(self):
+        """itvolga-setup-telephony {"enabled": false}: the running listener ends within its settings period (exit 78,
+        systemd does not restart it) and stores no more calls (review 2026-10-17). Last: it switches the stand off."""
+        subprocess.run([str(REPO / "scripts/stand/espo.sh"), "itvolga-setup-telephony"], input='{"enabled": false}',
+                       text=True, capture_output=True, check=True)
+        try:
+            wait(lambda: listener_state() == "disabled", 30, "listener stopped")
+            time.sleep(6)  # RestartSec=5: no restart after exit 78
+            active = subprocess.run(["systemctl", "is-active", "itvolga-espo-telephony"], capture_output=True,
+                                    text=True).stdout.strip()
+            self.assertNotEqual("active", active)
+            inbound(R.number(17), 2)
+            wait(lambda: active_channels() > 0, 10, "call started")
+            wait_idle(30)
+            self.assertEqual([], [r for r in R.call_rows() if r["c_phone_number"] == R.canonical(17)])
+        finally:
+            subprocess.run([str(REPO / "scripts/stand/telephony.sh"), "up"], capture_output=True, check=True)
+        self.assertEqual("connected", listener_state())
 
 LINE_DID = "290001"
 
