@@ -285,6 +285,11 @@ tasks:
     cmds:
       - python3 -m unittest discover -s tests/stage06_4 -p 'test_*.py' -v
 
+  test:stage08:
+    desc: Stage 08 tests without the stand (the first imported file of a fresh installation without data/upload; every finance measure and the per-column tables of the import summary on a synthetic report)
+    cmds:
+      - python3 -m unittest discover -s tests/stage08 -p 'test_*.py' -v
+
   import:drill:
     desc: Interruption and idempotency drill on the stand (-- --snapshot ID [--restore BACKUP] [--term-after N] [--allow-mass-removal]); stand backup first
     cmds:

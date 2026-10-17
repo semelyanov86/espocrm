@@ -9,8 +9,9 @@ use stdClass;
  * Bytes of an imported file (stage 06.3, import.md «Файлы»). They come only on stdin, right after their Attachment
  * operation, as `file.chunks` lines `{"seq": n, "data": "<base64 ≤ 3 MiB>"}` (a frame stays under the line limit of
  * the protocol). Every declared line is consumed even after an error, so the next operation is read in frame. The
- * bytes are written to a part file next to the upload storage, hashed on the way and checked against the declared
- * size and sha256 before anything can use them; a part file never outlives the command.
+ * bytes are written to a part file next to the upload storage (created as the core creates it when missing), hashed
+ * on the way and checked against the declared size and sha256 before anything can use them; a part file never
+ * outlives the command.
  */
 class BlobReceiver
 {
@@ -39,7 +40,8 @@ class BlobReceiver
         }
 
         $path = self::DIR . self::PART . bin2hex(random_bytes(12)) . '.part';
-        $handle = fopen($path, 'xb');
+        // A fresh installation has no upload directory until its first file (stage 08): create it as the core does.
+        $handle = $this->fileManager->mkdir(rtrim(self::DIR, '/')) ? fopen($path, 'xb') : false;
         $error = $handle === false ? 'file_storage' : null;
         $this->parts[$path] = true;
         $hash = hash_init('sha256');

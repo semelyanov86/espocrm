@@ -1,8 +1,8 @@
-# Импорт Vtiger — сводка прогона (этапы 06.2–07.2)
+# Импорт Vtiger — сводка прогона (этапы 06.2–08)
 
 Генерируется: `task import:summary -- <прогон>` (`scripts/import/importer.py summary`). Только счётчики: ни значений, ни идентификаторов записей. Машинный отчёт с причинами по каждой записи и колонке — вне Git (`/data/itvolga/espo-private/import/<прогон>/`). Контракт импорта — `import.md`.
 
-- Прогон: `20261017T125944`; снимок: `20261012T191003`; код: `a10b3c3` (незакоммиченных файлов инструмента: 3).
+- Прогон: `20261017T131624`; снимок: `20261012T191003`; код: `697fa60` (незакоммиченных файлов инструмента: 1).
 - Итог: **findings**; проблемы: нет; находки: conflict=47, dangling=24, discrepancy:invoice_act_total=5, external_url_invalid=1, no_target=66, recording_unavailable:without_audio=4, type_conflict=23.
 - «Тишина» (изменение числа строк стенда: уведомления, напоминания, подписки, записи ленты без vtigerId, письма, вебхуки, журнал действий): action_history_record=0, email_not_imported=0, note_not_imported=0, notification=0, reminder=0, stream_subscription=0, webhook_queue_item=0.
 
@@ -10,39 +10,39 @@
 
 | Сущность | Источник | Запись | Проверка | Удержаны | Возвращено после хуков |
 |---|---|---|---|---|---|
-| Account | 180 | unchanged=180 | equal=180 | — | — |
-| Act | 404 | unchanged=404 | equal=404 | — | — |
-| ActItem | 417 | unchanged=417 | equal=417 | — | — |
-| Attachment | 205 | unchanged=205 | equal=205 | — | — |
-| Call | 1133 | unchanged=924 | equal=924 | excluded:internal_call=209 | — |
-| Case | 45 | unchanged=45 | equal=45 | — | — |
-| Contact | 341 | unchanged=341 | equal=341 | — | — |
-| ContactAccess | 341 | skipped=214, unchanged=127 | absent=214, equal=127 | — | — |
-| Document | 215 | unchanged=215 | equal=215 | — | — |
-| DocumentFolder | 1 | unchanged=1 | equal=1 | — | — |
-| Email | 29 | unchanged=29 | equal=29 | — | — |
-| Invoice | 636 | unchanged=636 | equal=636 | — | — |
-| InvoiceItem | 712 | unchanged=712 | equal=712 | — | — |
-| KnowledgeBaseArticle | 63 | unchanged=63 | equal=63 | — | — |
-| KnowledgeBaseCategory | 1 | unchanged=1 | equal=1 | — | — |
-| Lead | 225 | unchanged=225 | equal=225 | — | — |
-| LegalEntity | 1 | unchanged=1 | equal=1 | — | — |
-| Meeting | 7 | unchanged=7 | equal=7 | — | — |
-| Note | 78 | unchanged=78 | equal=78 | — | — |
-| Opportunity | 156 | unchanged=156 | equal=156 | — | — |
-| Payment | 799 | unchanged=799 | equal=799 | — | — |
-| PaymentAllocation | 627 | unchanged=627 | equal=627 | — | — |
-| Product | 28 | unchanged=28 | equal=28 | — | — |
-| Project | 54 | unchanged=54 | equal=54 | — | — |
-| ProjectTask | 493 | unchanged=493 | equal=493 | — | — |
-| Quote | 24 | unchanged=24 | equal=24 | — | — |
-| QuoteItem | 27 | unchanged=27 | equal=27 | — | — |
-| SalesOrder | 14 | unchanged=14 | equal=14 | — | — |
-| SalesOrderItem | 14 | unchanged=14 | equal=14 | — | — |
-| Task | 62 | unchanged=62 | equal=62 | — | — |
-| User | 7 | unchanged=7 | equal=7 | — | — |
-| Vendor | 3 | unchanged=3 | equal=3 | — | — |
-| VtigerArchive | 321 | unchanged=321 | equal=321 | — | — |
+| Account | 180 | created=180 | equal=180 | — | modifiedAt=180 |
+| Act | 404 | created=404 | equal=404 | — | modifiedAt=404 |
+| ActItem | 417 | created=417 | equal=417 | — | — |
+| Attachment | 205 | created=205 | equal=205 | — | — |
+| Call | 1133 | created=924 | equal=924 | excluded:internal_call=209 | modifiedAt=924 |
+| Case | 45 | created=45 | equal=45 | — | modifiedAt=45 |
+| Contact | 341 | created=341 | equal=341 | — | modifiedAt=341 |
+| ContactAccess | 341 | created=127, skipped=214 | absent=214, equal=127 | — | — |
+| Document | 215 | created=215 | equal=215 | — | modifiedAt=215 |
+| DocumentFolder | 1 | created=1 | equal=1 | — | — |
+| Email | 29 | created=29 | equal=29 | — | modifiedAt=29 |
+| Invoice | 636 | created=636 | equal=636 | — | modifiedAt=636 |
+| InvoiceItem | 712 | created=712 | equal=712 | — | — |
+| KnowledgeBaseArticle | 63 | created=63 | equal=63 | — | modifiedAt=63 |
+| KnowledgeBaseCategory | 1 | created=1 | equal=1 | — | — |
+| Lead | 225 | created=225 | equal=225 | — | convertedAt=5, modifiedAt=225 |
+| LegalEntity | 1 | updated=1 | equal=1 | — | — |
+| Meeting | 7 | created=7 | equal=7 | — | modifiedAt=7 |
+| Note | 78 | created=78 | equal=78 | — | modifiedAt=78 |
+| Opportunity | 156 | created=156 | equal=156 | — | modifiedAt=156 |
+| Payment | 799 | created=799 | equal=799 | — | modifiedAt=799 |
+| PaymentAllocation | 627 | created=627 | equal=627 | — | — |
+| Product | 28 | created=28 | equal=28 | — | modifiedAt=28 |
+| Project | 54 | created=54 | equal=54 | — | modifiedAt=54 |
+| ProjectTask | 493 | created=493 | equal=493 | — | modifiedAt=493 |
+| Quote | 24 | created=24 | equal=24 | — | modifiedAt=24 |
+| QuoteItem | 27 | created=27 | equal=27 | — | — |
+| SalesOrder | 14 | created=14 | equal=14 | — | modifiedAt=14 |
+| SalesOrderItem | 14 | created=14 | equal=14 | — | — |
+| Task | 62 | created=62 | equal=62 | — | contactId=3, dateCompleted=59, modifiedAt=62 |
+| User | 7 | adopted=1, created=6 | equal=7 | — | — |
+| Vendor | 3 | created=3 | equal=3 | — | modifiedAt=3 |
+| VtigerArchive | 321 | created=321 | equal=321 | — | — |
 
 ## Колонки источника по модулям
 
@@ -272,9 +272,9 @@
 
 | Сущность | Живые с vtigerId вне источника | Вне диапазона ключей | Удалённые (реальные ключи) | Удалённые (вне диапазона) |
 |---|---|---|---|---|
-| Account | 0 | 0 | 0 | 58 |
-| Act | 0 | 0 | 336 | 2 |
-| ActItem | 0 | 0 | 389 | 0 |
+| Account | 0 | 0 | 0 | 0 |
+| Act | 0 | 0 | 0 | 0 |
+| ActItem | 0 | 0 | 0 | 0 |
 | Attachment | 0 | 0 | 0 | 0 |
 | Call | 0 | 0 | 0 | 0 |
 | Case | 0 | 0 | 0 | 0 |
@@ -283,19 +283,19 @@
 | Document | 0 | 0 | 0 | 0 |
 | DocumentFolder | 0 | 0 | 0 | 0 |
 | Email | 0 | 0 | 0 | 0 |
-| Invoice | 0 | 0 | 41 | 719 |
-| InvoiceItem | 0 | 0 | 61 | 0 |
+| Invoice | 0 | 0 | 0 | 0 |
+| InvoiceItem | 0 | 0 | 0 | 0 |
 | KnowledgeBaseArticle | 0 | 0 | 0 | 0 |
-| Lead | 0 | 0 | 0 | 54 |
+| Lead | 0 | 0 | 0 | 0 |
 | Meeting | 0 | 0 | 0 | 0 |
 | Note | 0 | 0 | 0 | 0 |
 | Opportunity | 0 | 0 | 0 | 0 |
-| Payment | 0 | 0 | 68 | 0 |
+| Payment | 0 | 0 | 0 | 0 |
 | PaymentAllocation | 0 | 0 | 0 | 0 |
 | Product | 0 | 0 | 0 | 0 |
 | Project | 0 | 0 | 0 | 0 |
 | ProjectTask | 0 | 0 | 0 | 0 |
-| Quote | 0 | 0 | 160 | 6 |
+| Quote | 0 | 0 | 0 | 0 |
 | QuoteItem | 0 | 0 | 0 | 0 |
 | SalesOrder | 0 | 0 | 0 | 0 |
 | SalesOrderItem | 0 | 0 | 0 | 0 |
@@ -313,9 +313,9 @@
 - Маржа строк: notComputed=265, ok=905.
 - Причины расхождений: linked_invoice_act_totals_differ=5.
 - Распределение платежей (D-11, категория:решение): both_same_invoice:allocate=426, conflict_rel_other_invoice:allocate=38, rel_only:allocate=4, rel_only:none=52, related_to_invoice_only:allocate=152, related_to_salesorder:allocate=7, unallocated:none=120.
-- Пометки источника (`itvolga-finance-verify`): Act: noLineTax / exact (unchanged)=404, Invoice: groupTaxAdded / exact (unchanged)=2, Invoice: lineTaxNotApplied / exact (unchanged)=148, Invoice: noLineTax / exact (unchanged)=485, Invoice: taxIncludedInPrice / exact (unchanged)=1, Quote: lineTaxNotApplied / exact (unchanged)=23, Quote: noLineTax / exact (unchanged)=1, SalesOrder: lineTaxNotApplied / exact (unchanged)=13, SalesOrder: noLineTax / exact (unchanged)=1.
+- Пометки источника (`itvolga-finance-verify`): Act: noLineTax / exact=404, Invoice: groupTaxAdded / exact=2, Invoice: lineTaxNotApplied / exact=148, Invoice: noLineTax / exact=485, Invoice: taxIncludedInPrice / exact=1, Quote: lineTaxNotApplied / exact=23, Quote: noLineTax / exact=1, SalesOrder: lineTaxNotApplied / exact=13, SalesOrder: noLineTax / exact=1.
 - Оплата документов (`itvolga-finance-settle --silent`): Invoice unchanged=636, SalesOrder unchanged=14; расхождение после пересчёта: 0.
-- Счётчики номеров (cur_id источника, только вверх): изменений 0, ниже источника: 0.
+- Счётчики номеров (cur_id источника, только вверх): изменений 1, ниже источника: 0.
 
 ## Агрегаты (точные суммы decimal)
 
@@ -327,6 +327,125 @@
 | запись | 112 | 0 |
 
 Исключено из сравнения записи: нет.
+
+### Меры по одной
+
+«Налог» — меры налогов (D-161): режим налога, налог по итогам, ставки строк, налог заголовка, ставка налога доставки, строки с налогом; «деньги» — суммы итогов, скидок, доставки, корректировки, баланса, строк, платежей и распределений; «количество» — сумма количеств строк; «счётчик» — число документов, строк, платежей и распределений. Число — только у мер-счётчиков; суммы — в приватном `aggregates.json`.
+
+| Мера | Вид | Чтение | Запись | Число |
+|---|---|---|---|---|
+| `Act.adjustment` | деньги | = | = |  |
+| `Act.count` | счётчик | = | = | 404 |
+| `Act.discountAmount` | деньги | = | = |  |
+| `Act.grandTotal` | деньги | = | = |  |
+| `Act.impliedTax` | налог | = | = |  |
+| `Act.impliedTax.nonzero` | налог, счётчик | = | = | 0 |
+| `Act.lines.amount` | деньги | = | = |  |
+| `Act.lines.count` | счётчик | = | = | 417 |
+| `Act.lines.discountAmount` | деньги | = | = |  |
+| `Act.lines.margin` | деньги | = | = |  |
+| `Act.lines.purchaseCost` | деньги | = | = |  |
+| `Act.lines.quantity` | количество | = | = |  |
+| `Act.lines.tax2` | налог | = | = |  |
+| `Act.lines.tax3` | налог | = | = |  |
+| `Act.lines.taxRate` | налог | = | = |  |
+| `Act.lines.taxed.count` | налог, счётчик | = | = | 0 |
+| `Act.lines.unitPrice` | деньги | = | = |  |
+| `Act.preTaxTotal` | деньги | = | = |  |
+| `Act.shippingAmount` | деньги | = | = |  |
+| `Act.shippingTaxPercent` | налог | = | = |  |
+| `Act.subtotal` | деньги | = | = |  |
+| `Act.taxMode.group.count` | налог, счётчик | = | = | 0 |
+| `Act.taxMode.group_tax_inc.count` | налог, счётчик | = | = | 21 |
+| `Act.taxMode.individual.count` | налог, счётчик | = | = | 383 |
+| `Act.taxMode.none.count` | налог, счётчик | = | = | 0 |
+| `Invoice.adjustment` | деньги | = | = |  |
+| `Invoice.balanceSource` | деньги | = | = |  |
+| `Invoice.count` | счётчик | = | = | 636 |
+| `Invoice.discountAmount` | деньги | = | = |  |
+| `Invoice.grandTotal` | деньги | = | = |  |
+| `Invoice.headerTax` | налог | = | = |  |
+| `Invoice.impliedTax` | налог | = | = |  |
+| `Invoice.impliedTax.nonzero` | налог, счётчик | = | = | 2 |
+| `Invoice.lines.amount` | деньги | = | = |  |
+| `Invoice.lines.count` | счётчик | = | = | 712 |
+| `Invoice.lines.discountAmount` | деньги | = | = |  |
+| `Invoice.lines.margin` | деньги | = | = |  |
+| `Invoice.lines.purchaseCost` | деньги | = | = |  |
+| `Invoice.lines.quantity` | количество | = | = |  |
+| `Invoice.lines.tax2` | налог | = | = |  |
+| `Invoice.lines.tax3` | налог | = | = |  |
+| `Invoice.lines.taxRate` | налог | = | = |  |
+| `Invoice.lines.taxed.count` | налог, счётчик | = | = | 211 |
+| `Invoice.lines.unitPrice` | деньги | = | = |  |
+| `Invoice.preTaxTotal` | деньги | = | = |  |
+| `Invoice.shippingAmount` | деньги | = | = |  |
+| `Invoice.shippingTaxPercent` | налог | = | = |  |
+| `Invoice.subtotal` | деньги | = | = |  |
+| `Invoice.taxMode.group.count` | налог, счётчик | = | = | 2 |
+| `Invoice.taxMode.group_tax_inc.count` | налог, счётчик | = | = | 32 |
+| `Invoice.taxMode.individual.count` | налог, счётчик | = | = | 602 |
+| `Invoice.taxMode.none.count` | налог, счётчик | = | = | 0 |
+| `Payment.incoming.amount` | деньги | = | = |  |
+| `Payment.incoming.count` | счётчик | = | = | 736 |
+| `Payment.outgoing.amount` | деньги | = | = |  |
+| `Payment.outgoing.count` | счётчик | = | = | 63 |
+| `PaymentAllocation.invoice.amount` | деньги | = | = |  |
+| `PaymentAllocation.invoice.count` | счётчик | = | = | 620 |
+| `PaymentAllocation.salesOrder.amount` | деньги | = | = |  |
+| `PaymentAllocation.salesOrder.count` | счётчик | = | = | 7 |
+| `Quotes.adjustment` | деньги | = | = |  |
+| `Quotes.count` | счётчик | = | = | 24 |
+| `Quotes.discountAmount` | деньги | = | = |  |
+| `Quotes.grandTotal` | деньги | = | = |  |
+| `Quotes.headerTax` | налог | = | = |  |
+| `Quotes.impliedTax` | налог | = | = |  |
+| `Quotes.impliedTax.nonzero` | налог, счётчик | = | = | 0 |
+| `Quotes.lines.amount` | деньги | = | = |  |
+| `Quotes.lines.count` | счётчик | = | = | 27 |
+| `Quotes.lines.discountAmount` | деньги | = | = |  |
+| `Quotes.lines.margin` | деньги | = | = |  |
+| `Quotes.lines.purchaseCost` | деньги | = | = |  |
+| `Quotes.lines.quantity` | количество | = | = |  |
+| `Quotes.lines.tax2` | налог | = | = |  |
+| `Quotes.lines.tax3` | налог | = | = |  |
+| `Quotes.lines.taxRate` | налог | = | = |  |
+| `Quotes.lines.taxed.count` | налог, счётчик | = | = | 26 |
+| `Quotes.lines.unitPrice` | деньги | = | = |  |
+| `Quotes.preTaxTotal` | деньги | = | = |  |
+| `Quotes.shippingAmount` | деньги | = | = |  |
+| `Quotes.shippingTaxPercent` | налог | = | = |  |
+| `Quotes.subtotal` | деньги | = | = |  |
+| `Quotes.taxMode.group.count` | налог, счётчик | = | = | 0 |
+| `Quotes.taxMode.group_tax_inc.count` | налог, счётчик | = | = | 0 |
+| `Quotes.taxMode.individual.count` | налог, счётчик | = | = | 24 |
+| `Quotes.taxMode.none.count` | налог, счётчик | = | = | 0 |
+| `SalesOrder.adjustment` | деньги | = | = |  |
+| `SalesOrder.count` | счётчик | = | = | 14 |
+| `SalesOrder.discountAmount` | деньги | = | = |  |
+| `SalesOrder.grandTotal` | деньги | = | = |  |
+| `SalesOrder.headerTax` | налог | = | = |  |
+| `SalesOrder.impliedTax` | налог | = | = |  |
+| `SalesOrder.impliedTax.nonzero` | налог, счётчик | = | = | 0 |
+| `SalesOrder.lines.amount` | деньги | = | = |  |
+| `SalesOrder.lines.count` | счётчик | = | = | 14 |
+| `SalesOrder.lines.discountAmount` | деньги | = | = |  |
+| `SalesOrder.lines.margin` | деньги | = | = |  |
+| `SalesOrder.lines.purchaseCost` | деньги | = | = |  |
+| `SalesOrder.lines.quantity` | количество | = | = |  |
+| `SalesOrder.lines.tax2` | налог | = | = |  |
+| `SalesOrder.lines.tax3` | налог | = | = |  |
+| `SalesOrder.lines.taxRate` | налог | = | = |  |
+| `SalesOrder.lines.taxed.count` | налог, счётчик | = | = | 13 |
+| `SalesOrder.lines.unitPrice` | деньги | = | = |  |
+| `SalesOrder.preTaxTotal` | деньги | = | = |  |
+| `SalesOrder.shippingAmount` | деньги | = | = |  |
+| `SalesOrder.shippingTaxPercent` | налог | = | = |  |
+| `SalesOrder.subtotal` | деньги | = | = |  |
+| `SalesOrder.taxMode.group.count` | налог, счётчик | = | = | 0 |
+| `SalesOrder.taxMode.group_tax_inc.count` | налог, счётчик | = | = | 1 |
+| `SalesOrder.taxMode.individual.count` | налог, счётчик | = | = | 13 |
+| `SalesOrder.taxMode.none.count` | налог, счётчик | = | = | 0 |
 
 ## Файлы
 
@@ -385,7 +504,7 @@ CDR (граница T0 снимка 2026-10-12 17:10:09 UTC; записи — р
 | Строки CSV | call 18, duplicate_of_mysql 124, not_imported:conference 2, not_imported:trainer 71 |
 | Звонки по классам | Inbound 31, Outbound 48, conference 2, trainer 126 |
 | Звонки по источнику | csv:call 18, csv:not_imported 73, mysql:call 61, mysql:not_imported 55 |
-| Запись и проверка | apply:unchanged 79, check:equal 79 |
+| Запись и проверка | apply:created 79, check:equal 79 |
 | Файлы записей | ambiguous 9, attached 62, claimed_twice 1, no_call:trainer 107, without_audio 5 |
 | Нет записи у звонка | without_audio 4 |
 | D-31 на известных парах | ambiguous 4, correct 98 |
@@ -479,6 +598,13 @@ CDR (граница T0 снимка 2026-10-12 17:10:09 UTC; записи — р
 | 2026-08 |  |  | 33 | 51 | 16 | 35 | 46 | 15 | 31 |  |
 | 2026-09 |  |  | 77 | 77 | 46 | 23 | 58 | 34 | 24 |  |
 | 2026-10 |  |  | 14 | 15 | 7 | 8 | 15 | 7 | 8 |  |
+
+## Каждая колонка (этап 08)
+
+`import-columns.md` генерируется вместе с этой сводкой (`task import:summary`) — по одной строке на колонку, только имена, судьбы и счётчики:
+
+- каждая колонка каждой прочитанной таблицы по модулю (1539 строк) и каждая колонка таблиц связей (39): категория, судьба, цель по `field-map.csv`, непустых значений, сверено проверочным проходом, расхождений, неучтённых, исходы; суммы по модулям — раздел «Колонки источника по модулям»;
+- каждая непустая колонка обеих схем снимка (2361 строк, приватный `ledger.jsonl`): класс полной сверки, значений, у таблиц импорта — значения живых записей, сверено, расхождений, неучтённых, значения удалённых в Vtiger записей и строк вне границ импорта; суммы по классам — раздел «Полная сверка колонок снимка».
 
 ## Счётчики преобразований
 

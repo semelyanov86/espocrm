@@ -55,8 +55,10 @@ def checksums(names):
 
 
 def uploads():
-    """relative path → [size, sha256] of every file of data/upload (read as root: the files belong to the stand)."""
-    script = ('cd "$0" && find . -type f -printf "%s\\t%P\\0" | while IFS=$\'\\t\' read -r -d "" size path; do '
+    """relative path → [size, sha256] of every file of data/upload (read as root: the files belong to the stand); a
+    fresh installation has no data/upload until its first file (stage 08) — an empty storage."""
+    script = ('[ -d "$0" ] || exit 0; '
+              'cd "$0" && find . -type f -printf "%s\\t%P\\0" | while IFS=$\'\\t\' read -r -d "" size path; do '
               'printf "%s\\t%s\\t%s\\n" "$size" "$(sha256sum -- "$path" | cut -d" " -f1)" '
               '"$(printf %s "$path" | od -An -tx1 | tr -d " \\n")"; done')
     res = subprocess.run(["sudo", "-n", "bash", "-c", script, str(UPLOAD)], capture_output=True, text=True,

@@ -35,7 +35,8 @@ case "${1:-}" in
             -t "$CRON_TAG" -t "$FPM_UNIT"
         echo "--- apache: /var/log/apache2/$ESPO_SITE_HOST-error.log"
         as_root tail -n "${LINES:-30}" "/var/log/apache2/$ESPO_SITE_HOST-error.log" 2>/dev/null || true
-        latest="$(as_root find "$ESPO_ROOT/data/logs" -name '*.log' -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -n1 | cut -d' ' -f2-)"
+        # A fresh installation has no data/logs until EspoCRM writes its first log line.
+        latest="$(as_root find "$ESPO_ROOT/data/logs" -name '*.log' -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -n1 | cut -d' ' -f2- || true)"
         if [[ -n "$latest" ]]; then echo "--- espocrm: $latest"; as_root tail -n "${LINES:-30}" "$latest"; fi
         ;;
     backups)

@@ -54,6 +54,7 @@ task test:telephony                         # юнит-тесты ядра те�
 task test:stage07.1                         # приёмочные тесты телефонии на стенде (нужен task telephony:up)
 task import:run -- --snapshot <id> --recordings verify   # история звонков: записи только проверить (production; стенд — place)
 task test:stage07.2                         # история звонков (этап 07.2): чистые тесты CDR + стенд (нужен task telephony:down)
+task test:stage08                           # тесты этапа 08 без стенда: первый файл свежей установки, сводка по мерам и колонкам
 ```
 
 - `docs/migration/field-map.csv` и `relations.csv` **не редактировать вручную**: правила — `scripts/audit/mapping.py`, генерация — `scripts/audit/build_maps.py` из приватного прогона.

@@ -8,13 +8,15 @@
       rail refuses the run before any write); apply upserts, then removals through `task espo -- itvolga-import`
       (stdin), then a check pass in a new process; reconcile every non-empty source column and relation, and the whole
       snapshot's columns (ledger); private report in IMPORT_ROOT/<run>/.
-  importer.py summary RUN [--out docs/migration/import-summary.md]
-      the anonymised summary of a run (counts only, checked by the secret scanner before it is written).
+  importer.py summary RUN [--out docs/migration/import-summary.md] [--columns-out docs/migration/import-columns.md]
+      the anonymised summary of a run and its per-column tables (stage 08: every column the run read, per module, and
+      every non-empty column of the snapshot); counts only, checked by the secret scanner before anything is written.
 
 Exit codes: 0 pass; 2 findings (pending later stages, conflicts kept in vtigerData, stale map rows…); 1 fail.
 The console shows step names and counts only; values never leave the pipe between the two processes.
 """
 import argparse
+import csv
 import json
 import os
 import secrets
@@ -937,7 +939,7 @@ def tool_identity():
 
 # --- summary (Git) ------------------------------------------------------------------------------------
 
-def render_summary(report, run_id):
+def render_summary(report, run_id, aggregates=None):
     cat = defaultdict(lambda: Counter())
     for c in report["columns"]:
         if c["module"] == "links":
@@ -949,7 +951,7 @@ def render_summary(report, run_id):
             cat[c["module"]]["values_mismatch"] += c.get("mismatch", 0)
             cat[c["module"]]["values_unaccounted"] += c.get("unaccounted", 0)
     lines = [
-        "# Импорт Vtiger — сводка прогона (этапы 06.2–07.2)", "",
+        "# Импорт Vtiger — сводка прогона (этапы 06.2–08)", "",
         "Генерируется: `task import:summary -- <прогон>` (`scripts/import/importer.py summary`). Только счётчики: ни "
         "значений, ни идентификаторов записей. Машинный отчёт с причинами по каждой записи и колонке — вне Git "
         "(`/data/itvolga/espo-private/import/<прогон>/`). Контракт импорта — `import.md`.", "",
@@ -1008,11 +1010,82 @@ def render_summary(report, run_id):
     for entity, i in sorted(report["inventory"].items()):
         lines.append(f"| {entity} | {i['missing_in_source']} | {i['other_range_live']} | {i['deleted_in_target']} | "
                      f"{i.get('other_range_deleted', 0)} |")
-    lines += render_063(report)
+    lines += render_063(report, aggregates)
     lines += render_064(report)
     lines += H.render(report)
+    lines += render_columns(report)
     lines += ["", "## Счётчики преобразований", "", ", ".join(f"`{k}` {v}" for k, v in report["flags"].items()) or "—", ""]
     return "\n".join(lines)
+
+
+def render_columns(report):
+    """Stage 08: where the per-column tables are and how they add up (import-columns.md, generated with the summary)."""
+    led = report.get("ledger") or {}
+    read = [c for c in report["columns"] if c["module"] != "links"]
+    return ["", "## Каждая колонка (этап 08)", "",
+            "`import-columns.md` генерируется вместе с этой сводкой (`task import:summary`) — по одной строке на колонку, "
+            "только имена, судьбы и счётчики:", "",
+            f"- каждая колонка каждой прочитанной таблицы по модулю ({len(read)} строк) и каждая колонка таблиц связей "
+            f"({len(report['columns']) - len(read)}): категория, судьба, цель по `field-map.csv`, непустых значений, "
+            "сверено проверочным проходом, расхождений, неучтённых, исходы; суммы по модулям — раздел «Колонки "
+            "источника по модулям»;",
+            f"- каждая непустая колонка обеих схем снимка ({led.get('columns', 0)} строк, приватный `ledger.jsonl`): "
+            "класс полной сверки, значений, у таблиц импорта — значения живых записей, сверено, расхождений, неучтённых, "
+            "значения удалённых в Vtiger записей и строк вне границ импорта; суммы по классам — раздел «Полная сверка "
+            "колонок снимка»."]
+
+
+def _cell(value):
+    return "" if value is None else " ".join(str(value).split()).replace("|", "\\|")
+
+
+def render_column_tables(report, run_id, field_map, ledger_rows=None):
+    """Stage 08 (import-columns.md): every column the run read, per module, with its field-map.csv target; then every
+    non-empty column of both schemas of the snapshot (the run's ledger.jsonl). Names, fates and counts only."""
+    targets = defaultdict(set)
+    with open(field_map, newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            target = ".".join(p for p in (row["target_entity"], row["target_field"]) if p)
+            if target:
+                targets[(row["source_module"], f"{row['source_table']}.{row['source_column']}")].add(target)
+    lines = ["# Импорт Vtiger — каждая колонка (этап 08)", "",
+             "Генерируется вместе с `import-summary.md`: `task import:summary -- <прогон>` (`scripts/import/importer.py "
+             "summary`). Только имена колонок, судьбы и счётчики — ни значений, ни идентификаторов записей. Контракт "
+             "сверки — `import.md` («Сверка», «Полная сверка колонок»).", "",
+             f"- Прогон: `{run_id}`; снимок: `{report.get('snapshot')}`; код: `{report['tool']['git_head'][:7]}` "
+             f"(незакоммиченных файлов инструмента: {report['tool']['dirty_tool_files']}).", "",
+             "## Колонки, которые читает импорт", "",
+             "Все колонки всех прочитанных таблиц по живым записям модуля (`links` — колонки таблиц связей). Категория: "
+             "`rule` — переносится правилом (значения сверены проверочным проходом), `key` — ключ, `excluded`/`empty` — "
+             "судьба из карты, `relation` — пара связи, `unmapped` — без строки карты (непустое значение — сбой прогона). "
+             "Цель — `field-map.csv` (у CDR — в судьбе `cdr.COLUMN_FATES`).", "",
+             "| Модуль | Схема | Колонка | Категория | Судьба | Цель | Значений | Сверено | Расхождений | Неучтённых "
+             "| Исходы |", "|---|---|---|---|---|---|---|---|---|---|---|"]
+    for c in sorted(report["columns"], key=lambda c: (c["module"], c["column"])):
+        rule = c["category"] == "rule"
+        lines.append("| " + " | ".join(_cell(v) for v in (
+            c["module"], "asteriskcdrdb" if c["module"] == "CDR" else "vtiger7", f"`{c['column']}`", c["category"],
+            c["fate"], ", ".join(sorted(targets.get((c["module"], c["column"]), ()))), c["nonempty"],
+            c.get("verified") if rule else "", c.get("mismatch") if rule else "", c.get("unaccounted") if rule else "",
+            ", ".join(f"{k}={v}" for k, v in sorted((c.get("outcomes") or {}).items())))) + " |")
+    if ledger_rows is not None:
+        lines += ["", "## Каждая непустая колонка снимка", "",
+                  "Обе схемы снимка, счётчики сервера (`tables.json`). Класс — полная сверка (`import.md`): `import` — "
+                  "таблица, которую читает импорт (живые записи сверены по одному, удалённые в Vtiger и строки вне границ "
+                  "импорта — отдельные счётчики), остальные — судьба карты. Ненулевых — для числовых колонок.", "",
+                  "| Колонка | Класс | Значений | Ненулевых | Живых | Сверено | Расхождений | Неучтённых | Удалённых в "
+                  "Vtiger | Вне границ | Судьбы |", "|---|---|---|---|---|---|---|---|---|---|---|"]
+        for r in sorted(ledger_rows, key=lambda r: (r["schema"], r["table"], r["column"])):
+            if "live" in r:
+                fates = [f"{k}={v}" for k, v in sorted((r.get("categories") or {}).items())] + \
+                        [f"вне границ: {f}" for f in r.get("outside_fates") or []]
+            else:
+                fates = r.get("fates") or []
+            lines.append("| " + " | ".join(_cell(v) for v in (
+                f"`{r['schema']}.{r['table']}.{r['column']}`", r["cls"], r["nonempty"], r.get("nonzero"),
+                *(r.get(k) for k in ("live", "verified", "mismatch", "unaccounted", "deleted", "outside_scope")),
+                ", ".join(fates))) + " |")
+    return "\n".join(lines + [""])
 
 
 def render_064(report):
@@ -1051,7 +1124,7 @@ def render_064(report):
     return lines
 
 
-def render_063(report):
+def render_063(report, aggregates=None):
     """Stage 06.3 sections of the summary: counts and classes only (no amounts, names, ids or digests)."""
     fin, files, agg = report.get("finance") or {}, report.get("files") or {}, report.get("aggregates") or {}
     if not (fin or files or agg):
@@ -1078,19 +1151,47 @@ def render_063(report):
              "| Сравнение | Мер | Не равно |", "|---|---|---|",
              f"| чтение | {(agg.get('reader') or {}).get('measures', 0)} | {(agg.get('reader') or {}).get('unequal', 0)} |",
              f"| запись | {(agg.get('writer') or {}).get('measures', 0)} | {(agg.get('writer') or {}).get('unequal', 0)} |",
-             f"", f"Исключено из сравнения записи: {fmt(Counter(agg.get('excluded') or {})) or 'нет'}.",
-             "", "## Файлы", "",
-             "Каждый файл: байты из проверенного снимка (размер и sha256 по запечатанной описи), запись в хранилище "
-             "стенда, проверочный проход (файл есть, sha256 совпадает) и скачивание через стенд администратором "
-             "(200 и sha256 источника). Внешние ссылки документов не открываются — переносятся дословно. Каждый "
-             "недоступный файл — с причиной в приватном `files.jsonl`.", "",
-             "| Владелец | Итоги |", "|---|---|"]
+             f"", f"Исключено из сравнения записи: {fmt(Counter(agg.get('excluded') or {})) or 'нет'}."]
+    lines += render_measures(aggregates)
+    lines += ["", "## Файлы", "",
+              "Каждый файл: байты из проверенного снимка (размер и sha256 по запечатанной описи), запись в хранилище "
+              "стенда, проверочный проход (файл есть, sha256 совпадает) и скачивание через стенд администратором "
+              "(200 и sha256 источника). Внешние ссылки документов не открываются — переносятся дословно. Каждый "
+              "недоступный файл — с причиной в приватном `files.jsonl`.", "",
+              "| Владелец | Итоги |", "|---|---|"]
     for owner, counts in (files.get("by_owner") or {}).items():
         lines.append(f"| {owner} | {fmt(Counter(counts))} |")
     lines += ["", f"- Сохранено и скачано: {files.get('stored_and_downloaded', 0)}; принятые потери D-23 (имя файла без "
                   f"файла в источнике): {files.get('accepted_losses', 0)}; не найдено в снимке: "
                   f"{files.get('unresolved_in_snapshot', 0)}.",
               f"- Оставлены в снимке по решениям: {fmt(Counter(files.get('excluded') or {})) or 'нет'}."]
+    return lines
+
+
+TAX_PARTS = ("taxMode", "impliedTax", "tax2", "tax3", "taxed", "headerTax", "shippingTaxPercent", "taxRate")
+
+
+def render_measures(aggregates):
+    """Stage 08: each finance measure of aggregates.json — equal or not in both comparisons; a value only for the
+    counting measures (amounts stay private, aggregates.py)."""
+    if not aggregates:
+        return []
+    reader = {m["measure"]: m for m in aggregates.get("reader") or []}
+    writer = {m["measure"]: m for m in aggregates.get("writer") or []}
+    mark = lambda m: "—" if m is None else ("=" if m["equal"] else "**≠**")  # noqa: E731
+    lines = ["", "### Меры по одной", "",
+             "«Налог» — меры налогов (D-161): режим налога, налог по итогам, ставки строк, налог заголовка, ставка "
+             "налога доставки, строки с налогом; «деньги» — суммы итогов, скидок, доставки, корректировки, баланса, "
+             "строк, платежей и распределений; «количество» — сумма количеств строк; «счётчик» — число документов, строк, "
+             "платежей и распределений. Число — только у мер-счётчиков; суммы — в приватном `aggregates.json`.", "",
+             "| Мера | Вид | Чтение | Запись | Число |", "|---|---|---|---|---|"]
+    for name in sorted(set(reader) | set(writer)):
+        counting = name.endswith((".count", ".nonzero"))
+        tax = bool(set(name.split(".")) & set(TAX_PARTS))
+        kind = (("налог, счётчик" if counting else "налог") if tax else "счётчик" if counting else
+                "количество" if name.endswith(".quantity") else "деньги")
+        value = (reader.get(name) or writer[name])["left"] if counting else ""
+        lines.append(f"| `{name}` | {kind} | {mark(reader.get(name))} | {mark(writer.get(name))} | {value} |")
     return lines
 
 
@@ -1125,16 +1226,26 @@ def cmd_summary(args):
     root = ensure_root(IMPORT_ROOT)
     if not ID_RE.match(args.run):
         raise SnapshotError("bad run id")
-    report = json.loads((root / args.run / "report.json").read_text(encoding="utf-8"))
-    text = render_summary(report, args.run)
+    rundir = root / args.run
+    report = json.loads((rundir / "report.json").read_text(encoding="utf-8"))
+    agg_path, ledger_path = rundir / "aggregates.json", rundir / "ledger.jsonl"
+    aggregates = json.loads(agg_path.read_text(encoding="utf-8")) if agg_path.is_file() else None
+    ledger_rows = ([json.loads(line) for line in ledger_path.read_text(encoding="utf-8").splitlines() if line]
+                   if ledger_path.is_file() else None)
+    outputs = [(Path(args.out), render_summary(report, args.run, aggregates)),
+               (Path(args.columns_out), render_column_tables(report, args.run, REPO / "docs" / "migration" /
+                                                             "field-map.csv", ledger_rows))]
     sys.path.insert(0, str(REPO / "scripts"))
     import check_secrets  # noqa: E402
     findings = []
-    check_secrets.scan_text("import-summary.md", text, check_secrets.load_hashes(), check_secrets.load_allow(), findings)
+    hashes, allow = check_secrets.load_hashes(), check_secrets.load_allow()
+    for path, text in outputs:
+        check_secrets.scan_text(path.name, text, hashes, allow, findings)
     if findings:
         raise SnapshotError("summary not written: secret scanner rules " + ", ".join(sorted({f[2] for f in findings})))
-    Path(args.out).write_text(text, encoding="utf-8")
-    log(f"summary written: {args.out}")
+    for path, text in outputs:
+        path.write_text(text, encoding="utf-8")
+        log(f"summary written: {path}")
     return 0
 
 
@@ -1154,6 +1265,7 @@ def main():
     s = sub.add_parser("summary")
     s.add_argument("run")
     s.add_argument("--out", default=str(REPO / "docs" / "migration" / "import-summary.md"))
+    s.add_argument("--columns-out", default=str(REPO / "docs" / "migration" / "import-columns.md"))
     args = ap.parse_args()
     if os.geteuid() == 0:
         log("run as the developer user, not root")
