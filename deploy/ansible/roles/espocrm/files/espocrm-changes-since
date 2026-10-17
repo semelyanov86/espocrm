@@ -1,57 +1,131 @@
 #!/usr/bin/env bash
-# What changed in EspoCRM after a moment (role espocrm, rollback runbook, D-188): per table with created_at /
-# modified_at, the rows created, modified (created before) and deleted (soft) at or after the moment. Read only
-# (READ ONLY session). The console shows counts per table; --export also writes every such row (table, id,
-# created_at, modified_at, deleted, name when the table has one) to $BACKUP_DIR/changes-<time>.tsv (600, the server
-# only: names may be personal data) — the list for re-entering the work of the switched period after a rollback.
+# What changed in EspoCRM after a moment (role espocrm, rollback runbook, D-188). Read only for the live database
+# (READ ONLY sessions); the console shows counts per table, --export writes the rows to $BACKUP_DIR/changes-<time>.tsv
+# (600, the server only: names and links may be personal data) — the list for re-entering the work of the switched
+# period after a rollback.
 #
-#   espocrm-changes-since '2026-11-01 18:00:00' [--export]      (UTC, as EspoCRM stores it; the moment itself is
-#                                                               included — take it just before the switch)
+#   espocrm-changes-since '2026-11-01 18:00:00' [--export]
+#       per table with created_at / modified_at / deleted: rows created, modified (created before) and soft-deleted at
+#       or after the moment (UTC, as EspoCRM stores it; the moment itself is included — take it just before the
+#       switch). Misses what has no timestamp: links of many-to-many tables, hard deletes.
+#   espocrm-changes-since --against <bundle-dir|name> [--export]
+#       the full comparison with the state of a bundle (the cutover bundle = the moment of the switch): its dump goes
+#       into a temporary database (sql_log_bin=0, dropped at the end); for every table with an id — rows added,
+#       removed (hard deletes, unlinked links), soft-deleted or restored, and modified (modified_at differs).
 # shellcheck source=/dev/null
 source /usr/local/lib/espocrm/lib.sh
 require_root
 
-since="${1:-}" export=0
-[[ "${2:-}" == --export ]] && export=1
-[[ "$since" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}\ [0-9]{2}:[0-9]{2}:[0-9]{2}$ ]] \
-    || die "usage: espocrm-changes-since 'YYYY-MM-DD HH:MM:SS' [--export]   (UTC)"
+since="" against="" export=0
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --export) export=1 ;;
+        --against) against="${2:?}"; shift ;;
+        -*) die "unknown option $1" ;;
+        *) since="$1" ;;
+    esac
+    shift
+done
+if [[ -z "$against" ]]; then
+    [[ "$since" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}\ [0-9]{2}:[0-9]{2}:[0-9]{2}$ ]] \
+        || die "usage: espocrm-changes-since 'YYYY-MM-DD HH:MM:SS' [--export] | --against <bundle> [--export]"
+fi
 
 # Journals EspoCRM writes on its own; their rows are not user work.
 skip="'job','scheduled_job','scheduled_job_log_record','auth_token','auth_log_record','action_history_record',
       'app_log_record','notification','unique_id','array_value','webhook_queue_item','webhook_event_queue_item',
       'email_queue_item','mass_action'"
-tables="$(mysql_root -N -B -e "SELECT c.table_name FROM information_schema.columns c
-    WHERE c.table_schema = '$DB_NAME' AND c.column_name = 'created_at' AND c.table_name NOT IN ($skip)
-      AND EXISTS (SELECT 1 FROM information_schema.columns m WHERE m.table_schema = c.table_schema
-                  AND m.table_name = c.table_name AND m.column_name = 'modified_at')
-      AND EXISTS (SELECT 1 FROM information_schema.columns d WHERE d.table_schema = c.table_schema
-                  AND d.table_name = c.table_name AND d.column_name = 'deleted')
-    ORDER BY c.table_name")"
+has_col() { [[ -n "$(mysql_root -N -B -e "SELECT 1 FROM information_schema.columns WHERE table_schema='$1'
+    AND table_name='$2' AND column_name='$3'")" ]]; }
 
+umask 077
 out=""
 if [[ $export == 1 ]]; then
-    umask 077
     out="$BACKUP_DIR/changes-$(date +%Y%m%dT%H%M%S).tsv"
-    printf 'table\tid\tcreated_at\tmodified_at\tdeleted\tname\n' >"$out"
+    printf 'table\tchange\tid\trow\n' >"$out"
 fi
-printf '%-40s %8s %8s %8s\n' table created modified deleted
+row_json() { # db table alias -> JSON_OBJECT of all columns of the table (names and values; for the private export)
+    mysql_root -N -B -e "SET SESSION group_concat_max_len = 1048576; SELECT CONCAT('JSON_OBJECT(', GROUP_CONCAT(CONCAT('''', column_name, ''', $3.\`', column_name, '\`')
+        ORDER BY ordinal_position SEPARATOR ', '), ')') FROM information_schema.columns
+        WHERE table_schema='$1' AND table_name='$2'"
+}
 total=0
+
+if [[ -z "$against" ]]; then
+    tables="$(mysql_root -N -B -e "SELECT c.table_name FROM information_schema.columns c
+        WHERE c.table_schema = '$DB_NAME' AND c.column_name = 'created_at' AND c.table_name NOT IN ($skip)
+          AND EXISTS (SELECT 1 FROM information_schema.columns m WHERE m.table_schema = c.table_schema
+                      AND m.table_name = c.table_name AND m.column_name = 'modified_at')
+          AND EXISTS (SELECT 1 FROM information_schema.columns d WHERE d.table_schema = c.table_schema
+                      AND d.table_name = c.table_name AND d.column_name = 'deleted')
+        ORDER BY c.table_name")"
+    printf '%-40s %8s %8s %8s\n' table created modified deleted
+    while IFS= read -r t; do
+        [[ "$t" =~ ^[a-z0-9_]+$ ]] || continue
+        row="$(mysql_root -N -B "$DB_NAME" -e "SET SESSION TRANSACTION READ ONLY; SELECT
+            SUM(created_at >= '$since' AND deleted = 0), SUM(created_at < '$since' AND modified_at >= '$since' AND deleted = 0),
+            SUM(modified_at >= '$since' AND deleted = 1) FROM \`$t\`")"
+        read -r c m d <<<"${row//NULL/0}"
+        [[ "$c" == 0 && "$m" == 0 && "$d" == 0 ]] && continue
+        printf '%-40s %8s %8s %8s\n' "$t" "$c" "$m" "$d"
+        total=$((total + c + m + d))
+        if [[ -n "$out" ]]; then
+            mysql_root -N -B "$DB_NAME" -e "SET SESSION TRANSACTION READ ONLY; SELECT '$t',
+                IF(deleted = 1, 'deleted', IF(created_at >= '$since', 'created', 'modified')), id, $(row_json "$DB_NAME" "$t" r)
+                FROM \`$t\` r WHERE created_at >= '$since' OR modified_at >= '$since'" >>"$out"
+        fi
+    done <<<"$tables"
+    echo "---"
+    echo "changes since $since UTC: $total rows${out:+; list: $out}"
+    exit 0
+fi
+
+# --- the comparison with a bundle ------------------------------------------------------------------------------
+if [[ -d "$against" ]]; then dir="$(cd "$against" && pwd)"; else dir="$BACKUP_DIR/bundles/$against"; fi
+bundle_verify "$dir"
+ops_lock
+ref="${DB_NAME}__changes_$(date +%Y%m%dT%H%M%S)"
+trap 'mysql_root -e "DROP DATABASE IF EXISTS \`$ref\`" >/dev/null 2>&1 || true' EXIT
+log "importing the dump of $(manifest_get "$dir" name) into $ref (sql_log_bin=0)"
+mysql_root -e "CREATE DATABASE \`$ref\` CHARACTER SET $(manifest_get "$dir" db_charset) COLLATE $(manifest_get "$dir" db_collation)"
+bundle_cat_db "$dir" | mysql_root --init-command="SET SESSION sql_log_bin=0" "$ref"
+
+tables="$(mysql_root -N -B -e "SELECT t.table_name FROM information_schema.tables t
+    WHERE t.table_schema = '$DB_NAME' AND t.table_type = 'BASE TABLE' AND t.table_name NOT IN ($skip)
+      AND EXISTS (SELECT 1 FROM information_schema.columns c WHERE c.table_schema = t.table_schema
+                  AND c.table_name = t.table_name AND c.column_name = 'id')
+    ORDER BY t.table_name")"
+printf '%-40s %8s %8s %8s %8s\n' table added removed deleted modified
 while IFS= read -r t; do
     [[ "$t" =~ ^[a-z0-9_]+$ ]] || continue
-    row="$(mysql_root -N -B "$DB_NAME" -e "SET SESSION TRANSACTION READ ONLY; SELECT
-        SUM(created_at >= '$since' AND deleted = 0), SUM(created_at < '$since' AND modified_at >= '$since' AND deleted = 0),
-        SUM(modified_at >= '$since' AND deleted = 1) FROM \`$t\`")"
-    read -r c m d <<<"${row//NULL/0}"
-    [[ "$c" == 0 && "$m" == 0 && "$d" == 0 ]] && continue
-    printf '%-40s %8s %8s %8s\n' "$t" "$c" "$m" "$d"
-    total=$((total + c + m + d))
+    if [[ -z "$(mysql_root -N -B -e "SELECT 1 FROM information_schema.tables WHERE table_schema='$ref' AND table_name='$t'")" ]]; then
+        a="$(mysql_root -N -B "$DB_NAME" -e "SET SESSION TRANSACTION READ ONLY; SELECT COUNT(*) FROM \`$t\`")"
+        printf '%-40s %8s %8s %8s %8s  (no such table in the bundle)\n' "$t" "$a" 0 0 0
+        total=$((total + a)); continue
+    fi
+    del="SUM(0)" mod="SUM(0)"   # aggregates: one row even for a table without the column
+    has_col "$DB_NAME" "$t" deleted && del="SUM(l.deleted <> b.deleted)"
+    has_col "$DB_NAME" "$t" modified_at && mod="SUM(NOT (l.modified_at <=> b.modified_at))"
+    row="$(mysql_root -N -B -e "SET SESSION TRANSACTION READ ONLY; SELECT
+        (SELECT COUNT(*) FROM \`$DB_NAME\`.\`$t\` l LEFT JOIN \`$ref\`.\`$t\` b ON b.id = l.id WHERE b.id IS NULL),
+        (SELECT COUNT(*) FROM \`$ref\`.\`$t\` b LEFT JOIN \`$DB_NAME\`.\`$t\` l ON l.id = b.id WHERE l.id IS NULL),
+        (SELECT $del FROM \`$DB_NAME\`.\`$t\` l JOIN \`$ref\`.\`$t\` b ON b.id = l.id),
+        (SELECT $mod FROM \`$DB_NAME\`.\`$t\` l JOIN \`$ref\`.\`$t\` b ON b.id = l.id)")"
+    read -r a r d m <<<"${row//NULL/0}"
+    [[ "$a" == 0 && "$r" == 0 && "$d" == 0 && "$m" == 0 ]] && continue
+    printf '%-40s %8s %8s %8s %8s\n' "$t" "$a" "$r" "$d" "$m"
+    total=$((total + a + r + d + m))
     if [[ -n "$out" ]]; then
-        name_col="''"
-        [[ -n "$(mysql_root -N -B -e "SELECT 1 FROM information_schema.columns WHERE table_schema='$DB_NAME'
-            AND table_name='$t' AND column_name='name'")" ]] && name_col="REPLACE(REPLACE(\`name\`, '\t', ' '), '\n', ' ')"
-        mysql_root -N -B "$DB_NAME" -e "SET SESSION TRANSACTION READ ONLY; SELECT '$t', id, created_at, modified_at,
-            deleted, $name_col FROM \`$t\` WHERE created_at >= '$since' OR modified_at >= '$since'" >>"$out"
+        mysql_root -N -B -e "SET SESSION TRANSACTION READ ONLY;
+            SELECT '$t', 'added', l.id, $(row_json "$DB_NAME" "$t" l) FROM \`$DB_NAME\`.\`$t\` l
+                LEFT JOIN \`$ref\`.\`$t\` b ON b.id = l.id WHERE b.id IS NULL;
+            SELECT '$t', 'removed', b.id, $(row_json "$ref" "$t" b) FROM \`$ref\`.\`$t\` b
+                LEFT JOIN \`$DB_NAME\`.\`$t\` l ON l.id = b.id WHERE l.id IS NULL;
+            SELECT '$t', 'changed', l.id, $(row_json "$DB_NAME" "$t" l) FROM \`$DB_NAME\`.\`$t\` l
+                JOIN \`$ref\`.\`$t\` b ON b.id = l.id
+                WHERE $( [[ "$del" == "SUM(0)" ]] && echo 0 || echo "l.deleted <> b.deleted" )
+                   OR $( [[ "$mod" == "SUM(0)" ]] && echo 0 || echo "NOT (l.modified_at <=> b.modified_at)" )" >>"$out"
     fi
 done <<<"$tables"
 echo "---"
-echo "changes since $since UTC: $total rows${out:+; list: $out}"
+echo "changes against $(manifest_get "$dir" name): $total rows${out:+; list: $out}"

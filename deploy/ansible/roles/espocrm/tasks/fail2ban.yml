@@ -5,10 +5,10 @@
   register: espocrm_fail2ban_stat
 
 # Jail ждёт свой журнал при старте fail2ban: файл создаётся заранее (как mcp_error.log ролью fail2ban).
-- name: Ensure the access log of the EspoCRM vhost exists
+- name: Ensure the login journal of the EspoCRM vhost exists
   ansible.builtin.copy:
     content: ""
-    dest: "/var/log/apache2/{{ espocrm_log_prefix }}_access.log"
+    dest: "/var/log/apache2/{{ espocrm_log_prefix }}_auth.log"
     force: false
     owner: root
     group: adm

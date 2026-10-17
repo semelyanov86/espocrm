@@ -60,6 +60,7 @@ task ansible:test [-- шаг]                  # одноразовая Ubuntu 2
 task ansible:check | ansible:test-down      # дрейф --check --diff на проверочной машине | удалить её
 scripts/deploy/overlay.sh status            # база патча и HEAD /data/server; install --stage10 — только этап 10
 scripts/deploy/bundle.sh push|pull …        # пакет EspoCRM стенд ⇄ production (этапы 10–11, D-187)
+scripts/deploy/stand-admin.sh park|unpark   # администратор пакета production на стенде на время дельты (этап 11, D-187)
 ```
 
 - `docs/migration/field-map.csv` и `relations.csv` **не редактировать вручную**: правила — `scripts/audit/mapping.py`, генерация — `scripts/audit/build_maps.py` из приватного прогона.

@@ -5,7 +5,7 @@
 enabled = true
 port = http,https
 filter = espocrm-auth
-logpath = /var/log/apache2/{{ espocrm_log_prefix }}_access.log
+logpath = /var/log/apache2/{{ espocrm_log_prefix }}_auth.log
 maxretry = {{ espocrm_fail2ban_maxretry }}
 findtime = {{ espocrm_fail2ban_findtime }}
 bantime = {{ espocrm_fail2ban_bantime }}

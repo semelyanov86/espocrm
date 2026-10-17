@@ -29,20 +29,20 @@ fail2ban…). До этапа 10 он только читается, поэто�
 | Компонент | Значение | Где | Почему так |
 |---|---|---|---|
 | Ядро EspoCRM | 10.0.9, zip релиза GitHub, sha256 закреплён (тот же, что на стенде) | `/opt/espocrm/releases/EspoCRM-10.0.9/` → rsync в `/var/www/espocrm` (root, 755/644); отметка `.espocrm-core` | правка ядра на сервере — дрейф: `--check` его показывает, прогон возвращает; другая версия в отметке — остановка (обновление не автоматизировано) |
-| Модуль Itvolga | `git archive` **коммита** `espocrm_module_ref` (по умолчанию `HEAD`) репозитория миграции на контроллере | `/opt/espocrm/module/<коммит>/` → rsync `--checksum` в `custom/Espo/Modules/Itvolga`, `client/custom/modules/itvolga` (root); отметка `.itvolga-module` | на сервер попадает только закоммиченное; EspoCRM не может менять код модуля |
+| Модуль Itvolga | `git archive` **коммита** `espocrm_module_ref` (по умолчанию `HEAD`) репозитория миграции на контроллере | `/opt/espocrm/module/<коммит>/` (маркер завершения распаковки `<коммит>.complete`) → rsync `--checksum` в `custom/Espo/Modules/Itvolga`, `client/custom/modules/itvolga` (root); отметка `.itvolga-module` | на сервер попадает только закоммиченное; EspoCRM не может менять, переименовать или подменить код модуля (родители — `root:espocrm 1775`) |
 | PHP | **8.5** нативный (роль php: `php8.5-*`, на production 8.5.4); свой мастер `espocrm-php-fpm.service`, пул `espocrm` от пользователя `espocrm`, сокет `/run/espocrm-php-fpm/espocrm.sock` (www-data 0660) | `/etc/espocrm/php-fpm.conf` | рестарт EspoCRM не трогает `php8.5-fpm` (Firefly, Mautic) и `php74-fpm` (Vtiger, Lahic — PHP 7.4 в Docker остаётся как есть); `php` в PATH cron и консоли — shim `/opt/espocrm/bin/php` → `php8.5` (D-35) |
 | Пользователь | системный `espocrm` (nologin) | | данные CRM недоступны сайтам www-data |
 | БД | `espocrm`, `utf8mb4_unicode_ci` на общем MySQL 8.4 (роль mysql); `espocrm@127.0.0.1`, `caching_sha2_password`, права только на свою БД | | EspoCRM ходит по TCP; пароль ставится при создании (`espocrm_db_login_update: on_create`), смена — `-e espocrm_db_login_update=always` |
-| Каталоги записи | `data/` (espocrm 0770; `data/upload`, `data/logs` создаются сразу — урок этапа 08), `custom/Espo/Custom` (0770), верх `custom/Espo/Modules` и `client/custom` (0755) | | `check-file-permissions` ядра проверяет верхний уровень этих четырёх; код модуля внутри — root |
+| Каталоги записи | `data/` (espocrm 0770; `data/upload`, `data/logs` создаются сразу — урок этапа 08), `custom/Espo/Custom` (espocrm 0770), `custom/Espo/Modules` и `client/custom` (`root:espocrm 1775`: запись через группу, sticky-бит) | | `check-file-permissions` ядра проверяет верхний уровень этих четырёх; код модуля внутри — root, переименовать его `espocrm` не может |
 | Cron | `cron.php` каждую минуту от `espocrm`, вывод — `journalctl -t espocrm-cron` | `/etc/cron.d/espocrm` | как стенд; backup/restore паркуют файл как `espocrm.paused` |
 | Vhost | `/etc/apache2/sites-available/espocrm.conf` (ссылка в `sites-enabled`): `public/` + alias `/client/`, остальное корня недоступно, PHP — в свой пул | | схема документации EspoCRM, как на стенде |
 | Телефония | настройки EspoCRM (корень записей, правила, учётки AMI) — всегда; живая интеграция (`espocrm_telephony_enabled`) — пользователи AMI `manager.d/itvolga-espo.conf` (root:asterisk 0640, `manager reload` без рестарта), служба `espocrm-telephony` | §6 | прослушивание истории работает и без живой интеграции |
-| fail2ban | jail `espocrm-auth`: 401 на `/api/v1/App/user` в `espocrm_access.log`, 8 за 10 мин → бан на час | `/etc/fail2ban/{filter.d/espocrm-auth.conf,jail.d/espocrm.local}` | `ignoreip` роли fail2ban (офис, VPN) действует |
+| fail2ban | jail `espocrm-auth`: отдельный журнал входа `espocrm_auth.log` (только `/api/v1/App/user`, с `X-Status-Reason`), 401 кроме `second-step-required` (верный пароль учётки с 2FA), 8 за 10 мин → бан на час | `/etc/fail2ban/{filter.d/espocrm-auth.conf,jail.d/espocrm.local}` | `ignoreip` роли fail2ban (офис, VPN) действует; обычный журнал `combined` не меняется |
 | Инструменты | `espocrm`, `espocrm-config`, `espocrm-apply`, `espocrm-backup`, `espocrm-restore`, `espocrm-restore-check`, `espocrm-health`, `espocrm-fingerprint`, `espocrm-changes-since` | `/usr/local/sbin` (root 0750), библиотеки — `/usr/local/lib/espocrm`, настройки без секретов — `/etc/espocrm/espocrm.env` | §7 |
 
 Секреты — только vault сервера (`vault.yml.example` патча): `vault_db_espocrm_password` (≥ 16),
 `vault_espocrm_admin_password` (≥ 12), `vault_espocrm_ami_listener_secret`, `vault_espocrm_ami_dialer_secret` (16–200
-печатных ASCII); MySQL root — существующий `vault_mysql_root_password`. Роль проверяет их до любых изменений; в задачах с
+символов из `A-Z a-z 0-9 ._~+=@%^*!-` — секрет попадает в `manager.d` как есть, а `;` начинает комментарий Asterisk); MySQL root — существующий `vault_mysql_root_password`. Роль проверяет их до любых изменений; в задачах с
 ними — `no_log`, в argv их нет (stdin помощников). На сервере секреты лежат там же, где у ядра: `data/config-internal.php`
 (БД) и `/etc/espocrm/telephony.json` (0600 root, учётки AMI).
 
@@ -88,8 +88,10 @@ fail2ban…). До этапа 10 он только читается, поэто�
 
 Применение модуля (`espocrm-apply` — команды `task model:apply` стенда: `clear-cache`, `rebuild`, `itvolga-setup-acl`,
 `itvolga-setup-finance`, `itvolga-finance-settle --silent`, `itvolga-setup-reports`, `update-app-timestamp`, reload
-PHP-FPM, рестарт работающего слушателя) — после первой установки и после любой смены кода ядра или модуля; отметка
-`/var/lib/espocrm/apply-pending` переживает сбой прогона. Пароль администратора ставится при установке; после restore пакета
+PHP-FPM, рестарт работающего слушателя) — когда последнее успешно применённое состояние (`/var/lib/espocrm/apply-applied`:
+ядро + коммит модуля) отличается от развёрнутого, и после исправления дрейфа файлов (`apply-pending`): прерванный
+прогон применится следующим. Рестарты PHP-FPM, слушателя и `manager reload` — задачами роли, не обработчиками: в роли
+нет `flush_handlers`, Apache перечитывает конфигурацию один раз в конце play. Пароль администратора ставится при установке; после restore пакета
 стенда (он приносит своего администратора) — разово `-e espocrm_admin_reset=true`.
 
 ## 6. Телефония (этап 07.1, D-171)
@@ -98,8 +100,9 @@ PHP-FPM, рестарт работающего слушателя) — посл�
   `/var/spool/asterisk` на production — `asterisk:root 0750` (проверено только чтением 2026-10-17), поэтому ещё ACL
   **только прохода** `u:espocrm:--x` на нём (ACL одного корня, как в примере этапа 07.1, не дал бы дойти до файлов).
   На сервере нет пакета `acl` (setfacl, проверено 2026-10-17) — роль его ставит.
-- `/etc/espocrm/telephony.json` (0600 root) → `itvolga-setup-telephony` (stdin) при изменении; запасной внутренний номер
-  `108` — только если в EspoCRM он не задан.
+- `/etc/espocrm/telephony.json` (0600 root) → `itvolga-setup-telephony` (stdin), когда sha256 файла отличается от последнего
+  применённого (`/var/lib/espocrm/telephony-applied`); после этого — рестарт слушателя (правила и учётки он читает только
+  при старте); запасной внутренний номер `108` — только если в EspoCRM он не задан.
 - `espocrm_telephony_enabled: true` — файл пользователей AMI (рендер = `deploy/production/telephony/manager.d-itvolga-espo.conf.example`
   с секретами vault; проверено побайтно на проверочной машине), `manager reload`, служба слушателя (автозапуск),
   самопроверка прав `--check`. `false` — файла нет, служба остановлена, интеграция в EspoCRM выключена.
@@ -112,10 +115,10 @@ PHP-FPM, рестарт работающего слушателя) — посл�
 | `espocrm-config set\|diff\|get` | настройки без значений в argv (`get` — только root: может вернуть секреты) |
 | `espocrm-health` | службы; версия, `db:check`, `app-check`, права записи; настройки §4–5; HTTP через `127.0.0.1` с SNI сайта и проверкой цепочки (превью всегда, публичный vhost — в режимах `maintenance`/`espocrm`); вход администратора (если переданы `HEALTH_USER`/`HEALTH_PASSWORD`; ответ «нужен второй шаг» 2FA засчитывается); переключатель vhost; cron и задания; права (`data/` 770, `config-internal.php` недоступен www-data, код неизменяем для `espocrm` — через `access(2)`); записи разговоров (чтение файла) и файлы записей у звонков; слушатель; ночной пакет ≤ 26 ч; срок сертификата; остатки restore |
 | `espocrm-backup [--label L] [--online]` / `--nightly` | пакет (§8) |
-| `espocrm-restore <пакет\|имя\|nightly> [--yes]` | восстановление (§8) |
+| `espocrm-restore <пакет\|имя\|nightly> [--yes] [--server-config F]` | восстановление (§8) |
 | `espocrm-restore-check [пакет] [--from-restic] [--recordings] [--mysql <БД>]` | практическая проверка восстановления без касания живой системы (§8) |
 | `espocrm-fingerprint take L \| diff A B` | отпечаток: алгоритм `scripts/stand/fingerprint.py` (CHECKSUM TABLE без журналов, sha256 файлов `data/upload`) — дайджест стенда и production сравнимы |
-| `espocrm-changes-since '<UTC>' [--export]` | созданное/изменённое/удалённое после момента (счётчики по таблицам; `--export` — приватный TSV на сервере) — для отката (D-188) |
+| `espocrm-changes-since '<UTC>' \| --against <пакет> [--export]` | для отката (D-188): по времени — созданное/изменённое/удалённое после момента в таблицах с отметками времени; `--against` — полное сравнение с пакетом момента переключения во временной БД (добавленное, удалённое, связи «многие-ко-многим», смена флага удаления, изменённое); счётчики по таблицам, `--export` — приватный TSV на сервере |
 
 Блокировка `/run/lock/espocrm-ops.lock`: одновременно идёт одна операция backup/restore/проверки; роль не запускается во
 время неё (проверка без создания файла).
@@ -134,13 +137,18 @@ PHP-FPM, рестарт работающего слушателя) — посл�
 - **Записи разговоров** — новый тир `recordings` (`/var/spool/asterisk/monitor` и `/var/log/asterisk/cdr-csv`,
   ежедневно 03:15, гибрид, `--keep-daily 14 --keep-weekly 8 --keep-monthly 24`); сам CDR — БД `asteriskcdrdb` тира `db`.
   На 2026-10-17 записи — 187 файлов, 1,3 ГБ.
-- **Восстановление** `espocrm-restore` — порт `scripts/stand/restore.sh`: проверка SHA256SUMS и версии, страховочный пакет
-  `pre-restore`, сохранение серверных ключей конфигурации (`database`, `itvolgaTelephony*` — включая запасной внутренний
-  номер: у тестовой АТС стенда 119, на production 108; отсутствующий ключ после restore удаляется), импорт во временную БД и сверка чисел строк (строго для `counts_exact=1`), атомарный
+- **Восстановление** `espocrm-restore` — порт `scripts/stand/restore.sh`: проверка SHA256SUMS и версии; блокировка и
+  остановка писателей **до** страховочного пакета `pre-restore` (он снимается под той же блокировкой и описывает ровно
+  заменяемое состояние); сохранение серверных ключей конфигурации — `database`, `itvolgaTelephony*`, включая запасной
+  внутренний номер (у тестовой АТС стенда 119, на production 108); отсутствующий ключ после restore удаляется; после
+  сбоя живая конфигурация может отсутствовать или быть чужой, поэтому откат получает файл неудачного прогона
+  (`--server-config`); импорт во временную БД и сверка чисел строк (строго для `counts_exact=1`), атомарный
   `RENAME TABLE`, замена `data/` (и для пакета этого сервера — `custom/Espo/Custom`, `client/custom` кроме модуля; модуль
   никогда не берётся из пакета), возврат серверных ключей и настроек роли (`/etc/espocrm/settings.json`), `rebuild`,
-  cron, `espocrm-health`; прежние таблицы и каталоги удаляются только после успешной проверки, иначе печатается команда
-  отката. `cryptKey`, `passwordSalt`, `hashSecretKey` берутся **из пакета**: ими зашифрованы пароли `ContactAccess`.
+  запуск PHP-FPM, cron и слушателя (в каком бы состоянии их ни оставил прежний сбой), `espocrm-health`; прежние таблицы и
+  каталоги удаляются только после успешной проверки, иначе печатается команда отката (с `--server-config`). `cryptKey`,
+  `passwordSalt`, `hashSecretKey` берутся **из пакета**: ими зашифрованы пароли `ContactAccess`. Проверено на
+  проверочной машине: сбой распаковки после замены таблиц → напечатанный откат → отпечаток = состоянию до сбоя.
 - **Практическая проверка** `espocrm-restore-check`: дамп пакета — во временную БД `espocrm__check_<время>`
   (`sql_log_bin=0`, удаляется), числа строк = записи пакета, файлов в архиве = MANIFEST, у каждой строки вложения есть файл
   (не меньше, чем в живой системе), выборка до 20 файлов побайтно равна живым; `--from-restic` — тот же ночной пакет из
@@ -164,7 +172,7 @@ production, синтетические WAV, страница-маркер и cro
 
 - Не проверено на production (этап 09 его не меняет): выпуск и продление сертификата для этого vhost, объёмы данных
   production, restic в Облако Mail.ru, соседство с `php74-fpm` (контейнер PHP 7.4 в проверку не входит), бан fail2ban
-  (jail загружается, срабатывание не моделировалось), пакет production → `scripts/stand/restore.sh` стенда (формат тот
+  (jail загружается, фильтр проверен `fail2ban-regex`, срабатывание бана не моделировалось), пакет production → `scripts/stand/restore.sh` стенда (формат тот
   же по построению; проверить на этапе 10 до окна, `cutover.md`).
 - Обновление EspoCRM не автоматизировано: другая версия в `.espocrm-core` останавливает роль.
 - Исходящая почта EspoCRM (рассылка отчётов, сброс пароля) не настроена — Q-55; живая телефония до переключения — Q-56.

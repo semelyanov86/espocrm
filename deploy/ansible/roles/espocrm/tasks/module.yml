@@ -55,6 +55,7 @@
     group: root
     mode: "0755"
 
+# Как у ядра: маркер завершения после распаковки, иначе rsync --delete удалил бы файлы, которых нет в неполной копии.
 - name: Unpack the module of the commit
   ansible.builtin.unarchive:
     src: "{{ espocrm_opt_dir }}/module/{{ espocrm_module_tar }}"
@@ -62,7 +63,15 @@
     remote_src: true
     owner: root
     group: root
-    creates: "{{ espocrm_module_stage }}/{{ espocrm_module_paths | first }}"
+    creates: "{{ espocrm_module_stage }}.complete"
+
+- name: Mark the unpacked module complete
+  ansible.builtin.copy:
+    content: "{{ espocrm_module_commit }}\n"
+    dest: "{{ espocrm_module_stage }}.complete"
+    owner: root
+    group: root
+    mode: "0644"
 
 # --checksum: сравнение по содержимому (время файлов архива — время коммита).
 - name: Synchronise the module into the EspoCRM root  # noqa: command-instead-of-module
@@ -85,7 +94,8 @@
     mode: "0644"
   register: espocrm_module_stamp
 
-# Отметка переживает сбой прогона: применение (apply.yml) выполнится и при следующем запуске.
+# Смену версии или коммита apply.yml видит по последнему применённому состоянию; эта отметка — для исправленного
+# дрейфа файлов при том же коммите (переживает сбой прогона).
 - name: Mark the module apply as pending after a change of code
   ansible.builtin.copy:
     content: "{{ espocrm_module_commit }}\n"
@@ -93,9 +103,7 @@
     owner: root
     group: root
     mode: "0600"
-  when: >-
-    espocrm_core_sync is changed or espocrm_module_sync is changed or espocrm_module_stamp is changed
-    or espocrm_core_stamp_write is changed
+  when: espocrm_core_sync is changed or espocrm_module_sync is changed
 
 - name: Find staging copies of other commits
   ansible.builtin.find:
@@ -103,6 +111,7 @@
     file_type: any
     excludes:
       - "{{ espocrm_module_commit }}"
+      - "{{ espocrm_module_commit }}.complete"
       - "{{ espocrm_module_tar }}"
   register: espocrm_module_old
 

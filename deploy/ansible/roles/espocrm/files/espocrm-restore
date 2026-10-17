@@ -2,34 +2,38 @@
 # Restore EspoCRM on the server from a bundle (role espocrm, D-186, D-187) — a bundle of espocrm-backup or of the
 # stand (scripts/stand/backup.sh: the verified import of a snapshot reaches production this way).
 #
-#   espocrm-restore <bundle-dir|name|nightly> [--yes] [--no-safety-backup] [--with-custom]
+#   espocrm-restore <bundle-dir|name|nightly> [--yes] [--no-safety-backup] [--with-custom] [--server-config FILE]
 #
-# 1. verify SHA256SUMS and the EspoCRM version; take a safety bundle of the current state (…-pre-restore);
-# 2. keep the server-owned configuration of the live installation (database, telephony; SERVER_CONFIG_KEYS);
-# 3. pause the listener, cron and PHP-FPM; import the dump into a staging database and verify exact row counts
-#    there (strict for quiesced bundles) — a bad bundle never touches the live database;
+# 1. verify SHA256SUMS and the EspoCRM version; take the lock and stop the listener, cron and PHP-FPM — from here
+#    to the end nothing writes, so the safety bundle (…-pre-restore, taken now) is exactly the state replaced below;
+# 2. keep the server-owned configuration of the live installation (database, telephony; SERVER_CONFIG_KEYS) — or
+#    take it from --server-config, the file a failed restore keeps (its live configuration may be gone or foreign);
+# 3. import the dump into a staging database and verify exact row counts there (strict for quiesced bundles) — a
+#    bad bundle never touches the live database;
 # 4. swap: live tables → <db>__prev_<ts>, staging tables → <db> (atomic RENAME TABLE);
 # 5. replace data/ (and, with --with-custom or for a bundle of this server, custom/Espo/Custom and client/custom
 #    except the module, which belongs to Ansible), keeping the previous directories aside; put the server-owned
 #    configuration and the role settings (/etc/espocrm/settings.json) back; permissions; rebuild;
-# 6. resume, wait for cron.php, espocrm-health. Only after it passes are the previous tables and directories
-#    dropped. On a failure after step 4 the writers stay stopped and the rollback command is printed.
+# 6. start PHP-FPM, cron and the listener (whatever state a failed run left them in), wait for cron.php,
+#    espocrm-health. Only after it passes are the previous tables and directories dropped. On a failure after step 4
+#    the writers stay stopped and the rollback command (with the kept server configuration) is printed.
 # shellcheck source=/dev/null
 source /usr/local/lib/espocrm/lib.sh
 require_root
 
-target="" yes=0 safety=1 custom=auto
+target="" yes=0 safety=1 custom=auto given_config=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --yes) yes=1 ;;
         --no-safety-backup) safety=0 ;;
         --with-custom) custom=1 ;;
+        --server-config) given_config="${2:?}"; shift ;;
         -*) die "unknown option $1" ;;
         *) target="$1" ;;
     esac
     shift
 done
-[[ -n "$target" ]] || die "usage: espocrm-restore <bundle-dir|name|nightly> [--yes] [--no-safety-backup] [--with-custom]"
+[[ -n "$target" ]] || die "usage: espocrm-restore <bundle-dir|name|nightly> [--yes] [--no-safety-backup] [--with-custom] [--server-config FILE]"
 if [[ -d "$target" ]]; then dir="$(cd "$target" && pwd)"
 elif [[ "$target" == nightly ]]; then dir="$BACKUP_DIR/nightly"
 else dir="$BACKUP_DIR/bundles/$target"; fi
@@ -40,25 +44,21 @@ counts_exact="$(manifest_get "$dir" counts_exact)"; counts_exact="${counts_exact
 db_cs="$(manifest_get "$dir" db_charset)"; db_coll="$(manifest_get "$dir" db_collation)"
 origin="$(manifest_get "$dir" origin)"
 if [[ $custom == auto ]]; then [[ "$origin" == production ]] && custom=1 || custom=0; fi
+[[ -z "$given_config" || -f "$given_config" ]] || die "no server configuration file $given_config"
 
 if [[ $yes != 1 ]]; then
     read -r -p "Restore $(manifest_get "$dir" name) (${origin:-stand}) over EspoCRM ($DB_NAME and data/)? [y/N] " answer
     [[ "$answer" =~ ^[yY]$ ]] || die "aborted"
 fi
 
-safety_dir=""
-if [[ $safety == 1 ]]; then
-    log "safety backup of the current state"
-    safety_dir="$("$SBIN_DIR/espocrm-backup" --label pre-restore)"
-fi
 ops_lock
 umask 077
-
 ts="$(date +%Y%m%dT%H%M%S)"
 aside="$BACKUP_DIR/.restore-aside-$ts"
 stage_db="${DB_NAME}__restore_$ts"
 prev_db="${DB_NAME}__prev_$ts"
 server_config="$STATE_DIR/server-config-$ts.json"
+safety_dir=""
 phase=verify finished=0
 
 on_exit() {
@@ -68,14 +68,14 @@ on_exit() {
         mysql_root -e "DROP DATABASE IF EXISTS \`$stage_db\`" || true
         rm -f "$server_config"
         resume_writers
-        warn "restore aborted before any change (rc=$rc): EspoCRM is unchanged and running"
+        warn "restore aborted before any change (rc=$rc): EspoCRM is as it was"
         return
     fi
     pause_writers || true
     warn "restore FAILED in phase '$phase' (rc=$rc): the listener, cron and $FPM_UNIT are stopped."
     warn "Previous tables: database $prev_db; previous directories: $aside; server configuration: $server_config."
     if [[ -n "$safety_dir" ]]; then
-        warn "Roll back with: espocrm-restore $safety_dir --yes --no-safety-backup"
+        warn "Roll back with: espocrm-restore $safety_dir --yes --no-safety-backup --server-config $server_config"
     else
         warn "No safety bundle was taken: move the tables of $prev_db and the directories in $aside back manually."
     fi
@@ -83,15 +83,20 @@ on_exit() {
 trap on_exit EXIT
 
 log "keeping the server-owned configuration (${SERVER_CONFIG_KEYS[*]})"
-espo_config get "${SERVER_CONFIG_KEYS[@]}" >"$server_config"
+if [[ -n "$given_config" ]]; then
+    install -m 0600 "$given_config" "$server_config"
+else
+    espo_config get "${SERVER_CONFIG_KEYS[@]}" >"$server_config" \
+        || die "cannot read the live configuration: pass --server-config <the file a failed restore kept>"
+fi
 # A key the live configuration does not have is removed after the restore (null), so no setting of the source
 # installation (e.g. the AMI users of the stand's test PBX) survives in production.
-python3 - "$server_config" "${SERVER_CONFIG_KEYS[@]}" <<'PY' || die "the live configuration has no database block"
+python3 - "$server_config" "${SERVER_CONFIG_KEYS[@]}" <<'PY' || die "the server configuration has no database block"
 import json, sys
 path, keys = sys.argv[1], sys.argv[2:]
 with open(path, encoding="utf-8") as f:
     data = json.load(f)
-if "database" not in data:
+if not isinstance(data.get("database"), dict) or not data["database"].get("password"):
     sys.exit(1)
 for key in keys:
     data.setdefault(key, None)
@@ -101,6 +106,10 @@ PY
 
 log "pausing writers (telephony listener, cron, $FPM_UNIT)"
 pause_writers
+if [[ $safety == 1 ]]; then
+    log "safety backup of the current state (writers stay paused, the lock stays held)"
+    safety_dir="$(ESPOCRM_OPS_LOCKED=1 "$SBIN_DIR/espocrm-backup" --label pre-restore --paused)"
+fi
 
 log "importing the dump into staging database $stage_db ($db_cs / $db_coll)"
 mysql_root -e "CREATE DATABASE \`$stage_db\` CHARACTER SET $db_cs COLLATE $db_coll"
@@ -149,28 +158,34 @@ if [[ $custom == 1 && -d "$aside/client/custom/modules/itvolga" ]]; then
 fi
 for p in data/upload data/logs custom/Espo/Custom client/custom client/custom/modules; do mkdir -p "$ESPO_ROOT/$p"; done
 chown -R "$ESPO_USER:$ESPO_USER" "$ESPO_ROOT/data" "$ESPO_ROOT/custom/Espo/Custom"
-chown "$ESPO_USER:$ESPO_USER" "$ESPO_ROOT/client/custom"
 chmod 0770 "$ESPO_ROOT/data" "$ESPO_ROOT/custom/Espo/Custom"
-chmod 0755 "$ESPO_ROOT/client/custom"
+# The same as the role (core.yml): the parent of the module code is root:espocrm 1775.
+chown "root:$ESPO_USER" "$ESPO_ROOT/client/custom"
+chmod 1775 "$ESPO_ROOT/client/custom"
 chown root:root "$ESPO_ROOT/client/custom/modules"
+chmod 0755 "$ESPO_ROOT/client/custom/modules"
 
 phase=configure
 log "putting back the server-owned configuration and the role settings"
 espo_config set <"$server_config" >/dev/null
 espo_config set <"$SETTINGS_FILE" >/dev/null
-rm -f "$server_config"
 [[ "$(espo_cmd db:check 2>&1)" == OK ]] || die "EspoCRM cannot connect to its database after the restore"
 espo_cmd clear-cache >/dev/null
 espo_cmd rebuild >/dev/null
 
 phase=health
 since="$(date +%s)"
-resume_writers
-if [[ ! -f "$CRON_FILE" ]]; then die "no cron entry $CRON_FILE (re-run the role espocrm)"; fi
+# Running afterwards whatever state a failed earlier run left (a rollback restore starts from stopped writers).
+WRITERS_CRON=0 WRITERS_FPM=0 WRITERS_TELEPHONY=0
+systemctl start "$FPM_UNIT"
+if [[ ! -f "$CRON_FILE" && -f "$CRON_FILE.paused" ]]; then mv "$CRON_FILE.paused" "$CRON_FILE"; fi
+[[ -f "$CRON_FILE" ]] || die "no cron entry $CRON_FILE (re-run the role espocrm)"
+if [[ "$TELEPHONY_ENABLED" == 1 ]]; then systemctl start "$TELEPHONY_UNIT"; fi
 wait_cron_run "$since" || true
 "$SBIN_DIR/espocrm-health" --restore-ts "$ts" || die "health check failed after the restore"
 
 finished=1
 mysql_root -e "DROP DATABASE \`$prev_db\`"
 rm -rf "$aside"
+rm -f "$server_config"
 log "restore of $(manifest_get "$dir" name) completed; previous tables and directories removed"

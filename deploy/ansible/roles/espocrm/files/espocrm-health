@@ -172,6 +172,10 @@ for p in application/Espo/Core/Application.php public custom/Espo/Modules/Itvolg
 done
 [[ ${#writable[@]} -eq 0 ]] && report OK "perms: code read-only" "$ESPO_USER cannot modify the core and the module" \
     || report FAIL "perms: code read-only" "writable by $ESPO_USER: ${writable[*]}"
+# espocrm may write the parents of the module code, but the sticky bit keeps it from renaming the module away.
+parents="$(stat -c '%U:%G %a' "$ESPO_ROOT/custom/Espo/Modules" "$ESPO_ROOT/client/custom" | sort -u)"
+[[ "$parents" == "root:$ESPO_USER 1775" ]] && s=OK || s=FAIL
+report "$s" "perms: module parents" "${parents//$'\n'/; } (sticky: the module cannot be renamed away)"
 
 # --- telephony ------------------------------------------------------------------------------------------------------
 if [[ -d "$RECORDINGS_DIR" ]]; then

@@ -1,26 +1,6 @@
 ---
-- name: Reload systemd
-  ansible.builtin.systemd:
-    daemon_reload: true
-
-- name: Restart EspoCRM PHP-FPM
-  ansible.builtin.systemd:
-    name: "{{ espocrm_fpm_unit }}"
-    state: restarted
-
-- name: Restart the EspoCRM telephony listener
-  ansible.builtin.systemd:
-    name: "{{ espocrm_telephony_unit }}"
-    state: restarted
-  when: espocrm_telephony_enabled | bool
-
-# Новые пользователи AMI — без рестарта Asterisk: идущие звонки не рвутся (telephony.md).
-- name: Reload the Asterisk manager
-  ansible.builtin.shell:
-    cmd: if systemctl is-active --quiet asterisk; then asterisk -rx "manager reload"; fi
-  changed_when: true
-
-# Те же имена и действия, что у обработчиков роли apache: в одном play (12-crm-switch.yml) — один reload.
+# Те же имена и действия, что у обработчиков роли apache: в одном play (12-crm-switch.yml) — один reload в конце.
+# PHP-FPM, слушатель и manager reload перезапускаются задачами роли (без flush_handlers посреди play).
 - name: Reload Apache
   ansible.builtin.service:
     name: apache2

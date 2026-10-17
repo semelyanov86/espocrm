@@ -1,14 +1,12 @@
 ---
-# Применение модуля (как task model:apply стенда) — после первой установки и после любой смены кода ядра или
-# модуля; отметка module.yml переживает сбой прогона.
-- name: Mark the module apply as pending after the first installation
-  ansible.builtin.copy:
-    content: "install\n"
-    dest: "{{ espocrm_pending_apply }}"
-    owner: root
-    group: root
-    mode: "0600"
-  when: espocrm_installed.stdout | trim != 'true'
+# Применение модуля (как task model:apply стенда) — когда последнее успешно применённое состояние (ядро + коммит
+# модуля, /var/lib/espocrm/apply-applied) отличается от развёрнутого, и после исправления дрейфа файлов (отметка
+# apply-pending из module.yml). Прерванный прогон, где код уже сменился, применится следующим запуском.
+- name: Read the last applied state of the module
+  ansible.builtin.slurp:
+    src: "{{ espocrm_applied_apply }}"
+  register: espocrm_apply_applied
+  failed_when: false
 
 - name: Stat the pending module apply
   ansible.builtin.stat:
@@ -19,9 +17,20 @@
   ansible.builtin.command:
     cmd: "{{ espocrm_sbin_dir }}/espocrm-apply"
   when:
-    - espocrm_apply_pending.stat.exists
     - not ansible_check_mode
+    - espocrm_apply_pending.stat.exists
+      or (espocrm_apply_applied.content | default('') | b64decode | trim) != espocrm_apply_state
   changed_when: true
+  register: espocrm_module_applied
+
+- name: Record the applied state of the module
+  ansible.builtin.copy:
+    content: "{{ espocrm_apply_state }}\n"
+    dest: "{{ espocrm_applied_apply }}"
+    owner: root
+    group: root
+    mode: "0600"
+  when: not ansible_check_mode
 
 - name: Clear the pending module apply
   ansible.builtin.file:

@@ -133,7 +133,7 @@ index 10a1d06..9453a37 100644
  # -----------------------------------------------------------------------------
  #  Реестр reverse-proxy сайтов (бэкенды на loopback).
 diff --git a/ansible/inventory/group_vars/all/vault.yml.example b/ansible/inventory/group_vars/all/vault.yml.example
-index c09c1bc..40d94ec 100644
+index c09c1bc..db5c470 100644
 --- a/ansible/inventory/group_vars/all/vault.yml.example
 +++ b/ansible/inventory/group_vars/all/vault.yml.example
 @@ -15,6 +15,14 @@ vault_db_lahicsu_password: "CHANGE_ME_lahicsu"
@@ -145,7 +145,7 @@ index c09c1bc..40d94ec 100644
 +# ---- EspoCRM (роль espocrm, playbooks/11-espocrm.yml; миграция /data/itvolga/espo) ----
 +# Пароль администратора EspoCRM ставится при установке и разово — -e espocrm_admin_reset=true.
 +vault_espocrm_admin_password: "CHANGE_ME_espocrm_admin"
-+# Пользователи AMI интеграции (manager.d/itvolga-espo.conf): 16–200 печатных символов ASCII без пробелов.
++# Пользователи AMI интеграции (manager.d/itvolga-espo.conf): 16–200 символов из A-Z a-z 0-9 и ._~+=@%^*!- (без «;» и «#»).
 +vault_espocrm_ami_listener_secret: "CHANGE_ME_ami_listener_secret"
 +vault_espocrm_ami_dialer_secret: "CHANGE_ME_ami_dialer_secret_"
  

@@ -112,10 +112,18 @@ def main() -> int:
     code, _, _ = request("/api/v1/App/user", {"Espo-Authorization": espo_auth(USER, PASSWORD + "-wrong")})
     report("OK" if code == 401 else "FAIL", "api: wrong password", f"status {code} (expected 401)")
 
-    # 4. Login exactly like the web client: credentials -> auth token -> token requests.
-    code, _, body = request("/api/v1/App/user", {"Espo-Authorization": espo_auth(USER, PASSWORD),
-                                                 "Espo-Authorization-By-Token": "false",
-                                                 "Espo-Authorization-Create-Token-Secret": "true"})
+    # 4. Login exactly like the web client: credentials -> auth token -> token requests. A bundle of production
+    #    (stage 10-11, scripts/deploy/bundle.sh pull) brings the administrator of production — its password and 2FA:
+    #    ESPO_HEALTH_LOGIN=0 skips the login; a correct password of a 2FA account (401 second-step-required) passes.
+    if os.environ.get("ESPO_HEALTH_LOGIN") == "0":
+        report("OK", "api: login", "skipped (ESPO_HEALTH_LOGIN=0: administrator of a production bundle)")
+        return fails
+    code, headers, body = request("/api/v1/App/user", {"Espo-Authorization": espo_auth(USER, PASSWORD),
+                                                       "Espo-Authorization-By-Token": "false",
+                                                       "Espo-Authorization-Create-Token-Secret": "true"})
+    if code == 401 and headers.get("X-Status-Reason") == "second-step-required":
+        report("OK", "api: login", "password accepted, second factor required (2FA of the account)")
+        return fails
     token = None
     if code == 200:
         data = json.loads(body)

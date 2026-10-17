@@ -1,7 +1,8 @@
 # {{ ansible_managed }}
-# fail2ban filter: failed logins of EspoCRM (role espocrm, D-183). The web client logs in — and passes the second
-# factor (TOTP, security key) — with GET /api/v1/App/user; a wrong password or code answers 401. Other API requests
-# with an expired token (e.g. the telephony cards polling) are not counted.
+# fail2ban filter: failed logins of EspoCRM (role espocrm, D-183), journal {{ espocrm_log_prefix }}_auth.log of the vhost
+# (only /api/v1/App/user: the web client logs in — and passes the second factor, TOTP or security key — there). A wrong
+# password or code answers 401; a correct password of a 2FA account answers 401 "second-step-required" — not counted.
 [Definition]
-failregex = ^<HOST> \S+ \S+ \[[^\]]+\] "(?:GET|POST) /api/v1/App/user(?:\?\S*)? HTTP/[0-9.]+" 401
+# fail2ban cuts the date out of the line before failregex: no [date] in the pattern.
+failregex = ^<HOST> .*"(?:GET|POST) /api/v1/App/user(?:\?\S*)? HTTP/[0-9.]+" 401 "(?!second-step-required")[^"]*"$
 ignoreregex =

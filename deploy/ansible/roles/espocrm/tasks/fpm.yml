@@ -1,6 +1,7 @@
 ---
 # Свой мастер PHP-FPM 8.5 (как на стенде): перезапуск EspoCRM не касается php8.5-fpm (Firefly, Mautic) и
-# php74-fpm (Vtiger, Lahic). php.ini и расширения — общие для PHP 8.5 (роль php).
+# php74-fpm (Vtiger, Lahic). php.ini и расширения — общие для PHP 8.5 (роль php). Рестарт — задачей, не
+# обработчиком: flush_handlers посреди роли перезагрузил бы и Apache с промежуточным состоянием переключения.
 - name: Deploy the PHP-FPM configuration of EspoCRM
   ansible.builtin.template:
     src: php-fpm.conf.j2
@@ -9,7 +10,7 @@
     group: root
     mode: "0644"
     validate: "{{ espocrm_php_fpm_bin }} --test --fpm-config %s"
-  notify: Restart EspoCRM PHP-FPM
+  register: espocrm_fpm_conf
 
 - name: Deploy the PHP-FPM unit of EspoCRM
   ansible.builtin.template:
@@ -18,15 +19,11 @@
     owner: root
     group: root
     mode: "0644"
-  notify:
-    - Reload systemd
-    - Restart EspoCRM PHP-FPM
+  register: espocrm_fpm_unit_file
 
-- name: Apply a changed unit before the service is started
-  ansible.builtin.meta: flush_handlers
-
-- name: Start and enable the PHP-FPM master of EspoCRM
+- name: Start, enable or restart the PHP-FPM master of EspoCRM
   ansible.builtin.systemd:
     name: "{{ espocrm_fpm_unit }}"
-    state: started
+    state: "{{ 'restarted' if (espocrm_fpm_conf is changed or espocrm_fpm_unit_file is changed) else 'started' }}"
     enabled: true
+    daemon_reload: "{{ espocrm_fpm_unit_file is changed }}"

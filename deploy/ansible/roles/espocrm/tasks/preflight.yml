@@ -13,12 +13,14 @@
       - espocrm_db_password | length >= 16
       - espocrm_admin_password | length >= 12
       - espocrm_mysql_login_password | length > 0
-      - espocrm_ami_listener_secret is match('^[!-~]{16,200}$')
-      - espocrm_ami_dialer_secret is match('^[!-~]{16,200}$')
+      - espocrm_ami_listener_secret is match('^[A-Za-z0-9._~+=@%^*!-]{16,200}$')
+      - espocrm_ami_dialer_secret is match('^[A-Za-z0-9._~+=@%^*!-]{16,200}$')
+    # Секреты AMI попадают в manager.d как есть: «;» начинает комментарий Asterisk, «#», кавычки, «[]» и «\» —
+    # его синтаксис, поэтому алфавит уже, чем у itvolga-setup-telephony.
     fail_msg: >-
       Нет секретов EspoCRM в vault (vault_db_espocrm_password ≥ 16, vault_espocrm_admin_password ≥ 12,
-      vault_espocrm_ami_listener_secret и vault_espocrm_ami_dialer_secret — 16–200 печатных символов ASCII):
-      task vault:edit, шаблон — vault.yml.example.
+      vault_espocrm_ami_listener_secret и vault_espocrm_ami_dialer_secret — 16–200 символов из A-Z a-z 0-9 и
+      ._~+=@%^*!-): task vault:edit, шаблон — vault.yml.example.
     quiet: true
 
 # Блокировку держат espocrm-backup / espocrm-restore / espocrm-restore-check: роль не правит cron, FPM и

@@ -2,6 +2,14 @@
 # EspoCRM — {{ espocrm_server_name }}, mode {{ espocrm_mode }} (role espocrm, D-181). Layout per docs.espocrm.com
 # (apache-server-configuration), as on the stand: document root public/, alias /client/, nothing else of the root is
 # reachable; PHP goes to the dedicated FPM pool. No HTTP Basic Auth: the login of EspoCRM + mandatory 2FA (D-183).
+# Login journal of fail2ban (D-183): only GET/POST /api/v1/App/user, with X-Status-Reason — a correct password of a 2FA
+# account answers 401 "second-step-required", which is not a failure.
+LogFormat "%h %t \"%r\" %>s \"%{X-Status-Reason}o\"" espocrm_auth
+{% macro espocrm_logs() %}
+    ErrorLog ${APACHE_LOG_DIR}/{{ espocrm_log_prefix }}_error.log
+    CustomLog ${APACHE_LOG_DIR}/{{ espocrm_log_prefix }}_access.log combined
+    CustomLog ${APACHE_LOG_DIR}/{{ espocrm_log_prefix }}_auth.log espocrm_auth "expr=%{REQUEST_URI} =~ m#^/api/v1/App/user#"
+{% endmacro %}
 {% macro espocrm_backend() %}
     DocumentRoot {{ espocrm_root }}/public
     Alias /client/ {{ espocrm_root }}/client/
@@ -52,9 +60,7 @@ Listen {{ espocrm_preview_address }}:{{ espocrm_preview_port }} https
     SSLCertificateKeyFile {{ espocrm_tls_key }}
 
 {{ espocrm_backend() }}
-    ErrorLog ${APACHE_LOG_DIR}/{{ espocrm_log_prefix }}_error.log
-    CustomLog ${APACHE_LOG_DIR}/{{ espocrm_log_prefix }}_access.log combined
-</VirtualHost>
+{{ espocrm_logs() }}</VirtualHost>
 {% if espocrm_mode != 'vtiger' %}
 
 # Public {{ espocrm_server_name }}: {{ 'EspoCRM' if espocrm_mode == 'espocrm' else 'maintenance page of the switch window' }}.
@@ -72,9 +78,7 @@ Listen {{ espocrm_preview_address }}:{{ espocrm_preview_port }} https
     RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/
     RewriteRule ^(.*)$ https://%{HTTP_HOST}$1 [R=301,L]
 
-    ErrorLog ${APACHE_LOG_DIR}/{{ espocrm_log_prefix }}_error.log
-    CustomLog ${APACHE_LOG_DIR}/{{ espocrm_log_prefix }}_access.log combined
-</VirtualHost>
+{{ espocrm_logs() }}</VirtualHost>
 
 <VirtualHost *:443>
     ServerName {{ espocrm_server_name }}
@@ -99,7 +103,5 @@ Listen {{ espocrm_preview_address }}:{{ espocrm_preview_port }} https
     RewriteCond %{REQUEST_URI} !=/maintenance.html
     RewriteRule ^ - [R=503,L]
 {% endif %}
-    ErrorLog ${APACHE_LOG_DIR}/{{ espocrm_log_prefix }}_error.log
-    CustomLog ${APACHE_LOG_DIR}/{{ espocrm_log_prefix }}_access.log combined
-</VirtualHost>
+{{ espocrm_logs() }}</VirtualHost>
 {% endif %}

@@ -174,6 +174,52 @@ fp_b="$(espocrm-fingerprint take after-restore)"
     || { espocrm-fingerprint diff "$(ls -t /var/backups/espocrm/fingerprints/*-t1.json | head -1)" \
             "$(ls -t /var/backups/espocrm/fingerprints/*-after-restore.json | head -1)" || true; exit 1; }
 
+step "changes against the bundle (links and hard deletes included)"
+api POST Account "{\"name\": \"Synthetic test account C $run\"}" | id_of
+espocrm-changes-since --against "$bundle"
+
+step "a restore failing inside the files phase, then the printed rollback"
+fp_before="$(espocrm-fingerprint take before-failed-restore)"
+bad="/var/backups/espocrm/bundles/$(basename "$bundle")-broken"
+cp -a "$bundle" "$bad"
+head -c 2000 "$bundle/files.tar.gz" >"$bad/files.tar.gz"
+( cd "$bad" && sha256sum db.sql.gz files.tar.gz table-counts.tsv MANIFEST >SHA256SUMS )
+if espocrm-restore "$bad" --yes >/tmp/failed-restore.log 2>&1; then echo "the broken bundle was restored"; exit 1; fi
+grep -E "FAILED in phase" /tmp/failed-restore.log
+systemctl is-active espocrm-php-fpm || true
+ls /etc/cron.d/espocrm.paused
+rollback="$(sed -n 's/.*Roll back with: //p' /tmp/failed-restore.log)"
+echo "rollback: ${rollback%% --server-config*} --server-config …"
+eval "$rollback"
+if [[ "$(espocrm-fingerprint take after-rollback)" == "$fp_before" ]]; then
+    echo "fingerprint after the rollback equals the state before the failed restore"
+else
+    echo "FAIL fingerprint after the rollback differs"; exit 1
+fi
+rm -rf "$bad"
+# The failed run keeps its previous tables and directories on purpose (manual rollback); drop them once rolled back.
+for d in $(mysql -N -B -e "SHOW DATABASES LIKE 'espocrm\_\_prev\_%'"); do mysql -e "DROP DATABASE \`$d\`"; done
+rm -rf /var/backups/espocrm/.restore-aside-*
+
+step "the module cannot be renamed away by the EspoCRM user"
+if runuser -u espocrm -- mv /var/www/espocrm/custom/Espo/Modules/Itvolga /var/www/espocrm/custom/Espo/Modules/X 2>/dev/null; then
+    echo "renamed"; exit 1
+fi
+runuser -u espocrm -- touch /var/www/espocrm/custom/Espo/Modules/.probe && rm -f /var/www/espocrm/custom/Espo/Modules/.probe
+echo "rename refused, writing the parent allowed"
+
+step "fail2ban: the login journal and the filter"
+curl -s -o /dev/null --resolve serv.itvolga.com:8443:127.0.0.1 --cacert /etc/espocrm-test/ca.pem \
+    -H "Espo-Authorization: $(printf 'admin:wrong-%s' "$run" | base64 -w0)" https://serv.itvolga.com:8443/api/v1/App/user
+tail -1 /var/log/apache2/espocrm_auth.log | sed -E 's/^[0-9.]+/<ip>/'
+printf '%s\n' '127.0.0.1 [17/Oct/2026:18:00:00 +0000] "GET /api/v1/App/user HTTP/1.1" 401 "second-step-required"' \
+    '127.0.0.1 [17/Oct/2026:18:00:01 +0000] "GET /api/v1/App/user HTTP/1.1" 401 "-"' >/tmp/auth-sample.log
+tail -1 /var/log/apache2/espocrm_auth.log >>/tmp/auth-sample.log
+f2b="$(fail2ban-regex /tmp/auth-sample.log /etc/fail2ban/filter.d/espocrm-auth.conf | grep -E '^Lines: ')"
+echo "$f2b"
+[[ "$f2b" == *" 2 matched, 1 missed"* ]] || { echo "FAIL the filter must count the wrong passwords only"; exit 1; }
+fail2ban-client status espocrm-auth | grep -E 'Currently failed|File list'
+
 step "restore check of the bundle"
 espocrm-restore-check "$bundle"
 
@@ -192,7 +238,8 @@ sed -i -e '/^origin=/d' -e '/^host=/d' "$stand/MANIFEST"
 ( cd "$stand" && sha256sum db.sql.gz files.tar.gz table-counts.tsv MANIFEST >SHA256SUMS )
 espocrm-restore "$stand" --yes --no-safety-backup
 fp_c="$(espocrm-fingerprint take after-stand-format)"
-[[ "$fp_c" == "$fp_a" ]] && echo "fingerprint after the stand-format restore equals the bundle"
+if [[ "$fp_c" == "$fp_a" ]]; then echo "fingerprint after the stand-format restore equals the bundle"
+else echo "FAIL fingerprint after the stand-format restore differs"; exit 1; fi
 espocrm-health
 
 step "leftovers"
@@ -202,7 +249,8 @@ SCENARIO
         tail -60 "$LOGS/verify.log" >&2
         die "scenario failed, log $LOGS/verify.log"
     fi
-    grep -E '^(=== |FAIL|WARN|health:|restore check:|fingerprint|bundle:)' "$LOGS/verify.log" | sed 's/^/    /' >&2
+    grep -E '^(=== |FAIL|WARN|health:|restore check:|fingerprint|bundle:|rollback:|rename|Lines:|changes against)' \
+        "$LOGS/verify.log" | sed 's/^/    /' >&2
 }
 
 # Live telephony against the Asterisk of the target: AMI users (manager reload), listener, rights self-test.
