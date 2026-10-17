@@ -20,9 +20,6 @@
         },
         "documents": {
             "createDisabled": false
-        },
-        "account": {
-            "selectFieldHandler": "itvolga:handlers/finance/account-address"
         }
     },
     "detailActionList": [

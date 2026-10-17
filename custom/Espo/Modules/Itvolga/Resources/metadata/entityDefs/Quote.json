@@ -46,7 +46,8 @@
         },
         "account": {
             "type": "link",
-            "required": true
+            "required": true,
+            "view": "itvolga:views/finance/fields/account"
         },
         "contact": {
             "type": "link"

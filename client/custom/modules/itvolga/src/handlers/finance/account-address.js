@@ -1,65 +1,59 @@
 /**
- * Billing and shipping addresses of a finance document come from its account: the contract keeps them as a copy of the
- * account's address at the time of the document, as Vtiger did when an organization was chosen. Two core contracts:
- * - createHandler of the document panels of an account, a contact and an opportunity (clientDefs relationshipPanels;
- *   the account and the contact themselves come from createAttributeMap) — getAttributes(parent record);
- * - selectFieldHandler of the account field of a document (clientDefs relationshipPanels.account) —
- *   getAttributes(chosen account), replacing the addresses of the previous account.
- * An account without any address, or one the user cannot read, changes nothing.
+ * «+» on the document panels of an account, a contact and an opportunity (clientDefs relationshipPanels createHandler;
+ * the account and the contact come from createAttributeMap; D-179): the new document gets the billing and shipping
+ * addresses of the account — the parent itself, or the account of the contact or the opportunity. The core waits for
+ * it before it opens the form. An account the user cannot read, or a removed one, leaves the addresses empty.
  */
-define('itvolga:handlers/finance/account-address', [], () => {
-
-    const FIELDS = ['billingAddress', 'shippingAddress'];
-    const PARTS = ['Street', 'City', 'State', 'Country', 'PostalCode'];
+define('itvolga:handlers/finance/account-address', ['itvolga:finance/account-address'], (AccountAddress) => {
 
     return class {
 
         /**
-         * @param {import('model').default} model a parent record or a chosen account
-         * @return {Promise<Record<string, string|null>>}
+         * @param {import('view-helper').default} viewHelper
          */
-        async getAttributes(model) {
-            const accountId = model.entityType === 'Account' ? model.id : model.get('accountId');
-
-            if (!accountId) {
-                return {};
-            }
-
-            let account;
-
-            try {
-                account = await Espo.Ajax.getRequest(`Account/${encodeURIComponent(accountId)}`);
-            } catch (xhr) {
-                xhr.errorIsHandled = true;
-
-                return {};
-            }
-
-            const attributes = {};
-
-            for (const field of FIELDS) {
-                for (const part of PARTS) {
-                    const attribute = field + part;
-
-                    // Fields closed to the user are not in the response: the document keeps its own value.
-                    if (attribute in account) {
-                        attributes[attribute] = account[attribute] ?? null;
-                    }
-                }
-            }
-
-            if (Object.values(attributes).every(value => value === null || value === '')) {
-                return {};
-            }
-
-            return attributes;
+        constructor(viewHelper) {
+            this.viewHelper = viewHelper;
         }
 
         /**
-         * @return {Promise<Record<string, *>>}
+         * @param {import('model').default} model the parent record
+         * @param {string} link
+         * @return {Promise<Record<string, string|null>>}
          */
-        async getClearAttributes() {
-            return {};
+        async getAttributes(model, link) {
+            const account = model.entityType === 'Account' ?
+                model.attributes :
+                await this.loadAccount(model.get('accountId'));
+
+            if (!account) {
+                return {};
+            }
+
+            const forbiddenFieldList = this.viewHelper.acl
+                .getScopeForbiddenFieldList(model.getLinkParam(link, 'entity'), 'edit');
+
+            return AccountAddress.fromAccount(account, forbiddenFieldList) ?? {};
+        }
+
+        /**
+         * @param {string|null} id
+         * @return {Promise<Record<string, *>|null>}
+         */
+        async loadAccount(id) {
+            if (!id) {
+                return null;
+            }
+
+            try {
+                return await Espo.Ajax.getRequest(`Account/${encodeURIComponent(id)}`);
+            } catch (xhr) {
+                // Any other error keeps the core message; the form opens anyway.
+                if (xhr.status === 403 || xhr.status === 404) {
+                    xhr.errorIsHandled = true;
+                }
+
+                return null;
+            }
         }
     };
 });
