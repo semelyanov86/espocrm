@@ -3,9 +3,12 @@
 # stand (scripts/stand/backup.sh: the verified import of a snapshot reaches production this way).
 #
 #   espocrm-restore <bundle-dir|name|nightly> [--yes] [--no-safety-backup] [--with-custom] [--server-config FILE]
+#                   [--carry-calls-from <bundle|'YYYY-MM-DD HH:MM:SS'>]
 #
 # 1. verify SHA256SUMS and the EspoCRM version; take the lock and stop the listener, cron and PHP-FPM — from here
 #    to the end nothing writes, so the safety bundle (…-pre-restore, taken now) is exactly the state replaced below;
+#    with --carry-calls-from, keep the calls the listener wrote since that bundle was taken (its MANIFEST created,
+#    minus 10 minutes) or since the moment (UTC) — the cutover bundle of the stand does not have them (D-191);
 # 2. keep the server-owned configuration of the live installation (database, telephony; SERVER_CONFIG_KEYS) — or
 #    take it from --server-config, the file a failed restore keeps (its live configuration may be gone or foreign);
 # 3. import the dump into a staging database and verify exact row counts there (strict for quiesced bundles) — a
@@ -14,6 +17,8 @@
 # 5. replace data/ (and, with --with-custom or for a bundle of this server, custom/Espo/Custom and client/custom
 #    except the module, which belongs to Ansible), keeping the previous directories aside; put the server-owned
 #    configuration and the role settings (/etc/espocrm/settings.json) back; permissions; rebuild;
+#    put the kept calls back (one transaction: rows by id, participants, contacts, leads, teams; a call the bundle
+#    already holds as another record of the same Asterisk call is skipped — the verified import wins);
 # 6. start PHP-FPM, cron and the listener (whatever state a failed run left them in), wait for cron.php,
 #    espocrm-health. Only after it passes are the previous tables and directories dropped. On a failure after step 4
 #    the writers stay stopped and the rollback command (with the kept server configuration) is printed.
@@ -21,19 +26,20 @@
 source /usr/local/lib/espocrm/lib.sh
 require_root
 
-target="" yes=0 safety=1 custom=auto given_config=""
+target="" yes=0 safety=1 custom=auto given_config="" carry_from=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --yes) yes=1 ;;
         --no-safety-backup) safety=0 ;;
         --with-custom) custom=1 ;;
         --server-config) given_config="${2:?}"; shift ;;
+        --carry-calls-from) carry_from="${2:?}"; shift ;;
         -*) die "unknown option $1" ;;
         *) target="$1" ;;
     esac
     shift
 done
-[[ -n "$target" ]] || die "usage: espocrm-restore <bundle-dir|name|nightly> [--yes] [--no-safety-backup] [--with-custom] [--server-config FILE]"
+[[ -n "$target" ]] || die "usage: espocrm-restore <bundle-dir|name|nightly> [--yes] [--no-safety-backup] [--with-custom] [--server-config FILE] [--carry-calls-from <bundle|time>]"
 if [[ -d "$target" ]]; then dir="$(cd "$target" && pwd)"
 elif [[ "$target" == nightly ]]; then dir="$BACKUP_DIR/nightly"
 else dir="$BACKUP_DIR/bundles/$target"; fi
@@ -45,6 +51,15 @@ db_cs="$(manifest_get "$dir" db_charset)"; db_coll="$(manifest_get "$dir" db_col
 origin="$(manifest_get "$dir" origin)"
 if [[ $custom == auto ]]; then [[ "$origin" == production ]] && custom=1 || custom=0; fi
 [[ -z "$given_config" || -f "$given_config" ]] || die "no server configuration file $given_config"
+carry_since=""
+if [[ "$carry_from" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}\ [0-9]{2}:[0-9]{2}:[0-9]{2}$ ]]; then
+    carry_since="$carry_from"
+elif [[ -n "$carry_from" ]]; then
+    if [[ -d "$carry_from" ]]; then carry_dir="$carry_from"; else carry_dir="$BACKUP_DIR/bundles/$carry_from"; fi
+    created="$(manifest_get "$carry_dir" created 2>/dev/null)" || true
+    [[ -n "$created" ]] || die "no bundle $carry_from to carry the calls from (MANIFEST created)"
+    carry_since="$(date -u -d "@$(( $(date -d "$created" +%s) - 600 ))" '+%F %T')"
+fi
 
 if [[ $yes != 1 ]]; then
     read -r -p "Restore $(manifest_get "$dir" name) (${origin:-stand}) over EspoCRM ($DB_NAME and data/)? [y/N] " answer
@@ -58,6 +73,7 @@ aside="$BACKUP_DIR/.restore-aside-$ts"
 stage_db="${DB_NAME}__restore_$ts"
 prev_db="${DB_NAME}__prev_$ts"
 server_config="$STATE_DIR/server-config-$ts.json"
+carry_file="$STATE_DIR/carry-calls-$ts.sql"
 safety_dir=""
 phase=verify finished=0
 
@@ -66,7 +82,7 @@ on_exit() {
     [[ $finished == 1 ]] && return 0
     if [[ $phase == verify ]]; then
         mysql_root -e "DROP DATABASE IF EXISTS \`$stage_db\`" || true
-        rm -f "$server_config"
+        rm -f "$server_config" "$carry_file"
         resume_writers
         warn "restore aborted before any change (rc=$rc): EspoCRM is as it was"
         return
@@ -74,6 +90,7 @@ on_exit() {
     pause_writers || true
     warn "restore FAILED in phase '$phase' (rc=$rc): the listener, cron and $FPM_UNIT are stopped."
     warn "Previous tables: database $prev_db; previous directories: $aside; server configuration: $server_config."
+    [[ -z "$carry_since" ]] || warn "The calls since $carry_since UTC: $carry_file (the safety bundle has them too)."
     if [[ -n "$safety_dir" ]]; then
         warn "Roll back with: espocrm-restore $safety_dir --yes --no-safety-backup --server-config $server_config"
     else
@@ -110,6 +127,10 @@ if [[ $safety == 1 ]]; then
     log "safety backup of the current state (writers stay paused, the lock stays held)"
     safety_dir="$(ESPOCRM_OPS_LOCKED=1 "$SBIN_DIR/espocrm-backup" --label pre-restore --paused)"
 fi
+if [[ -n "$carry_since" ]]; then
+    log "keeping the calls of the listener since $carry_since UTC: $(calls_carry_count "$DB_NAME" "$carry_since") calls"
+    calls_carry_sql "$DB_NAME" "$carry_since" >"$carry_file"
+fi
 
 log "importing the dump into staging database $stage_db ($db_cs / $db_coll)"
 mysql_root -e "CREATE DATABASE \`$stage_db\` CHARACTER SET $db_cs COLLATE $db_coll"
@@ -139,23 +160,27 @@ mysql_root -e "DROP DATABASE \`$stage_db\`"
 phase=files
 log "restoring files (previous directories -> $aside)"
 install -d -m 0700 "$aside"
+# The module (custom/Espo/Modules/Itvolga, client/custom/modules/itvolga) is code of the commit Ansible deployed: never
+# taken from a bundle and never moved — in client/custom only the other entries go aside, so a failed run leaves the
+# module in place and any later restore (the rollback) finds it there.
 paths=(data)
 [[ $custom == 1 ]] && paths+=(custom/Espo/Custom client/custom)
-for p in "${paths[@]}"; do
-    if [[ -e "$ESPO_ROOT/$p" ]]; then
-        mkdir -p "$aside/$(dirname "$p")"
-        mv "$ESPO_ROOT/$p" "$aside/$p"
-    fi
+for p in data custom/Espo/Custom; do
+    [[ " ${paths[*]} " == *" $p "* && -e "$ESPO_ROOT/$p" ]] || continue
+    mkdir -p "$aside/$(dirname "$p")"
+    mv "$ESPO_ROOT/$p" "$aside/$p"
 done
+if [[ $custom == 1 ]]; then
+    mkdir -p "$aside/client/custom/modules"
+    find "$ESPO_ROOT/client/custom" -mindepth 1 -maxdepth 1 ! -name modules -exec mv -t "$aside/client/custom/" {} +
+    if [[ -d "$ESPO_ROOT/client/custom/modules" ]]; then
+        find "$ESPO_ROOT/client/custom/modules" -mindepth 1 -maxdepth 1 ! -name itvolga \
+            -exec mv -t "$aside/client/custom/modules/" {} +
+    fi
+fi
 files="$(bundle_files "$dir")"
 tar_z=(); [[ "$files" == *.gz ]] && tar_z=(-z)
-# The module (custom/Espo/Modules, client/custom/modules/itvolga) is code of the commit Ansible deployed: never
-# taken from a bundle.
 tar -C "$ESPO_ROOT" "${tar_z[@]}" -xf "$files" --exclude=client/custom/modules/itvolga "${paths[@]}"
-if [[ $custom == 1 && -d "$aside/client/custom/modules/itvolga" ]]; then
-    mkdir -p "$ESPO_ROOT/client/custom/modules"
-    mv "$aside/client/custom/modules/itvolga" "$ESPO_ROOT/client/custom/modules/itvolga"
-fi
 for p in data/upload data/logs custom/Espo/Custom client/custom client/custom/modules; do mkdir -p "$ESPO_ROOT/$p"; done
 chown -R "$ESPO_USER:$ESPO_USER" "$ESPO_ROOT/data" "$ESPO_ROOT/custom/Espo/Custom"
 chmod 0770 "$ESPO_ROOT/data" "$ESPO_ROOT/custom/Espo/Custom"
@@ -172,6 +197,12 @@ espo_config set <"$SETTINGS_FILE" >/dev/null
 [[ "$(espo_cmd db:check 2>&1)" == OK ]] || die "EspoCRM cannot connect to its database after the restore"
 espo_cmd clear-cache >/dev/null
 espo_cmd rebuild >/dev/null
+if [[ -n "$carry_since" ]]; then
+    # Before the listener starts: it finds these calls by cAsteriskLinkedId.
+    IFS=$'\t' read -r carried skipped < <(mysql_root -N -B "$DB_NAME" <"$carry_file")
+    [[ "$carried" =~ ^[0-9]+$ ]] || die "the kept calls were not put back"
+    log "calls of the listener put back: $carried; skipped (the bundle has them from the CDR history): $skipped"
+fi
 
 phase=health
 since="$(date +%s)"
@@ -187,5 +218,5 @@ wait_cron_run "$since" || true
 finished=1
 mysql_root -e "DROP DATABASE \`$prev_db\`"
 rm -rf "$aside"
-rm -f "$server_config"
+rm -f "$server_config" "$carry_file"
 log "restore of $(manifest_get "$dir" name) completed; previous tables and directories removed"

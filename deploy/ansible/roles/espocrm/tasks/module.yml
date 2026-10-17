@@ -73,17 +73,39 @@
     group: root
     mode: "0644"
 
-# --checksum: сравнение по содержимому (время файлов архива — время коммита).
+# --checksum: сравнение по содержимому (время файлов архива — время коммита). Как у ядра: пробный прогон, затем
+# отметка apply-pending до изменения файлов (смену коммита apply.yml видит и без неё — по последнему применённому
+# состоянию; отметка нужна для исправленного дрейфа файлов при том же коммите).
+- name: Compare the module with the EspoCRM root  # noqa: command-instead-of-module
+  ansible.builtin.command:
+    cmd: >-
+      rsync -a --omit-dir-times --delete --checksum --itemize-changes --chown=root:root --chmod=D0755,F0644 --dry-run
+      {{ espocrm_module_stage }}/{{ item }}/ {{ espocrm_root }}/{{ item }}/
+  loop: "{{ espocrm_module_paths }}"
+  register: espocrm_module_diff
+  changed_when: ansible_check_mode and espocrm_module_diff.stdout | length > 0  # --check shows the drift here
+  check_mode: false
+
+- name: Mark the module apply as pending before the module changes
+  ansible.builtin.copy:
+    content: "{{ espocrm_module_commit }}\n"
+    dest: "{{ espocrm_pending_apply }}"
+    owner: root
+    group: root
+    mode: "0600"
+  when: espocrm_module_diff.results | map(attribute='stdout') | select | list | length > 0
+
 - name: Synchronise the module into the EspoCRM root  # noqa: command-instead-of-module
   ansible.builtin.command:
     cmd: >-
       rsync -a --omit-dir-times --delete --checksum --itemize-changes --chown=root:root --chmod=D0755,F0644
-      {{ '--dry-run' if ansible_check_mode else '' }}
-      {{ espocrm_module_stage }}/{{ item }}/ {{ espocrm_root }}/{{ item }}/
-  loop: "{{ espocrm_module_paths }}"
+      {{ espocrm_module_stage }}/{{ item.item }}/ {{ espocrm_root }}/{{ item.item }}/
+  loop: "{{ espocrm_module_diff.results }}"
+  loop_control:
+    label: "{{ item.item }}"
   register: espocrm_module_sync
   changed_when: espocrm_module_sync.stdout | length > 0
-  check_mode: false
+  when: item.stdout | length > 0
 
 - name: Write the module stamp
   ansible.builtin.copy:
@@ -93,17 +115,6 @@
     group: root
     mode: "0644"
   register: espocrm_module_stamp
-
-# Смену версии или коммита apply.yml видит по последнему применённому состоянию; эта отметка — для исправленного
-# дрейфа файлов при том же коммите (переживает сбой прогона).
-- name: Mark the module apply as pending after a change of code
-  ansible.builtin.copy:
-    content: "{{ espocrm_module_commit }}\n"
-    dest: "{{ espocrm_pending_apply }}"
-    owner: root
-    group: root
-    mode: "0600"
-  when: espocrm_core_sync is changed or espocrm_module_sync is changed
 
 - name: Find staging copies of other commits
   ansible.builtin.find:

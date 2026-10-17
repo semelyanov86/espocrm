@@ -11,7 +11,7 @@ espocrm_settings_file: "{{ espocrm_etc_dir }}/settings.json"
 espocrm_telephony_file: "{{ espocrm_etc_dir }}/telephony.json"
 espocrm_pending_apply: "{{ espocrm_state_dir }}/apply-pending"
 espocrm_applied_apply: "{{ espocrm_state_dir }}/apply-applied"
-espocrm_applied_telephony: "{{ espocrm_state_dir }}/telephony-applied"
+espocrm_applied_telephony: "{{ espocrm_state_dir }}/telephony-applied.json"
 # Развёрнутое состояние кода: версия и sha256 ядра + коммит модуля (сравнивается с последним применённым).
 espocrm_apply_state: "{{ espocrm_core_stamp_line }} {{ espocrm_module_commit }}"
 espocrm_ami_file: "{{ espocrm_asterisk_manager_d }}/itvolga-espo.conf"

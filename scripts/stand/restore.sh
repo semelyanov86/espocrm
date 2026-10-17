@@ -52,6 +52,10 @@ if [[ $custom == 1 && -n "$(git -C "$REPO_ROOT" status --porcelain -- "${custom_
     die "uncommitted changes in ${custom_dirs[*]}: commit them or use --skip-custom"
 fi
 
+if [[ "$(manifest origin)" == production ]]; then
+    "$REPO_ROOT/scripts/deploy/stand-admin.sh" check   # values parked from an earlier production bundle: unpark first
+fi
+
 if [[ $yes != 1 ]]; then
     read -r -p "Restore $(manifest name) over the current stand (DB $DB_NAME and data/)? [y/N] " answer
     [[ "$answer" =~ ^[yY]$ ]] || die "aborted"
@@ -136,12 +140,14 @@ if [[ $custom == 1 ]]; then as_root chown -R "$DEV_USER:$DEV_USER" "${custom_dir
 phase=configure
 log "re-applying permissions, DB credentials and cron"
 "$STAND_DIR/install.sh" perms
-# A bundle of production (stages 10-11, D-187) carries the outgoing mail of production (D-189): the stand must never
-# send with it — switched off before PHP-FPM and cron start.
+# A bundle of production (stages 10-11, D-187) carries the outgoing mail of production (D-189) and its mail accounts:
+# the stand must never send or fetch real mail — all of it switched off before PHP-FPM and cron start (the account
+# values are parked and go back with scripts/deploy/stand-admin.sh unpark).
 if [[ "$(manifest origin)" == production ]]; then
-    log "bundle of production: its outgoing mail is switched off on the stand"
+    log "bundle of production: its outgoing mail and mail accounts are switched off on the stand"
     printf '%s' '{"smtpServer": "", "smtpUsername": "", "smtpPassword": "", "outboundEmailIsShared": false}' \
         | as_user "$ESPO_USER" "$PHP_BIN" "$STAND_DIR/php/set-config.php" "$ESPO_ROOT"
+    "$REPO_ROOT/scripts/deploy/stand-admin.sh" park-mail
 fi
 "$STAND_DIR/install.sh" fpm espo cron   # starts PHP-FPM, writes a fresh cron entry
 as_root rm -f "$CRON_FILE.paused"

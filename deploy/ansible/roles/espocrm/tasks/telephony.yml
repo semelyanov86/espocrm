@@ -33,8 +33,7 @@
 
 # Настройки интеграции EspoCRM (itvolga-setup-telephony, JSON через stdin): учётки AMI, правила, корень записей,
 # запасной внутренний номер (только если в EspoCRM он не задан). Файл 0600 root — те же секреты, что в
-# config-internal.php. Применяются, когда файл отличается от последнего успешно применённого (sha256 в
-# /var/lib/espocrm/telephony-applied): прерванный прогон применит их следующим запуском.
+# config-internal.php.
 - name: Deploy the telephony settings of EspoCRM
   ansible.builtin.template:
     src: telephony.json.j2
@@ -44,39 +43,8 @@
     mode: "0600"
   no_log: true
 
-- name: Read the checksum of the telephony settings
-  ansible.builtin.stat:
-    path: "{{ espocrm_telephony_file }}"
-    checksum_algorithm: sha256
-  register: espocrm_telephony_desired
-
-- name: Read the last applied telephony settings
-  ansible.builtin.slurp:
-    src: "{{ espocrm_applied_telephony }}"
-  register: espocrm_telephony_applied
-  failed_when: false
-
-- name: Apply the telephony settings of EspoCRM
-  ansible.builtin.shell:
-    cmd: "{{ espocrm_sbin_dir }}/espocrm itvolga-setup-telephony < {{ espocrm_telephony_file }}"
-  when:
-    - not ansible_check_mode
-    - (espocrm_telephony_applied.content | default('') | b64decode | trim) != espocrm_telephony_desired.stat.checksum
-  changed_when: true
-  register: espocrm_telephony_set
-
-- name: Record the applied telephony settings
-  ansible.builtin.copy:
-    content: "{{ espocrm_telephony_desired.stat.checksum }}\n"
-    dest: "{{ espocrm_applied_telephony }}"
-    owner: root
-    group: root
-    mode: "0600"
-  when: not ansible_check_mode
-
 # Живая интеграция: два пользователя AMI с минимальными правами (manager reload, без рестарта Asterisk; диалплан
-# и транки не меняются), служба слушателя. Выключена — файла пользователей нет, служба остановлена. Reload —
-# задачей, до старта слушателя и самопроверки (обработчик выполнился бы только в конце play).
+# и транки не меняются), служба слушателя. Выключена — файла пользователей нет, служба остановлена.
 - name: Deploy the AMI users of EspoCRM
   ansible.builtin.template:
     src: manager.d-itvolga-espo.conf.j2
@@ -85,7 +53,6 @@
     group: "{{ espocrm_asterisk_group }}"
     mode: "0640"
   when: espocrm_telephony_enabled | bool
-  register: espocrm_ami_written
   no_log: true
 
 - name: Remove the AMI users of EspoCRM
@@ -93,13 +60,6 @@
     path: "{{ espocrm_ami_file }}"
     state: absent
   when: not (espocrm_telephony_enabled | bool)
-  register: espocrm_ami_removed
-
-- name: Reload the Asterisk manager after a change of the AMI users
-  ansible.builtin.shell:
-    cmd: if systemctl is-active --quiet asterisk; then asterisk -rx "manager reload"; fi
-  when: espocrm_ami_written is changed or espocrm_ami_removed is changed
-  changed_when: true
 
 - name: Deploy the unit of the AMI listener
   ansible.builtin.template:
@@ -108,18 +68,62 @@
     owner: root
     group: root
     mode: "0644"
-  register: espocrm_telephony_unit_file
 
-# Слушатель читает правила и учётки AMI только при старте: после их смены (и после применения модуля) — рестарт.
+# Применённое состояние (/var/lib/espocrm/telephony-applied.json): sha256 настроек, файла AMI и юнита, состояние
+# модуля — записывается только после применения, manager reload, рестарта слушателя и самопроверки AMI. Прогон,
+# прерванный на любом шаге, повторит незавершённое: настройки, reload и рестарт выбираются по отличию от записанного.
+- name: Read the checksums of the telephony files
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    checksum_algorithm: sha256
+  loop:
+    - "{{ espocrm_telephony_file }}"
+    - "{{ espocrm_ami_file }}"
+    - "/etc/systemd/system/{{ espocrm_telephony_unit }}.service"
+  register: espocrm_telephony_files
+
+- name: Read the last applied telephony state
+  ansible.builtin.slurp:
+    src: "{{ espocrm_applied_telephony }}"
+  register: espocrm_telephony_applied
+  failed_when: false
+
+- name: Compare the telephony state with the applied one
+  ansible.builtin.set_fact:
+    espocrm_telephony_state:
+      enabled: "{{ 'on' if espocrm_telephony_enabled | bool else 'off' }}"
+      settings: "{{ espocrm_telephony_files.results[0].stat.checksum | default('absent') }}"
+      ami: "{{ espocrm_telephony_files.results[1].stat.checksum | default('absent') }}"
+      unit: "{{ espocrm_telephony_files.results[2].stat.checksum | default('absent') }}"
+      module: "{{ espocrm_apply_state }}"
+    espocrm_telephony_last: "{{ espocrm_telephony_applied.content | default('e30=') | b64decode | from_json }}"
+
+- name: Apply the telephony settings of EspoCRM
+  ansible.builtin.shell:
+    cmd: "{{ espocrm_sbin_dir }}/espocrm itvolga-setup-telephony < {{ espocrm_telephony_file }}"
+  when:
+    - not ansible_check_mode
+    - espocrm_telephony_last.settings | default('') != espocrm_telephony_state.settings
+  changed_when: true
+
+# Reload — задачей, до старта слушателя и самопроверки (обработчик выполнился бы только в конце play).
+- name: Reload the Asterisk manager after a change of the AMI users
+  ansible.builtin.shell:
+    cmd: if systemctl is-active --quiet asterisk; then asterisk -rx "manager reload"; fi
+  when:
+    - not ansible_check_mode
+    - espocrm_telephony_last.ami | default('') != espocrm_telephony_state.ami
+  changed_when: true
+
+# Слушатель читает правила и учётки AMI только при старте: после смены любой части состояния — рестарт.
 - name: Set the state of the AMI listener
   ansible.builtin.systemd:
     name: "{{ espocrm_telephony_unit }}"
     state: >-
-      {{ ('restarted' if (espocrm_telephony_unit_file is changed or espocrm_telephony_set is changed
-                          or espocrm_ami_written is changed or espocrm_module_applied is changed) else 'started')
+      {{ ('restarted' if espocrm_telephony_last != espocrm_telephony_state else 'started')
          if espocrm_telephony_enabled | bool else 'stopped' }}
     enabled: "{{ espocrm_telephony_enabled | bool }}"
-    daemon_reload: "{{ espocrm_telephony_unit_file is changed }}"
+    daemon_reload: "{{ espocrm_telephony_last.unit | default('') != espocrm_telephony_state.unit }}"
 
 # Самопроверка прав AMI (коды, без значений): слушатель — список каналов да, Originate нет; набор — Command,
 # Hangup и список каналов нет (telephony.md).
@@ -131,3 +135,12 @@
   when:
     - espocrm_telephony_enabled | bool
     - not ansible_check_mode
+
+- name: Record the applied telephony state
+  ansible.builtin.copy:
+    content: "{{ espocrm_telephony_state | to_json }}\n"
+    dest: "{{ espocrm_applied_telephony }}"
+    owner: root
+    group: root
+    mode: "0600"
+  when: not ansible_check_mode

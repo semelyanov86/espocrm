@@ -137,3 +137,74 @@ SERVER_CONFIG_KEYS=(database itvolgaTelephonyEnabled itvolgaTelephonyAmi itvolga
                     itvolgaTelephonyRecordings itvolgaTelephonyFallbackExtension
                     smtpServer smtpPort smtpAuth smtpSecurity smtpUsername smtpPassword
                     outboundEmailFromAddress outboundEmailFromName outboundEmailIsShared)
+
+# The calls the telephony listener wrote since a moment, as SQL that puts them into another EspoCRM database
+# (espocrm-restore --carry-calls-from, cutover runbook, D-191): the call rows, their participants, contacts and leads
+# (relation tables call_*) and teams. The listener saves silently (modified_at stays), so besides created/modified a
+# live call counts while it was unfinished or ended after the moment. The SQL loads them into temporary tables of the
+# target, drops the ones the target already holds as another record of the same Asterisk call (cAsteriskLinkedId —
+# a call of the CDR history its import created: the verified import wins), then in one transaction replaces the
+# rest by id with their relations, and prints "<carried>\t<skipped>". Values go only into the SQL (a private file of
+# the restore), never to the console.
+calls_carry_where() { # since (UTC)
+    printf "t.created_at >= '%s' OR t.modified_at >= '%s' OR (t.c_asterisk_linked_id IS NOT NULL AND (t.date_end IS NULL OR t.date_end >= '%s'))" "$1" "$1" "$1"
+}
+
+# "<column list>\t<CONCAT_WS of QUOTE(t.column)>" of a table, without an auto-increment id (relation tables).
+row_sql_parts() { # db table
+    mysql_root -N -B <<SQL
+SET SESSION group_concat_max_len = 1048576;
+SELECT GROUP_CONCAT(CONCAT('\`', column_name, '\`') ORDER BY ordinal_position SEPARATOR ', '),
+       CONCAT('CONCAT_WS('', '', ', GROUP_CONCAT(CONCAT('QUOTE(t.\`', column_name, '\`)') ORDER BY ordinal_position
+              SEPARATOR ', '), ')')
+FROM information_schema.columns WHERE table_schema = '$1' AND table_name = '$2' AND extra NOT LIKE '%auto_increment%';
+SQL
+}
+
+calls_carry_sql() { # db since (UTC)
+    local db="$1" where ids t cols vals links
+    where="$(calls_carry_where "$2")"
+    ids="SELECT t.id FROM \`$db\`.\`call\` t WHERE $where"
+    links="$(mysql_root -N -B -e "SELECT table_name FROM information_schema.columns WHERE table_schema = '$db'
+        AND table_name LIKE 'call\\_%' AND column_name = 'call_id' ORDER BY table_name")"
+    for t in call $links entity_team; do
+        [[ "$t" =~ ^[a-z0-9_]+$ ]] || return 1
+        IFS=$'\t' read -r cols vals < <(row_sql_parts "$db" "$t")
+        [[ -n "$cols" && "$cols" != NULL ]] || return 1
+        echo "CREATE TEMPORARY TABLE \`carry_$t\` LIKE \`$t\`;"
+        case $t in
+            call) mysql_root -N -B -r -e "SELECT CONCAT('INSERT INTO \`carry_call\` ($cols) VALUES (', $vals, ');')
+                FROM \`$db\`.\`call\` t WHERE $where" ;;
+            entity_team) mysql_root -N -B -r -e "SELECT CONCAT('INSERT INTO \`carry_entity_team\` ($cols) VALUES (', $vals, ');')
+                FROM \`$db\`.\`entity_team\` t WHERE t.entity_type = 'Call' AND t.entity_id IN ($ids)" ;;
+            *) mysql_root -N -B -r -e "SELECT CONCAT('INSERT INTO \`carry_$t\` ($cols) VALUES (', $vals, ');')
+                FROM \`$db\`.\`$t\` t WHERE t.call_id IN ($ids)" ;;
+        esac
+    done
+    cat <<'SQL'
+SELECT COUNT(*) INTO @skipped FROM `carry_call` k
+    JOIN `call` c ON c.c_asterisk_linked_id = k.c_asterisk_linked_id AND c.id <> k.id;
+DELETE k FROM `carry_call` k JOIN `call` c ON c.c_asterisk_linked_id = k.c_asterisk_linked_id AND c.id <> k.id;
+START TRANSACTION;
+DELETE c FROM `call` c JOIN `carry_call` k ON k.id = c.id;
+SQL
+    for t in $links; do
+        echo "DELETE l FROM \`$t\` l JOIN \`carry_call\` k ON k.id = l.call_id;"
+    done
+    echo "DELETE e FROM \`entity_team\` e JOIN \`carry_call\` k ON k.id = e.entity_id AND e.entity_type = 'Call';"
+    echo "INSERT INTO \`call\` SELECT * FROM \`carry_call\`;"
+    for t in $links entity_team; do
+        IFS=$'\t' read -r cols vals < <(row_sql_parts "$db" "$t")
+        if [[ $t == entity_team ]]; then
+            echo "INSERT INTO \`$t\` ($cols) SELECT $cols FROM \`carry_$t\` WHERE entity_id IN (SELECT id FROM \`carry_call\`);"
+        else
+            echo "INSERT INTO \`$t\` ($cols) SELECT $cols FROM \`carry_$t\` WHERE call_id IN (SELECT id FROM \`carry_call\`);"
+        fi
+    done
+    echo "COMMIT;"
+    echo "SELECT (SELECT COUNT(*) FROM \`carry_call\`), @skipped;"
+}
+
+calls_carry_count() { # db since (UTC)
+    mysql_root -N -B -e "SELECT COUNT(*) FROM \`$1\`.\`call\` t WHERE $(calls_carry_where "$2")"
+}

@@ -60,8 +60,9 @@ else
     report FAIL "espo: writable dirs" "$(grep 'FAIL' <<<"$out" | tr '\n' ' ')"
 fi
 commit="$(cat "$ESPO_ROOT/.itvolga-module" 2>/dev/null || true)"
-[[ -n "$commit" ]] && s=OK || s=FAIL
-report "$s" "module: commit" "${commit:0:12}"
+[[ -n "$commit" && -f "$ESPO_ROOT/custom/Espo/Modules/Itvolga/Resources/module.json" \
+   && -d "$ESPO_ROOT/client/custom/modules/itvolga/src" ]] && s=OK || s=FAIL
+report "$s" "module: commit" "${commit:0:12} (server and client parts present)"
 [[ -f "$STATE_DIR/apply-pending" ]] && report WARN "module: apply" "pending (re-run the role espocrm)" \
     || report OK "module: apply" "done"
 

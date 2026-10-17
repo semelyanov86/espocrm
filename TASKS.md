@@ -56,7 +56,7 @@
   и ночной пакет EspoCRM роли backup — **`/var/spool/asterisk/monitor` в покрытии backup**, секреты в `vault.yml.example`,
   Taskfile, `CLAUDE.md` сервера); сборка и установка — `scripts/deploy/overlay.sh`.
 - [x] Перенос стенд ⇄ production — `scripts/deploy/bundle.sh` (формат пакета стенда; равенство — отпечатком).
-- [x] Runbook этапов 10–11 и откат — `docs/migration/cutover.md`; контракт — `deploy.md`; D-180…D-188; Q-54 дополнен,
+- [x] Runbook этапов 10–11 и откат — `docs/migration/cutover.md`; контракт — `deploy.md`; D-180…D-191; Q-54 дополнен,
   Q-55…Q-57 открыты; `telephony.md`, `import.md`, `rehearsal.md`, `local-stand.md`, `AGENTS.md`, `CLAUDE.md`, Taskfile.
 - [x] Примеры этапа 07.1 `recordings-acl.sh.example` и `itvolga-espo-telephony.service.example` заменены ролью
   (пример ACL на production не работал бы: родитель `asterisk:root 0750`).
@@ -102,6 +102,20 @@ changed=0; **обратный путь на стенде** — пакет «prod
 (`af6870c0d8a92a1e`). Найдена и исправлена ошибка: `table-counts.tsv` сортировался в локали машины (стенд ru_RU,
 сервер C) — restore отклонял чужой пакет; теперь локаль C и сравнение с сортировкой обеих сторон. Итоговый
 `task ansible:test` с нуля — код 0, 17 мин 07 с, все шаги зелёные; lint 0/0 (304 файла), 5 плейбуков.
+
+Внешнее ревью, раунд 2 (2026-10-17): диапазон `9445372..f409c9b`, Codex `gpt-6.1-sol` (тот же порядок) — **FAIL**, 4
+блокирующих и 3 предупреждения, все подтверждены и исправлены (`evidence.md`, «Этап 09», «Внешнее ревью, раунд 2»): B1 —
+restore не сдвигает модуль (откат после сбоя больше не теряет клиентскую часть, health проверяет обе), B2 — стенд с пакетом
+production выключает и ящики `EmailAccount`/`InboundEmail` (`stand-admin.sh park-mail`, `unpark` возвращает), B3 — список
+`changes-since` без значений (только `id`, ссылки, флаг удаления, время), B4 — звонки слушателя после пакета переживают
+restore (`espocrm-restore --carry-calls-from`, D-191; runbook — §1.5 и шаг 5 окна), W2 — `apply-pending` до синхронизации,
+W4 — одно применённое состояние телефонии после рестарта и самопроверки, W6 — сравнение `--against` по содержимому всех
+колонок. Повторная проверка: lint 0/0 (304 файла), 5 плейбуков, `task ansible:test` с нуля — все шаги зелёные (дрейф,
+список без значений, сравнение без `modified_at`, модуль после отката, перенос звонков, прерванное применение телефонии),
+`verify` + `switch` повторены итоговым скриптом — код 0 (в том числе звонок из CDR пакета пропущен); обратный путь на
+стенде с синтетическими ящиками — ящики выключены и возвращены, **отпечаток стенда после `unpark` = отпечатку пакета
+проверочной машины** (`9f3e69941d0138ac`), стенд возвращён (`af6870c0d8a92a1e`). Исправления раунда 2 Codex повторно не
+проверял.
 
 Не сделано / вне рамок 09:
 - Production и `/data/server` не менялись: роль не применялась к серверу, сертификат и restic в Облако Mail.ru не
@@ -959,7 +973,7 @@ B1 страж фактов пропускал объект без загрузк
 ```
 Этим сообщением я отдельно разрешаю разместить EspoCRM на рабочем сервере рядом с Vtiger, не переключая serv.itvolga.com.
 Прочитай AGENTS.md, TASKS.md (в том числе «Этап 09 — результат»), docs/migration/deploy.md, cutover.md (§1 — порядок
-этапа 10), decisions.md D-180…D-188, open-questions.md (Q-54…Q-57) и заново проверь локальные результаты
+этапа 10), decisions.md D-180…D-191, open-questions.md (Q-54…Q-57) и заново проверь локальные результаты
 (task ansible:lint, task ansible:syntax, task ansible:test). Почта — из Vtiger, живая телефония — сразу, очистка — включена.
 Выполни этап 10 по cutover.md §1: проверки только чтением, свежие backup и практическое восстановление Vtiger,
 scripts/deploy/overlay.sh install --stage10 и коммит в /data/server, секреты в vault, task ansible:backup,

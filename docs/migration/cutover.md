@@ -2,7 +2,7 @@
 
 Подготовлено на этапе 09 (2026-10-17). Каждый шаг этапов 10 и 11 выполняется **только после отдельного явного разрешения
 владельца** (`AGENTS.md`); до него production и `/data/server` только читаются. Код и его контракт — `deploy.md`, решения —
-D-180…D-188, проверки этапа 09 — `evidence.md`, «Этап 09». Команды `task …` без пометки — этого репозитория; «сервер:» —
+D-180…D-191, проверки этапа 09 — `evidence.md`, «Этап 09». Команды `task …` без пометки — этого репозитория; «сервер:» —
 Taskfile `/data/server` (после установки наложения); «на сервере:» — `ssh sergey@serv.sergeyem.ru`, затем `sudo …`.
 
 ## 0. Принципы
@@ -64,6 +64,7 @@ task backup:run tier=recordings         # первый снимок записе
 
 ```bash
 C=$(git -C /data/itvolga/espo rev-parse HEAD)     # коммит модуля = коммит, с которым пройдёт импорт на стенде
+T0=$(date -u '+%F %T')                            # момент развёртывания (UTC): с него слушатель пишет звонки
 cd /data/server && task ansible:espocrm -- -e espocrm_module_ref=$C   # живая телефония и почта Vtiger — по умолчанию роли
 ```
 Ожидание: health — 0 FAIL (предупреждения: администратор без 2FA, ночного пакета ещё нет; «outgoing mail: configured: True,
@@ -84,13 +85,17 @@ task stand:backup -- --label for-production                                # п�
 task stand:fingerprint -- take for-production                              # дайджест D
 scripts/deploy/bundle.sh push <пакет for-production>
 # на сервере:
-sudo espocrm-restore /var/backups/espocrm/bundles/<пакет> --yes            # health в конце
-sudo espocrm-fingerprint take after-transfer                               # = D (до смены пароля администратора)
+sudo espocrm-restore /var/backups/espocrm/bundles/<пакет> --yes --carry-calls-from "<T0>"   # health в конце
+sudo espocrm-fingerprint take after-transfer     # = D, если с T0 звонков не было; иначе — сравнить по таблицам (ниже)
 # сервер:
 task ansible:espocrm -- -e espocrm_module_ref=$C -e espocrm_admin_reset=true
 ```
-Записи разговоров не переносятся: звонки хранят путь относительно корня, на сервере это оригиналы
-(`espocrm-health`: «N calls with a recording, 0 files missing»).
+Звонки, которые слушатель записал с `T0`, restore сохраняет до замены БД и возвращает до своего запуска (D-191): звонок,
+который пакет уже содержит из истории CDR снимка (тот же `cAsteriskLinkedId`), пропускается — побеждает проверенный
+импорт; restore печатает «put back: N; skipped: M». Отпечаток тогда отличается от D только таблицами `call`,
+`call_user`, `call_contact`, `call_lead`, `entity_team` (`espocrm-fingerprint diff`). Записи разговоров не переносятся:
+звонки хранят путь относительно корня, на сервере это оригиналы (`espocrm-health`: «N calls with a recording, 0 files
+missing»).
 
 ### 1.6 Интерфейс, обратный путь, backup
 
@@ -99,10 +104,13 @@ task ansible:espocrm -- -e espocrm_module_ref=$C -e espocrm_admin_reset=true
   сценарии этапа 08 (реальные данные — только признаки DOM и коды).
 - Проба обратного пути (до окна): сервер `task espocrm:backup label=roundtrip-test` → `scripts/deploy/bundle.sh pull <имя>`
   → `ESPO_HEALTH_LOGIN=0 task stand:restore -- <имя> --yes --skip-custom` (пакет несёт администратора production — его
-  пароль и 2FA: вход health стенда пропускается; почту production restore стенда выключает сам, D-189) → `scripts/deploy/stand-admin.sh park` (хеш пароля и 2FA
+  пароль и 2FA: вход health стенда пропускается; почту production restore стенда выключает сам до запуска PHP-FPM и cron —
+  SMTP системы очищен, у ящиков `EmailAccount`/`InboundEmail` выключены отправка и получение, их значения — в приватном
+  файле до `unpark`, D-189) → `scripts/deploy/stand-admin.sh park` (хеш пароля и 2FA
   администратора — в приватный файл, стенду — пароль `local.env` без 2FA: импорт скачивает файлы как администратор) →
   `task telephony:up && task telephony:down` → `task import:run -- --snapshot <S> --check-only` (все equal) →
-  `scripts/deploy/stand-admin.sh unpark` (отпечаток стенда = до `park`, проверено 2026-10-17) → стенд вернуть
+  `scripts/deploy/stand-admin.sh unpark` (администратор и ящики — обратно; отпечаток стенда = до `park`, проверено
+  2026-10-17) → стенд вернуть
   `task stand:restore -- <for-production> --yes`.
 - Backup: сервер `task backup:run tier=db` (хук → `/var/backups/espocrm/nightly`), `task backup:run tier=recordings`,
   `task espocrm:restore-check` (ночной пакет из restic + записи) и на сервере `sudo espocrm-restore-check --mysql vtiger7`.
@@ -119,7 +127,7 @@ task ansible:espocrm -- -e espocrm_module_ref=$C -e espocrm_admin_reset=true
 | 2 | Финальный снимок | `task snapshot:create && task snapshot:verify -- <F>` | ≈ 2–5 мин (транзакция ≈ 6 с, файлы ≈ 1,4 ГиБ, проверка) |
 | 3 | Production → стенд | сервер `task espocrm:backup label=pre-delta` → `scripts/deploy/bundle.sh pull <имя>` → `ESPO_HEALTH_LOGIN=0 task stand:restore -- <имя> --yes --skip-custom` → `scripts/deploy/stand-admin.sh park` → `task telephony:up && task telephony:down` | ≈ 3 мин (restore стенда ≈ 70 с) |
 | 4 | Дельта и контроль | `task import:run -- --snapshot <F>`: проблем 0, проверка — все `equal`, удаления в пределах предохранителя `max(25, 5 %)`; деньги, налоги, файлы, звонки — `report.json`; `task import:summary -- <прогон>` | ≈ 2 мин |
-| 5 | Стенд → production | `scripts/deploy/stand-admin.sh unpark` (пароль и 2FA администратора production — обратно) → `task stand:backup -- --label cutover` → `task stand:fingerprint -- take cutover` (D′) → `bundle.sh push` → на сервере `sudo espocrm-restore …/<cutover> --yes` → `sudo espocrm-fingerprint take cutover` = D′ | ≈ 5 мин |
+| 5 | Стенд → production | `scripts/deploy/stand-admin.sh unpark` (пароль и 2FA администратора production, ящики почты — обратно) → `task stand:backup -- --label cutover` → `task stand:fingerprint -- take cutover` (D′) → `bundle.sh push` → на сервере `sudo espocrm-restore …/<cutover> --yes --carry-calls-from <pre-delta>` (звонки, которые слушатель записал после пакета шага 3, — сохранены до замены и возвращены до запуска слушателя, D-191; «put back: N; skipped: 0») → `sudo espocrm-fingerprint take cutover` = D′ при N = 0, иначе отличие только в таблицах звонков | ≈ 5 мин |
 | 6 | Переключение | `vars.yml`: `itvolga_crm_primary: espocrm` → коммит → сервер `task crm:switch`; **записать время T (UTC)** | 1–2 мин |
 | 7 | Проверки | сервер `task espocrm:health`; сценарии интерфейса пользователями; печатные формы; звонок (если живая телефония включена) | 10 мин |
 | 8 | После | сервер `task backup:run tier=db`, `task espocrm:restore-check`; объявить | 5 мин |
@@ -132,8 +140,8 @@ Vtiger остаётся только в снимке (D-08), пропуск за
 | Когда | Что делать |
 |---|---|
 | До шага 6 (окно, Vtiger не менялся с шага 1) | `itvolga_crm_primary: vtiger` → коммит → сервер `task crm:switch`: vhost и cron Vtiger вернулись, данные Vtiger целы. EspoCRM остаётся как есть для повтора. |
-| После шага 6, критический сбой | 1) **сначала закрыть запись**: `itvolga_crm_primary: maintenance` → `task crm:switch` (страница 503, пользователи EspoCRM больше не пишут; слушатель телефонии — `-e espocrm_telephony_enabled=false`, если он включён); 2) на сервере `sudo espocrm-changes-since --against <пакет cutover> --export` — полное сравнение с состоянием момента переключения (добавленное, удалённое, связи, изменённое; счётчики по таблицам и приватный список `/var/backups/espocrm/changes-*.tsv`, 600), для быстрой оценки — `sudo espocrm-changes-since '<T>'` по времени; 3) `itvolga_crm_primary: vtiger` → `task crm:switch`; 4) сделанное после T вносится в Vtiger вручную по списку (звонки этого периода — в CDR и WAV при любом исходе); 5) EspoCRM и её данные не удаляются: при повторном переключении записи, созданные в EspoCRM (без `vtigerId`), импорт не трогает, импортированные — обновляет дельта. |
-| После переключения, повреждены данные EspoCRM (остаёмся на EspoCRM) | сначала `espocrm-changes-since --against <пакет>` (что будет потеряно), затем `sudo espocrm-restore <пакет pre-restore\|cutover\|nightly> --yes`; страховочный пакет текущего состояния restore снимает сам — под той же блокировкой и при уже остановленных писателях. Сбой restore печатает команду отката с `--server-config <файл>` (серверные ключи сохранены до замены `data/`): её выполнить как есть — она снова запускает PHP-FPM, cron и слушатель. Остатки неудачного прогона (`espocrm__prev_*`, `.restore-aside-*`) после успешного отката удаляются вручную (health предупреждает). |
+| После шага 6, критический сбой | 1) **сначала закрыть запись**: `itvolga_crm_primary: maintenance` → `task crm:switch` (страница 503, пользователи EspoCRM больше не пишут; слушатель телефонии — `-e espocrm_telephony_enabled=false`, если он включён); 2) на сервере `sudo espocrm-changes-since --against <пакет cutover> --export` — полное сравнение с состоянием момента переключения (добавленное, удалённое, связи, изменённое — по содержимому всех колонок, и без отметок времени; счётчики по таблицам и приватный список `/var/backups/espocrm/changes-*.tsv`, 600: только `id`, ссылки `*_id`/`*_type`, флаг удаления и время — без значений, запись открывается в EspoCRM по `id`), для быстрой оценки — `sudo espocrm-changes-since '<T>'` по времени; 3) `itvolga_crm_primary: vtiger` → `task crm:switch`; 4) сделанное после T вносится в Vtiger вручную по списку (звонки этого периода — в CDR и WAV при любом исходе); 5) EspoCRM и её данные не удаляются: при повторном переключении записи, созданные в EspoCRM (без `vtigerId`), импорт не трогает, импортированные — обновляет дельта. |
+| После переключения, повреждены данные EspoCRM (остаёмся на EspoCRM) | сначала `espocrm-changes-since --against <пакет>` (что будет потеряно), затем `sudo espocrm-restore <пакет pre-restore\|cutover\|nightly> --yes` (с `--carry-calls-from <тот же пакет>` звонки слушателя после пакета сохраняются); страховочный пакет текущего состояния restore снимает сам — под той же блокировкой и при уже остановленных писателях. Сбой restore печатает команду отката с `--server-config <файл>` (серверные ключи сохранены до замены `data/`): её выполнить как есть — она снова запускает PHP-FPM, cron и слушатель. Остатки неудачного прогона (`espocrm__prev_*`, `.restore-aside-*`) после успешного отката удаляются вручную (health предупреждает). |
 
 Нельзя: удалять Vtiger, `php74-fpm`, БД, cron, роли; выключать 2FA или метод «Ключ безопасности» в настройках, пока им
 пользуются (ядро молча пропустит второй фактор, `security-key.md`); перезапускать Asterisk (только `manager reload`).

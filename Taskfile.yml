@@ -318,7 +318,7 @@ tasks:
       - task -d build/ansible-overlay ansible:syntax
 
   ansible:test:
-    desc: Disposable Ubuntu 26.04 target with systemd (Docker) — server roles, the role espocrm twice (changed=0), --check, backup/restore/restic, telephony, switch vtiger → maintenance → espocrm → vtiger (-- all|up|prepare|converge|idempotent|check|verify|telephony|switch)
+    desc: Disposable Ubuntu 26.04 target with systemd (Docker) — server roles, the role espocrm twice (changed=0), --check, backup/restore/restic, telephony, switch vtiger → maintenance → espocrm → vtiger (-- all|up|prepare|converge|idempotent|check|drift|verify|telephony|switch)
     cmds:
       - scripts/deploy/test-target.sh {{if .CLI_ARGS}}{{.CLI_ARGS}}{{else}}all{{end}}
 

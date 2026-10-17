@@ -2,8 +2,8 @@
 # Disposable test target of the server Ansible with the role espocrm (stage 09, D-180): a container of Ubuntu 26.04
 # (the release of production) with systemd, reached over the Docker connection. Production is never contacted.
 #
-#   test-target.sh all          up → prepare → converge → idempotent → check → verify → telephony → switch
-#   test-target.sh up | prepare | converge | idempotent | check | verify | telephony | switch | down | shell
+#   test-target.sh all          up → prepare → converge → idempotent → check → drift → verify → telephony → switch
+#   test-target.sh up | prepare | converge | idempotent | check | drift | verify | telephony | switch | down | shell
 #
 # The overlay (scripts/deploy/overlay.sh) is the code under test: the role espocrm, the playbooks 11/12 and the
 # patched server roles. The vault of the test is generated from vault.yml.example with random values
@@ -123,6 +123,23 @@ assert_unchanged() { # logfile name
 prepare() { inventory; playbook prepare.yml prepare; }
 converge() { inventory; playbook 11-espocrm.yml converge; }
 idempotent() { inventory; playbook 11-espocrm.yml idempotent; assert_unchanged idempotent; }
+
+assert_task_changed() { # logfile task-name
+    grep -A2 -F "TASK [espocrm : $2]" "$LOGS/$1.log" | grep -qE '^changed:' \
+        || die "$1: task '$2' did not run"
+}
+
+# Drift of the module code on the server: the pending mark is written before the files change, the module is applied.
+drift() {
+    inventory
+    in_target "$CONTAINER" bash -c 'echo >>/var/www/espocrm/custom/Espo/Modules/Itvolga/Resources/module.json'
+    playbook 11-espocrm.yml drift
+    assert_task_changed drift "Mark the module apply as pending before the module changes"
+    assert_task_changed drift "Apply the module (clear-cache, rebuild, roles, finance, reports, client timestamp)"
+    log "drift: pending marked before the sync, the module applied"
+    playbook 11-espocrm.yml drift-again
+    assert_unchanged drift-again
+}
 check() { inventory; playbook 11-espocrm.yml check --check --diff; assert_unchanged check; }
 
 # Scenario on the target: health, synthetic records through the API, bundle, change, restore, fingerprints, restore
@@ -135,6 +152,7 @@ verify() {
     if ! HEALTH_PASSWORD="$pw" in_target -e HEALTH_USER=admin -e HEALTH_PASSWORD "$CONTAINER" bash -s \
             >"$LOGS/verify.log" 2>&1 <<'SCENARIO'
 set -euo pipefail
+source /etc/espocrm/espocrm.env
 step() { printf '\n=== %s\n' "$*"; }
 api() { # method path [json]
     curl -sS --fail-with-body --resolve serv.itvolga.com:8443:127.0.0.1 --cacert /etc/espocrm-test/ca.pem \
@@ -177,6 +195,10 @@ since="$(date -u '+%Y-%m-%d %H:%M:%S')"
 sleep 1
 api POST Account "{\"name\": \"Synthetic test account B $run\"}" | id_of
 espocrm-changes-since "$since" --export
+# The list holds ids, links and times only: names of records never get into it.
+list="$(ls -t /var/backups/espocrm/changes-*.tsv | head -1)"
+if grep -q "Synthetic" "$list"; then echo "FAIL the list of changes holds values"; exit 1; fi
+echo "list of changes: $(($(wc -l <"$list") - 1)) rows, no values"
 
 step "restore of t1"
 espocrm-restore "$bundle" --yes
@@ -185,9 +207,15 @@ fp_b="$(espocrm-fingerprint take after-restore)"
     || { espocrm-fingerprint diff "$(ls -t /var/backups/espocrm/fingerprints/*-t1.json | head -1)" \
             "$(ls -t /var/backups/espocrm/fingerprints/*-after-restore.json | head -1)" || true; exit 1; }
 
-step "changes against the bundle (links and hard deletes included)"
+step "changes against the bundle (links, hard deletes and columns without a timestamp included)"
 api POST Account "{\"name\": \"Synthetic test account C $run\"}" | id_of
-espocrm-changes-since --against "$bundle"
+# A change of a column that leaves modified_at as it was (like 2FA of user_data or optOut of email_address).
+mysql "$DB_NAME" -e "UPDATE account SET description = 'synthetic change' WHERE name = 'Synthetic test account A $run'"
+espocrm-changes-since --against "$bundle" --export | tee /tmp/against.txt
+grep -E '^account +1 +0 +1$' /tmp/against.txt || { echo "FAIL account: 1 added and 1 changed expected"; exit 1; }
+list="$(ls -t /var/backups/espocrm/changes-*.tsv | head -1)"
+if grep -q "Synthetic\|synthetic change" "$list"; then echo "FAIL the list of changes holds values"; exit 1; fi
+echo "changes against the bundle: account added 1, changed 1; list without values"
 
 step "a restore failing inside the files phase, then the printed rollback"
 fp_before="$(espocrm-fingerprint take before-failed-restore)"
@@ -207,6 +235,10 @@ if [[ "$(espocrm-fingerprint take after-rollback)" == "$fp_before" ]]; then
 else
     echo "FAIL fingerprint after the rollback differs"; exit 1
 fi
+for f in custom/Espo/Modules/Itvolga/Resources/module.json client/custom/modules/itvolga/src; do
+    [[ -e "/var/www/espocrm/$f" ]] || { echo "FAIL the module is gone after the rollback: $f"; exit 1; }
+done
+echo "module in place after the failed restore and the rollback"
 rm -rf "$bad"
 # The failed run keeps its previous tables and directories on purpose (manual rollback); drop them once rolled back.
 for d in $(mysql -N -B -e "SHOW DATABASES LIKE 'espocrm\_\_prev\_%'"); do mysql -e "DROP DATABASE \`$d\`"; done
@@ -253,6 +285,39 @@ if [[ "$fp_c" == "$fp_a" ]]; then echo "fingerprint after the stand-format resto
 else echo "FAIL fingerprint after the stand-format restore differs"; exit 1; fi
 espocrm-health
 
+step "calls of the listener carried over a restore (cutover runbook, step 5)"
+admin="$(mysql -N -B "$DB_NAME" -e "SELECT id FROM user WHERE user_name = 'admin' AND deleted = 0")"
+now() { date -u '+%Y-%m-%d %H:%M:%S'; }
+lid="synthetic-$run"
+call_sql() { # id status linked-id [date_end]
+    printf "INSERT INTO \`call\` (id, name, deleted, status, direction, date_start, date_end, created_at, modified_at,
+        assigned_user_id, c_asterisk_linked_id) VALUES ('%s', 'Synthetic call', 0, '%s', 'Inbound', '%s', %s, '%s', '%s',
+        '%s', '%s');" "$1" "$2" "$(now)" "${4:-NULL}" "$(now)" "$(now)" "$admin" "$3"
+}
+# Y: a live call unfinished when the pre-delta bundle is taken; W: a call the bundle holds from the CDR history.
+mysql "$DB_NAME" -e "$(call_sql "synthy$run" Planned "$lid.1") $(call_sql "synthw$run" Held "$lid.3" "'$(now)'")"
+predelta="$(espocrm-backup --label pre-delta)"
+sleep 1
+# After the bundle: Y ends (silently: modified_at stays), X starts and ends with a participant, and V is the live
+# record of the Asterisk call W stands for (the bundle keeps W).
+mysql "$DB_NAME" -e "UPDATE \`call\` SET status = 'Held', date_end = '$(now)' WHERE id = 'synthy$run';
+    $(call_sql "synthx$run" Held "$lid.2" "'$(now)'")
+    INSERT INTO call_user (call_id, user_id, status, deleted) VALUES ('synthx$run', '$admin', 'Accepted', 0);
+    DELETE FROM \`call\` WHERE id = 'synthw$run'; $(call_sql "synthv$run" Held "$lid.3" "'$(now)'")"
+espocrm-restore "$predelta" --yes --carry-calls-from "$(basename "$predelta")" 2>&1 | tee /tmp/carry-restore.log
+grep -E 'put back: [0-9]+; skipped .*: 1$' /tmp/carry-restore.log >/dev/null \
+    || { echo "FAIL the record of a call the bundle holds from the CDR history must be skipped"; exit 1; }
+got="$(mysql -N -B "$DB_NAME" -e "SELECT
+    (SELECT COUNT(*) FROM \`call\` WHERE c_asterisk_linked_id IN ('$lid.1', '$lid.2') AND date_end IS NOT NULL AND deleted = 0),
+    (SELECT COUNT(*) FROM call_user WHERE call_id = 'synthx$run' AND deleted = 0),
+    (SELECT GROUP_CONCAT(id) FROM \`call\` WHERE c_asterisk_linked_id = '$lid.3')")"
+[[ "$got" == "2"$'\t'"1"$'\t'"synthw$run" ]] || { echo "FAIL calls after the restore: $got"; exit 1; }
+echo "calls carried: the call started and ended after the bundle, the end of the unfinished one; the CDR record kept"
+if ls /var/lib/espocrm/carry-calls-* >/dev/null 2>&1; then echo "FAIL the kept calls file remains"; exit 1; fi
+mysql "$DB_NAME" -e "DELETE FROM call_user WHERE call_id LIKE 'synth_$run';
+    DELETE FROM \`call\` WHERE id IN ('synthx$run', 'synthy$run', 'synthw$run', 'synthv$run')"
+rm -rf "$predelta"
+
 step "leftovers"
 mysql -N -B -e "SHOW DATABASES LIKE 'espocrm\_\_%'" | wc -l
 SCENARIO
@@ -260,7 +325,7 @@ SCENARIO
         tail -60 "$LOGS/verify.log" >&2
         die "scenario failed, log $LOGS/verify.log"
     fi
-    grep -E '^(=== |FAIL|WARN|health:|restore check:|fingerprint|bundle:|rollback:|rename|Lines:|changes against|\{.smtp|smtpPassword)' \
+    grep -E '^(=== |FAIL|WARN|health:|restore check:|fingerprint|bundle:|rollback:|rename|Lines:|changes against|\{.smtp|smtpPassword|list of changes|module in place|calls carried)' \
         "$LOGS/verify.log" | sed 's/^/    /' >&2
 }
 
@@ -270,6 +335,16 @@ telephony() {
     playbook 11-espocrm.yml telephony-on -e espocrm_telephony_enabled=true
     playbook 11-espocrm.yml telephony-idempotent -e espocrm_telephony_enabled=true
     assert_unchanged telephony-idempotent
+    # A run interrupted after the settings and the AMI file changed but before the listener restarted: the applied
+    # state still names the old ones, so the next run applies, reloads and restarts.
+    in_target "$CONTAINER" sed -i -E 's/"(settings|ami)": "[0-9a-f]+"/"\1": "stale"/g' /var/lib/espocrm/telephony-applied.json
+    playbook 11-espocrm.yml telephony-resume -e espocrm_telephony_enabled=true
+    assert_task_changed telephony-resume "Apply the telephony settings of EspoCRM"
+    assert_task_changed telephony-resume "Reload the Asterisk manager after a change of the AMI users"
+    assert_task_changed telephony-resume "Set the state of the AMI listener"
+    log "telephony: an unfinished apply resumed (settings, manager reload, listener restart)"
+    playbook 11-espocrm.yml telephony-resume-again -e espocrm_telephony_enabled=true
+    assert_unchanged telephony-resume-again
     in_target "$CONTAINER" bash -c 'espocrm itvolga-setup-telephony --check; asterisk -rx "manager show users";
         systemctl is-active espocrm-telephony; espocrm-health | grep -E "telephony|health:"' \
         >"$LOGS/telephony-check.log" 2>&1
@@ -331,8 +406,8 @@ down() {
 
 cmd="${1:-all}"
 case "$cmd" in
-    all) up; prepare; converge; idempotent; check; verify; telephony; switch ;;
-    up|prepare|converge|idempotent|check|verify|telephony|switch|down) "$cmd" ;;
+    all) up; prepare; converge; idempotent; check; drift; verify; telephony; switch ;;
+    up|prepare|converge|idempotent|check|drift|verify|telephony|switch|down) "$cmd" ;;
     shell) docker exec -it "$CONTAINER" bash ;;
-    *) die "usage: test-target.sh all|up|prepare|converge|idempotent|check|verify|telephony|switch|down|shell" ;;
+    *) die "usage: test-target.sh all|up|prepare|converge|idempotent|check|drift|verify|telephony|switch|down|shell" ;;
 esac
