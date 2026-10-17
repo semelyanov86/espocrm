@@ -25,6 +25,12 @@ class DesiredState
     /** Attributes an operation may never set (identity, deletion, credentials). */
     /** Address fields of an Email, compared as sets (DesiredState::applyEmailAddresses). */
     private const EMAIL_ADDRESS_FIELDS = ['from', 'to', 'cc', 'bcc'];
+    /**
+     * Per entity type (stage 07.2): the Asterisk facts of a Call belong to CdrCallWriter and the live listener; the
+     * PBXManager history writes only the facts its source has.
+     */
+    private const FORBIDDEN_OF = ['Call' => ['cAsteriskLinkedId', 'cLiveState', 'cExtension', 'cAnsweredAt',
+        'cClickToCall', 'cRecording', 'cRecordingPath', 'cCdrSource']];
     private const FORBIDDEN = ['id', 'deleted', 'deleteId', 'password', 'passwordVersion', 'apiKey', 'secretKey',
         'authMethod', 'authLogRecordId', 'hasAnydeskPassword', 'anydeskPassword'];
     /**
@@ -668,6 +674,10 @@ class DesiredState
         $defs = $this->entityManager->getDefs()->getEntity($entityType);
 
         if (in_array($attribute, self::FORBIDDEN, true)) {
+            return 'forbidden';
+        }
+
+        if (in_array($attribute, self::FORBIDDEN_OF[$entityType] ?? [], true)) {
             return 'forbidden';
         }
 

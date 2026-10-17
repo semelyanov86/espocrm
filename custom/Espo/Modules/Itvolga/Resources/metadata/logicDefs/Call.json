@@ -215,6 +215,16 @@
                     }
                 ]
             }
+        },
+        "cCdrSource": {
+            "visible": {
+                "conditionGroup": [
+                    {
+                        "type": "isNotEmpty",
+                        "attribute": "cCdrSource"
+                    }
+                ]
+            }
         }
     }
 }

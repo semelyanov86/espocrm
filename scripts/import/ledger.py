@@ -8,10 +8,12 @@ Classes of a column (its non-empty values):
   (outcomes and the check pass, `importer.reconcile`), the values of records deleted in Vtiger are counted apart
   (`deleted`), the rest (`outside_scope`: rows of modules the migration does not import, attachment records, rows
   without a record) carries the fates of the map rows of those modules;
-- `configuration` / `module_code` / `excluded` / `key` / `empty` / `pending:07.2` — a table the import does not read,
-  by the fate of its map rows (configuration and options are checked by `task model:check`, print forms and reports
-  are the module's code, excluded values carry the map's reason);
-- `pending:07.2` — the telephony schema (`asteriskcdrdb`, docs/migration/telephony-sources.md).
+- `configuration` / `module_code` / `excluded` / `key` / `empty` — a table the import does not read, by the fate of
+  its map rows (configuration and options are checked by `task model:check`, print forms and reports are the module's
+  code, excluded values carry the map's reason);
+- the telephony schema (`asteriskcdrdb`, stage 07.2): its `cdr` table is read by the call history — the fates of its
+  columns are the specification's (cdr.COLUMN_FATES: the maps describe Vtiger), every other table of the schema has
+  none (`no_fate`).
 
 Problems: a non-empty column without a fate (`no_fate`: a field or table Vtiger got after the audit), a transfer or
 archive fate on a table nobody reads (`transfer_unread`), the import's census of a column above the server's count
@@ -21,9 +23,11 @@ checks C4/C5 — differ from Git, or that verify is missing).
 import json
 from collections import Counter, defaultdict
 
+import cdr
 import spec
 
 TELEPHONY_SCHEMA = "asteriskcdrdb"
+TELEPHONY_FATES = {"cdr": cdr.COLUMN_FATES}  # table of the telephony schema → column fates (stage 07.2)
 # fate prefix → class (longest prefix first)
 FATE_CLASSES = (
     ("переносится как опции enum", "configuration"), ("переносится как значения multiEnum", "transfer"),
@@ -92,7 +96,9 @@ def build(counts, fields, census, census_deleted, columns, maps=None):
             table_modules[r["source_table"]].add(r["source_module"])
     rule_only = {k[1] for k in list(spec.MAP_GAPS) + list(spec.EXTRA_FATES)}  # fates of the specification, no map row
 
-    def has_fate(table, column):
+    def has_fate(table, column, schema=None):
+        if schema == TELEPHONY_SCHEMA:
+            return column in TELEPHONY_FATES.get(table, {})
         if table in spec.LINK_COLUMNS:
             return column in spec.LINK_COLUMNS[table]
         return bool(rows_of.get((table, column))) or f"{table}.{column}" in rule_only
@@ -128,10 +134,11 @@ def build(counts, fields, census, census_deleted, columns, maps=None):
                     continue
                 key = f"{table}.{column}"
                 row = {"schema": schema, "table": table, "column": column, "nonempty": nonempty, "nonzero": nonzero}
-                fates = classes(table, column)
-                if schema == TELEPHONY_SCHEMA:
-                    row.update(cls="pending:07.2", reason="telephony (07.2)")
-                elif not has_fate(table, column):  # a read table too: values may sit in deleted rows only
+                fates = classes(table, column) if schema != TELEPHONY_SCHEMA else \
+                    sorted({fate_class({"fate": TELEPHONY_FATES[table][column], "target_field": ""})}
+                           if has_fate(table, column, schema)
+                           else set())
+                if not has_fate(table, column, schema):  # a read table too: values may sit in deleted rows only
                     row.update(cls="no_fate")
                     problems["no_fate"].append(f"{schema}.{key}")
                 elif table in read_modules:

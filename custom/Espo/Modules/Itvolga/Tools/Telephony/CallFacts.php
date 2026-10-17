@@ -6,7 +6,8 @@ namespace Espo\Modules\Itvolga\Tools\Telephony;
 
 /**
  * The facts of a telephony Call (owner decision 2026-10-13, D-168): only the Asterisk integration writes them, with
- * the save option SAVE_OPTION; users keep the name, the description, the parent, contacts, leads and participants.
+ * the save option SAVE_OPTION — the live listener and the history import of stage 07.2, whose calls carry their CDR
+ * source (cCdrSource); users keep the name, the description, the parent, contacts, leads and participants.
  */
 final class CallFacts
 {
@@ -29,5 +30,6 @@ final class CallFacts
         'cClickToCall',
         'cRecording',
         'cRecordingPath',
+        'cCdrSource',
     ];
 }

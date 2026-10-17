@@ -27,6 +27,9 @@
         },
         "cRecordingPath": {
             "forbidden": true
+        },
+        "cCdrSource": {
+            "readOnly": true
         }
     },
     "links": {

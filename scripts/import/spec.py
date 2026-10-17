@@ -31,17 +31,21 @@ FINANCE = ("Quotes", "SalesOrder", "Act", "Invoice", "SPPayments")
 ARCHIVES = ("Consignment", "ServiceContracts", "Assets", "Jivosite", "JVmes")
 CONTENT_SCOPE = ("Vendors", "Products", "Services", *FINANCE, *ARCHIVES, "Faq", "Emails", "Documents",
                  "OrganizationDetails", "Attachments")
-SCOPE = BASE_SCOPE + CONTENT_SCOPE
+# Stage 07.2 (D-173…D-177): the Vtiger call history and the Asterisk CDR history (pseudo-module CDR: asteriskcdrdb.cdr,
+# Master.csv and the recordings — scripts/import/cdr.py, written by its own writer operation).
+TELEPHONY_SCOPE = ("PBXManager", "SPCallPopup", "CDR")
+SCOPE = BASE_SCOPE + CONTENT_SCOPE + TELEPHONY_SCOPE
 # Target entity of a live source record of each setype (activities: by activitytype).
 ENTITY_BY_SETYPE = {"Accounts": "Account", "Contacts": "Contact", "Leads": "Lead", "Potentials": "Opportunity",
                     "HelpDesk": "Case", "Project": "Project", "ProjectTask": "ProjectTask", "ModComments": "Note",
                     "Vendors": "Vendor", "Products": "Product", "Services": "Product", "Quotes": "Quote",
                     "SalesOrder": "SalesOrder", "Invoice": "Invoice", "Act": "Act", "SPPayments": "Payment",
-                    "Documents": "Document", "Faq": "KnowledgeBaseArticle", "Emails": "Email",
+                    "Documents": "Document", "Faq": "KnowledgeBaseArticle", "Emails": "Email", "PBXManager": "Call",
                     **{m: "VtigerArchive" for m in ARCHIVES}}
 ACTIVITY_ENTITY = {"Task": "Task", "Call": "Call", "Meeting": "Meeting", "Письмо": "Task"}
-# Modules imported by later stages (owner's answer 2026-10-11): references to them wait for that stage.
-PENDING = {"PBXManager": "07.2", "SPCallPopup": "07.2"}
+# Modules imported by later stages (owner's answer 2026-10-11): references to them wait for that stage. Stage 07.2
+# imported the last ones (PBXManager, SPCallPopup); the mechanism stays.
+PENDING = {}
 # Target entity types each source module fills (inventory of the target: records gone from the source).
 MODULE_ENTITIES = {"Users": ("User",), "Accounts": ("Account",), "Contacts": ("Contact", "ContactAccess"),
                    "Leads": ("Lead",), "Potentials": ("Opportunity",), "Project": ("Project",),
@@ -51,7 +55,9 @@ MODULE_ENTITIES = {"Users": ("User",), "Accounts": ("Account",), "Contacts": ("C
                    "SalesOrder": ("SalesOrder", "SalesOrderItem"), "Invoice": ("Invoice", "InvoiceItem"),
                    "Act": ("Act", "ActItem"), "SPPayments": ("Payment", "PaymentAllocation"),
                    **{m: ("VtigerArchive",) for m in ARCHIVES}, "Faq": ("KnowledgeBaseArticle",),
-                   "Emails": ("Email",), "Documents": ("Document", "DocumentFolder"), "Attachments": ("Attachment",)}
+                   "Emails": ("Email",), "Documents": ("Document", "DocumentFolder"), "Attachments": ("Attachment",),
+                   # 07.2: a popup only merges into its call; CDR calls are never removed (owner's answer 2026-10-17)
+                   "PBXManager": ("Call",), "SPCallPopup": (), "CDR": ()}
 # Stage 06.4: link-multiple fields whose items between imported records follow the source (`owned`); the relations of a
 # Document (vtiger_senotesrel) are owned as a whole (spec_content.DOCUMENT_LINKS). Teams, roles and KB categories keep
 # their `domain`.
@@ -77,7 +83,12 @@ MAP_GAPS = {("ModComments", "vtiger_crmentity.modifiedby"): "Note.modifiedBy",
             ("Attachments", "vtiger_attachments.name"): "Attachment.name",
             # Emails and Faq do not declare the author / the owner in vtiger_field either (stage 06.3, D-149)
             ("Emails", "vtiger_crmentity.smcreatorid"): "Email.createdBy",
-            ("Faq", "vtiger_crmentity.smownerid"): "KnowledgeBaseArticle.assignedUser"}
+            ("Faq", "vtiger_crmentity.smownerid"): "KnowledgeBaseArticle.assignedUser",
+            # stage 07.2: PBXManager declares neither the modifier nor the description in vtiger_field, SPCallPopup not
+            # the description (both empty in the snapshot of 2026-10-12; a value would be carried, D-173)
+            ("PBXManager", "vtiger_crmentity.modifiedby"): "Call.modifiedBy",
+            ("PBXManager", "vtiger_crmentity.description"): "Call.description",
+            ("SPCallPopup", "vtiger_crmentity.description"): "Call.vtigerData.popup_description"}
 
 # Filled source columns without a map row and without a working field: an explicit fate with its reason (stage 06.3,
 # D-149). Archived e-mails share vtiger_activity with the calendar; the event-only service columns hold the defaults.
@@ -212,6 +223,9 @@ SOURCES = {
     "Assets": Source("Assets", ("vtiger_assets", "assetsid"), (("vtiger_assetscf", "assetsid"),)),
     "Jivosite": Source("Jivosite", ("vtiger_jivosite", "jivositeid"), (("vtiger_jivositecf", "jivositeid"),)),
     "JVmes": Source("JVmes", ("vtiger_jvmes", "jvmesid"), (("vtiger_jvmescf", "jvmesid"),)),
+    # stage 07.2 (the custom-field tables hold only the record id)
+    "PBXManager": Source("PBXManager", ("vtiger_pbxmanager", "pbxmanagerid")),
+    "SPCallPopup": Source("SPCallPopup", ("vtiger_sp_callpopup", "popupid")),
 }
 # Line items of the documents (one table for every module, D-09: VTEItems excluded): read per live parent module.
 LINE_MODULES = ("Quotes", "SalesOrder", "Invoice", "Act", "Consignment")
@@ -331,6 +345,14 @@ class Context:
         self.attachment_names = {int(r["vtiger_attachments.attachmentsid"]): r.get("vtiger_attachments.name")
                                  for r in data.get("vtiger_attachments", [])}
         self.rows_of_email = {}
+        # stage 07.2: internal PBXManager calls (not imported), the call of each popup, the account of each contact
+        self.excluded = {int(r["vtiger_crmentity.crmid"]) for r in data.get("PBXManager", []) if P.is_internal(r)}
+        self.popup_call = {int(r["vtiger_crmentity.crmid"]): T.integer(r.get("vtiger_sp_callpopup.callid"))
+                           for r in data.get("SPCallPopup", [])}
+        self.contact_account = {int(r["vtiger_crmentity.crmid"]): T.integer(r.get("vtiger_contactdetails.accountid"),
+                                                                             zero_is_empty=True)
+                                for r in data.get("Contacts", [])}
+        self.telephony = {"area": "", "index": {}}
 
     def dt(self, value):
         return T.vt_datetime(value, self.flags)
@@ -359,6 +381,10 @@ class Context:
             module, entity = setype, ENTITY_BY_SETYPE.get(setype)
         if setype in PENDING:
             return "pending", PENDING[setype]
+        if setype == "SPCallPopup":  # merged into its call (stage 07.2)
+            return self.target(self.popup_call.get(crmid))
+        if setype == "PBXManager" and crmid in self.excluded:
+            return "dangling:excluded", None
         if module not in SCOPE or entity is None:
             return "error:unexpected_target", None
         if module not in self.selected:
@@ -741,6 +767,14 @@ def user_ref(op, ctx, col, link, value):
     else:
         op.links[link] = None
         op.column(col, "dangling:not_a_user")
+
+
+def normalize_selection(selected):
+    """--only with one of PBXManager/SPCallPopup selects both (a popup is merged into its call, stage 07.2)."""
+    selected = list(selected)
+    if {"PBXManager", "SPCallPopup"} & set(selected):
+        selected += [m for m in ("PBXManager", "SPCallPopup") if m not in selected]
+    return selected
 
 
 def owned_types(selected=None):
@@ -1308,7 +1342,8 @@ def attach_relations(ops, ctx):
     seactivityrel) are merged: the same pair is a duplicate, another pair a conflict (kept in vtigerData, never
     last-writer-wins)."""
     by_key = {(o.entityType, o.vtigerId): o for o in ops}
-    acts = {o.vtigerId: o for o in ops if o.entityType in ("Task", "Call", "Meeting")}
+    acts = {o.vtigerId: o for o in ops if o.entityType in ("Task", "Call", "Meeting") and o.module in ("Calendar",
+                                                                                                     "Events")}
     emails = {o.vtigerId: o for o in ops if o.entityType == "Email"}
     d = ctx.data
 
@@ -1378,6 +1413,9 @@ def attach_relations(ops, ctx):
             continue  # neither end is imported in this stage
         if ctx.crm[a_id][0] != a_mod or ctx.crm[b_id][0] != b_mod:
             ctx.flags[f"mismatch_rel:{rel}"] += 1  # the row names other modules than its records: never linked
+            continue
+        if (a_mod, b_mod) in P.CALL_PAIRS:
+            P.call_pair(ctx, rel, a_id, a_mod, b_id, b_mod)
             continue
         if (a_mod, b_mod) in REL_PENDING_PAIRS:
             ctx.flags[f"pending_rel:{rel}:{REL_PENDING_PAIRS[(a_mod, b_mod)]}"] += 1
@@ -1590,18 +1628,21 @@ class Plan:
     counters: dict = field(default_factory=dict)   # entity type → next number (vtiger_modentity_num.cur_id)
     problems: list = field(default_factory=list)   # plan-level problems (identifiers only)
     held_keys: set = field(default_factory=set)    # (type, key) kept without an operation (06.4: never removed)
+    merged: list = field(default_factory=list)     # 07.2: popup carriers (outcomes of SPCallPopup, key of the call)
 
 
 def _crm_sorted(rows):
     return sorted(rows, key=lambda r: int(r["vtiger_crmentity.crmid"]))
 
 
-def build(data, selected=None, key_range=(1, SYNTHETIC_KEY_MIN - 1), effective_admin=EFFECTIVE_ADMIN, files=None):
+def build(data, selected=None, key_range=(1, SYNTHETIC_KEY_MIN - 1), effective_admin=EFFECTIVE_ADMIN, files=None,
+          telephony=None):
     """All operations of the run from the rows read (spec order, deterministic). `files`: attachment id → resolved
-    snapshot file ({status, rel, size, sha256}) and the snapshot inventory under the key `inventory`."""
+    snapshot file ({status, rel, size, sha256}) and the snapshot inventory under the key `inventory`; `telephony`: the
+    classification rules of the installation (the writer's `telephonyRules`: the local area code of the numbers)."""
     files = files or {}
     ctx = Context(data, selected, key_range, effective_admin)
-    ops, held_keys = [], set()
+    ops, held_keys, merged = [], set(), []
     if "Users" in ctx.selected:
         ops += [build_user(r, ctx) for r in sorted(data["vtiger_users"], key=lambda r: int(r["vtiger_users.id"]))]
     for module in ("Vendors", "Products", "Services"):
@@ -1669,6 +1710,11 @@ def build(data, selected=None, key_range=(1, SYNTHETIC_KEY_MIN - 1), effective_a
     for module in ("Calendar", "Events"):
         if module in ctx.selected:
             ops += [record_or_error(module, r, ctx, build_activity) for r in _crm_sorted(data[module])]
+    if "PBXManager" in ctx.selected:
+        area = (telephony or {}).get("localAreaCode") or ""
+        ctx.telephony.update(area=area, index=P.client_index(data, area))
+        calls, merged = P.build(data, ctx)
+        ops += calls
     if "Emails" in ctx.selected:
         ctx.rows_of_email = {int(r["vtiger_crmentity.crmid"]): r for r in data["Emails"]}
         ops += [record_or_error("Emails", r, ctx, lambda m, row, c: C.build_email(row, c))
@@ -1698,7 +1744,7 @@ def build(data, selected=None, key_range=(1, SYNTHETIC_KEY_MIN - 1), effective_a
     send = [o for o in ops if not (o.skip or o.pending)]
     send.sort(key=lambda o: order[o.entityType])   # stable: comments keep their chronological order
     counters, problems = F.counters(data) if FINANCE_COUNTERS & ctx.selected else ({}, [])
-    return Plan(send, [o for o in ops if o.skip or o.pending], ctx.flags, counters, problems, held_keys)
+    return Plan(send, [o for o in ops if o.skip or o.pending], ctx.flags, counters, problems, held_keys, merged)
 
 
 FINANCE_COUNTERS = {"Quotes", "SalesOrder", "Invoice", "Act", "SPPayments"}
@@ -1789,7 +1835,7 @@ def consumed_columns():
                                        "language", "date_format", "hour_format", "dayoftheweek", "time_zone",
                                        "signature", "currency_id", "imagename")}
     out |= {("Users", "vtiger_user2role.roleid")}
-    return out | consumed_columns_063()
+    return out | consumed_columns_063() | P.consumed_columns()
 
 
 def consumed_columns_063():
@@ -1898,7 +1944,8 @@ def check_coverage(fields, relations):
         rid = r["relation_id"]
         if rid.startswith("crmentityrel:"):
             pair = tuple(rid.split(":", 1)[1].split("->"))
-            if not (pair in REL_PENDING_PAIRS or pair in REL_SINGLE or pair in REL_MULTI or pair in REL_MULTI_FIRST
+            if not (pair in REL_PENDING_PAIRS or pair in P.CALL_PAIRS or pair in REL_SINGLE or pair in REL_MULTI
+                    or pair in REL_MULTI_FIRST
                     or pair in REL_ALLOCATION or (pair[1] == "Calendar" and pair[0] in REL_CALENDAR)):
                 problems.append(f"relation not handled: {rid}")
             continue
@@ -1923,9 +1970,12 @@ FIELD_RELATIONS = {"Calendar.crmid", "Events.crmid", "Events.contactid", "Contac
                    "Jivosite.relatedleads", "ServiceContracts.sc_related_to",
                    "HelpDesk.parent_id", "ModComments.customer", "ModComments.related_to", "ModComments.userid",
                    "Potentials.contact_id", "Potentials.related_to", "Project.linktoaccountscontacts",
-                   "Project.potentialid", "ProjectTask.projectid"}
+                   "Project.potentialid", "ProjectTask.projectid",
+                   # stage 07.2 (spec_telephony)
+                   "PBXManager.customer", "SPCallPopup.callid"}
 
 
 # The stage-06.3 parts of the specification (they use the definitions above).
 import spec_content as C  # noqa: E402
 import spec_finance as F  # noqa: E402
+import spec_telephony as P  # noqa: E402

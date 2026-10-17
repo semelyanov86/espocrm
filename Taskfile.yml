@@ -196,6 +196,11 @@ tasks:
     cmds:
       - python3 -m unittest discover -s tests/stage07_1 -p 'test_*.py' -v
 
+  test:stage07.2:
+    desc: Stage 07.2 tests of the call history (pure CDR planner, then on the stand — synthetic PBXManager, CDR, Master.csv and recordings; several legs, overlap, missing audio, recording access, live and deleted calls, delta; needs task telephony:down)
+    cmds:
+      - python3 -m unittest discover -s tests/stage07_2 -p 'test_*.py' -v
+
   test:finance:
     desc: Finance core tests (synthetic structures; the private source snapshot when available, counts only)
     cmds:
@@ -255,7 +260,7 @@ tasks:
 
   # --- import of the base entities (stage 06.2, docs/migration/import.md) ------------------------------
   import:run:
-    desc: Import the Vtiger records, finances, documents and files from a verified snapshot (-- --snapshot ID [--only M1,M2] [--check-only]); stand backup first
+    desc: Import the Vtiger records, finances, documents, files and the call history (PBXManager, CDR, recordings) from a verified snapshot (-- --snapshot ID [--only M1,M2] [--check-only] [--recordings place|verify]); stand backup first; telephony down
     cmds:
       - scripts/stand/backup.sh --label pre-import
       - python3 scripts/import/importer.py run {{.CLI_ARGS}}

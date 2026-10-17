@@ -6,6 +6,8 @@
 #   scripts/stand/telephony.sh down      # switch the integration off, stop the listener and the containers
 #   scripts/stand/telephony.sh status    # listener, PBX, registrations, AMI rights (no numbers, no secrets)
 #   scripts/stand/telephony.sh reload    # restart the listener if it runs (after task model:apply)
+#   scripts/stand/telephony.sh place-recordings <dir>   # stage 07.2: copy snapshot recordings into the root
+#                                                       # (stdin JSON lines, never overwrites; the importer runs it)
 #
 # Secrets: $TELEPHONY_PRIVATE_DIR/secrets.env (600, generated once), handed to the containers by Docker and to EspoCRM
 # through stdin (itvolga-setup-telephony), never through argv. Recordings of the test PBX (synthetic audio) are kept
@@ -169,10 +171,23 @@ cmd_reload() {
     fi
 }
 
+# Stage 07.2 (D-177): the recordings of the CDR history the importer attaches, copied from a verified snapshot's
+# monitor part into $TELEPHONY_MONITOR_DIR as root (place_recordings.py: inside the marked root only, no overwrite,
+# no symbolic links). File names and checksums come on stdin, statuses go to stdout — no names in argv or output.
+cmd_place_recordings() { # source dir
+    local source="${1:-}"
+    [[ -n "$source" && -d "$source" ]] || die "usage: telephony.sh place-recordings <source dir>"
+    as_root test -d "$TELEPHONY_MONITOR_DIR" || die "no recordings root (task telephony:up creates it once)"
+    as_root python3 -I "$REPO_ROOT/scripts/stand/place_recordings.py" --source "$source" \
+        --root "$TELEPHONY_MONITOR_DIR" --uid "$TELEPHONY_ASTERISK_UID" --gid "$TELEPHONY_ASTERISK_GID" \
+        --marker "$TELEPHONY_STATE_DIR/$TELEPHONY_MARKER"
+}
+
 case "${1:-}" in
     up) cmd_up ;;
     down) cmd_down ;;
     status) shift; cmd_status "$@" ;;
     reload) cmd_reload ;;
-    *) die "usage: telephony.sh up|down|status [--check]|reload" ;;
+    place-recordings) shift; cmd_place_recordings "$@" ;;
+    *) die "usage: telephony.sh up|down|status [--check]|reload|place-recordings <dir>" ;;
 esac

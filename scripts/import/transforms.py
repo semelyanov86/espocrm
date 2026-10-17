@@ -111,6 +111,33 @@ def vt_datetime(value, flags=None):
     return to_utc(local_datetime(value), flags)
 
 
+BERLIN = ZoneInfo("Europe/Berlin")
+PBX_CONNECTOR_UNTIL = dt.datetime(2020, 10, 23)  # D-30: PBXManager start/end until 2020-10-22 inclusive — Berlin
+
+
+def zone_to_utc(local, zone, flags=None):
+    """A naive local datetime of a known zone → 'YYYY-MM-DD HH:MM:SS' UTC (fold=0; DST gaps/folds counted)."""
+    if local is None:
+        return None
+    aware = local.replace(tzinfo=zone)
+    if flags is not None:
+        back = aware.astimezone(UTC).astimezone(zone).replace(tzinfo=None)
+        if back != local:
+            flags["dst_gap"] = flags.get("dst_gap", 0) + 1
+        elif aware.utcoffset() != local.replace(tzinfo=zone, fold=1).utcoffset():
+            flags["dst_fold"] = flags.get("dst_fold", 0) + 1
+    return aware.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def pbx_datetime(value, flags=None):
+    """D-30: the call times of Vtiger PBXManager (`starttime`/`endtime`) were written by the connector in Berlin time
+    until 2020-10-22 inclusive, later in the time of Vtiger (the ordinary epochs)."""
+    local = local_datetime(value)
+    if local is not None and local < PBX_CONNECTOR_UNTIL:
+        return zone_to_utc(local, BERLIN, flags)
+    return to_utc(local, flags)
+
+
 def utc_timestamp(value):
     """A TIMESTAMP column restored in UTC: no epoch shift."""
     return None if is_empty(value) else local_datetime(value).strftime("%Y-%m-%d %H:%M:%S")
@@ -190,6 +217,31 @@ def phone(value):
     return raw, "other"
 
 
+CANON_FORBIDDEN_RE = re.compile(r"[^0-9+()\s.\-]")
+
+
+def canonical_phone(value, local_area_code):
+    """The canonical number of the telephony (D-167; port of Core/PhoneNumbers::canonical, kept equal by the stage
+    07.2 tests): 11 digits with 7/8 and 10 digits with 3/4/8/9 → +7…, «+» and 7–15 digits, «00» → «+», six digits →
+    +7<local area code><digits>; several numbers, an extension or other characters → None (no canonical form)."""
+    raw = (value or "").strip()
+    if raw == "" or MULTI_RE.search(raw) or CANON_FORBIDDEN_RE.search(raw):
+        return None
+    digits = re.sub(r"\D", "", raw)
+    n = len(digits)
+    if raw.startswith("+"):
+        return "+" + digits if 7 <= n <= 15 else None
+    if digits.startswith("00") and 9 <= n <= 17:
+        return "+" + digits[2:]
+    if n == 11 and digits[0] in "78":
+        return "+7" + digits[1:]
+    if n == 10 and digits[0] in "3489":
+        return "+7" + digits
+    if n == 6 and local_area_code:
+        return "+7" + local_area_code + digits
+    return None
+
+
 def email(value):
     if is_empty(value):
         return None
@@ -210,6 +262,8 @@ class ValueMaps:
         for key in (source_key, "(picklist)"):
             if key in spec and value in spec[key]:
                 return spec[key][value] or None
+        if "*" in spec.get(source_key, {}):  # «any other value» (PBXManager.callstatus: completed → Held, * → Not Held)
+            return spec[source_key]["*"] or None
         raise TransformError("enum_unmapped")
 
     def has(self, entity, field, source_key):

@@ -89,6 +89,15 @@ COLUMNS_063 = {
                                   "company VARCHAR(200)",
     "vtiger_modentity_num": "num_id INT PRIMARY KEY, semodule VARCHAR(100), prefix VARCHAR(50), start_id VARCHAR(50), "
                             "cur_id VARCHAR(50), active VARCHAR(2), spcompany VARCHAR(200)",
+    # stage 07.2: the Vtiger call history (tests/stage07_2 fills them; empty for the earlier stages)
+    "vtiger_pbxmanager": "pbxmanagerid INT PRIMARY KEY, direction VARCHAR(10), callstatus VARCHAR(20), "
+                         "starttime DATETIME, endtime DATETIME, totalduration INT, billduration INT, "
+                         "recordingurl VARCHAR(200), sourceuuid VARCHAR(100), gateway VARCHAR(20), customer VARCHAR(100), "
+                         "user VARCHAR(100), customernumber VARCHAR(100), customertype VARCHAR(100), "
+                         "incominglinename VARCHAR(100)",
+    "vtiger_sp_callpopup": "popupid INT PRIMARY KEY, callid INT, call_no VARCHAR(255), status TINYINT, "
+                           "firstname VARCHAR(255), lastname VARCHAR(255), client_type VARCHAR(255), comment TEXT, "
+                           "accountname VARCHAR(255)",
 }
 # columns of vtiger_activity the archived e-mails use (beyond the calendar's)
 ACTIVITY_EXTRA = "semodule VARCHAR(20), notime VARCHAR(3), sendnotification VARCHAR(3), visibility VARCHAR(50)"

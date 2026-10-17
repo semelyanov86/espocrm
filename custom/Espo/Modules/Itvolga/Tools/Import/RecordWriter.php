@@ -61,6 +61,7 @@ class RecordWriter
         private FinanceCheck $financeCheck,
         private AttachmentWriter $attachments,
         private RemovalWriter $removals,
+        private CdrCallWriter $history,
     ) {}
 
     /**
@@ -101,6 +102,33 @@ class RecordWriter
         }
 
         return $result;
+    }
+
+    /**
+     * A call of the Asterisk CDR history (stage 07.2): CdrCallWriter in one transaction of its own, keyed by the
+     * Asterisk linkedid; the check pass answers the same decision read-only.
+     *
+     * @return array<string, mixed>
+     */
+    public function history(stdClass $op, bool $check): array
+    {
+        return $check ? $this->history->check($op) : $this->transaction(fn () => $this->history->write($op));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function telephonyRules(): array
+    {
+        return $this->history->rules();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function callInventory(): array
+    {
+        return $this->history->inventory();
     }
 
     /**
@@ -212,6 +240,7 @@ class RecordWriter
     {
         $entity = $this->keys->findWithDeleted($op->entityType, $this->key($op));
         $previous = $this->previousType($op);
+        $this->refuseTelephonyCall($entity);
 
         if ($guarded = $this->finance->guard($op, $entity, true)) {
             return $guarded; // a finance record deleted in EspoCRM, an item of a recalculated document: findings
@@ -265,6 +294,7 @@ class RecordWriter
         $previous = $this->previousType($op); // a source activity that changed its type (stage 06.4)
 
         $entity = $this->keys->findWithDeleted($type, $this->key($op));
+        $this->refuseTelephonyCall($entity);
 
         if ($guarded = $this->finance->guard($op, $entity)) {
             return $guarded; // owner's answers 2026-10-11: not restored, not recalculated back
@@ -407,6 +437,20 @@ class RecordWriter
             SaveOption::NO_NOTIFICATIONS => true]);
 
         return ['from' => $from, 'id' => $previous->getId(), 'notesLeft' => $notesLeft];
+    }
+
+    /**
+     * A Call of the Asterisk integration is written only by CdrCallWriter and the live listener: a Vtiger operation
+     * that finds one (its vtigerId on a telephony call) stops — its direct UPDATEs (force) would bypass the facts guard.
+     *
+     * @throws ImportError
+     */
+    private function refuseTelephonyCall(?CoreEntity $entity): void
+    {
+        if ($entity instanceof CoreEntity && $entity->getEntityType() === 'Call'
+            && (string) $entity->get('cAsteriskLinkedId') !== '') {
+            throw new ImportError('telephony_call');
+        }
     }
 
     private function validKey(stdClass $op): bool

@@ -26,6 +26,9 @@ use Throwable;
  *    "chunks": k}}  followed (apply only) by k lines {"seq": i, "data": "<base64>"} — the bytes of the file (06.3)
  *   {"op": "inventory", "entityType": "Contact"}
  *   {"op": "remove", "key": "remove:Contact:123", "entityType": "Contact", "vtigerId": 123}   protocol 3 (06.4)
+ *   {"op": "telephonyRules"} | {"op": "callInventory"} | {"op": "callHistory", "key": "cdr:<linkedid>", …}   stage
+ *    07.2: the classification rules of the installation, the keys of its Asterisk calls by owner, a call of the CDR
+ *    history (CdrCallWriter; additive operation kinds, the protocol number stays)
  *
  * Every operation line is answered on stdout with `#itv#<nonce>#<json>` (status, ids, attribute names, closed error
  * codes — never values), then `{"done": n, "swept": k}`; after a COMMIT that failed (`transaction_failed`) the command
@@ -109,6 +112,9 @@ class Import implements Command
                     null => $this->writer->handle($op, $header->mode === 'check', $run, $blob),
                     'inventory' => $this->writer->inventory((string) ($op->entityType ?? '')),
                     'remove' => $this->writer->remove($op, $header->mode === 'check', $run),
+                    'callHistory' => $this->writer->history($op, $header->mode === 'check'),
+                    'telephonyRules' => $this->writer->telephonyRules(),
+                    'callInventory' => $this->writer->callInventory(),
                     default => throw new ImportError('bad_operation'),
                 };
             } catch (ImportError $e) {

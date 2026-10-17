@@ -133,6 +133,17 @@
             "importDisabled": true,
             "textFilterDisabled": true,
             "customizationDisabled": true
+        },
+        "cCdrSource": {
+            "type": "enum",
+            "options": [
+                "",
+                "mysql",
+                "csv"
+            ],
+            "readOnly": true,
+            "layoutMassUpdateDisabled": true,
+            "customizationDisabled": true
         }
     },
     "indexes": {

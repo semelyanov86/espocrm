@@ -1,9 +1,9 @@
-# Импорт Vtiger — сводка прогона (этапы 06.2–06.4)
+# Импорт Vtiger — сводка прогона (этапы 06.2–07.2)
 
 Генерируется: `task import:summary -- <прогон>` (`scripts/import/importer.py summary`). Только счётчики: ни значений, ни идентификаторов записей. Машинный отчёт с причинами по каждой записи и колонке — вне Git (`/data/itvolga/espo-private/import/<прогон>/`). Контракт импорта — `import.md`.
 
-- Прогон: `20261013T185215`; снимок: `20261012T191003`; код: `5864e59` (незакоммиченных файлов инструмента: 0).
-- Итог: **findings**; проблемы: нет; находки: conflict=47, dangling=1, discrepancy:invoice_act_total=5, external_url_invalid=1, no_target=66, pending=9, type_conflict=23.
+- Прогон: `20261017T122425`; снимок: `20261012T191003`; код: `1fc7087` (незакоммиченных файлов инструмента: 18).
+- Итог: **findings**; проблемы: нет; находки: conflict=47, dangling=24, discrepancy:invoice_act_total=5, external_url_invalid=1, no_target=66, recording_unavailable:ambiguous_d31=2, recording_unavailable:without_audio=2, type_conflict=23.
 - «Тишина» (изменение числа строк стенда: уведомления, напоминания, подписки, записи ленты без vtigerId, письма, вебхуки, журнал действий): action_history_record=0, email_not_imported=0, note_not_imported=0, notification=0, reminder=0, stream_subscription=0, webhook_queue_item=0.
 
 ## Записи
@@ -14,7 +14,7 @@
 | Act | 404 | unchanged=404 | equal=404 | — | — |
 | ActItem | 417 | unchanged=417 | equal=417 | — | — |
 | Attachment | 205 | unchanged=205 | equal=205 | — | — |
-| Call | 17 | unchanged=17 | equal=17 | — | — |
+| Call | 1133 | unchanged=924 | equal=924 | excluded:internal_call=209 | — |
 | Case | 45 | unchanged=45 | equal=45 | — | — |
 | Contact | 341 | unchanged=341 | equal=341 | — | — |
 | ContactAccess | 341 | skipped=214, unchanged=127 | absent=214, equal=127 | — | — |
@@ -54,6 +54,7 @@
 | Act | 50 | 15871 | 15473 | 0 | 0 | 6 | 12/3243 | 6/404 | 0/0 |
 | Assets | 21 | 51 | 51 | 0 | 0 | 3 | 5/15 | 5/3 | 0/0 |
 | Attachments | 4 | 615 | 615 | 0 | 0 | 1 | 0/0 | 1/0 | 0/0 |
+| CDR | 17 | 1623 | 686 | 0 | 0 | 4 | 0/0 | 0/0 | 0/0 |
 | Calendar | 13 | 398 | 398 | 0 | 0 | 3 | 14/374 | 8/34 | 5/0 |
 | Consignment | 57 | 60 | 60 | 0 | 0 | 6 | 7/8 | 7/1 | 0/0 |
 | Contacts | 46 | 8540 | 8428 | 0 | 0 | 7 | 11/3410 | 17/1023 | 0/0 |
@@ -68,11 +69,13 @@
 | Leads | 33 | 4413 | 3763 | 0 | 0 | 6 | 11/2250 | 26/450 | 0/0 |
 | ModComments | 10 | 779 | 626 | 0 | 0 | 4 | 6/468 | 11/234 | 1/0 |
 | OrganizationDetails | 22 | 22 | 22 | 0 | 0 | 0 | 1/1 | 2/0 | 0/0 |
+| PBXManager | 18 | 17611 | 14338 | 0 | 0 | 3 | 9/7848 | 12/1116 | 0/0 |
 | Potentials | 20 | 2691 | 2572 | 0 | 0 | 3 | 11/1560 | 16/312 | 0/0 |
 | Products | 15 | 42 | 34 | 0 | 0 | 3 | 9/24 | 33/15 | 0/0 |
 | Project | 20 | 946 | 928 | 0 | 0 | 3 | 6/270 | 5/54 | 0/0 |
 | ProjectTask | 19 | 8895 | 8895 | 0 | 0 | 4 | 6/2465 | 5/493 | 0/0 |
 | Quotes | 56 | 1105 | 1052 | 0 | 0 | 7 | 10/171 | 6/24 | 0/0 |
+| SPCallPopup | 13 | 1271 | 1235 | 0 | 0 | 3 | 7/1260 | 5/210 | 0/0 |
 | SPPayments | 26 | 14470 | 14109 | 0 | 0 | 4 | 6/3807 | 5/799 | 0/0 |
 | SalesOrder | 65 | 710 | 620 | 0 | 0 | 8 | 10/98 | 12/14 | 0/0 |
 | ServiceContracts | 22 | 18 | 18 | 0 | 0 | 3 | 5/5 | 5/1 | 1/0 |
@@ -88,6 +91,7 @@
 | Act | archived=1252, carried=11361, linked=2456, mapped=404, zero_empty=398 |
 | Assets | archived=51 |
 | Attachments | archived=3, carried=612 |
+| CDR | carried=686, excluded=358, key=496, not_applicable:recording_without_audio=1, not_applicable:trainer=578 |
 | Calendar | carried=292, linked=102, mapped=4 |
 | Consignment | archived=60 |
 | Contacts | archived=684, carried=5760, duplicate=5, linked=1258, mapped=42, no_target=14, normalized=152, not_applicable:D-23=5, protected=493, type_conflict=20, zero_empty=107 |
@@ -102,11 +106,13 @@
 | Leads | archived=30, carried=2598, duplicate=1, linked=675, mapped=288, normalized=170, type_conflict=1, zero_empty=650 |
 | ModComments | archived=79, carried=234, dangling:not_a_user=1, linked=313, zero_empty=152 |
 | OrganizationDetails | carried=21, linked=1 |
+| PBXManager | archived=462, carried=7709, dangling:deleted=23, derived_equal=445, duplicate=907, linked=2734, mapped=1814, normalized=267, not_applicable:internal_call=3250 |
 | Potentials | archived=469, carried=1345, linked=661, mapped=97, zero_empty=119 |
 | Products | archived=1, carried=21, linked=9, mapped=3, zero_empty=8 |
 | Project | archived=55, carried=572, linked=251, normalized=50, zero_empty=18 |
 | ProjectTask | carried=6923, linked=1972 |
 | Quotes | archived=49, carried=753, linked=203, mapped=47, zero_empty=53 |
+| SPCallPopup | archived=223, carried=2, duplicate=806, linked=204, not_applicable:internal_call=36 |
 | SPPayments | archived=612, carried=8125, linked=3776, mapped=1596, zero_empty=361 |
 | SalesOrder | archived=70, carried=419, linked=104, mapped=27, zero_empty=90 |
 | ServiceContracts | archived=18 |
@@ -134,6 +140,8 @@
 | `crmentityrel:Contacts->HelpDesk` | linked=3 | 3 | 0 |
 | `crmentityrel:Contacts->Invoice` | duplicate=2 | 2 | 0 |
 | `crmentityrel:Contacts->Jivosite` | linked=1 | 1 | 0 |
+| `crmentityrel:Contacts->PBXManager` | duplicate=1 | 1 | 0 |
+| `crmentityrel:Contacts->SPCallPopup` | duplicate=1 | 1 | 0 |
 | `crmentityrel:Contacts->SPPayments` | duplicate=5 | 5 | 0 |
 | `crmentityrel:Invoice->Calendar` | duplicate=1 | 1 | 0 |
 | `crmentityrel:Invoice->Consignment` | duplicate=1 | 1 | 0 |
@@ -141,12 +149,18 @@
 | `crmentityrel:Leads->Calendar` | conflict=3, duplicate=32, linked=3 | 35 | 0 |
 | `crmentityrel:Leads->Emails` | duplicate=1 | 1 | 0 |
 | `crmentityrel:Leads->Jivosite` | duplicate=37 | 37 | 0 |
+| `crmentityrel:Leads->PBXManager` | duplicate=2 | 2 | 0 |
+| `crmentityrel:Leads->SPCallPopup` | duplicate=2 | 2 | 0 |
+| `crmentityrel:PBXManager->SPCallPopup` | duplicate=204, not_applicable:internal_call=6 | 204 | 0 |
 | `crmentityrel:Potentials->Calendar` | duplicate=24 | 24 | 0 |
 | `crmentityrel:Potentials->Emails` | duplicate=23 | 23 | 0 |
 | `crmentityrel:Potentials->Invoice` | duplicate=20 | 20 | 0 |
 | `crmentityrel:Potentials->Quotes` | duplicate=1 | 1 | 0 |
 | `crmentityrel:Potentials->Services` | linked=3 | 3 | 0 |
 | `crmentityrel:Project->ProjectTask` | conflict=5, duplicate=481 | 481 | 0 |
+| `crmentityrel:SPCallPopup->Contacts` | duplicate=1 | 1 | 0 |
+| `crmentityrel:SPCallPopup->Leads` | duplicate=2 | 2 | 0 |
+| `crmentityrel:SPCallPopup->PBXManager` | duplicate=204, not_applicable:internal_call=6 | 204 | 0 |
 | `crmentityrel:Vendors->SPPayments` | duplicate=23 | 23 | 0 |
 | `email_track:Emails` | archived=23 | 23 | 0 |
 | `salesmanactivityrel:Users->Call` | linked=17 | 17 | 0 |
@@ -186,12 +200,6 @@
 | `tags:ProjectTask` | linked=2 | 2 | 0 |
 | `user2role` | linked=7 | 7 | 0 |
 | `users2group` | linked=4 | 4 | 0 |
-| `crmentityrel:Contacts->PBXManager` | pending:07.2=1 | — | — |
-| `crmentityrel:Contacts->SPCallPopup` | pending:07.2=1 | — | — |
-| `crmentityrel:Leads->PBXManager` | pending:07.2=2 | — | — |
-| `crmentityrel:Leads->SPCallPopup` | pending:07.2=2 | — | — |
-| `crmentityrel:SPCallPopup->Contacts` | pending:07.2=1 | — | — |
-| `crmentityrel:SPCallPopup->Leads` | pending:07.2=2 | — | — |
 
 ## Колонки таблиц связей
 
@@ -203,10 +211,10 @@
 | `vtiger_cntactivityrel.contactid` | пара | 6 |
 | `vtiger_contpotentialrel.contactid` | пара | 5 |
 | `vtiger_contpotentialrel.potentialid` | пара | 5 |
-| `vtiger_crmentityrel.crmid` | пара | 1936 |
-| `vtiger_crmentityrel.module` | пара | 1936 |
-| `vtiger_crmentityrel.relcrmid` | пара | 1936 |
-| `vtiger_crmentityrel.relmodule` | пара | 1936 |
+| `vtiger_crmentityrel.crmid` | пара | 2356 |
+| `vtiger_crmentityrel.module` | пара | 2356 |
+| `vtiger_crmentityrel.relcrmid` | пара | 2356 |
+| `vtiger_crmentityrel.relmodule` | пара | 2356 |
 | `vtiger_email_track.access_count` | пара | 23 |
 | `vtiger_email_track.click_count` | пара | 23 |
 | `vtiger_email_track.crmid` | пара | 23 |
@@ -247,7 +255,7 @@
 |---|---|---|
 | `vtiger_cntactivityrel` | 6 | 6 |
 | `vtiger_contpotentialrel` | 5 | 5 |
-| `vtiger_crmentityrel` | 1936 | 1936 |
+| `vtiger_crmentityrel` | 2356 | 2356 |
 | `vtiger_email_track` | 23 | 23 |
 | `vtiger_freetagged_objects` | 33 | 33 |
 | `vtiger_salesmanactivityrel` | 86 | 86 |
@@ -264,7 +272,7 @@
 
 | Сущность | Живые с vtigerId вне источника | Вне диапазона ключей | Удалённые (реальные ключи) | Удалённые (вне диапазона) |
 |---|---|---|---|---|
-| Account | 0 | 0 | 0 | 57 |
+| Account | 0 | 0 | 0 | 58 |
 | Act | 0 | 0 | 336 | 2 |
 | ActItem | 0 | 0 | 389 | 0 |
 | Attachment | 0 | 0 | 0 | 0 |
@@ -278,7 +286,7 @@
 | Invoice | 0 | 0 | 41 | 719 |
 | InvoiceItem | 0 | 0 | 61 | 0 |
 | KnowledgeBaseArticle | 0 | 0 | 0 | 0 |
-| Lead | 0 | 0 | 0 | 53 |
+| Lead | 0 | 0 | 0 | 54 |
 | Meeting | 0 | 0 | 0 | 0 |
 | Note | 0 | 0 | 0 | 0 |
 | Opportunity | 0 | 0 | 0 | 0 |
@@ -353,19 +361,125 @@
 
 - Итог: **pass**; колонок: 2361; значений: 843157; проверка карт снимка (C4/C5): pass.
 - Проблемы: нет.
-- Таблицы импорта: значений живых записей 169297 (сверено 98710, расхождений 0, неучтённых 0), удалённых в Vtiger записей 14591, вне границ импорта 32716.
+- Таблицы импорта: значений живых записей 206390 (сверено 114969, расхождений 0, неучтённых 0), удалённых в Vtiger записей 14591, вне границ импорта 13798.
 
 | Класс | Колонок | Значений |
 |---|---|---|
 | configuration | 389 | 2662 |
 | empty | 2 | 67 |
-| empty/excluded/pending:07.2 | 1 | 5156 |
+| empty/excluded | 1 | 5156 |
 | excluded | 1138 | 596736 |
-| import | 712 | 216604 |
-| key | 12 | 3686 |
+| import | 753 | 234779 |
+| key | 10 | 2360 |
 | module_code | 68 | 1397 |
-| pending:07.2 | 39 | 16849 |
+
+## История звонков (этап 07.2)
+
+PBXManager: записей 1116, перенесено 907, внутренних не переносится 209, удержано по другим причинам 0; SPCallPopup 210 (слито 204); архивных ссылок коннектора (не аудио, D-10) 1033; клиенты по номеру — matches 8, none 819, parent 67.
+
+CDR (граница T0 снимка 2026-10-12 17:10:09 UTC; записи — режим `place`): строк MySQL 124, строк CSV 215; звонков (групп плеч) 207.
+
+| Что | Счётчики |
+|---|---|
+| Строки MySQL | call 65, not_imported:trainer 59 |
+| Строки CSV | call 18, duplicate_of_mysql 124, not_imported:conference 2, not_imported:trainer 71 |
+| Звонки по классам | Inbound 31, Outbound 48, conference 2, trainer 126 |
+| Звонки по источнику | csv:call 18, csv:not_imported 73, mysql:call 61, mysql:not_imported 55 |
+| Запись и проверка | apply:unchanged 79, check:equal 79 |
+| Файлы записей | ambiguous 4, attached 62, claimed_twice 1, no_call:trainer 112, without_audio 5 |
+| Нет записи у звонка | ambiguous_d31 2, without_audio 2 |
+| D-31 на известных парах | correct 101, wrong 1 |
+| Нет в источнике (не удаляются) | 0 |
+
+По месяцам (звонки — месяц начала по UTC, файлы — каталог записи; D-16 — источников нет):
+
+| Месяц | PBXManager | внутр. | строк MySQL | строк CSV | звонков | не переносится | файлов | привязано | не привязано | Примечание |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2019-11 | 32 | 10 |  |  |  |  |  |  |  |  |
+| 2019-12 | 81 | 39 |  |  |  |  |  |  |  |  |
+| 2020-01 | 115 | 24 |  |  |  |  |  |  |  |  |
+| 2020-02 | 124 | 87 |  |  |  |  |  |  |  |  |
+| 2020-03 | 101 | 30 |  |  |  |  |  |  |  |  |
+| 2020-04 | 60 | 3 |  |  |  |  |  |  |  |  |
+| 2020-05 | 27 | 2 |  |  |  |  |  |  |  |  |
+| 2020-06 | 42 |  |  |  |  |  |  |  |  |  |
+| 2020-07 |  |  |  |  |  |  |  |  |  | no_source |
+| 2020-08 |  |  |  |  |  |  |  |  |  | no_source |
+| 2020-09 |  |  |  |  |  |  |  |  |  | no_source |
+| 2020-10 | 27 | 1 |  |  |  |  |  |  |  |  |
+| 2020-11 | 55 |  |  |  |  |  |  |  |  |  |
+| 2020-12 | 65 |  |  |  |  |  |  |  |  |  |
+| 2021-01 | 25 | 2 |  |  |  |  |  |  |  |  |
+| 2021-02 | 34 | 3 |  |  |  |  |  |  |  |  |
+| 2021-03 | 36 |  |  |  |  |  |  |  |  |  |
+| 2021-04 | 8 |  |  |  |  |  |  |  |  |  |
+| 2021-05 |  |  |  |  |  |  |  |  |  | no_source |
+| 2021-06 |  |  |  |  |  |  |  |  |  | no_source |
+| 2021-07 |  |  |  |  |  |  |  |  |  | no_source |
+| 2021-08 |  |  |  |  |  |  |  |  |  | no_source |
+| 2021-09 |  |  |  |  |  |  |  |  |  | no_source |
+| 2021-10 |  |  |  |  |  |  |  |  |  | no_source |
+| 2021-11 |  |  |  |  |  |  |  |  |  | no_source |
+| 2021-12 |  |  |  |  |  |  |  |  |  | no_source |
+| 2022-01 |  |  |  |  |  |  |  |  |  | no_source |
+| 2022-02 |  |  |  |  |  |  |  |  |  | no_source |
+| 2022-03 |  |  |  |  |  |  |  |  |  | no_source |
+| 2022-04 | 7 |  |  |  |  |  |  |  |  |  |
+| 2022-05 |  |  |  |  |  |  |  |  |  | no_source |
+| 2022-06 |  |  |  |  |  |  |  |  |  | no_source |
+| 2022-07 |  |  |  |  |  |  |  |  |  | no_source |
+| 2022-08 |  |  |  |  |  |  |  |  |  | no_source |
+| 2022-09 |  |  |  |  |  |  |  |  |  | no_source |
+| 2022-10 |  |  |  |  |  |  |  |  |  | no_source |
+| 2022-11 |  |  |  |  |  |  |  |  |  | no_source |
+| 2022-12 |  |  |  |  |  |  |  |  |  | no_source |
+| 2023-01 |  |  |  |  |  |  |  |  |  | no_source |
+| 2023-02 |  |  |  |  |  |  |  |  |  | no_source |
+| 2023-03 |  |  |  |  |  |  |  |  |  | no_source |
+| 2023-04 |  |  |  |  |  |  |  |  |  | no_source |
+| 2023-05 |  |  |  |  |  |  |  |  |  | no_source |
+| 2023-06 |  |  |  |  |  |  |  |  |  | no_source |
+| 2023-07 |  |  |  |  |  |  |  |  |  | no_source |
+| 2023-08 |  |  |  |  |  |  |  |  |  | no_source |
+| 2023-09 | 3 | 4 |  |  |  |  |  |  |  |  |
+| 2023-10 | 9 |  |  |  |  |  |  |  |  |  |
+| 2023-11 | 15 |  |  |  |  |  |  |  |  |  |
+| 2023-12 | 6 |  |  |  |  |  |  |  |  |  |
+| 2024-01 |  |  |  |  |  |  |  |  |  | no_source |
+| 2024-02 |  |  |  |  |  |  |  |  |  | no_source |
+| 2024-03 |  |  |  |  |  |  |  |  |  | no_source |
+| 2024-04 | 12 | 4 |  |  |  |  |  |  |  |  |
+| 2024-05 | 10 |  |  |  |  |  |  |  |  |  |
+| 2024-06 | 2 |  |  |  |  |  |  |  |  |  |
+| 2024-07 | 11 |  |  |  |  |  |  |  |  |  |
+| 2024-08 |  |  |  |  |  |  |  |  |  | D-16 |
+| 2024-09 |  |  |  |  |  |  |  |  |  | D-16 |
+| 2024-10 |  |  |  |  |  |  |  |  |  | D-16 |
+| 2024-11 |  |  |  |  |  |  |  |  |  | D-16 |
+| 2024-12 |  |  |  |  |  |  |  |  |  | D-16 |
+| 2025-01 |  |  |  |  |  |  |  |  |  | D-16 |
+| 2025-02 |  |  |  |  |  |  |  |  |  | D-16 |
+| 2025-03 |  |  |  |  |  |  |  |  |  | D-16 |
+| 2025-04 |  |  |  |  |  |  |  |  |  | D-16 |
+| 2025-05 |  |  |  |  |  |  |  |  |  | D-16 |
+| 2025-06 |  |  |  |  |  |  |  |  |  | D-16 |
+| 2025-07 |  |  |  |  |  |  |  |  |  | D-16 |
+| 2025-08 |  |  |  |  |  |  |  |  |  | D-16 |
+| 2025-09 |  |  |  |  |  |  |  |  |  | D-16 |
+| 2025-10 |  |  |  |  |  |  |  |  |  | D-16 |
+| 2025-11 |  |  |  |  |  |  |  |  |  | D-16 |
+| 2025-12 |  |  |  |  |  |  |  |  |  | D-16 |
+| 2026-01 |  |  |  |  |  |  |  |  |  | D-16 |
+| 2026-02 |  |  |  |  |  |  |  |  |  | D-16 |
+| 2026-03 |  |  |  |  |  |  |  |  |  | D-16 |
+| 2026-04 |  |  |  |  |  |  |  |  |  | D-16 |
+| 2026-05 |  |  |  |  |  |  |  |  |  | D-16 |
+| 2026-06 |  |  |  | 25 | 1 | 24 | 21 | 1 | 20 |  |
+| 2026-07 |  |  |  | 47 | 9 | 38 | 44 | 5 | 39 |  |
+| 2026-08 |  |  | 33 | 51 | 16 | 35 | 46 | 15 | 31 |  |
+| 2026-09 |  |  | 77 | 77 | 46 | 23 | 58 | 34 | 24 |  |
+| 2026-10 |  |  | 14 | 15 | 7 | 8 | 15 | 7 | 8 |  |
 
 ## Счётчики преобразований
 
-`allocation:both_same_invoice:allocate` 426, `allocation:conflict_rel_other_invoice:allocate` 38, `allocation:rel_only:allocate` 4, `allocation:rel_only:none` 52, `allocation:related_to_invoice_only:allocate` 152, `allocation:related_to_salesorder:allocate` 7, `allocation:unallocated:none` 120, `archive_link:Assets.account:linked` 3, `archive_link:Assets.product:linked` 3, `archive_link:Consignment.account:linked` 1, `archive_link:Consignment.invoice:linked` 1, `archive_link:JVmes.parentArchive:linked` 267, `archive_link:Jivosite.lead:kept` 12, `archive_link:Jivosite.lead:linked` 37, `archive_link:ServiceContracts.account:linked` 1, `external_url_invalid` 1, `phone_duplicate_in_record` 12, `phone_local` 124, `phone_multi` 7, `phone_other` 6, `phone_plus` 12, `phone_ru10` 117, `phone_ru11` 475, `phone_short` 23, `phone_type_conflict` 23
+`allocation:both_same_invoice:allocate` 426, `allocation:conflict_rel_other_invoice:allocate` 38, `allocation:rel_only:allocate` 4, `allocation:rel_only:none` 52, `allocation:related_to_invoice_only:allocate` 152, `allocation:related_to_salesorder:allocate` 7, `allocation:unallocated:none` 120, `archive_link:Assets.account:linked` 3, `archive_link:Assets.product:linked` 3, `archive_link:Consignment.account:linked` 1, `archive_link:Consignment.invoice:linked` 1, `archive_link:JVmes.parentArchive:linked` 267, `archive_link:Jivosite.lead:kept` 12, `archive_link:Jivosite.lead:linked` 37, `archive_link:ServiceContracts.account:linked` 1, `external_url_invalid` 1, `pbx_lookup:matches` 8, `pbx_lookup:none` 819, `pbx_lookup:parent` 67, `phone_duplicate_in_record` 12, `phone_local` 124, `phone_multi` 7, `phone_other` 6, `phone_plus` 12, `phone_ru10` 117, `phone_ru11` 475, `phone_short` 23, `phone_type_conflict` 23

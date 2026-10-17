@@ -2,6 +2,7 @@
 """Repeatable import of the base entities of Vtiger into the EspoCRM stand (stage 06.2, docs/migration/import.md).
 
   importer.py run --snapshot ID [--only Accounts,Contacts,…] [--check-only] [--allow-mass-removal]
+                  [--recordings place|verify]
       verify the snapshot (V0–V4) and restore it into a temporary stand database, read, drop it; build the plan;
       take the target inventory and plan the removals of records gone from the source (stage 06.4, the mass-removal
       rail refuses the run before any write); apply upserts, then removals through `task espo -- itvolga-import`
@@ -28,12 +29,15 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import source  # noqa: E402  (puts scripts/snapshot and scripts/audit on sys.path)
 import spec  # noqa: E402
+import spec_telephony as P  # noqa: E402
 import transforms as T  # noqa: E402
 import verify  # noqa: E402
 import aggregates  # noqa: E402
 import files as F  # noqa: E402
 import ledger  # noqa: E402
 import removals as R  # noqa: E402
+import cdr as CDR  # noqa: E402
+import history as H  # noqa: E402
 from common import (SNAPSHOT_ROOT, ID_RE, Mysql, SnapshotError, ensure_root, root_lock, sha256_file,  # noqa: E402
                     write_json, write_private)
 
@@ -41,6 +45,7 @@ IMPORT_ROOT = Path(os.environ.get("IMPORT_ROOT", "/data/itvolga/espo-private/imp
 ESPO = REPO / "scripts" / "stand" / "espo.sh"
 REAL_KEYS = (1, spec.SYNTHETIC_KEY_MIN - 1)
 TOOL_SOURCES = ("scripts/import", "scripts/snapshot", "custom/Espo/Modules/Itvolga/Tools/Import",
+                "custom/Espo/Modules/Itvolga/Tools/Telephony", "scripts/stand/place_recordings.py",
                 "custom/Espo/Modules/Itvolga/Classes/ConsoleCommands/Import.php",
                 "custom/Espo/Modules/Itvolga/Classes/ConsoleCommands/FinanceVerify.php",
                 "custom/Espo/Modules/Itvolga/Tools/FinanceDocument/SourceMarks.php")
@@ -141,12 +146,16 @@ def uitypes_by_module(fields):
 
 def execute(rundir, snapshot_dir=None, source_db=None, only=None, check_only=False, adopt="admin",
             key_range=REAL_KEYS, effective_admin=spec.EFFECTIVE_ADMIN, files_root=None, download=None,
-            allow_mass_removal=False, rail=None):
+            allow_mass_removal=False, rail=None, cdr_db=None, cdr_root=None, cdr_t0=None, recordings="place"):
     """The whole run; returns the report (also written to `rundir`). `source_db` (an already restored or synthetic
     source database) and `files_root` (a directory as the file part) are for the stage tests; real runs always come
     from a verified snapshot, whose shared lock is held for the whole run (its files are read while writing).
-    `allow_mass_removal` lets removals beyond the rail through (`rail`: removals.RAIL, tests may lower it)."""
-    options = {"allow_mass_removal": allow_mass_removal, "rail": rail}
+    `allow_mass_removal` lets removals beyond the rail through (`rail`: removals.RAIL, tests may lower it).
+    Stage 07.2: `cdr_db` (a database with a synthetic `cdr`), `cdr_root` (`cdr-csv/Master.csv` and `monitor/…`) and
+    `cdr_t0` (the boundary, UTC) are the tests' CDR source; `recordings`: `place` copies the recordings of the written
+    calls into the stand's root first, `verify` (production) only checks them where they are."""
+    options = {"allow_mass_removal": allow_mass_removal, "rail": rail, "recordings": recordings,
+               "cdr_db": cdr_db, "cdr_root": cdr_root, "cdr_t0": cdr_t0}
     logdir = rundir / "logs"
     logdir.mkdir(parents=True, exist_ok=True)
     fields, relations = spec.load_maps(REPO)
@@ -167,32 +176,60 @@ def execute(rundir, snapshot_dir=None, source_db=None, only=None, check_only=Fal
 def _execute(rundir, logdir, fields, uitypes, snapshot_dir, source_db, files, only, check_only, adopt, key_range,
              effective_admin, download, options):
     started = time.time()
-    selected = only.split(",") if only else None
+    selected = spec.normalize_selection(only.split(",")) if only else None
+    with_cdr = selected is None or "CDR" in selected
+    cdr_rows = cdr_census = sources = None
     if snapshot_dir is not None:
-        with verify.restored_databases(snapshot_dir, SNAPSHOT_ROOT, logdir) as names:
+        # the CDR table is read in every run (its census belongs to the whole-snapshot ledger); planned only with CDR
+        with verify.restored_databases(snapshot_dir, SNAPSHOT_ROOT, logdir, schemas=("vtiger7", "asteriskcdrdb")) \
+                as names:
             log("reading the restored source")
             db = source.SourceDb(names["vtiger7"], logdir)
             data, census = source.load(db, uitypes)
             source_totals = aggregates.run(db.lines, aggregates.source_sql())
-        log("temporary source database dropped")
+            cdr_rows, cdr_census = H.read_mysql(source.SourceDb(names["asteriskcdrdb"], logdir))
+        log("temporary source databases dropped")
         counts = ledger.snapshot_counts(snapshot_dir)
+        if with_cdr:
+            sources = H.snapshot_sources(snapshot_dir)
     else:
         db = source.SourceDb(source_db, logdir)
         data, census = source.load(db, uitypes)
         source_totals = aggregates.run(db.lines, aggregates.source_sql())
         counts = {"vtiger7": source.column_counts(db)}
+        if options["cdr_db"]:
+            cdb = source.SourceDb(options["cdr_db"], logdir)
+            cdr_rows, cdr_census = H.read_mysql(cdb)
+            counts["asteriskcdrdb"] = {"cdr": source.column_counts(cdb)["cdr"]}
+            sources = H.directory_sources(options["cdr_root"], options["cdr_t0"]) if with_cdr else None
+        with_cdr = with_cdr and sources is not None
     transport = transport_check(data, census)
     if transport:
         raise SnapshotError(f"reader and census disagree on {len(transport)} columns: nothing written")
     resolved = F.resolve(data["vtiger_attachments"], data["crm"], files) if files else {}
+    rules = bridge([H.Query("telephonyRules")], "check", adopt, logdir)[0]["telephony:telephonyRules"]
+    if rules.get("status") == "error":
+        raise SnapshotError(f"telephony rules of the stand: {rules.get('error')}: nothing written")
     plan = spec.build(data, selected=selected, key_range=key_range, effective_admin=effective_admin,
-                      files={**resolved, "inventory": files.inventory if files else {}})
+                      files={**resolved, "inventory": files.inventory if files else {}}, telephony=rules["rules"])
     log(f"plan: {len(plan.ops)} operations, {len(plan.held)} records held")
     if plan.problems:
         raise SnapshotError(f"plan problems: {', '.join(plan.problems)}: nothing written")
+    cdr_plan = None
+    if with_cdr:
+        try:
+            cdr_plan = CDR.build(cdr_rows, sources.csv_records, sources.inventory, CDR.Rules(rules["rules"]),
+                                 sources.t0)
+        except CDR.CdrError as e:
+            raise SnapshotError(f"CDR plan: {e}: nothing written") from None
+        cdr_plan.csv_present = sources.csv_present
+        log(f"CDR: {len(cdr_plan.ops)} calls of {len(cdr_plan.groups)}, recordings planned "
+            f"{sum(1 for o in cdr_plan.ops if o.recording)}")
+    cdr_ops = cdr_plan.ops if cdr_plan else []
     types = spec.owned_types(selected)
     run = {"keyRange": list(key_range), "ownedTypes": types}
-    before, _ = bridge([], "check", adopt, logdir, inventory=types, run=run)  # the target's source keys, no values
+    before, _ = bridge([H.Query("callInventory")], "check", adopt, logdir, inventory=types, run=run)  # keys only
+    states = before.pop("telephony:callInventory", {})
     blocked = R.blocked_types(data["orphans"], selected)
     removal = R.plan_removals(plan, {r["inventory"]: r for r in before.values()}, types, key_range, options["rail"],
                               blocked)
@@ -206,6 +243,18 @@ def _execute(rundir, logdir, fields, uitypes, snapshot_dir, source_db, files, on
     # stay with a document the writer keeps (FinanceRules::keptOnRemoval)
     run["removing"] = {t: [o.vtigerId for o in removal.ops if o.entityType == t]
                        for t in (*R.DOCUMENT_OF.values(), *R.DOCUMENT_OF)}
+    placement = {}
+    if cdr_ops and not check_only and options["recordings"] == "place":
+        if rules.get("enabled"):
+            raise SnapshotError("the stand telephony is on (task telephony:down): nothing written")
+        root = rules.get("recordingRoot")
+        if not root or os.path.realpath(root) != os.path.realpath(H.stand_monitor_dir()):
+            raise SnapshotError("the recordings root of EspoCRM is not the stand's: nothing written")
+        placement = H.place(cdr_ops, sources, states, logdir)
+        for op in cdr_ops:
+            if placement.get(op.key) not in (None, *H.KEPT):
+                op.recording = None  # not in the root: the call is written without it (reason in the report)
+        log("recordings: " + fmt(Counter(placement.values())))
     silence_before = silence_counts(logdir)
     meta = {}
     if check_only:
@@ -214,8 +263,8 @@ def _execute(rundir, logdir, fields, uitypes, snapshot_dir, source_db, files, on
         targets_before = allocation_targets(plan, logdir, removal.ops)
         fd = os.open(rundir / "applied.jsonl", os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
         with os.fdopen(fd, "a") as journal:  # keys and EspoCRM ids of written records, as the writer answers
-            applied, stray_apply = bridge(plan.ops + removal.ops, "apply", adopt, logdir, journal=journal, files=files,
-                                          run=run, meta=meta)
+            applied, stray_apply = bridge(plan.ops + removal.ops + cdr_ops, "apply", adopt, logdir, journal=journal,
+                                          files=files, run=run, meta=meta)
             # a lower source amount of a payment fits only once its allocation is lowered or removed (the payment hook
             # keeps the stored allocations and refuses an amount below them): failed payments are written once more
             retry = [op for op in plan.ops if op.entityType == "Payment" and applied[op.key].get("status") == "error"]
@@ -226,7 +275,9 @@ def _execute(rundir, logdir, fields, uitypes, snapshot_dir, source_db, files, on
                 stray_apply += stray_again
         log("apply: " + fmt(Counter(r.get("status") for r in applied.values())))
     finance = finance_steps(plan, check_only, logdir, targets_before)
-    checked, stray_check = bridge(plan.ops + removal.ops, "check", adopt, logdir, inventory=types, run=run)
+    checked, stray_check = bridge(plan.ops + removal.ops + cdr_ops + [H.Query("callInventory")], "check", adopt,
+                                  logdir, inventory=types, run=run)
+    states_after = checked.pop("telephony:callInventory", {})
     silence_after = silence_counts(logdir)
     log("check: " + fmt(Counter(r.get("status") for k, r in checked.items() if not k.startswith("inventory:"))))
     downloads = file_downloads(plan, checked, download)
@@ -236,7 +287,9 @@ def _execute(rundir, logdir, fields, uitypes, snapshot_dir, source_db, files, on
     extend_report(report, plan, applied, checked, downloads, finance, source_totals, target_totals, excluded, data,
                   resolved, rundir, check_only, selected)
     expected = removal_report(report, plan, removal, applied, checked, types, key_range, check_only, blocked)
-    ledger_report(report, rundir, counts, fields, census, data,
+    H.report(report, plan, cdr_plan, applied, checked, placement, cdr_census or {}, states, states_after, rundir,
+             check_only, options["recordings"])
+    ledger_report(report, rundir, counts, fields, {**census, **({"CDR": cdr_census} if cdr_census else {})}, data,
                   ledger.maps_check(snapshot_dir, REPO) if snapshot_dir else None)
     report.update(started_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(started)),
                   finished_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), tool=tool_identity(),
@@ -383,7 +436,7 @@ LINK_PREFIXES = {  # link table → keys of its outcomes and planner counters (s
 def link_rows_accounted(plan):
     """Rows of each link table that got an outcome or a counter from the planner."""
     out = Counter()
-    for op in plan.ops + plan.held:
+    for op in plan.ops + plan.held + plan.merged:
         for kind, key, outcome, _ in op.outcomes:
             if kind == "r":
                 for table, prefixes in LINK_PREFIXES.items():
@@ -407,8 +460,9 @@ def transport_check(data, census):
 
 
 def records(plan, applied, checked):
-    """Per record (private): keys, ids, statuses and attribute names — never values."""
-    for op in plan.ops + plan.held:
+    """Per record (private): keys, ids, statuses and attribute names — never values. A popup carrier (07.2) has the
+    key of its call."""
+    for op in plan.ops + plan.held + plan.merged:
         a, c = applied.get(op.key, {}), checked.get(op.key, {})
         yield {"key": op.key, "module": op.module, "held": op.skip or op.pending, "id": c.get("id") or a.get("id"),
                "apply": a.get("status"), "check": c.get("status"), "error": a.get("error") or c.get("error"),
@@ -450,7 +504,7 @@ def reconcile(plan, applied, checked, census, fields, key_range, check_only, lin
 
     columns = defaultdict(lambda: {"outcomes": Counter(), "verified": 0, "mismatch": 0, "exempt": 0})
     relations = defaultdict(lambda: {"outcomes": Counter(), "verified": 0, "mismatch": 0, "exempt": 0})
-    for op in plan.ops + plan.held:
+    for op in plan.ops + plan.held + plan.merged:  # a popup carrier (07.2) is checked by its call's result
         c = checked.get(op.key, {})
         differs = set(c.get("differs") or [])
         protected = set(c.get("protected") or [])
@@ -598,7 +652,7 @@ def reconcile(plan, applied, checked, census, fields, key_range, check_only, lin
         for outcome, n in r["outcomes"].items():
             if outcome.startswith(("pending", "dangling", "conflict", "no_target", "deferred")):
                 findings[outcome.split(":")[0]] += n
-    findings["records_held"] = len(plan.held)
+    findings["records_held"] = sum(1 for o in plan.held if o.skip != P.EXCLUDED)  # internal calls: owner's decision
     findings["relation_module_mismatch"] = sum(n for k, n in plan.flags.items() if k.startswith("mismatch_rel:"))
     for flag in FINDING_FLAGS:  # values kept in vtigerData that the planner could not carry as they are
         findings[flag] = plan.flags.get(flag, 0)
@@ -895,7 +949,7 @@ def render_summary(report, run_id):
             cat[c["module"]]["values_mismatch"] += c.get("mismatch", 0)
             cat[c["module"]]["values_unaccounted"] += c.get("unaccounted", 0)
     lines = [
-        "# Импорт Vtiger — сводка прогона (этапы 06.2–06.4)", "",
+        "# Импорт Vtiger — сводка прогона (этапы 06.2–07.2)", "",
         "Генерируется: `task import:summary -- <прогон>` (`scripts/import/importer.py summary`). Только счётчики: ни "
         "значений, ни идентификаторов записей. Машинный отчёт с причинами по каждой записи и колонке — вне Git "
         "(`/data/itvolga/espo-private/import/<прогон>/`). Контракт импорта — `import.md`.", "",
@@ -956,6 +1010,7 @@ def render_summary(report, run_id):
                      f"{i.get('other_range_deleted', 0)} |")
     lines += render_063(report)
     lines += render_064(report)
+    lines += H.render(report)
     lines += ["", "## Счётчики преобразований", "", ", ".join(f"`{k}` {v}" for k, v in report["flags"].items()) or "—", ""]
     return "\n".join(lines)
 
@@ -1058,7 +1113,7 @@ def cmd_run(args):
         rundir.mkdir()
         log(f"run {run_id} (private directory {rundir})")
         report = execute(rundir, snapshot_dir=snapdir, only=args.only, check_only=args.check_only,
-                         allow_mass_removal=args.allow_mass_removal)
+                         allow_mass_removal=args.allow_mass_removal, recordings=args.recordings)
     log(f"status {report['status']}; problems: {fmt(Counter(report['problems'])) or 'none'}; "
         f"findings: {fmt(Counter(report['findings'])) or 'none'}")
     for entity, c in report["entities"].items():
@@ -1093,6 +1148,9 @@ def main():
     r.add_argument("--only")
     r.add_argument("--check-only", action="store_true")
     r.add_argument("--allow-mass-removal", action="store_true")
+    r.add_argument("--recordings", choices=("place", "verify"), default="place",
+                   help="place: copy the recordings of the CDR history into the stand's root first (stand); verify: "
+                        "only check them where EspoCRM reads them (production, stages 10/11)")
     s = sub.add_parser("summary")
     s.add_argument("run")
     s.add_argument("--out", default=str(REPO / "docs" / "migration" / "import-summary.md"))

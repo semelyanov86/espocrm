@@ -5,12 +5,9 @@ declare(strict_types=1);
 namespace Espo\Modules\Itvolga\Tools\Telephony;
 
 use Espo\Core\ORM\Repository\Option\SaveOption;
-use Espo\Core\Utils\Language;
-use Espo\Entities\User;
 use Espo\Modules\Itvolga\Tools\FinanceDocument\RowLock;
 use Espo\Modules\Itvolga\Tools\Telephony\Core\CallSnapshot;
 use Espo\Modules\Itvolga\Tools\Telephony\Core\OpenCall;
-use Espo\Modules\Itvolga\Tools\Telephony\Core\ParentChooser;
 use Espo\Modules\Itvolga\Tools\Telephony\Core\RecordingPath;
 use Espo\ORM\Entity;
 use Espo\ORM\EntityManager;
@@ -49,7 +46,8 @@ class CallWriter
         private ClientLookup $clientLookup,
         private ExtensionDirectory $directory,
         private RowLock $rowLock,
-        private Language $language,
+        private CallParties $parties,
+        private RecordingFiles $files,
     ) {}
 
     public function apply(CallSnapshot $snapshot, float $now): void
@@ -251,7 +249,8 @@ class CallWriter
         }
 
         $isNew = !$row;
-        $assigneeExtension = $this->assigneeExtension($s);
+        $assigneeExtension = $this->parties->assigneeExtension($s->direction, $s->assigneeExtension,
+            $s->answeredExtension, $s->rungExtensions);
         $assigneeId = $this->directory->userId($assigneeExtension);
         $previousAssigneeId = $isNew ? null : $call->get('assignedUserId');
 
@@ -276,20 +275,21 @@ class CallWriter
             'cExtension' => $assigneeExtension,
             'cLiveState' => $s->liveState,
             'cClickToCall' => $s->viaCrm,
+            'cCdrSource' => null, // the live integration owns the call (a CDR history import never touches it again)
         ];
 
         if ($recording !== null) {
             $facts['cRecordingPath'] = $recording;
         }
 
-        $facts['cRecording'] = $s->final && $this->recordingExists($recording ?? $call->get('cRecordingPath'));
+        $facts['cRecording'] = $s->final && $this->files->path($recording ?? $call->get('cRecordingPath')) !== null;
 
         $call->setMultiple($facts);
         $live = !$isNew && in_array($call->getFetched('cLiveState'), [CallSnapshot::RINGING, CallSnapshot::TALKING], true);
 
         if ($assigneeId !== null && ($isNew || ($live && $assigneeId !== $previousAssigneeId))) {
             $call->set('assignedUserId', $assigneeId);
-            $team = $this->defaultTeam($assigneeId);
+            $team = $this->parties->defaultTeam($assigneeId);
             $call->set('teamsIds', $team !== null ? [$team] : []);
         }
 
@@ -297,51 +297,14 @@ class CallWriter
             $this->entityManager->saveEntity($call, self::SAVE_OPTIONS);
         }
 
-        $this->relateParticipants($call, $s, $previousAssigneeId, $assigneeId);
+        $this->parties->relateParticipants($call, $s->participantExtensions, $previousAssigneeId, $assigneeId);
 
         return $call;
     }
 
-    /**
-     * Inbound: the desk phone that answered, else the first one that rang — the first of them that has a user —, else
-     * the fallback extension. Outbound: the caller.
-     */
-    private function assigneeExtension(CallSnapshot $s): string
-    {
-        if ($s->direction !== CallSnapshot::INBOUND) {
-            return $s->assigneeExtension ?? $this->config->fallbackExtension();
-        }
-
-        $candidates = array_unique(array_filter([$s->answeredExtension, ...$s->rungExtensions]));
-
-        foreach ($candidates as $extension) {
-            if ($this->directory->userId((string) $extension) !== null) {
-                return (string) $extension;
-            }
-        }
-
-        return $this->config->fallbackExtension();
-    }
-
     private function initCall(Entity $call, CallSnapshot $s, ?Entity $intent): void
     {
-        $lookup = $this->lookupOf($s);
-        $exact = array_values(array_filter($lookup['matches'], static fn (array $m) => !$m['possible']));
-        $contacts = [];
-        $accounts = [];
-        $leads = [];
-
-        foreach ($exact as $match) {
-            match ($match['entityType']) {
-                'Contact' => $contacts[$match['id']] = $match['accountId'],
-                'Account' => $accounts[] = $match['id'],
-                'Lead' => $leads[] = $match['id'],
-                default => null,
-            };
-        }
-
-        // A list cut by the lookup limits could look unambiguous: no parent then.
-        $parent = $lookup['complete'] ? ParentChooser::choose($accounts, $contacts, $leads) : null;
+        ['contacts' => $contacts, 'leads' => $leads, 'parent' => $parent] = $this->parties->clients($this->lookupOf($s));
         $intentParent = $this->intentParent($intent);
 
         if ($intentParent !== null) {
@@ -354,11 +317,8 @@ class CallWriter
             }
         }
 
-        $label = $s->direction === CallSnapshot::INBOUND ? 'Incoming call' : 'Outgoing call';
-        $number = $s->number ?? $s->numberRaw ?? $this->language->translateLabel('Hidden number', 'labels', 'Call');
-
         $call->setMultiple([
-            'name' => mb_substr($this->language->translateLabel($label, 'labels', 'Call') . ' ' . $number, 0, 255),
+            'name' => $this->parties->name($s->direction, $s->number ?? $s->numberRaw),
             'cAsteriskLinkedId' => $s->linkedId,
             'contactsIds' => array_keys($contacts),
             'leadsIds' => $leads,
@@ -380,46 +340,6 @@ class CallWriter
         }
 
         return $this->entityManager->getEntityById($type, $id) ? [$type, $id] : null;
-    }
-
-    private function relateParticipants(Entity $call, CallSnapshot $s, ?string $previousAssigneeId, ?string $assigneeId): void
-    {
-        $relation = $this->entityManager->getRDBRepository('Call')->getRelation($call, 'users');
-        $participants = [];
-
-        foreach ($s->participantExtensions as $extension) {
-            $userId = $this->directory->userId($extension);
-
-            if ($userId !== null) {
-                $participants[$userId] = true;
-            }
-        }
-
-        foreach (array_keys($participants) as $userId) {
-            if (!$relation->isRelatedById($userId)) {
-                $relation->relateById($userId);
-            }
-        }
-
-        if ($previousAssigneeId !== null && $previousAssigneeId !== $assigneeId
-            && !isset($participants[$previousAssigneeId]) && $relation->isRelatedById($previousAssigneeId)) {
-            $relation->unrelateById($previousAssigneeId);
-        }
-    }
-
-    private function defaultTeam(string $userId): ?string
-    {
-        $user = $this->entityManager->getRDBRepositoryByClass(User::class)->getById($userId);
-
-        return $user?->getDefaultTeam()?->getId();
-    }
-
-    private function recordingExists(?string $relative): bool
-    {
-        $root = $this->config->recordingRoot();
-
-        return $relative !== null && $relative !== '' && $root !== null && RecordingPath::isSafe($relative)
-            && is_file($root . '/' . $relative) && !is_link($root . '/' . $relative);
     }
 
     private function changed(Entity $call): bool

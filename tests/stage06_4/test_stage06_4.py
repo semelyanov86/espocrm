@@ -718,13 +718,21 @@ class Pure(unittest.TestCase):
         census = {"Accounts": {"t_read.v": (3, 3)}}
         columns = [{"module": "Accounts", "column": "t_read.v", "category": "rule", "verified": 3, "mismatch": 0,
                     "unaccounted": 0}]
-        out = ledger.build(counts, fields, census, {"Accounts": {"t_read.v": (1, 1)}}, columns, {"status": "fail"})
+        pending = dict(spec.PENDING)
+        spec.PENDING["PBXManager"] = "07.2"  # the mechanism of a later stage (stage 07.2 imported the last modules)
+        try:
+            out = ledger.build(counts, fields, census, {"Accounts": {"t_read.v": (1, 1)}}, columns, {"status": "fail"})
+        finally:
+            spec.PENDING.clear()
+            spec.PENDING.update(pending)
         rows = {(r["schema"], r["table"], r["column"]): r for r in out["rows"]}
         self.assertEqual(rows[("vtiger7", "t_read", "v")]["outside_scope"], 1)
         self.assertEqual(rows[("vtiger7", "t_pbx", "b")]["cls"], "pending:07.2")  # physical row of a pending table
-        self.assertEqual(rows[("asteriskcdrdb", "cdr", "src")]["cls"], "pending:07.2")
+        # stage 07.2: the CDR table has the fates of the specification; not read by this run → a transfer nobody read
+        self.assertEqual(rows[("asteriskcdrdb", "cdr", "src")]["cls"], "transfer")
         self.assertEqual(out["problems"], {"no_fate": ["vtiger7.t_new.z", "vtiger7.t_read.x"],  # x: deleted rows only
-                                           "transfer_unread": ["vtiger7.t_lost.c"], "maps_outdated": ["fail"]})
+                                           "transfer_unread": ["asteriskcdrdb.cdr.src", "vtiger7.t_lost.c"],
+                                           "maps_outdated": ["fail"]})
         out = ledger.build(counts, fields, {"Accounts": {"t_read.v": (9, 9)}}, {}, columns, None)
         self.assertIn("vtiger7.t_read.v", out["problems"]["counts_disagree"])
 
