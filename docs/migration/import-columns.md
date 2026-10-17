@@ -2,7 +2,7 @@
 
 Генерируется вместе с `import-summary.md`: `task import:summary -- <прогон>` (`scripts/import/importer.py summary`). Только имена колонок, судьбы и счётчики — ни значений, ни идентификаторов записей. Контракт сверки — `import.md` («Сверка», «Полная сверка колонок»).
 
-- Прогон: `20261017T131624`; снимок: `20261012T191003`; код: `697fa60` (незакоммиченных файлов инструмента: 1).
+- Прогон: `20261017T141529`; снимок: `20261012T191003`; код: `d4a3bf1` (незакоммиченных файлов инструмента: 0).
 
 ## Колонки, которые читает импорт
 
@@ -24,16 +24,16 @@
 | Accounts | vtiger7 | `vtiger_account.inn` | rule | перенос | Account.cInn | 90 | 90 | 0 | 0 | carried=90 |
 | Accounts | vtiger7 | `vtiger_account.isconvertedfromlead` | rule | архив (только чтение) | Account.vtigerData.isconvertedfromlead | 180 | 180 | 0 | 0 | archived=180 |
 | Accounts | vtiger7 | `vtiger_account.kpp` | rule | перенос | Account.cKpp | 76 | 76 | 0 | 0 | carried=76 |
-| Accounts | vtiger7 | `vtiger_account.notify_owner` | excluded | исключено: исключено: флаг стандартного workflow уведомления | —.— | 180 |  |  |  |  |
-| Accounts | vtiger7 | `vtiger_account.one_s_id` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| Accounts | vtiger7 | `vtiger_account.notify_owner` | excluded | исключено: исключено: флаг стандартного workflow уведомления |  | 180 |  |  |  |  |
+| Accounts | vtiger7 | `vtiger_account.one_s_id` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Accounts | vtiger7 | `vtiger_account.otherphone` | rule | перенос | Account.phoneNumber[Other] | 27 | 27 | 0 | 0 | carried=12, normalized=15 |
 | Accounts | vtiger7 | `vtiger_account.ownership` | rule | архив (только чтение) | Account.vtigerData.ownership | 8 | 8 | 0 | 0 | archived=8 |
 | Accounts | vtiger7 | `vtiger_account.parentid` | empty | пусто — данных нет | Account.parent (cParentAccount) | 180 |  |  |  |  |
 | Accounts | vtiger7 | `vtiger_account.phone` | rule | перенос | Account.phoneNumber[Office] | 46 | 46 | 0 | 0 | carried=19, normalized=26, type_conflict=1 |
 | Accounts | vtiger7 | `vtiger_account.rating` | rule | перенос | Account.cRating | 55 | 55 | 0 | 0 | mapped=55 |
 | Accounts | vtiger7 | `vtiger_account.siccode` | rule | перенос | Account.sicCode | 66 | 66 | 0 | 0 | carried=66 |
-| Accounts | vtiger7 | `vtiger_account.splastsms` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Accounts | vtiger7 | `vtiger_account.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) | —.— | 0 |  |  |  |  |
+| Accounts | vtiger7 | `vtiger_account.splastsms` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Accounts | vtiger7 | `vtiger_account.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) |  | 0 |  |  |  |  |
 | Accounts | vtiger7 | `vtiger_account.tickersymbol` | rule | перенос | Account.cShortName | 99 | 99 | 0 | 0 | carried=99 |
 | Accounts | vtiger7 | `vtiger_account.website` | rule | перенос | Account.website | 95 | 95 | 0 | 0 | carried=95 |
 | Accounts | vtiger7 | `vtiger_accountbillads.accountaddressid` | key | перенос |  | 180 |  |  |  |  |
@@ -48,7 +48,7 @@
 | Accounts | vtiger7 | `vtiger_accountscf.cf_1111` | rule | перенос | Account.cBankName | 78 | 78 | 0 | 0 | carried=78 |
 | Accounts | vtiger7 | `vtiger_accountscf.cf_1113` | rule | перенос | Account.cCorrAccount | 154 | 154 | 0 | 0 | carried=154 |
 | Accounts | vtiger7 | `vtiger_accountscf.cf_1115` | rule | перенос | Account.cBic | 155 | 155 | 0 | 0 | carried=155 |
-| Accounts | vtiger7 | `vtiger_accountscf.tw_url` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| Accounts | vtiger7 | `vtiger_accountscf.tw_url` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Accounts | vtiger7 | `vtiger_accountscf.vk_url` | rule | перенос | Account.cVkUrl | 3 | 3 | 0 | 0 | carried=3 |
 | Accounts | vtiger7 | `vtiger_accountshipads.accountaddressid` | key | перенос |  | 180 |  |  |  |  |
 | Accounts | vtiger7 | `vtiger_accountshipads.ship_city` | rule | перенос | Account.shippingAddressCity | 128 | 128 | 0 | 0 | carried=128 |
@@ -71,7 +71,7 @@
 | Accounts | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | перенос | Account.createdBy | 180 | 180 | 0 | 0 | linked=180 |
 | Accounts | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 180 |  |  |  |  |
 | Accounts | vtiger7 | `vtiger_crmentity.smownerid` | rule | перенос | Account.assignedUser / teams | 180 | 180 | 0 | 0 | linked=180 |
-| Accounts | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 180 |  |  |  |  |
+| Accounts | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 180 |  |  |  |  |
 | Accounts | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Accounts | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 180 |  |  |  |  |
 | Accounts | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -89,7 +89,7 @@
 | Act | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | перенос | Act (собственная).createdBy | 404 | 404 | 0 | 0 | linked=404 |
 | Act | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 404 |  |  |  |  |
 | Act | vtiger7 | `vtiger_crmentity.smownerid` | rule | перенос | Act (собственная).assignedUser / teams | 404 | 404 | 0 | 0 | linked=404 |
-| Act | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 404 |  |  |  |  |
+| Act | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 404 |  |  |  |  |
 | Act | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Act | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 404 |  |  |  |  |
 | Act | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -98,7 +98,7 @@
 | Act | vtiger7 | `vtiger_inventoryproductrel.discount_amount` | rule | перенос | Act (собственная).ActItem.discountAmount | 1 | 1 | 0 | 0 | carried=1 |
 | Act | vtiger7 | `vtiger_inventoryproductrel.discount_percent` | rule | пусто — данных нет | Act (собственная).ActItem.discountPercent | 0 | 0 | 0 | 0 |  |
 | Act | vtiger7 | `vtiger_inventoryproductrel.id` | rule | перенос |  | 417 | 417 | 0 | 0 | linked=417 |
-| Act | vtiger7 | `vtiger_inventoryproductrel.image` | excluded | исключено: исключено: пустое служебное поле | —.— | 0 |  |  |  |  |
+| Act | vtiger7 | `vtiger_inventoryproductrel.image` | excluded | исключено: исключено: пустое служебное поле |  | 0 |  |  |  |  |
 | Act | vtiger7 | `vtiger_inventoryproductrel.incrementondel` | excluded | исключено: исключено: складской флаг Vtiger |  | 417 |  |  |  |  |
 | Act | vtiger7 | `vtiger_inventoryproductrel.lineitem_id` | key | перенос |  | 417 |  |  |  |  |
 | Act | vtiger7 | `vtiger_inventoryproductrel.listprice` | rule | перенос | Act (собственная).ActItem.unitPrice | 417 | 417 | 0 | 0 | carried=417 |
@@ -117,7 +117,7 @@
 | Act | vtiger7 | `vtiger_sp_act.adjustment` | rule | пусто — данных нет | Act (собственная).adjustment | 404 | 404 | 0 | 0 | carried=404 |
 | Act | vtiger7 | `vtiger_sp_act.compound_taxes_info` | rule | архив (только чтение) |  | 404 | 404 | 0 | 0 | archived=404 |
 | Act | vtiger7 | `vtiger_sp_act.contactid` | rule | перенос | Act (собственная).contact | 404 | 6 | 0 | 0 | linked=6, zero_empty=398 |
-| Act | vtiger7 | `vtiger_sp_act.conversion_rate` | excluded | исключено: исключено: всегда 1.000 (одна валюта) | —.— | 404 |  |  |  |  |
+| Act | vtiger7 | `vtiger_sp_act.conversion_rate` | excluded | исключено: исключено: всегда 1.000 (одна валюта) |  | 404 |  |  |  |  |
 | Act | vtiger7 | `vtiger_sp_act.currency_id` | rule | перенос | Act (собственная).currency | 404 | 404 | 0 | 0 | mapped=404 |
 | Act | vtiger7 | `vtiger_sp_act.discount_amount` | rule | пусто — данных нет | Act (собственная).discountAmount | 0 | 0 | 0 | 0 |  |
 | Act | vtiger7 | `vtiger_sp_act.discount_percent` | rule | пусто — данных нет | Act (собственная).discountPercent | 0 | 0 | 0 | 0 |  |
@@ -125,13 +125,13 @@
 | Act | vtiger7 | `vtiger_sp_act.region_id` | rule | перенос (значимы NULL и 0) | Act (собственная).sourceFormula + vtigerData.region_id | 404 | 404 | 0 | 0 | archived=404 |
 | Act | vtiger7 | `vtiger_sp_act.s_h_amount` | rule | пусто — данных нет | Act (собственная).shippingAmount | 404 | 404 | 0 | 0 | carried=404 |
 | Act | vtiger7 | `vtiger_sp_act.s_h_percent` | rule | пусто — данных нет | Act (собственная).shippingTaxPercent | 404 | 404 | 0 | 0 | carried=404 |
-| Act | vtiger7 | `vtiger_sp_act.salesorderid` | excluded | исключено: у актов пусто — поле не создаётся (finance-contract.md §11, Act) | —.— | 0 |  |  |  |  |
+| Act | vtiger7 | `vtiger_sp_act.salesorderid` | excluded | исключено: у актов пусто — поле не создаётся (finance-contract.md §11, Act) |  | 0 |  |  |  |  |
 | Act | vtiger7 | `vtiger_sp_act.shipping` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Act | vtiger7 | `vtiger_sp_act.sp_actstatus` | rule | перенос | Act (собственная).status | 390 | 390 | 0 | 0 | carried=390 |
 | Act | vtiger7 | `vtiger_sp_act.spcompany` | rule | перенос | Act (собственная).legalEntity + vtigerData.spcompany | 404 | 404 | 0 | 0 | archived=404 |
 | Act | vtiger7 | `vtiger_sp_act.subject` | rule | перенос | Act (собственная).name | 404 | 404 | 0 | 0 | carried=404 |
 | Act | vtiger7 | `vtiger_sp_act.subtotal` | rule | перенос | Act (собственная).subtotal | 404 | 404 | 0 | 0 | carried=404 |
-| Act | vtiger7 | `vtiger_sp_act.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) | —.— | 0 |  |  |  |  |
+| Act | vtiger7 | `vtiger_sp_act.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) |  | 0 |  |  |  |  |
 | Act | vtiger7 | `vtiger_sp_act.taxtype` | rule | перенос | Act (собственная).taxMode | 404 | 404 | 0 | 0 | carried=404 |
 | Act | vtiger7 | `vtiger_sp_act.total` | rule | перенос | Act (собственная).grandTotal | 404 | 404 | 0 | 0 | carried=404 |
 | Act | vtiger7 | `vtiger_sp_actbillads.actbilladdressid` | key | перенос |  | 404 |  |  |  |  |
@@ -211,30 +211,30 @@
 | CDR | asteriskcdrdb | `cdr.uniqueid` | key | только ключ записи: строка CDR (uniqueid, sequence), ключ звонка CSV |  | 124 |  |  |  | key=124 |
 | CDR | asteriskcdrdb | `cdr.userfield` | rule | исключено: диалпланом не заполняется |  | 0 | 0 | 0 | 0 |  |
 | Calendar | vtiger7 | `vtiger_activity.activityid` | key | перенос |  | 34 |  |  |  |  |
-| Calendar | vtiger7 | `vtiger_activity.activitytype` | rule | исключено: служебное: Task | —.— | 34 | 34 | 0 | 0 | carried=34 |
+| Calendar | vtiger7 | `vtiger_activity.activitytype` | rule | исключено: служебное: Task |  | 34 | 34 | 0 | 0 | carried=34 |
 | Calendar | vtiger7 | `vtiger_activity.date_start` | rule | перенос | Task.dateStart | 34 | 34 | 0 | 0 | carried=34 |
 | Calendar | vtiger7 | `vtiger_activity.due_date` | rule | перенос | Task.dateEnd | 34 | 34 | 0 | 0 | carried=34 |
-| Calendar | vtiger7 | `vtiger_activity.duration_hours` | excluded | исключено: вычисляется из dateStart/dateEnd | —.— | 34 |  |  |  |  |
-| Calendar | vtiger7 | `vtiger_activity.duration_minutes` | excluded | исключено: вычисляется | —.— | 34 |  |  |  |  |
+| Calendar | vtiger7 | `vtiger_activity.duration_hours` | excluded | исключено: вычисляется из dateStart/dateEnd |  | 34 |  |  |  |  |
+| Calendar | vtiger7 | `vtiger_activity.duration_minutes` | excluded | исключено: вычисляется |  | 34 |  |  |  |  |
 | Calendar | vtiger7 | `vtiger_activity.duration_seconds` | unmapped |  |  | 0 |  |  |  |  |
-| Calendar | vtiger7 | `vtiger_activity.eventstatus` | excluded | исключено: не используется для задач | —.— | 0 |  |  |  |  |
+| Calendar | vtiger7 | `vtiger_activity.eventstatus` | excluded | исключено: не используется для задач |  | 0 |  |  |  |  |
 | Calendar | vtiger7 | `vtiger_activity.invoiceid` | unmapped |  |  | 0 |  |  |  |  |
-| Calendar | vtiger7 | `vtiger_activity.location` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Calendar | vtiger7 | `vtiger_activity.notime` | excluded | исключено: исключено: все 0 | —.— | 34 |  |  |  |  |
-| Calendar | vtiger7 | `vtiger_activity.popup_reminder_date` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Calendar | vtiger7 | `vtiger_activity.popup_reminder_time` | excluded | исключено: исключено: служебное | —.— | 34 |  |  |  |  |
+| Calendar | vtiger7 | `vtiger_activity.location` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Calendar | vtiger7 | `vtiger_activity.notime` | excluded | исключено: исключено: все 0 |  | 34 |  |  |  |  |
+| Calendar | vtiger7 | `vtiger_activity.popup_reminder_date` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Calendar | vtiger7 | `vtiger_activity.popup_reminder_time` | excluded | исключено: исключено: служебное |  | 34 |  |  |  |  |
 | Calendar | vtiger7 | `vtiger_activity.priority` | rule | перенос | Task.priority | 8 | 8 | 0 | 0 | carried=6, mapped=2 |
-| Calendar | vtiger7 | `vtiger_activity.recurringtype` | excluded | исключено: пусто | —.— | 0 |  |  |  |  |
+| Calendar | vtiger7 | `vtiger_activity.recurringtype` | excluded | исключено: пусто |  | 0 |  |  |  |  |
 | Calendar | vtiger7 | `vtiger_activity.salesorder_id` | unmapped |  |  | 0 |  |  |  |  |
 | Calendar | vtiger7 | `vtiger_activity.semodule` | unmapped |  |  | 0 |  |  |  |  |
-| Calendar | vtiger7 | `vtiger_activity.sendnotification` | excluded | исключено: исключено: флаг уведомления (все 0) | —.— | 34 |  |  |  |  |
+| Calendar | vtiger7 | `vtiger_activity.sendnotification` | excluded | исключено: исключено: флаг уведомления (все 0) |  | 34 |  |  |  |  |
 | Calendar | vtiger7 | `vtiger_activity.status` | rule | перенос | Task.status | 34 | 34 | 0 | 0 | carried=32, mapped=2 |
 | Calendar | vtiger7 | `vtiger_activity.subject` | rule | перенос | Task.name | 34 | 34 | 0 | 0 | carried=34 |
-| Calendar | vtiger7 | `vtiger_activity.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) | —.— | 0 |  |  |  |  |
-| Calendar | vtiger7 | `vtiger_activity.time_end` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| Calendar | vtiger7 | `vtiger_activity.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) |  | 0 |  |  |  |  |
+| Calendar | vtiger7 | `vtiger_activity.time_end` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Calendar | vtiger7 | `vtiger_activity.time_start` | rule | перенос | Task.dateStart (время) | 34 | 34 | 0 | 0 | carried=34 |
 | Calendar | vtiger7 | `vtiger_activity.timesheet_id` | unmapped |  |  | 0 |  |  |  |  |
-| Calendar | vtiger7 | `vtiger_activity.visibility` | excluded | исключено: исключено: все Private (ACL задаётся владельцем) | —.— | 34 |  |  |  |  |
+| Calendar | vtiger7 | `vtiger_activity.visibility` | excluded | исключено: исключено: все Private (ACL задаётся владельцем) |  | 34 |  |  |  |  |
 | Calendar | vtiger7 | `vtiger_crmentity.cf_view` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Calendar | vtiger7 | `vtiger_crmentity.cf_viewname` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Calendar | vtiger7 | `vtiger_crmentity.createdtime` | rule | перенос | Task.createdAt | 34 | 34 | 0 | 0 | carried=34 |
@@ -249,7 +249,7 @@
 | Calendar | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | перенос | Task.createdBy | 34 | 34 | 0 | 0 | linked=34 |
 | Calendar | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 34 |  |  |  |  |
 | Calendar | vtiger7 | `vtiger_crmentity.smownerid` | rule | перенос | Task.assignedUser / teams | 34 | 34 | 0 | 0 | linked=34 |
-| Calendar | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 34 |  |  |  |  |
+| Calendar | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 34 |  |  |  |  |
 | Calendar | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Calendar | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 34 |  |  |  |  |
 | Calendar | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -357,15 +357,15 @@
 | Contacts | vtiger7 | `vtiger_contactdetails.isconvertedfromlead` | rule | архив (только чтение) | Contact.vtigerData.isconvertedfromlead | 341 | 341 | 0 | 0 | archived=341 |
 | Contacts | vtiger7 | `vtiger_contactdetails.lastname` | rule | перенос | Contact.lastName | 341 | 341 | 0 | 0 | carried=341 |
 | Contacts | vtiger7 | `vtiger_contactdetails.mobile` | rule | перенос | Contact.phoneNumber[Mobile] | 139 | 139 | 0 | 0 | carried=44, duplicate=2, normalized=85, type_conflict=8 |
-| Contacts | vtiger7 | `vtiger_contactdetails.notify_owner` | excluded | исключено: исключено: флаг стандартного workflow уведомления | —.— | 341 |  |  |  |  |
+| Contacts | vtiger7 | `vtiger_contactdetails.notify_owner` | excluded | исключено: исключено: флаг стандартного workflow уведомления |  | 341 |  |  |  |  |
 | Contacts | vtiger7 | `vtiger_contactdetails.otheremail` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Contacts | vtiger7 | `vtiger_contactdetails.phone` | rule | перенос | Contact.phoneNumber[Office] | 118 | 118 | 0 | 0 | carried=62, normalized=49, type_conflict=7 |
-| Contacts | vtiger7 | `vtiger_contactdetails.reference` | excluded | исключено: исключено: истинных значений нет | —.— | 341 |  |  |  |  |
-| Contacts | vtiger7 | `vtiger_contactdetails.reportsto` | excluded | исключено: исключено: во всех живых записях '0' — ссылки нет (relations.csv Contacts.reportsto = 0; проверено 2026-09-30) | —.— | 341 |  |  |  |  |
+| Contacts | vtiger7 | `vtiger_contactdetails.reference` | excluded | исключено: исключено: истинных значений нет |  | 341 |  |  |  |  |
+| Contacts | vtiger7 | `vtiger_contactdetails.reportsto` | excluded | исключено: исключено: во всех живых записях '0' — ссылки нет (relations.csv Contacts.reportsto = 0; проверено 2026-09-30) |  | 341 |  |  |  |  |
 | Contacts | vtiger7 | `vtiger_contactdetails.salutation` | rule | перенос | Contact.salutationName | 3 | 3 | 0 | 0 | archived=2, carried=1 |
 | Contacts | vtiger7 | `vtiger_contactdetails.secondaryemail` | rule | перенос | Contact.emailAddress (secondary) | 2 | 2 | 0 | 0 | carried=2 |
-| Contacts | vtiger7 | `vtiger_contactdetails.splastsms` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Contacts | vtiger7 | `vtiger_contactdetails.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) | —.— | 0 |  |  |  |  |
+| Contacts | vtiger7 | `vtiger_contactdetails.splastsms` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Contacts | vtiger7 | `vtiger_contactdetails.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) |  | 0 |  |  |  |  |
 | Contacts | vtiger7 | `vtiger_contactdetails.title` | rule | перенос | Contact.title | 164 | 164 | 0 | 0 | carried=150, no_target=14 |
 | Contacts | vtiger7 | `vtiger_contactdetails.training` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Contacts | vtiger7 | `vtiger_contactdetails.usertype` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -378,10 +378,10 @@
 | Contacts | vtiger7 | `vtiger_contactscf.cf_1376` | rule | перенос | Contact.cPartnerAds | 341 | 341 | 0 | 0 | carried=341 |
 | Contacts | vtiger7 | `vtiger_contactscf.cf_1378` | rule | пусто — данных нет | Contact.cSendAlerts | 341 | 341 | 0 | 0 | carried=341 |
 | Contacts | vtiger7 | `vtiger_contactscf.contactid` | key | перенос |  | 341 |  |  |  |  |
-| Contacts | vtiger7 | `vtiger_contactscf.tw_url` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| Contacts | vtiger7 | `vtiger_contactscf.tw_url` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Contacts | vtiger7 | `vtiger_contactscf.vk_url` | rule | перенос | Contact.cVkUrl | 1 | 1 | 0 | 0 | carried=1 |
-| Contacts | vtiger7 | `vtiger_contactsubdetails.assistant` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Contacts | vtiger7 | `vtiger_contactsubdetails.assistantphone` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| Contacts | vtiger7 | `vtiger_contactsubdetails.assistant` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Contacts | vtiger7 | `vtiger_contactsubdetails.assistantphone` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Contacts | vtiger7 | `vtiger_contactsubdetails.birthday` | rule | перенос | Contact.cBirthday | 10 | 10 | 0 | 0 | carried=10 |
 | Contacts | vtiger7 | `vtiger_contactsubdetails.contactsubscriptionid` | key | перенос |  | 341 |  |  |  |  |
 | Contacts | vtiger7 | `vtiger_contactsubdetails.homephone` | rule | перенос | Contact.phoneNumber[Home] | 77 | 77 | 0 | 0 | carried=68, normalized=7, type_conflict=2 |
@@ -403,7 +403,7 @@
 | Contacts | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | перенос | Contact.createdBy | 341 | 341 | 0 | 0 | linked=341 |
 | Contacts | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 341 |  |  |  |  |
 | Contacts | vtiger7 | `vtiger_crmentity.smownerid` | rule | перенос | Contact.assignedUser / teams | 341 | 341 | 0 | 0 | linked=341 |
-| Contacts | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 341 |  |  |  |  |
+| Contacts | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 341 |  |  |  |  |
 | Contacts | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Contacts | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 341 |  |  |  |  |
 | Contacts | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -430,7 +430,7 @@
 | Documents | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | перенос | Document.createdBy | 215 | 215 | 0 | 0 | linked=215 |
 | Documents | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 215 |  |  |  |  |
 | Documents | vtiger7 | `vtiger_crmentity.smownerid` | rule | перенос | Document.assignedUser / teams | 215 | 215 | 0 | 0 | linked=215 |
-| Documents | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 215 |  |  |  |  |
+| Documents | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 215 |  |  |  |  |
 | Documents | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Documents | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 215 |  |  |  |  |
 | Documents | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -445,12 +445,12 @@
 | Documents | vtiger7 | `vtiger_notes.note_no` | rule | перенос | Document.vtigerNo | 215 | 215 | 0 | 0 | carried=215 |
 | Documents | vtiger7 | `vtiger_notes.notecontent` | rule | перенос | Document.description | 4 | 4 | 0 | 0 | carried=4 |
 | Documents | vtiger7 | `vtiger_notes.notesid` | key | перенос |  | 215 |  |  |  |  |
-| Documents | vtiger7 | `vtiger_notes.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) | —.— | 0 |  |  |  |  |
+| Documents | vtiger7 | `vtiger_notes.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) |  | 0 |  |  |  |  |
 | Documents | vtiger7 | `vtiger_notes.title` | rule | перенос | Document.name | 215 | 215 | 0 | 0 | carried=215 |
 | Documents | vtiger7 | `vtiger_notescf.cf_for_field` | rule | архив (только чтение) | Document.vtigerData.cf_for_field | 1 | 1 | 0 | 0 | archived=1 |
 | Documents | vtiger7 | `vtiger_notescf.notesid` | key | перенос |  | 215 |  |  |  |  |
 | Emails | vtiger7 | `vtiger_activity.activityid` | key | перенос |  | 29 |  |  |  |  |
-| Emails | vtiger7 | `vtiger_activity.activitytype` | excluded | исключено: служебное: Emails | —.— | 29 |  |  |  |  |
+| Emails | vtiger7 | `vtiger_activity.activitytype` | excluded | исключено: служебное: Emails |  | 29 |  |  |  |  |
 | Emails | vtiger7 | `vtiger_activity.date_start` | rule | перенос | Email.dateSent | 29 | 29 | 0 | 0 | carried=29 |
 | Emails | vtiger7 | `vtiger_activity.due_date` | unmapped |  |  | 0 |  |  |  |  |
 | Emails | vtiger7 | `vtiger_activity.duration_hours` | unmapped |  |  | 0 |  |  |  |  |
@@ -469,7 +469,7 @@
 | Emails | vtiger7 | `vtiger_activity.sendnotification` | excluded | исключено: служебное поле события Vtiger, у писем — значение по умолчанию (sendnotification) |  | 29 |  |  |  |  |
 | Emails | vtiger7 | `vtiger_activity.status` | unmapped |  |  | 0 |  |  |  |  |
 | Emails | vtiger7 | `vtiger_activity.subject` | rule | перенос | Email.name | 29 | 29 | 0 | 0 | carried=29 |
-| Emails | vtiger7 | `vtiger_activity.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) | —.— | 0 |  |  |  |  |
+| Emails | vtiger7 | `vtiger_activity.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) |  | 0 |  |  |  |  |
 | Emails | vtiger7 | `vtiger_activity.time_end` | unmapped |  |  | 0 |  |  |  |  |
 | Emails | vtiger7 | `vtiger_activity.time_start` | rule | перенос | Email.dateSent (время) | 29 | 29 | 0 | 0 | carried=29 |
 | Emails | vtiger7 | `vtiger_activity.timesheet_id` | unmapped |  |  | 0 |  |  |  |  |
@@ -488,7 +488,7 @@
 | Emails | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | правило без строки карты: Email.createdBy |  | 29 | 29 | 0 | 0 | linked=29 |
 | Emails | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 29 |  |  |  |  |
 | Emails | vtiger7 | `vtiger_crmentity.smownerid` | rule | перенос | Email.assignedUser / teams | 29 | 29 | 0 | 0 | linked=29 |
-| Emails | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 29 |  |  |  |  |
+| Emails | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 29 |  |  |  |  |
 | Emails | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Emails | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 29 |  |  |  |  |
 | Emails | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -509,22 +509,22 @@
 | Events | vtiger7 | `vtiger_activity.duration_seconds` | empty | пусто — данных нет | Call/Meeting/Task (вид «Письмо») по activitytype.vtigerData.duration_seconds | 0 |  |  |  |  |
 | Events | vtiger7 | `vtiger_activity.eventstatus` | rule | перенос | Call/Meeting/Task (вид «Письмо») по activitytype.status | 52 | 52 | 0 | 0 | carried=24, mapped=28 |
 | Events | vtiger7 | `vtiger_activity.invoiceid` | empty | пусто — данных нет | Call/Meeting/Task (вид «Письмо») по activitytype.vtigerData.invoiceid | 52 |  |  |  |  |
-| Events | vtiger7 | `vtiger_activity.location` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Events | vtiger7 | `vtiger_activity.notime` | excluded | исключено: исключено: все 0 | —.— | 52 |  |  |  |  |
-| Events | vtiger7 | `vtiger_activity.popup_reminder_date` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Events | vtiger7 | `vtiger_activity.popup_reminder_time` | excluded | исключено: исключено: служебное | —.— | 52 |  |  |  |  |
+| Events | vtiger7 | `vtiger_activity.location` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Events | vtiger7 | `vtiger_activity.notime` | excluded | исключено: исключено: все 0 |  | 52 |  |  |  |  |
+| Events | vtiger7 | `vtiger_activity.popup_reminder_date` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Events | vtiger7 | `vtiger_activity.popup_reminder_time` | excluded | исключено: исключено: служебное |  | 52 |  |  |  |  |
 | Events | vtiger7 | `vtiger_activity.priority` | rule | архив (только чтение) | Call/Meeting/Task (вид «Письмо») по activitytype.vtigerData.taskpriority | 1 | 1 | 0 | 0 | archived=1 |
-| Events | vtiger7 | `vtiger_activity.recurringtype` | excluded | исключено: исключено: все --None-- | —.— | 52 |  |  |  |  |
+| Events | vtiger7 | `vtiger_activity.recurringtype` | excluded | исключено: исключено: все --None-- |  | 52 |  |  |  |  |
 | Events | vtiger7 | `vtiger_activity.salesorder_id` | empty | пусто — данных нет | Call/Meeting/Task (вид «Письмо») по activitytype.vtigerData.salesorder_id | 52 |  |  |  |  |
 | Events | vtiger7 | `vtiger_activity.semodule` | unmapped |  |  | 0 |  |  |  |  |
-| Events | vtiger7 | `vtiger_activity.sendnotification` | excluded | исключено: исключено: все 0 | —.— | 52 |  |  |  |  |
+| Events | vtiger7 | `vtiger_activity.sendnotification` | excluded | исключено: исключено: все 0 |  | 52 |  |  |  |  |
 | Events | vtiger7 | `vtiger_activity.status` | unmapped |  |  | 0 |  |  |  |  |
 | Events | vtiger7 | `vtiger_activity.subject` | rule | перенос | Call/Meeting/Task (вид «Письмо») по activitytype.name | 52 | 52 | 0 | 0 | carried=52 |
-| Events | vtiger7 | `vtiger_activity.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) | —.— | 0 |  |  |  |  |
+| Events | vtiger7 | `vtiger_activity.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) |  | 0 |  |  |  |  |
 | Events | vtiger7 | `vtiger_activity.time_end` | rule | перенос | Call/Meeting/Task (вид «Письмо») по activitytype.dateEnd (время) | 50 | 50 | 0 | 0 | carried=50 |
 | Events | vtiger7 | `vtiger_activity.time_start` | rule | перенос | Call/Meeting/Task (вид «Письмо») по activitytype.dateStart (время) | 52 | 52 | 0 | 0 | archived=2, carried=50 |
 | Events | vtiger7 | `vtiger_activity.timesheet_id` | empty | пусто — данных нет | Call/Meeting/Task (вид «Письмо») по activitytype.vtigerData.timesheet_id | 52 |  |  |  |  |
-| Events | vtiger7 | `vtiger_activity.visibility` | excluded | исключено: исключено: все Public | —.— | 52 |  |  |  |  |
+| Events | vtiger7 | `vtiger_activity.visibility` | excluded | исключено: исключено: все Public |  | 52 |  |  |  |  |
 | Events | vtiger7 | `vtiger_crmentity.cf_view` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Events | vtiger7 | `vtiger_crmentity.cf_viewname` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Events | vtiger7 | `vtiger_crmentity.createdtime` | rule | перенос | Call/Meeting/Task (вид «Письмо») по activitytype.createdAt | 52 | 52 | 0 | 0 | carried=52 |
@@ -539,7 +539,7 @@
 | Events | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | перенос | Call/Meeting/Task (вид «Письмо») по activitytype.createdBy | 52 | 52 | 0 | 0 | linked=52 |
 | Events | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 52 |  |  |  |  |
 | Events | vtiger7 | `vtiger_crmentity.smownerid` | rule | перенос | Call/Meeting/Task (вид «Письмо») по activitytype.assignedUser / teams | 52 | 52 | 0 | 0 | linked=52 |
-| Events | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 52 |  |  |  |  |
+| Events | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 52 |  |  |  |  |
 | Events | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Events | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 52 |  |  |  |  |
 | Events | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -557,7 +557,7 @@
 | Faq | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | перенос | KnowledgeBaseArticle.createdBy | 63 | 63 | 0 | 0 | linked=63 |
 | Faq | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 63 |  |  |  |  |
 | Faq | vtiger7 | `vtiger_crmentity.smownerid` | rule | правило без строки карты: KnowledgeBaseArticle.assignedUser |  | 63 | 63 | 0 | 0 | linked=63 |
-| Faq | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 63 |  |  |  |  |
+| Faq | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 63 |  |  |  |  |
 | Faq | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Faq | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 63 |  |  |  |  |
 | Faq | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -568,7 +568,7 @@
 | Faq | vtiger7 | `vtiger_faq.product_id` | rule | архив (только чтение) | KnowledgeBaseArticle.vtigerData.product_id | 63 | 0 | 0 | 0 | zero_empty=63 |
 | Faq | vtiger7 | `vtiger_faq.question` | rule | перенос | KnowledgeBaseArticle.name | 63 | 63 | 0 | 0 | carried=63 |
 | Faq | vtiger7 | `vtiger_faq.status` | rule | перенос | KnowledgeBaseArticle.status | 63 | 63 | 0 | 0 | carried=51, mapped=12 |
-| Faq | vtiger7 | `vtiger_faq.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) | —.— | 0 |  |  |  |  |
+| Faq | vtiger7 | `vtiger_faq.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) |  | 0 |  |  |  |  |
 | Faq | vtiger7 | `vtiger_faqcf.faqid` | excluded | только ключ записи; кастомных колонок с данными нет |  | 63 |  |  |  |  |
 | HelpDesk | vtiger7 | `vtiger_crmentity.cf_view` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | HelpDesk | vtiger7 | `vtiger_crmentity.cf_viewname` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -584,11 +584,11 @@
 | HelpDesk | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | перенос | Case.createdBy | 45 | 45 | 0 | 0 | linked=45 |
 | HelpDesk | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 45 |  |  |  |  |
 | HelpDesk | vtiger7 | `vtiger_crmentity.smownerid` | rule | перенос | Case.assignedUser / teams | 45 | 45 | 0 | 0 | linked=45 |
-| HelpDesk | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 45 |  |  |  |  |
+| HelpDesk | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 45 |  |  |  |  |
 | HelpDesk | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | HelpDesk | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 45 |  |  |  |  |
 | HelpDesk | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
-| HelpDesk | vtiger7 | `vtiger_ticketcf.from_portal` | excluded | исключено: исключено: все 0 (портал не используется) | —.— | 45 |  |  |  |  |
+| HelpDesk | vtiger7 | `vtiger_ticketcf.from_portal` | excluded | исключено: исключено: все 0 (портал не используется) |  | 45 |  |  |  |  |
 | HelpDesk | vtiger7 | `vtiger_ticketcf.ticketid` | key | перенос |  | 45 |  |  |  |  |
 | HelpDesk | vtiger7 | `vtiger_troubletickets.category` | rule | перенос | Case.type | 28 | 28 | 0 | 0 | carried=28 |
 | HelpDesk | vtiger7 | `vtiger_troubletickets.contact_id` | rule | перенос | Case.contact | 45 | 7 | 0 | 0 | linked=7, zero_empty=38 |
@@ -601,11 +601,11 @@
 | HelpDesk | vtiger7 | `vtiger_troubletickets.severity` | rule | перенос | Case.cSeverity | 28 | 28 | 0 | 0 | carried=26, mapped=2 |
 | HelpDesk | vtiger7 | `vtiger_troubletickets.solution` | rule | перенос | Case.cSolution | 22 | 22 | 0 | 0 | carried=22 |
 | HelpDesk | vtiger7 | `vtiger_troubletickets.status` | rule | перенос | Case.status | 45 | 45 | 0 | 0 | carried=30, mapped=15 |
-| HelpDesk | vtiger7 | `vtiger_troubletickets.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) | —.— | 0 |  |  |  |  |
+| HelpDesk | vtiger7 | `vtiger_troubletickets.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) |  | 0 |  |  |  |  |
 | HelpDesk | vtiger7 | `vtiger_troubletickets.ticket_no` | rule | перенос | Case.vtigerNo | 45 | 45 | 0 | 0 | carried=45 |
 | HelpDesk | vtiger7 | `vtiger_troubletickets.ticketid` | key | перенос |  | 45 |  |  |  |  |
 | HelpDesk | vtiger7 | `vtiger_troubletickets.title` | rule | перенос | Case.name | 45 | 45 | 0 | 0 | carried=45 |
-| HelpDesk | vtiger7 | `vtiger_troubletickets.update_log` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| HelpDesk | vtiger7 | `vtiger_troubletickets.update_log` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | HelpDesk | vtiger7 | `vtiger_troubletickets.version_id` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Invoice | vtiger7 | `vtiger_crmentity.cf_view` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Invoice | vtiger7 | `vtiger_crmentity.cf_viewname` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -621,7 +621,7 @@
 | Invoice | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | перенос | Invoice (собственная).createdBy | 636 | 636 | 0 | 0 | linked=636 |
 | Invoice | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 636 |  |  |  |  |
 | Invoice | vtiger7 | `vtiger_crmentity.smownerid` | rule | перенос | Invoice (собственная).assignedUser / teams | 636 | 636 | 0 | 0 | linked=636 |
-| Invoice | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 636 |  |  |  |  |
+| Invoice | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 636 |  |  |  |  |
 | Invoice | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Invoice | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 636 |  |  |  |  |
 | Invoice | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -630,7 +630,7 @@
 | Invoice | vtiger7 | `vtiger_inventoryproductrel.discount_amount` | rule | перенос | Invoice (собственная).InvoiceItem.discountAmount | 213 | 213 | 0 | 0 | carried=213 |
 | Invoice | vtiger7 | `vtiger_inventoryproductrel.discount_percent` | rule | пусто — данных нет | Invoice (собственная).InvoiceItem.discountPercent | 211 | 211 | 0 | 0 | carried=211 |
 | Invoice | vtiger7 | `vtiger_inventoryproductrel.id` | rule | перенос |  | 712 | 712 | 0 | 0 | linked=712 |
-| Invoice | vtiger7 | `vtiger_inventoryproductrel.image` | excluded | исключено: исключено: пустое служебное поле | —.— | 0 |  |  |  |  |
+| Invoice | vtiger7 | `vtiger_inventoryproductrel.image` | excluded | исключено: исключено: пустое служебное поле |  | 0 |  |  |  |  |
 | Invoice | vtiger7 | `vtiger_inventoryproductrel.incrementondel` | excluded | исключено: исключено: складской флаг Vtiger |  | 712 |  |  |  |  |
 | Invoice | vtiger7 | `vtiger_inventoryproductrel.lineitem_id` | key | перенос |  | 712 |  |  |  |  |
 | Invoice | vtiger7 | `vtiger_inventoryproductrel.listprice` | rule | перенос | Invoice (собственная).InvoiceItem.unitPrice | 712 | 712 | 0 | 0 | carried=712 |
@@ -647,7 +647,7 @@
 | Invoice | vtiger7 | `vtiger_invoice.balance` | rule | перенос | Invoice (собственная).balanceSource | 636 | 636 | 0 | 0 | carried=636 |
 | Invoice | vtiger7 | `vtiger_invoice.compound_taxes_info` | rule | архив (только чтение) |  | 636 | 636 | 0 | 0 | archived=636 |
 | Invoice | vtiger7 | `vtiger_invoice.contactid` | rule | перенос | Invoice (собственная).contact | 636 | 23 | 0 | 0 | linked=23, zero_empty=613 |
-| Invoice | vtiger7 | `vtiger_invoice.conversion_rate` | excluded | исключено: исключено: всегда 1.000 (одна валюта) | —.— | 636 |  |  |  |  |
+| Invoice | vtiger7 | `vtiger_invoice.conversion_rate` | excluded | исключено: исключено: всегда 1.000 (одна валюта) |  | 636 |  |  |  |  |
 | Invoice | vtiger7 | `vtiger_invoice.currency_id` | rule | перенос | Invoice (собственная).currency | 636 | 636 | 0 | 0 | mapped=636 |
 | Invoice | vtiger7 | `vtiger_invoice.customerno` | rule | архив (только чтение) | Invoice (собственная).vtigerData.customerno | 1 | 1 | 0 | 0 | archived=1 |
 | Invoice | vtiger7 | `vtiger_invoice.discount_amount` | rule | перенос | Invoice (собственная).discountAmount | 1 | 1 | 0 | 0 | carried=1 |
@@ -674,7 +674,7 @@
 | Invoice | vtiger7 | `vtiger_invoice.spcompany` | rule | перенос | Invoice (собственная).legalEntity + vtigerData.spcompany | 636 | 636 | 0 | 0 | archived=636 |
 | Invoice | vtiger7 | `vtiger_invoice.subject` | rule | перенос | Invoice (собственная).name | 636 | 636 | 0 | 0 | carried=636 |
 | Invoice | vtiger7 | `vtiger_invoice.subtotal` | rule | перенос | Invoice (собственная).subtotal | 636 | 636 | 0 | 0 | carried=636 |
-| Invoice | vtiger7 | `vtiger_invoice.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) | —.— | 0 |  |  |  |  |
+| Invoice | vtiger7 | `vtiger_invoice.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) |  | 0 |  |  |  |  |
 | Invoice | vtiger7 | `vtiger_invoice.taxtype` | rule | перенос | Invoice (собственная).taxMode | 636 | 636 | 0 | 0 | carried=636 |
 | Invoice | vtiger7 | `vtiger_invoice.terms_conditions` | rule | перенос | Invoice (собственная).termsAndConditions | 636 | 636 | 0 | 0 | carried=636 |
 | Invoice | vtiger7 | `vtiger_invoice.total` | rule | перенос | Invoice (собственная).grandTotal | 636 | 636 | 0 | 0 | carried=636 |
@@ -763,7 +763,7 @@
 | Leads | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | перенос | Lead.createdBy | 225 | 225 | 0 | 0 | linked=225 |
 | Leads | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 225 |  |  |  |  |
 | Leads | vtiger7 | `vtiger_crmentity.smownerid` | rule | перенос | Lead.assignedUser / teams | 225 | 225 | 0 | 0 | linked=225 |
-| Leads | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 225 |  |  |  |  |
+| Leads | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 225 |  |  |  |  |
 | Leads | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Leads | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 225 |  |  |  |  |
 | Leads | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -812,13 +812,13 @@
 | Leads | vtiger7 | `vtiger_leaddetails.salutation` | rule | перенос | Lead.salutationName | 7 | 7 | 0 | 0 | archived=6, carried=1 |
 | Leads | vtiger7 | `vtiger_leaddetails.secondaryemail` | rule | перенос | Lead.emailAddress (secondary) | 8 | 8 | 0 | 0 | carried=8 |
 | Leads | vtiger7 | `vtiger_leaddetails.space` | empty | пусто — данных нет |  | 0 |  |  |  |  |
-| Leads | vtiger7 | `vtiger_leaddetails.splastsms` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Leads | vtiger7 | `vtiger_leaddetails.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) | —.— | 0 |  |  |  |  |
+| Leads | vtiger7 | `vtiger_leaddetails.splastsms` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Leads | vtiger7 | `vtiger_leaddetails.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) |  | 0 |  |  |  |  |
 | Leads | vtiger7 | `vtiger_leaddetails.transferdate` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Leads | vtiger7 | `vtiger_leadscf.cf_1107` | rule | перенос | Lead.cPriority | 187 | 187 | 0 | 0 | carried=187 |
 | Leads | vtiger7 | `vtiger_leadscf.cf_1165` | rule | перенос | Lead.cJivositeId | 52 | 52 | 0 | 0 | carried=52 |
 | Leads | vtiger7 | `vtiger_leadscf.leadid` | key | перенос |  | 225 |  |  |  |  |
-| Leads | vtiger7 | `vtiger_leadscf.tw_url` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| Leads | vtiger7 | `vtiger_leadscf.tw_url` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Leads | vtiger7 | `vtiger_leadscf.vk_url` | rule | перенос | Lead.cVkUrl | 7 | 7 | 0 | 0 | carried=7 |
 | Leads | vtiger7 | `vtiger_leadsubdetails.callornot` | excluded | исключено: служебное (0) |  | 225 |  |  |  |  |
 | Leads | vtiger7 | `vtiger_leadsubdetails.empct` | excluded | исключено: служебное (0) |  | 225 |  |  |  |  |
@@ -839,7 +839,7 @@
 | ModComments | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | перенос | Note (post).createdBy | 78 | 78 | 0 | 0 | linked=78 |
 | ModComments | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 78 |  |  |  |  |
 | ModComments | vtiger7 | `vtiger_crmentity.smownerid` | rule | архив (только чтение) | Note (post).vtigerData.assigned_user_id | 78 | 78 | 0 | 0 | archived=78 |
-| ModComments | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 78 |  |  |  |  |
+| ModComments | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 78 |  |  |  |  |
 | ModComments | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | ModComments | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 78 |  |  |  |  |
 | ModComments | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -849,13 +849,13 @@
 | ModComments | vtiger7 | `vtiger_modcomments.is_private` | empty | пусто — данных нет | Note (post).vtigerData.is_private | 78 |  |  |  |  |
 | ModComments | vtiger7 | `vtiger_modcomments.modcommentsid` | key | перенос |  | 78 |  |  |  |  |
 | ModComments | vtiger7 | `vtiger_modcomments.parent_comments` | empty | пусто — данных нет | Note (post).vtigerData.parent_comments | 78 |  |  |  |  |
-| ModComments | vtiger7 | `vtiger_modcomments.reasontoedit` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| ModComments | vtiger7 | `vtiger_modcomments.related_email_id` | excluded | исключено: исключено: служебное | —.— | 78 |  |  |  |  |
+| ModComments | vtiger7 | `vtiger_modcomments.reasontoedit` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| ModComments | vtiger7 | `vtiger_modcomments.related_email_id` | excluded | исключено: исключено: служебное |  | 78 |  |  |  |  |
 | ModComments | vtiger7 | `vtiger_modcomments.related_to` | rule | перенос | Note (post).parent | 78 | 78 | 0 | 0 | linked=78 |
 | ModComments | vtiger7 | `vtiger_modcomments.userid` | rule | перенос | Note (post).createdBy | 78 | 77 | 0 | 0 | dangling:not_a_user=1, linked=77 |
 | ModComments | vtiger7 | `vtiger_modcommentscf.cf_comment_picklist` | empty | пусто — данных нет | Note (post).vtigerData.cf_comment_picklist | 0 |  |  |  |  |
 | ModComments | vtiger7 | `vtiger_modcommentscf.cf_comment_picklist_two` | empty | пусто — данных нет | Note (post).vtigerData.cf_comment_picklist_two | 0 |  |  |  |  |
-| ModComments | vtiger7 | `vtiger_modcommentscf.cf_comment_text_field` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| ModComments | vtiger7 | `vtiger_modcommentscf.cf_comment_text_field` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | ModComments | vtiger7 | `vtiger_modcommentscf.modcommentsid` | key | перенос |  | 78 |  |  |  |  |
 | OrganizationDetails | vtiger7 | `vtiger_organizationdetails.address` | rule | перенос (значения вне Git) |  | 1 | 1 | 0 | 0 | carried=1 |
 | OrganizationDetails | vtiger7 | `vtiger_organizationdetails.bankaccount` | rule | перенос (значения вне Git) |  | 1 | 1 | 0 | 0 | carried=1 |
@@ -896,7 +896,7 @@
 | PBXManager | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | перенос | Call.createdBy | 1116 | 907 | 0 | 0 | linked=907, not_applicable:internal_call=209 |
 | PBXManager | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 1116 |  |  |  |  |
 | PBXManager | vtiger7 | `vtiger_crmentity.smownerid` | rule | перенос | Call.assignedUser / teams | 1116 | 907 | 0 | 0 | linked=907, not_applicable:internal_call=209 |
-| PBXManager | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 1116 |  |  |  |  |
+| PBXManager | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 1116 |  |  |  |  |
 | PBXManager | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | PBXManager | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 1116 |  |  |  |  |
 | PBXManager | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -904,24 +904,24 @@
 | PBXManager | vtiger7 | `vtiger_pbxmanager.callstatus` | rule | перенос | Call.status + cCallStatusRaw | 1116 | 907 | 0 | 0 | mapped=907, not_applicable:internal_call=209 |
 | PBXManager | vtiger7 | `vtiger_pbxmanager.customer` | rule | перенос | Call.parent | 36 | 13 | 0 | 0 | dangling:deleted=23, linked=13 |
 | PBXManager | vtiger7 | `vtiger_pbxmanager.customernumber` | rule | перенос | Call.cPhoneNumber | 1116 | 907 | 0 | 0 | carried=640, normalized=267, not_applicable:internal_call=209 |
-| PBXManager | vtiger7 | `vtiger_pbxmanager.customertype` | excluded | исключено: производное от parent | —.— | 36 |  |  |  |  |
+| PBXManager | vtiger7 | `vtiger_pbxmanager.customertype` | excluded | исключено: производное от parent |  | 36 |  |  |  |  |
 | PBXManager | vtiger7 | `vtiger_pbxmanager.direction` | rule | перенос | Call.direction | 1116 | 907 | 0 | 0 | mapped=907, not_applicable:internal_call=209 |
 | PBXManager | vtiger7 | `vtiger_pbxmanager.endtime` | rule | перенос | Call.dateEnd | 1113 | 907 | 0 | 0 | carried=907, not_applicable:internal_call=206 |
-| PBXManager | vtiger7 | `vtiger_pbxmanager.gateway` | excluded | исключено: исключено: константа 'PBXManager' | —.— | 1116 |  |  |  |  |
+| PBXManager | vtiger7 | `vtiger_pbxmanager.gateway` | excluded | исключено: исключено: константа 'PBXManager' |  | 1116 |  |  |  |  |
 | PBXManager | vtiger7 | `vtiger_pbxmanager.incominglinename` | rule | перенос | Call.cIncomingLine | 921 | 725 | 0 | 0 | carried=725, not_applicable:internal_call=196 |
 | PBXManager | vtiger7 | `vtiger_pbxmanager.pbxmanagerid` | key | перенос |  | 1116 |  |  |  |  |
 | PBXManager | vtiger7 | `vtiger_pbxmanager.recordingurl` | rule | перенос | Call.cLegacyRecordingUrl | 1033 | 902 | 0 | 0 | carried=902, not_applicable:internal_call=131 |
 | PBXManager | vtiger7 | `vtiger_pbxmanager.sourceuuid` | rule | перенос | Call.cConnectorCallId | 1116 | 907 | 0 | 0 | carried=907, not_applicable:internal_call=209 |
-| PBXManager | vtiger7 | `vtiger_pbxmanager.sp_call_status_code` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| PBXManager | vtiger7 | `vtiger_pbxmanager.sp_called_from_number` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| PBXManager | vtiger7 | `vtiger_pbxmanager.sp_called_to_number` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| PBXManager | vtiger7 | `vtiger_pbxmanager.sp_is_local_cached` | excluded | исключено: исключено: служебный флаг | —.— | 1116 |  |  |  |  |
-| PBXManager | vtiger7 | `vtiger_pbxmanager.sp_is_recorded` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| PBXManager | vtiger7 | `vtiger_pbxmanager.sp_recorded_call_id` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| PBXManager | vtiger7 | `vtiger_pbxmanager.sp_call_status_code` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| PBXManager | vtiger7 | `vtiger_pbxmanager.sp_called_from_number` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| PBXManager | vtiger7 | `vtiger_pbxmanager.sp_called_to_number` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| PBXManager | vtiger7 | `vtiger_pbxmanager.sp_is_local_cached` | excluded | исключено: исключено: служебный флаг |  | 1116 |  |  |  |  |
+| PBXManager | vtiger7 | `vtiger_pbxmanager.sp_is_recorded` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| PBXManager | vtiger7 | `vtiger_pbxmanager.sp_recorded_call_id` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | PBXManager | vtiger7 | `vtiger_pbxmanager.sp_recordingurl` | empty | пусто — данных нет | Call.vtigerData.sp_recordingurl | 0 |  |  |  |  |
-| PBXManager | vtiger7 | `vtiger_pbxmanager.sp_voip_provider` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| PBXManager | vtiger7 | `vtiger_pbxmanager.sp_voip_provider` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | PBXManager | vtiger7 | `vtiger_pbxmanager.starttime` | rule | перенос | Call.dateStart | 1116 | 907 | 0 | 0 | carried=907, not_applicable:internal_call=209 |
-| PBXManager | vtiger7 | `vtiger_pbxmanager.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) | —.— | 0 |  |  |  |  |
+| PBXManager | vtiger7 | `vtiger_pbxmanager.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) |  | 0 |  |  |  |  |
 | PBXManager | vtiger7 | `vtiger_pbxmanager.totalduration` | rule | перенос | Call.duration | 1116 | 907 | 0 | 0 | archived=462, derived_equal=445, not_applicable:internal_call=209 |
 | PBXManager | vtiger7 | `vtiger_pbxmanager.user` | rule | перенос | Call.assignedUser | 1116 | 907 | 0 | 0 | duplicate=907, not_applicable:internal_call=209 |
 | Potentials | vtiger7 | `vtiger_crmentity.cf_view` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -938,7 +938,7 @@
 | Potentials | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | перенос | Opportunity.createdBy | 156 | 156 | 0 | 0 | linked=156 |
 | Potentials | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 156 |  |  |  |  |
 | Potentials | vtiger7 | `vtiger_crmentity.smownerid` | rule | перенос | Opportunity.assignedUser / teams | 156 | 156 | 0 | 0 | linked=156 |
-| Potentials | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 156 |  |  |  |  |
+| Potentials | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 156 |  |  |  |  |
 | Potentials | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Potentials | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 156 |  |  |  |  |
 | Potentials | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -951,7 +951,7 @@
 | Potentials | vtiger7 | `vtiger_potential.description` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Potentials | vtiger7 | `vtiger_potential.evaluationstatus` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Potentials | vtiger7 | `vtiger_potential.followupdate` | empty | пусто — данных нет |  | 0 |  |  |  |  |
-| Potentials | vtiger7 | `vtiger_potential.forecast_amount` | excluded | исключено: исключено: вычисляется workflow (amount×probability) — пересчитывается | —.— | 156 |  |  |  |  |
+| Potentials | vtiger7 | `vtiger_potential.forecast_amount` | excluded | исключено: исключено: вычисляется workflow (amount×probability) — пересчитывается |  | 156 |  |  |  |  |
 | Potentials | vtiger7 | `vtiger_potential.forecastcategory` | excluded | исключено: служебное (0) |  | 156 |  |  |  |  |
 | Potentials | vtiger7 | `vtiger_potential.isconvertedfromlead` | rule | архив (только чтение) | Opportunity.vtigerData.isconvertedfromlead | 156 | 156 | 0 | 0 | archived=156 |
 | Potentials | vtiger7 | `vtiger_potential.leadsource` | rule | перенос | Opportunity.leadSource | 77 | 77 | 0 | 0 | carried=2, mapped=75 |
@@ -972,7 +972,7 @@
 | Potentials | vtiger7 | `vtiger_potential.runtimefee` | excluded | исключено: служебное (0) |  | 156 |  |  |  |  |
 | Potentials | vtiger7 | `vtiger_potential.sales_stage` | rule | перенос | Opportunity.stage | 156 | 156 | 0 | 0 | carried=134, mapped=22 |
 | Potentials | vtiger7 | `vtiger_potential.spcompany` | rule | архив (только чтение) | Opportunity.vtigerData.spcompany | 153 | 153 | 0 | 0 | archived=153 |
-| Potentials | vtiger7 | `vtiger_potential.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) | —.— | 0 |  |  |  |  |
+| Potentials | vtiger7 | `vtiger_potential.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) |  | 0 |  |  |  |  |
 | Potentials | vtiger7 | `vtiger_potential.typeofrevenue` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Products | vtiger7 | `vtiger_crmentity.cf_view` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Products | vtiger7 | `vtiger_crmentity.cf_viewname` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -988,7 +988,7 @@
 | Products | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | перенос | Product (собственная).createdBy | 3 | 3 | 0 | 0 | linked=3 |
 | Products | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 3 |  |  |  |  |
 | Products | vtiger7 | `vtiger_crmentity.smownerid` | rule | перенос | Product (собственная).assignedUser / teams | 3 | 3 | 0 | 0 | linked=3 |
-| Products | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 3 |  |  |  |  |
+| Products | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 3 |  |  |  |  |
 | Products | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Products | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 3 |  |  |  |  |
 | Products | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -997,42 +997,42 @@
 | Products | vtiger7 | `vtiger_products.commissionrate` | rule | пусто — данных нет | Product (собственная).vtigerData.commissionrate | 3 | 0 | 0 | 0 | zero_empty=3 |
 | Products | vtiger7 | `vtiger_products.cost_factor` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Products | vtiger7 | `vtiger_products.currency_id` | excluded | исключено: одна валюта |  | 3 |  |  |  |  |
-| Products | vtiger7 | `vtiger_products.customs_id` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.customs_id` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Products | vtiger7 | `vtiger_products.discontinued` | rule | перенос | Product (собственная).isActive | 3 | 3 | 0 | 0 | mapped=3 |
-| Products | vtiger7 | `vtiger_products.expiry_date` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Products | vtiger7 | `vtiger_products.glacct` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Products | vtiger7 | `vtiger_products.imagename` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.expiry_date` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.glacct` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.imagename` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Products | vtiger7 | `vtiger_products.is_subproducts_viewable` | excluded | исключено: служебное |  | 3 |  |  |  |  |
-| Products | vtiger7 | `vtiger_products.manuf_country` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Products | vtiger7 | `vtiger_products.manuf_country_code` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Products | vtiger7 | `vtiger_products.manufacturer` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Products | vtiger7 | `vtiger_products.mfr_part_no` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Products | vtiger7 | `vtiger_products.one_s_id` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.manuf_country` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.manuf_country_code` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.manufacturer` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.mfr_part_no` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.one_s_id` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Products | vtiger7 | `vtiger_products.pack_size` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Products | vtiger7 | `vtiger_products.product_no` | rule | перенос | Product (собственная).vtigerNo | 3 | 3 | 0 | 0 | carried=3 |
-| Products | vtiger7 | `vtiger_products.productcategory` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.productcategory` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Products | vtiger7 | `vtiger_products.productcode` | rule | перенос | Product (собственная).code | 3 | 3 | 0 | 0 | carried=3 |
 | Products | vtiger7 | `vtiger_products.productid` | key | перенос |  | 3 |  |  |  |  |
 | Products | vtiger7 | `vtiger_products.productname` | rule | перенос | Product (собственная).name | 3 | 3 | 0 | 0 | carried=3 |
-| Products | vtiger7 | `vtiger_products.productsheet` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.productsheet` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Products | vtiger7 | `vtiger_products.purchase_cost` | empty | пусто — данных нет | Product (собственная).purchaseCost | 3 |  |  |  |  |
 | Products | vtiger7 | `vtiger_products.qty_per_unit` | rule | пусто — данных нет | Product (собственная).vtigerData.qty_per_unit | 3 | 0 | 0 | 0 | zero_empty=3 |
-| Products | vtiger7 | `vtiger_products.qtyindemand` | empty | пусто — данных нет | —.— | 3 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.qtyindemand` | empty | пусто — данных нет |  | 3 |  |  |  |  |
 | Products | vtiger7 | `vtiger_products.qtyinstock` | rule | архив (только чтение) | Product (собственная).vtigerData.qtyinstock | 3 | 1 | 0 | 0 | archived=1, zero_empty=2 |
-| Products | vtiger7 | `vtiger_products.reorderlevel` | empty | пусто — данных нет | —.— | 3 |  |  |  |  |
-| Products | vtiger7 | `vtiger_products.sales_end_date` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Products | vtiger7 | `vtiger_products.sales_start_date` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Products | vtiger7 | `vtiger_products.serialno` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Products | vtiger7 | `vtiger_products.sp_product_international_code` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Products | vtiger7 | `vtiger_products.start_date` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Products | vtiger7 | `vtiger_products.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) | —.— | 0 |  |  |  |  |
-| Products | vtiger7 | `vtiger_products.taxclass` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Products | vtiger7 | `vtiger_products.unit_code` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.reorderlevel` | empty | пусто — данных нет |  | 3 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.sales_end_date` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.sales_start_date` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.serialno` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.sp_product_international_code` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.start_date` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) |  | 0 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.taxclass` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.unit_code` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Products | vtiger7 | `vtiger_products.unit_price` | rule | перенос | Product (собственная).unitPrice | 3 | 3 | 0 | 0 | carried=3 |
 | Products | vtiger7 | `vtiger_products.usageunit` | rule | перенос | Product (собственная).unit | 3 | 3 | 0 | 0 | carried=3 |
 | Products | vtiger7 | `vtiger_products.vendor_id` | empty | пусто — данных нет | Product (собственная).vendor | 3 |  |  |  |  |
-| Products | vtiger7 | `vtiger_products.vendor_part_no` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Products | vtiger7 | `vtiger_products.website` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.vendor_part_no` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Products | vtiger7 | `vtiger_products.website` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Products | vtiger7 | `vtiger_products.weight` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Project | vtiger7 | `vtiger_crmentity.cf_view` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Project | vtiger7 | `vtiger_crmentity.cf_viewname` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -1048,7 +1048,7 @@
 | Project | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | перенос | Project (собственная).createdBy | 54 | 54 | 0 | 0 | linked=54 |
 | Project | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 54 |  |  |  |  |
 | Project | vtiger7 | `vtiger_crmentity.smownerid` | rule | перенос | Project (собственная).assignedUser / teams | 54 | 54 | 0 | 0 | linked=54 |
-| Project | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 54 |  |  |  |  |
+| Project | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 54 |  |  |  |  |
 | Project | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Project | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 54 |  |  |  |  |
 | Project | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -1065,7 +1065,7 @@
 | Project | vtiger7 | `vtiger_project.projecttype` | rule | перенос | Project (собственная).type | 45 | 45 | 0 | 0 | carried=45 |
 | Project | vtiger7 | `vtiger_project.projecturl` | rule | перенос | Project (собственная).url | 2 | 2 | 0 | 0 | carried=2 |
 | Project | vtiger7 | `vtiger_project.startdate` | rule | перенос | Project (собственная).dateStart | 54 | 54 | 0 | 0 | carried=54 |
-| Project | vtiger7 | `vtiger_project.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) | —.— | 0 |  |  |  |  |
+| Project | vtiger7 | `vtiger_project.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) |  | 0 |  |  |  |  |
 | Project | vtiger7 | `vtiger_project.targetbudget` | rule | перенос | Project (собственная).budget | 51 | 51 | 0 | 0 | archived=1, normalized=50 |
 | Project | vtiger7 | `vtiger_project.targetenddate` | rule | перенос | Project (собственная).dateEndPlanned | 49 | 49 | 0 | 0 | carried=49 |
 | ProjectTask | vtiger7 | `vtiger_crmentity.cf_view` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -1082,7 +1082,7 @@
 | ProjectTask | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | перенос | ProjectTask (собственная).createdBy | 493 | 493 | 0 | 0 | linked=493 |
 | ProjectTask | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 493 |  |  |  |  |
 | ProjectTask | vtiger7 | `vtiger_crmentity.smownerid` | rule | перенос | ProjectTask (собственная).assignedUser / teams | 493 | 493 | 0 | 0 | linked=493 |
-| ProjectTask | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 493 |  |  |  |  |
+| ProjectTask | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 493 |  |  |  |  |
 | ProjectTask | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | ProjectTask | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 493 |  |  |  |  |
 | ProjectTask | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -1098,7 +1098,7 @@
 | ProjectTask | vtiger7 | `vtiger_projecttask.projecttaskstatus` | rule | перенос | ProjectTask (собственная).status | 492 | 492 | 0 | 0 | carried=492 |
 | ProjectTask | vtiger7 | `vtiger_projecttask.projecttasktype` | rule | перенос | ProjectTask (собственная).type | 489 | 489 | 0 | 0 | carried=489 |
 | ProjectTask | vtiger7 | `vtiger_projecttask.startdate` | rule | перенос | ProjectTask (собственная).dateStart | 490 | 490 | 0 | 0 | carried=490 |
-| ProjectTask | vtiger7 | `vtiger_projecttask.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) | —.— | 0 |  |  |  |  |
+| ProjectTask | vtiger7 | `vtiger_projecttask.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) |  | 0 |  |  |  |  |
 | ProjectTask | vtiger7 | `vtiger_projecttaskcf.cf_1320` | rule | перенос | ProjectTask (собственная).gitCommit | 257 | 257 | 0 | 0 | carried=257 |
 | ProjectTask | vtiger7 | `vtiger_projecttaskcf.cf_1354` | rule | перенос | ProjectTask (собственная).showInStat | 493 | 493 | 0 | 0 | carried=493 |
 | ProjectTask | vtiger7 | `vtiger_projecttaskcf.projecttaskid` | key | перенос |  | 493 |  |  |  |  |
@@ -1116,7 +1116,7 @@
 | Quotes | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | перенос | Quote (собственная).createdBy | 24 | 24 | 0 | 0 | linked=24 |
 | Quotes | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 24 |  |  |  |  |
 | Quotes | vtiger7 | `vtiger_crmentity.smownerid` | rule | перенос | Quote (собственная).assignedUser / teams | 24 | 24 | 0 | 0 | linked=24 |
-| Quotes | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 24 |  |  |  |  |
+| Quotes | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 24 |  |  |  |  |
 | Quotes | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Quotes | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 24 |  |  |  |  |
 | Quotes | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -1125,7 +1125,7 @@
 | Quotes | vtiger7 | `vtiger_inventoryproductrel.discount_amount` | rule | пусто — данных нет | Quote (собственная).QuoteItem.discountAmount | 26 | 26 | 0 | 0 | carried=26 |
 | Quotes | vtiger7 | `vtiger_inventoryproductrel.discount_percent` | rule | пусто — данных нет | Quote (собственная).QuoteItem.discountPercent | 26 | 26 | 0 | 0 | carried=26 |
 | Quotes | vtiger7 | `vtiger_inventoryproductrel.id` | rule | перенос |  | 27 | 27 | 0 | 0 | linked=27 |
-| Quotes | vtiger7 | `vtiger_inventoryproductrel.image` | excluded | исключено: исключено: пустое служебное поле | —.— | 0 |  |  |  |  |
+| Quotes | vtiger7 | `vtiger_inventoryproductrel.image` | excluded | исключено: исключено: пустое служебное поле |  | 0 |  |  |  |  |
 | Quotes | vtiger7 | `vtiger_inventoryproductrel.incrementondel` | excluded | исключено: исключено: складской флаг Vtiger |  | 27 |  |  |  |  |
 | Quotes | vtiger7 | `vtiger_inventoryproductrel.lineitem_id` | key | перенос |  | 27 |  |  |  |  |
 | Quotes | vtiger7 | `vtiger_inventoryproductrel.listprice` | rule | перенос | Quote (собственная).QuoteItem.unitPrice | 27 | 27 | 0 | 0 | carried=27 |
@@ -1142,7 +1142,7 @@
 | Quotes | vtiger7 | `vtiger_quotes.carrier` | rule | пусто — данных нет | Quote (собственная).vtigerData.carrier | 0 | 0 | 0 | 0 |  |
 | Quotes | vtiger7 | `vtiger_quotes.compound_taxes_info` | rule | архив (только чтение) |  | 24 | 24 | 0 | 0 | archived=24 |
 | Quotes | vtiger7 | `vtiger_quotes.contactid` | rule | перенос | Quote (собственная).contact | 6 | 6 | 0 | 0 | linked=6 |
-| Quotes | vtiger7 | `vtiger_quotes.conversion_rate` | excluded | исключено: исключено: всегда 1.000 (одна валюта) | —.— | 24 |  |  |  |  |
+| Quotes | vtiger7 | `vtiger_quotes.conversion_rate` | excluded | исключено: исключено: всегда 1.000 (одна валюта) |  | 24 |  |  |  |  |
 | Quotes | vtiger7 | `vtiger_quotes.currency_id` | rule | перенос | Quote (собственная).currency | 24 | 24 | 0 | 0 | mapped=24 |
 | Quotes | vtiger7 | `vtiger_quotes.discount_amount` | rule | пусто — данных нет | Quote (собственная).discountAmount | 0 | 0 | 0 | 0 |  |
 | Quotes | vtiger7 | `vtiger_quotes.discount_percent` | rule | пусто — данных нет | Quote (собственная).discountPercent | 0 | 0 | 0 | 0 |  |
@@ -1159,7 +1159,7 @@
 | Quotes | vtiger7 | `vtiger_quotes.spcompany` | rule | перенос | Quote (собственная).legalEntity + vtigerData.spcompany | 24 | 24 | 0 | 0 | archived=24 |
 | Quotes | vtiger7 | `vtiger_quotes.subject` | rule | перенос | Quote (собственная).name | 24 | 24 | 0 | 0 | carried=24 |
 | Quotes | vtiger7 | `vtiger_quotes.subtotal` | rule | перенос | Quote (собственная).subtotal | 24 | 24 | 0 | 0 | carried=24 |
-| Quotes | vtiger7 | `vtiger_quotes.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) | —.— | 0 |  |  |  |  |
+| Quotes | vtiger7 | `vtiger_quotes.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) |  | 0 |  |  |  |  |
 | Quotes | vtiger7 | `vtiger_quotes.taxtype` | rule | перенос | Quote (собственная).taxMode | 24 | 24 | 0 | 0 | carried=24 |
 | Quotes | vtiger7 | `vtiger_quotes.terms_conditions` | rule | перенос | Quote (собственная).termsAndConditions | 24 | 24 | 0 | 0 | carried=24 |
 | Quotes | vtiger7 | `vtiger_quotes.total` | rule | перенос | Quote (собственная).grandTotal | 24 | 24 | 0 | 0 | carried=24 |
@@ -1195,7 +1195,7 @@
 | SPCallPopup | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | перенос | Call (слияние с PBXManager).createdBy | 210 | 204 | 0 | 0 | duplicate=204, not_applicable:internal_call=6 |
 | SPCallPopup | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 210 |  |  |  |  |
 | SPCallPopup | vtiger7 | `vtiger_crmentity.smownerid` | rule | перенос | Call (слияние с PBXManager).assignedUser / teams | 210 | 204 | 0 | 0 | duplicate=204, not_applicable:internal_call=6 |
-| SPCallPopup | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 210 |  |  |  |  |
+| SPCallPopup | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 210 |  |  |  |  |
 | SPCallPopup | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | SPCallPopup | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 210 |  |  |  |  |
 | SPCallPopup | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -1207,8 +1207,8 @@
 | SPCallPopup | vtiger7 | `vtiger_sp_callpopup.firstname` | rule | архив (только чтение) | Call (слияние с PBXManager).Call.vtigerData.popup_firstname | 3 | 3 | 0 | 0 | archived=3 |
 | SPCallPopup | vtiger7 | `vtiger_sp_callpopup.lastname` | rule | архив (только чтение) | Call (слияние с PBXManager).Call.vtigerData.popup_lastname | 3 | 3 | 0 | 0 | archived=3 |
 | SPCallPopup | vtiger7 | `vtiger_sp_callpopup.popupid` | key | перенос |  | 210 |  |  |  |  |
-| SPCallPopup | vtiger7 | `vtiger_sp_callpopup.status` | excluded | исключено: исключено: служебный статус попапа | —.— | 210 |  |  |  |  |
-| SPCallPopup | vtiger7 | `vtiger_sp_callpopup.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) | —.— | 0 |  |  |  |  |
+| SPCallPopup | vtiger7 | `vtiger_sp_callpopup.status` | excluded | исключено: исключено: служебный статус попапа |  | 210 |  |  |  |  |
+| SPCallPopup | vtiger7 | `vtiger_sp_callpopup.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) |  | 0 |  |  |  |  |
 | SPPayments | vtiger7 | `sp_payments.amount` | rule | перенос | Payment + PaymentAllocation (собственные).amount | 799 | 799 | 0 | 0 | carried=799 |
 | SPPayments | vtiger7 | `sp_payments.analytics_code` | rule | архив (только чтение) | Payment + PaymentAllocation (собственные).vtigerData.analytics_code | 1 | 1 | 0 | 0 | archived=1 |
 | SPPayments | vtiger7 | `sp_payments.coracc_subacc` | rule | пусто — данных нет | Payment + PaymentAllocation (собственные).vtigerData.coracc_subacc | 0 | 0 | 0 | 0 |  |
@@ -1223,7 +1223,7 @@
 | SPPayments | vtiger7 | `sp_payments.related_to` | rule | перенос | Payment + PaymentAllocation (собственные).PaymentAllocation.invoice\|salesOrder | 799 | 623 | 0 | 0 | linked=623, zero_empty=176 |
 | SPPayments | vtiger7 | `sp_payments.spcompany` | rule | перенос | Payment + PaymentAllocation (собственные).legalEntity + vtigerData.spcompany | 611 | 611 | 0 | 0 | archived=611 |
 | SPPayments | vtiger7 | `sp_payments.spstatus` | rule | перенос | Payment + PaymentAllocation (собственные).status | 781 | 781 | 0 | 0 | carried=781 |
-| SPPayments | vtiger7 | `sp_payments.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) | —.— | 0 |  |  |  |  |
+| SPPayments | vtiger7 | `sp_payments.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) |  | 0 |  |  |  |  |
 | SPPayments | vtiger7 | `sp_payments.target_code` | rule | пусто — данных нет | Payment + PaymentAllocation (собственные).vtigerData.target_code | 0 | 0 | 0 | 0 |  |
 | SPPayments | vtiger7 | `sp_payments.type_payment` | rule | перенос | Payment + PaymentAllocation (собственные).method | 797 | 797 | 0 | 0 | mapped=797 |
 | SPPayments | vtiger7 | `sp_paymentscf.cf_1198` | rule | перенос | Payment + PaymentAllocation (собственные).counterpartyAccount | 603 | 603 | 0 | 0 | carried=603 |
@@ -1246,7 +1246,7 @@
 | SPPayments | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | перенос | Payment + PaymentAllocation (собственные).createdBy | 799 | 799 | 0 | 0 | linked=799 |
 | SPPayments | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 799 |  |  |  |  |
 | SPPayments | vtiger7 | `vtiger_crmentity.smownerid` | rule | перенос | Payment + PaymentAllocation (собственные).assignedUser / teams | 799 | 799 | 0 | 0 | linked=799 |
-| SPPayments | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 799 |  |  |  |  |
+| SPPayments | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 799 |  |  |  |  |
 | SPPayments | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | SPPayments | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 799 |  |  |  |  |
 | SPPayments | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -1264,7 +1264,7 @@
 | SalesOrder | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | перенос | SalesOrder (собственная).createdBy | 14 | 14 | 0 | 0 | linked=14 |
 | SalesOrder | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 14 |  |  |  |  |
 | SalesOrder | vtiger7 | `vtiger_crmentity.smownerid` | rule | перенос | SalesOrder (собственная).assignedUser / teams | 14 | 14 | 0 | 0 | linked=14 |
-| SalesOrder | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 14 |  |  |  |  |
+| SalesOrder | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 14 |  |  |  |  |
 | SalesOrder | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | SalesOrder | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 14 |  |  |  |  |
 | SalesOrder | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -1273,7 +1273,7 @@
 | SalesOrder | vtiger7 | `vtiger_inventoryproductrel.discount_amount` | rule | пусто — данных нет | SalesOrder (собственная).SalesOrderItem.discountAmount | 13 | 13 | 0 | 0 | carried=13 |
 | SalesOrder | vtiger7 | `vtiger_inventoryproductrel.discount_percent` | rule | пусто — данных нет | SalesOrder (собственная).SalesOrderItem.discountPercent | 13 | 13 | 0 | 0 | carried=13 |
 | SalesOrder | vtiger7 | `vtiger_inventoryproductrel.id` | rule | перенос |  | 14 | 14 | 0 | 0 | linked=14 |
-| SalesOrder | vtiger7 | `vtiger_inventoryproductrel.image` | excluded | исключено: исключено: пустое служебное поле | —.— | 0 |  |  |  |  |
+| SalesOrder | vtiger7 | `vtiger_inventoryproductrel.image` | excluded | исключено: исключено: пустое служебное поле |  | 0 |  |  |  |  |
 | SalesOrder | vtiger7 | `vtiger_inventoryproductrel.incrementondel` | excluded | исключено: исключено: складской флаг Vtiger |  | 14 |  |  |  |  |
 | SalesOrder | vtiger7 | `vtiger_inventoryproductrel.lineitem_id` | key | перенос |  | 14 |  |  |  |  |
 | SalesOrder | vtiger7 | `vtiger_inventoryproductrel.listprice` | rule | перенос | SalesOrder (собственная).SalesOrderItem.unitPrice | 14 | 14 | 0 | 0 | carried=14 |
@@ -1297,20 +1297,20 @@
 | SalesOrder | vtiger7 | `vtiger_salesorder.carrier` | rule | архив (только чтение) | SalesOrder (собственная).vtigerData.carrier | 1 | 1 | 0 | 0 | archived=1 |
 | SalesOrder | vtiger7 | `vtiger_salesorder.compound_taxes_info` | rule | архив (только чтение) |  | 14 | 14 | 0 | 0 | archived=14 |
 | SalesOrder | vtiger7 | `vtiger_salesorder.contactid` | rule | перенос | SalesOrder (собственная).contact | 14 | 8 | 0 | 0 | linked=8, zero_empty=6 |
-| SalesOrder | vtiger7 | `vtiger_salesorder.conversion_rate` | excluded | исключено: исключено: всегда 1.000 (одна валюта) | —.— | 14 |  |  |  |  |
+| SalesOrder | vtiger7 | `vtiger_salesorder.conversion_rate` | excluded | исключено: исключено: всегда 1.000 (одна валюта) |  | 14 |  |  |  |  |
 | SalesOrder | vtiger7 | `vtiger_salesorder.currency_id` | rule | перенос | SalesOrder (собственная).currency | 14 | 14 | 0 | 0 | mapped=14 |
-| SalesOrder | vtiger7 | `vtiger_salesorder.customerno` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| SalesOrder | vtiger7 | `vtiger_salesorder.customerno` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | SalesOrder | vtiger7 | `vtiger_salesorder.discount_amount` | rule | пусто — данных нет | SalesOrder (собственная).discountAmount | 0 | 0 | 0 | 0 |  |
 | SalesOrder | vtiger7 | `vtiger_salesorder.discount_percent` | rule | пусто — данных нет | SalesOrder (собственная).discountPercent | 0 | 0 | 0 | 0 |  |
 | SalesOrder | vtiger7 | `vtiger_salesorder.duedate` | rule | перенос | SalesOrder (собственная).dateDue | 7 | 7 | 0 | 0 | carried=7 |
 | SalesOrder | vtiger7 | `vtiger_salesorder.enable_recurring` | rule | архив (только чтение) | SalesOrder (собственная).vtigerData.enable_recurring | 14 | 14 | 0 | 0 | archived=14 |
 | SalesOrder | vtiger7 | `vtiger_salesorder.exciseduty` | rule | пусто — данных нет | SalesOrder (собственная).vtigerData.exciseduty | 14 | 0 | 0 | 0 | zero_empty=14 |
 | SalesOrder | vtiger7 | `vtiger_salesorder.fromsite` | rule | пусто — данных нет | SalesOrder (собственная).vtigerData.fromsite | 14 | 0 | 0 | 0 | zero_empty=14 |
-| SalesOrder | vtiger7 | `vtiger_salesorder.one_s_id` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| SalesOrder | vtiger7 | `vtiger_salesorder.one_s_id` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | SalesOrder | vtiger7 | `vtiger_salesorder.pending` | rule | архив (только чтение) | SalesOrder (собственная).vtigerData.pending | 1 | 1 | 0 | 0 | archived=1 |
 | SalesOrder | vtiger7 | `vtiger_salesorder.potentialid` | rule | перенос | SalesOrder (собственная).opportunity | 14 | 12 | 0 | 0 | linked=12, zero_empty=2 |
 | SalesOrder | vtiger7 | `vtiger_salesorder.pre_tax_total` | rule | перенос | SalesOrder (собственная).preTaxTotal | 14 | 14 | 0 | 0 | carried=14 |
-| SalesOrder | vtiger7 | `vtiger_salesorder.purchaseorder` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| SalesOrder | vtiger7 | `vtiger_salesorder.purchaseorder` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | SalesOrder | vtiger7 | `vtiger_salesorder.quoteid` | rule | пусто — данных нет | SalesOrder (собственная).quote | 14 | 0 | 0 | 0 | zero_empty=14 |
 | SalesOrder | vtiger7 | `vtiger_salesorder.region_id` | rule | перенос (значимы NULL и 0) | SalesOrder (собственная).sourceFormula + vtigerData.region_id | 1 | 1 | 0 | 0 | archived=1 |
 | SalesOrder | vtiger7 | `vtiger_salesorder.s_h_amount` | rule | пусто — данных нет | SalesOrder (собственная).shippingAmount | 14 | 14 | 0 | 0 | carried=14 |
@@ -1322,7 +1322,7 @@
 | SalesOrder | vtiger7 | `vtiger_salesorder.spcompany` | rule | перенос | SalesOrder (собственная).legalEntity + vtigerData.spcompany | 14 | 14 | 0 | 0 | archived=14 |
 | SalesOrder | vtiger7 | `vtiger_salesorder.subject` | rule | перенос | SalesOrder (собственная).name | 14 | 14 | 0 | 0 | carried=14 |
 | SalesOrder | vtiger7 | `vtiger_salesorder.subtotal` | rule | перенос | SalesOrder (собственная).subtotal | 14 | 14 | 0 | 0 | carried=14 |
-| SalesOrder | vtiger7 | `vtiger_salesorder.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) | —.— | 0 |  |  |  |  |
+| SalesOrder | vtiger7 | `vtiger_salesorder.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) |  | 0 |  |  |  |  |
 | SalesOrder | vtiger7 | `vtiger_salesorder.taxtype` | rule | перенос | SalesOrder (собственная).taxMode | 14 | 14 | 0 | 0 | carried=14 |
 | SalesOrder | vtiger7 | `vtiger_salesorder.terms_conditions` | rule | перенос | SalesOrder (собственная).termsAndConditions | 14 | 14 | 0 | 0 | carried=14 |
 | SalesOrder | vtiger7 | `vtiger_salesorder.total` | rule | перенос | SalesOrder (собственная).grandTotal | 14 | 14 | 0 | 0 | carried=14 |
@@ -1395,15 +1395,15 @@
 | Services | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | перенос | Product (собственная, type=service).createdBy | 25 | 25 | 0 | 0 | linked=25 |
 | Services | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 25 |  |  |  |  |
 | Services | vtiger7 | `vtiger_crmentity.smownerid` | rule | перенос | Product (собственная, type=service).assignedUser / teams | 25 | 25 | 0 | 0 | linked=25 |
-| Services | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 25 |  |  |  |  |
+| Services | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 25 |  |  |  |  |
 | Services | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Services | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 25 |  |  |  |  |
 | Services | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Services | vtiger7 | `vtiger_service.commissionrate` | rule | архив (только чтение) | Product (собственная, type=service).vtigerData.commissionrate | 25 | 4 | 0 | 0 | archived=4, zero_empty=21 |
 | Services | vtiger7 | `vtiger_service.currency_id` | excluded | исключено: одна валюта |  | 25 |  |  |  |  |
 | Services | vtiger7 | `vtiger_service.discontinued` | rule | перенос | Product (собственная, type=service).isActive | 25 | 25 | 0 | 0 | mapped=25 |
-| Services | vtiger7 | `vtiger_service.expiry_date` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Services | vtiger7 | `vtiger_service.one_s_id` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| Services | vtiger7 | `vtiger_service.expiry_date` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Services | vtiger7 | `vtiger_service.one_s_id` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Services | vtiger7 | `vtiger_service.purchase_cost` | empty | пусто — данных нет | Product (собственная, type=service).purchaseCost | 25 |  |  |  |  |
 | Services | vtiger7 | `vtiger_service.qty_per_unit` | rule | перенос | Product (собственная, type=service).qtyPerUnit | 25 | 25 | 0 | 0 | carried=25 |
 | Services | vtiger7 | `vtiger_service.sales_end_date` | rule | архив (только чтение) | Product (собственная, type=service).vtigerData.sales_end_date | 1 | 1 | 0 | 0 | archived=1 |
@@ -1414,102 +1414,102 @@
 | Services | vtiger7 | `vtiger_service.serviceid` | key | перенос |  | 25 |  |  |  |  |
 | Services | vtiger7 | `vtiger_service.servicename` | rule | перенос | Product (собственная, type=service).name | 25 | 25 | 0 | 0 | carried=25 |
 | Services | vtiger7 | `vtiger_service.start_date` | rule | архив (только чтение) | Product (собственная, type=service).vtigerData.start_date | 5 | 5 | 0 | 0 | archived=5 |
-| Services | vtiger7 | `vtiger_service.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) | —.— | 0 |  |  |  |  |
-| Services | vtiger7 | `vtiger_service.taxclass` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Services | vtiger7 | `vtiger_service.unit_code` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| Services | vtiger7 | `vtiger_service.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) |  | 0 |  |  |  |  |
+| Services | vtiger7 | `vtiger_service.taxclass` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Services | vtiger7 | `vtiger_service.unit_code` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Services | vtiger7 | `vtiger_service.unit_price` | rule | перенос | Product (собственная, type=service).unitPrice | 25 | 25 | 0 | 0 | carried=25 |
 | Services | vtiger7 | `vtiger_service.website` | rule | архив (только чтение) | Product (собственная, type=service).vtigerData.website | 3 | 3 | 0 | 0 | archived=3 |
 | Services | vtiger7 | `vtiger_servicecf.cf_billable_time_tracker` | rule | перенос | Product (собственная, type=service).isBillableTime | 25 | 25 | 0 | 0 | carried=25 |
 | Services | vtiger7 | `vtiger_servicecf.serviceid` | key | перенос |  | 25 |  |  |  |  |
 | Users | vtiger7 | `vtiger_user2role.roleid` | rule | перенос | User.roles | 7 | 7 | 0 | 0 | mapped=7 |
 | Users | vtiger7 | `vtiger_user2role.userid` | key | перенос |  | 7 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.accesskey` | excluded | исключено: исключено: секрет API | —.— | 7 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.activity_view` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 7 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.address_city` | excluded | исключено: исключено: адрес сотрудника (решение владельца, Q-09) | —.— | 4 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.address_country` | excluded | исключено: исключено: адрес сотрудника (решение владельца, Q-09) | —.— | 4 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.address_postalcode` | excluded | исключено: исключено: адрес сотрудника (решение владельца, Q-09) | —.— | 4 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.address_state` | excluded | исключено: исключено: адрес сотрудника (решение владельца, Q-09) | —.— | 4 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.address_street` | excluded | исключено: исключено: адрес сотрудника (решение владельца, Q-09) | —.— | 4 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.accesskey` | excluded | исключено: исключено: секрет API |  | 7 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.activity_view` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 7 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.address_city` | excluded | исключено: исключено: адрес сотрудника (решение владельца, Q-09) |  | 4 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.address_country` | excluded | исключено: исключено: адрес сотрудника (решение владельца, Q-09) |  | 4 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.address_postalcode` | excluded | исключено: исключено: адрес сотрудника (решение владельца, Q-09) |  | 4 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.address_state` | excluded | исключено: исключено: адрес сотрудника (решение владельца, Q-09) |  | 4 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.address_street` | excluded | исключено: исключено: адрес сотрудника (решение владельца, Q-09) |  | 4 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.cal_color` | excluded | исключено: исключено: UI |  | 7 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.calendarsharedtype` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 7 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.callduration` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 7 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.confirm_password` | excluded | исключено: исключено: секрет | —.— | 7 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.calendarsharedtype` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 7 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.callduration` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 7 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.confirm_password` | excluded | исключено: исключено: секрет |  | 7 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.crypt_type` | excluded | исключено: исключено: служебное |  | 7 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.currency_decimal_separator` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 7 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.currency_grouping_pattern` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 7 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.currency_grouping_separator` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 7 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.currency_decimal_separator` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 7 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.currency_grouping_pattern` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 7 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.currency_grouping_separator` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 7 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.currency_id` | rule | перенос | User.preferences (валюта) | 7 | 0 | 0 | 0 | not_applicable:D-37=7 |
-| Users | vtiger7 | `vtiger_users.currency_symbol_placement` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 7 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.currency_symbol_placement` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 7 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.date_entered` | rule | перенос |  | 7 | 7 | 0 | 0 | carried=7 |
 | Users | vtiger7 | `vtiger_users.date_format` | rule | перенос | User.preferences.dateFormat | 7 | 7 | 0 | 0 | mapped=7 |
 | Users | vtiger7 | `vtiger_users.date_modified` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.dayoftheweek` | rule | перенос | User.preferences.weekStart | 7 | 7 | 0 | 0 | mapped=7 |
-| Users | vtiger7 | `vtiger_users.default_record_view` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 7 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.defaultactivitytype` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 2 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.defaultcalendarview` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 2 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.defaulteventstatus` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 2 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.default_record_view` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 7 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.defaultactivitytype` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 2 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.defaultcalendarview` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 2 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.defaulteventstatus` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 2 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.deleted` | excluded | исключено: служебное (все 0) |  | 7 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.department` | rule | архив (только чтение) | User.vtigerData.department | 1 | 1 | 0 | 0 | archived=1 |
 | Users | vtiger7 | `vtiger_users.description` | empty | пусто — данных нет | User.description | 0 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.email1` | rule | перенос | User.emailAddress | 7 | 7 | 0 | 0 | carried=7 |
-| Users | vtiger7 | `vtiger_users.email2` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.end_hour` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 1 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.email2` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.end_hour` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 1 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.first_name` | rule | перенос | User.firstName | 6 | 6 | 0 | 0 | carried=6 |
-| Users | vtiger7 | `vtiger_users.hidecompletedevents` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 7 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.hidecompletedevents` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 7 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.holidays` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.hour_format` | rule | перенос | User.preferences.timeFormat | 7 | 7 | 0 | 0 | mapped=7 |
 | Users | vtiger7 | `vtiger_users.id` | key | перенос |  | 7 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.imagename` | rule | перенос | User.avatar | 1 | 1 | 0 | 0 | linked=1 |
-| Users | vtiger7 | `vtiger_users.internal_mailer` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 7 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.internal_mailer` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 7 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.is_admin` | rule | перенос | User.type | 7 | 7 | 0 | 0 | mapped=7 |
-| Users | vtiger7 | `vtiger_users.is_owner` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 1 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.is_owner` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 1 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.language` | rule | перенос | User.preferences.language | 7 | 7 | 0 | 0 | mapped=7 |
 | Users | vtiger7 | `vtiger_users.last_name` | rule | перенос | User.lastName | 7 | 7 | 0 | 0 | carried=7 |
-| Users | vtiger7 | `vtiger_users.lead_view` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 7 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.leftpanelhide` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 7 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.lead_view` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 7 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.leftpanelhide` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 7 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.modified_user_id` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.namedays` | empty | пусто — данных нет |  | 0 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.no_of_currency_decimals` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 7 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.othereventduration` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 7 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.no_of_currency_decimals` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 7 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.othereventduration` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 7 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.phone_crm_extension` | rule | перенос | User.cPhoneExtension | 5 | 5 | 0 | 0 | carried=5 |
-| Users | vtiger7 | `vtiger_users.phone_fax` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.phone_home` | excluded | исключено: исключено: личный телефон сотрудника (решение владельца, Q-09) | —.— | 3 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.phone_fax` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.phone_home` | excluded | исключено: исключено: личный телефон сотрудника (решение владельца, Q-09) |  | 3 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.phone_mobile` | rule | перенос | User.phoneNumber[Mobile] | 5 | 5 | 0 | 0 | carried=5 |
-| Users | vtiger7 | `vtiger_users.phone_other` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.phone_other` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.phone_work` | rule | перенос | User.phoneNumber[Office] | 5 | 5 | 0 | 0 | carried=2, normalized=3 |
-| Users | vtiger7 | `vtiger_users.reminder_interval` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 2 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.reminder_interval` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 2 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.reminder_next_time` | empty | пусто — данных нет |  | 0 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.reports_to_id` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.rowheight` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 6 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.secondaryemail` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.reports_to_id` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.rowheight` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 6 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.secondaryemail` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.signature` | rule | перенос | User.preferences.signature | 2 | 2 | 0 | 0 | carried=2 |
-| Users | vtiger7 | `vtiger_users.sp_domru_id` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.sp_gravitel_id` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.sp_mango_extension` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.sp_mcn_extension` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.sp_megafon_id` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.sp_rostelecom_extension` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.sp_rostelecom_extension_internal` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.sp_rostelecom_extension_sipiru` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.sp_sipuni_extension` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.sp_telphin_extension` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.sp_uiscom_extension` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.sp_uiscom_id` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.sp_westcall_spb_id` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.sp_yandex_extension` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.sp_yandex_outgoing_number` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.sp_zadarma_extension` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.sp_zebra_login` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Users | vtiger7 | `vtiger_users.start_hour` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 7 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.sp_domru_id` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.sp_gravitel_id` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.sp_mango_extension` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.sp_mcn_extension` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.sp_megafon_id` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.sp_rostelecom_extension` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.sp_rostelecom_extension_internal` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.sp_rostelecom_extension_sipiru` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.sp_sipuni_extension` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.sp_telphin_extension` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.sp_uiscom_extension` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.sp_uiscom_id` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.sp_westcall_spb_id` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.sp_yandex_extension` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.sp_yandex_outgoing_number` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.sp_zadarma_extension` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.sp_zebra_login` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.start_hour` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 7 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.status` | rule | перенос | User.isActive | 7 | 7 | 0 | 0 | mapped=7 |
-| Users | vtiger7 | `vtiger_users.theme` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 7 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.theme` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 7 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.time_zone` | rule | перенос | User.preferences.timeZone | 7 | 7 | 0 | 0 | carried=7 |
 | Users | vtiger7 | `vtiger_users.title` | rule | перенос | User.title | 5 | 5 | 0 | 0 | carried=5 |
-| Users | vtiger7 | `vtiger_users.truncate_trailing_zeros` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) | —.— | 7 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.truncate_trailing_zeros` | excluded | исключено: UI-настройка Vtiger (Preferences EspoCRM задаются заново) |  | 7 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.tz` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.user_hash` | excluded | исключено: исключено: секрет |  | 7 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.user_name` | rule | перенос | User.userName | 7 | 7 | 0 | 0 | carried=7 |
-| Users | vtiger7 | `vtiger_users.user_password` | excluded | исключено: исключено: секрет; пароли задаются заново | —.— | 7 |  |  |  |  |
+| Users | vtiger7 | `vtiger_users.user_password` | excluded | исключено: исключено: секрет; пароли задаются заново |  | 7 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.user_preferences` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.weekstart` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Users | vtiger7 | `vtiger_users.workdays` | empty | пусто — данных нет |  | 0 |  |  |  |  |
@@ -1527,22 +1527,22 @@
 | Vendors | vtiger7 | `vtiger_crmentity.smcreatorid` | rule | перенос | Vendor (собственная).createdBy | 3 | 3 | 0 | 0 | linked=3 |
 | Vendors | vtiger7 | `vtiger_crmentity.smgroupid` | excluded | исключено: служебное (все 0) |  | 3 |  |  |  |  |
 | Vendors | vtiger7 | `vtiger_crmentity.smownerid` | rule | перенос | Vendor (собственная).assignedUser / teams | 3 | 3 | 0 | 0 | linked=3 |
-| Vendors | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) | —.— | 3 |  |  |  |  |
+| Vendors | vtiger7 | `vtiger_crmentity.source` | excluded | исключено: исключено: технический канал создания записи Vtiger (CRM/WEBSERVICE) |  | 3 |  |  |  |  |
 | Vendors | vtiger7 | `vtiger_crmentity.status` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Vendors | vtiger7 | `vtiger_crmentity.version` | excluded | исключено: служебное |  | 3 |  |  |  |  |
 | Vendors | vtiger7 | `vtiger_crmentity.viewedtime` | empty | пусто — данных нет |  | 0 |  |  |  |  |
-| Vendors | vtiger7 | `vtiger_vendor.category` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Vendors | vtiger7 | `vtiger_vendor.city` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Vendors | vtiger7 | `vtiger_vendor.country` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| Vendors | vtiger7 | `vtiger_vendor.category` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Vendors | vtiger7 | `vtiger_vendor.city` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Vendors | vtiger7 | `vtiger_vendor.country` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Vendors | vtiger7 | `vtiger_vendor.description` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Vendors | vtiger7 | `vtiger_vendor.email` | rule | перенос | Vendor (собственная).emailAddress | 1 | 1 | 0 | 0 | carried=1 |
-| Vendors | vtiger7 | `vtiger_vendor.glacct` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
+| Vendors | vtiger7 | `vtiger_vendor.glacct` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Vendors | vtiger7 | `vtiger_vendor.phone` | rule | перенос | Vendor (собственная).phoneNumber[Office] | 1 | 1 | 0 | 0 | type_conflict=1 |
-| Vendors | vtiger7 | `vtiger_vendor.pobox` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Vendors | vtiger7 | `vtiger_vendor.postalcode` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Vendors | vtiger7 | `vtiger_vendor.state` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Vendors | vtiger7 | `vtiger_vendor.street` | empty | пусто — данных нет | —.— | 0 |  |  |  |  |
-| Vendors | vtiger7 | `vtiger_vendor.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) | —.— | 0 |  |  |  |  |
+| Vendors | vtiger7 | `vtiger_vendor.pobox` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Vendors | vtiger7 | `vtiger_vendor.postalcode` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Vendors | vtiger7 | `vtiger_vendor.state` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Vendors | vtiger7 | `vtiger_vendor.street` | empty | пусто — данных нет |  | 0 |  |  |  |  |
+| Vendors | vtiger7 | `vtiger_vendor.tags` | excluded | исключено: пусто в источнике (теги — vtiger_freetagged_objects) |  | 0 |  |  |  |  |
 | Vendors | vtiger7 | `vtiger_vendor.vendor_no` | rule | перенос | Vendor (собственная).vtigerNo | 3 | 3 | 0 | 0 | carried=3 |
 | Vendors | vtiger7 | `vtiger_vendor.vendorid` | key | перенос |  | 3 |  |  |  |  |
 | Vendors | vtiger7 | `vtiger_vendor.vendorname` | rule | перенос | Vendor (собственная).name | 3 | 3 | 0 | 0 | carried=3 |
