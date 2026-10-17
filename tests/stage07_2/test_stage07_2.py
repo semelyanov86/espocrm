@@ -279,7 +279,8 @@ class Stage072(t3.Stage063):
                                   key_range=KEYS, effective_admin=U_ADMIN, files_root=files_root or cls.files,
                                   cdr_db=cls.cdr_db, cdr_root=cls.cdr_root, cdr_t0=T0, recordings=recordings)
         recs = [json.loads(line) for line in (rundir / "records.jsonl").read_text().splitlines()]
-        calls = {c["key"]: c for c in map(json.loads, (rundir / "telephony-calls.jsonl").read_text().splitlines())}
+        journal = rundir / "telephony-calls.jsonl"  # absent when the run has no CDR (--only)
+        calls = {c["key"]: c for c in map(json.loads, journal.read_text().splitlines())} if journal.exists() else {}
         cls.runs.append(recs + [{"key": f"cdr:{k}", "id": c["id"]} for k, c in calls.items() if c.get("id")])
         return report, calls, rundir
 
@@ -525,6 +526,21 @@ class Stage072(t3.Stage063):
         self.assertIn(calls[lid(7)]["recording"]["writer"], ("size", "sha256"))
         self.assertEqual(self.call(lid(7))["recording"], "0")
         self.assertTrue({"recording_size", "recording_sha256"} & set(report["findings"]))
+
+    def test_14_partial_runs_keep_the_chosen_parent(self):
+        """External review 2026-10-17 (B2): PX1 has no customer, its number is the contact's whose account is its
+        parent. A run without the accounts (--only) does not choose the contact instead, a run without the clients does
+        not clear the parent — and the check pass of both agrees with the stored one (nothing written)."""
+        account = self.id_of("account", A1)
+        for only in ("PBXManager,SPCallPopup,Contacts", "PBXManager,SPCallPopup"):
+            report, _calls, rundir = self.run_import(only=only)
+            recs = [json.loads(line) for line in (rundir / "records.jsonl").read_text().splitlines()]
+            self.assertEqual(report["problems"], {}, [(r["key"], r["check"], r["differs"]) for r in recs
+                                                      if r["check"] not in (None, "equal")])
+            rec = next(r for r in recs if r["key"] == f"Call:{PX1}")
+            self.assertEqual((rec["apply"], rec["check"]), ("unchanged", "equal"), only)
+            self.assertEqual(one(f"SELECT parent_type, parent_id FROM `call` WHERE vtiger_id = {PX1} AND deleted = 0"),
+                             ["Account", account], only)
 
 
 # The scenarios of stage 06.3 belong to its own suite: this class reuses only its fixture and cleanup.

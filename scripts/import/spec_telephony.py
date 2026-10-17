@@ -79,21 +79,27 @@ def choose_parent(accounts, contacts, leads):
 
 
 def lookup_clients(op, number, ctx):
-    """The exact clients of the number → contacts/leads items and the parent; a list cut by the limit picks no parent."""
+    """The exact clients of the number → contacts/leads items and the parent; a list cut by the limit picks no parent.
+    A client — or the account of a matched contact — outside this run (--only) defers the whole choice: the stored
+    parent and items stay (a choice from part of the clients would differ from the full run's; external review
+    2026-10-17)."""
     matches = ctx.telephony["index"].get(number, []) if number else []
     complete = len(matches) <= LOOKUP_LIMIT
-    contacts, accounts, leads = {}, [], []
+    live = []
     for module, crmid in matches[:LOOKUP_LIMIT]:
-        status, target = ctx.target(crmid)
-        if status == "deferred":
-            op.keep.add("parent")  # the clients are not part of this run (--only): the stored links stay
+        status = ctx.target(crmid)[0]
+        account = ctx.contact_account.get(crmid) if module == "Contacts" and status == "ok" else None
+        account_status = ctx.target(account)[0] if account else None
+        if "deferred" in (status, account_status):
+            op.keep.add("parent")
             ctx.flags["pbx_lookup:deferred"] += 1
             return
-        if status != "ok":
-            continue
+        if status == "ok":
+            live.append((module, crmid, account if account_status == "ok" else None))
+    contacts, accounts, leads = {}, [], []
+    for module, crmid, account in live:
         if module == "Contacts":
-            account = ctx.contact_account.get(crmid)
-            contacts[crmid] = account if account and ctx.target(account)[0] == "ok" else None
+            contacts[crmid] = account
             op.add_item("contacts", ["Contact", crmid, {"status": "None"}])
         elif module == "Leads":
             leads.append(crmid)
@@ -164,7 +170,10 @@ def build_call(module, row, ctx):
             op.add_item(link, list(target) + [{"status": "None"}])
     elif "parent" not in op.keep and not is_internal(row):
         lookup_clients(op, canonical, ctx)
-    op.links.setdefault("parent", None)
+    if "parent" in op.keep:  # a kept parent is not a link of the operation (the check pass would see it cleared)
+        op.links.pop("parent", None)
+    else:
+        op.links.setdefault("parent", None)
     if is_internal(row):
         exclude(op)
     return op

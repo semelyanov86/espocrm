@@ -2,8 +2,8 @@
 
 Генерируется: `task import:summary -- <прогон>` (`scripts/import/importer.py summary`). Только счётчики: ни значений, ни идентификаторов записей. Машинный отчёт с причинами по каждой записи и колонке — вне Git (`/data/itvolga/espo-private/import/<прогон>/`). Контракт импорта — `import.md`.
 
-- Прогон: `20261017T122425`; снимок: `20261012T191003`; код: `1fc7087` (незакоммиченных файлов инструмента: 18).
-- Итог: **findings**; проблемы: нет; находки: conflict=47, dangling=24, discrepancy:invoice_act_total=5, external_url_invalid=1, no_target=66, recording_unavailable:ambiguous_d31=2, recording_unavailable:without_audio=2, type_conflict=23.
+- Прогон: `20261017T125944`; снимок: `20261012T191003`; код: `a10b3c3` (незакоммиченных файлов инструмента: 3).
+- Итог: **findings**; проблемы: нет; находки: conflict=47, dangling=24, discrepancy:invoice_act_total=5, external_url_invalid=1, no_target=66, recording_unavailable:without_audio=4, type_conflict=23.
 - «Тишина» (изменение числа строк стенда: уведомления, напоминания, подписки, записи ленты без vtigerId, письма, вебхуки, журнал действий): action_history_record=0, email_not_imported=0, note_not_imported=0, notification=0, reminder=0, stream_subscription=0, webhook_queue_item=0.
 
 ## Записи
@@ -386,9 +386,9 @@ CDR (граница T0 снимка 2026-10-12 17:10:09 UTC; записи — р
 | Звонки по классам | Inbound 31, Outbound 48, conference 2, trainer 126 |
 | Звонки по источнику | csv:call 18, csv:not_imported 73, mysql:call 61, mysql:not_imported 55 |
 | Запись и проверка | apply:unchanged 79, check:equal 79 |
-| Файлы записей | ambiguous 4, attached 62, claimed_twice 1, no_call:trainer 112, without_audio 5 |
-| Нет записи у звонка | ambiguous_d31 2, without_audio 2 |
-| D-31 на известных парах | correct 101, wrong 1 |
+| Файлы записей | ambiguous 9, attached 62, claimed_twice 1, no_call:trainer 107, without_audio 5 |
+| Нет записи у звонка | without_audio 4 |
+| D-31 на известных парах | ambiguous 4, correct 98 |
 | Нет в источнике (не удаляются) | 0 |
 
 По месяцам (звонки — месяц начала по UTC, файлы — каталог записи; D-16 — источников нет):

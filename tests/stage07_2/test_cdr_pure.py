@@ -231,6 +231,74 @@ class PlannerTest(unittest.TestCase):
         self.assertEqual({o.group.key: o.recording for o in plan.ops}, {k: None for k in ("910.1", "911.1", "912.1",
                                                                                         "920.1", "921.1")})
 
+    def test_callee_of_a_recording_name(self):
+        """The CDR callee against the To of a file name: the menu loses the DID, the dialplan rewrites numbers."""
+        m = cdr.callee_matches
+        self.assertTrue(m("+7" + NUM[1:], "+7" + NUM[1:]) and m("555", ""))
+        self.assertTrue(m("t", "290001") and m("i", "290001") and m("s", "290001") and m("1", "290001"))
+        self.assertTrue(m("8" + NUM[1:], "+7" + NUM[1:]))                  # 8… → +7…
+        self.assertTrue(m("0" + NUM2[1:], "+" + NUM2[1:]))                  # 0… → +…
+        self.assertTrue(m(NUM[-6:], "78352" + NUM[-6:]))                    # local XXXXXX → 78352XXXXXX
+        self.assertFalse(m("+7" + NUM2[1:], "+7" + NUM[1:]) or m("118", "218") or m("290001", "290002"))
+
+    def test_a_named_file_another_call_may_have_written(self):
+        """External review 2026-10-17 (B1): every call that may have built the name of a file a MySQL row names is its
+        owner too — a line after T0 whose callee the menu lost, a call that started the minute before; a call of the
+        next minute or to another number is not."""
+        day = "2026-09-30"
+        inbound = lambda i, uid, local, src, path: mysql(  # noqa: E731
+            i, uid, uid, 1, local, 40, 30, src, "t", "chose-client", ch("trunk-russia", i), ch("118", 50 + i), "Dial",
+            "ANSWERED", "/var/spool/asterisk/monitor/" + path)
+        after_t0 = wav(day, "13-59", NUM, "290001")
+        later = wav(day, "10-30", NUM, "290001")
+        before = wav(day, "11-00", NUM2, "290001")
+        other = wav(day, "11-30", "105", "+7" + NUM[1:])
+        rewritten = wav(day, "11-45", "106", "+7" + NUM[1:])
+        rows = [inbound(1, "930.1", f"{day} 13:59:05", NUM, after_t0),
+                inbound(2, "931.1", f"{day} 10:30:10", NUM, later),
+                inbound(3, "932.1", f"{day} 11:00:20", NUM2, before),
+                mysql(4, "933.1", "933.1", 1, f"{day} 11:30:10", 30, 20, "105", "+7" + NUM[1:], "call-out",
+                      ch("105", 4), ch("trunk-russia", 5), "Dial", "ANSWERED", "/var/spool/asterisk/monitor/" + other),
+                mysql(5, "934.1", "934.1", 1, f"{day} 11:45:10", 30, 20, "106", "+7" + NUM[1:], "call-out",
+                      ch("106", 6), ch("trunk-russia", 7), "Dial", "ANSWERED",
+                      "/var/spool/asterisk/monitor/" + rewritten)]
+        menu = lambda src, start, end, uid: csv_line(  # noqa: E731
+            src, "t", "chose-client", ch("trunk-russia", 90), ch("118", 91), "Dial", start, "", end, 30, 0,
+            "NO ANSWER", uid)
+        lines = [menu(NUM, f"{day} 11:59:40", f"{day} 12:00:30", "940.1"),    # ends after T0 (12:00 UTC)
+                 menu(NUM, f"{day} 08:31:05", f"{day} 08:31:35", "941.1"),    # local 10:31:05: the next minute
+                 menu(NUM2, f"{day} 08:59:50", f"{day} 09:00:20", "942.1"),   # local 10:59:50: the minute before
+                 csv_line("105", "+7" + NUM2[1:], "call-out", ch("105", 92), ch("trunk-russia", 93), "Dial",
+                          f"{day} 09:30:30", f"{day} 09:30:35", f"{day} 09:31:00", 30, 25, "ANSWERED", "943.1"),
+                 csv_line("106", "8" + NUM[1:], "call-out", ch("106", 94), ch("trunk-russia", 95), "Dial",
+                          f"{day} 09:45:30", f"{day} 09:45:35", f"{day} 09:46:00", 30, 25, "ANSWERED", "944.1")]
+        inventory = {rel: (900, str(n) * 64) for n, rel in enumerate((after_t0, later, before, other, rewritten), 1)}
+        plan = self.build(rows, lines, inventory)
+        self.assertEqual(plan.lines[1], "after_t0")
+        self.assertEqual(plan.files, {after_t0: "claimed_twice", later: "candidate", before: "claimed_twice",
+                                      other: "candidate", rewritten: "claimed_twice"})
+        by_key = {o.group.key: o for o in plan.ops}
+        self.assertEqual({k: (o.recording or {}).get("path") for k, o in by_key.items()},
+                         {"930.1": None, "931.1": later, "932.1": None, "933.1": other, "934.1": None,
+                          "941.1": None, "942.1": None, "943.1": None, "944.1": None})
+        self.assertEqual({k: by_key[k].group.recording_reason for k in ("930.1", "932.1", "942.1", "944.1")},
+                         dict.fromkeys(("930.1", "932.1", "942.1", "944.1"), "claimed_twice"))
+
+    def test_recording_owners_never_depend_on_the_order_of_files(self):
+        """A CSV-only call that may have written a file MySQL names gets no other file either (it wrote one name)."""
+        day = "2026-09-30"
+        named = wav(day, "12-00", NUM, "290001")
+        own = wav(day, "11-59", NUM, "290001")
+        rows = [mysql(1, "950.1", "950.1", 1, f"{day} 12:00:10", 40, 30, NUM, "t", "chose-client",
+                      ch("trunk-russia", 1), ch("118", 2), "Dial", "ANSWERED", "/var/spool/asterisk/monitor/" + named)]
+        lines = [csv_line(NUM, "t", "chose-client", ch("trunk-russia", 3), ch("118", 4), "Dial", f"{day} 09:59:50",
+                          f"{day} 09:59:55", f"{day} 10:00:40", 50, 45, "ANSWERED", "951.1")]
+        for inventory in ({named: (900, "1" * 64), own: (900, "2" * 64)}, {own: (900, "2" * 64), named: (900, "1" * 64)}):
+            plan = self.build(rows, lines, inventory)
+            self.assertEqual(plan.files, {named: "claimed_twice", own: "ambiguous"})
+            self.assertEqual({o.group.key: (o.recording, o.group.recording_reason) for o in plan.ops},
+                             {"950.1": (None, "claimed_twice"), "951.1": (None, "claimed_twice")})
+
     def test_ambiguous_composite_key_is_never_a_call(self):
         line = csv_line(NUM, "290001", "call-in", ch("trunk-russia", 1), "", "BackGround", "2026-07-03 08:00:00",
                         "2026-07-03 08:00:00", "2026-07-03 08:00:10", 10, 10, "ANSWERED", "800.1")
@@ -310,6 +378,42 @@ class PlaceRecordingsTest(unittest.TestCase):
         (root / "2001/01/03").symlink_to(outside, target_is_directory=True)  # a day directory replaced by a link
         self.assertEqual(run([("2001/01/03/c.wav", files["2001/01/03/c.wav"])]), ["unsafe"])
         self.assertEqual(list(outside.iterdir()), [], "nothing written through the link")
+        self.assertEqual([p.name for p in root.rglob("*.part")], [])
+
+    def test_a_short_write_is_never_published(self):
+        """External review 2026-10-17 (B3): a partial os.write is completed; bytes the part file does not hold (a write
+        reported done) are found by reading it back — `error`, nothing published, no part file left."""
+        import hashlib
+        import os
+        import shutil
+        import tempfile
+        from unittest import mock
+        sys.path.insert(0, str(REPO / "scripts" / "stand"))
+        import place_recordings as P
+        base = Path(tempfile.mkdtemp(prefix="vtplace-"))
+        self.addCleanup(shutil.rmtree, base, True)
+        root, source = base / "monitor", base / "src"
+        (source / "2001/01/04").mkdir(parents=True)
+        root.mkdir()
+        data = b"RIFF" + bytes(range(256)) * 8
+        (source / "2001/01/04/d.wav").write_bytes(data)
+        real = os.write
+
+        def place(rel, write):
+            item = {"rel": rel.encode().hex(), "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+            rfd, sfd = os.open(root, P.DIR_FLAGS), os.open(source, P.DIR_FLAGS)
+            try:
+                with mock.patch.object(P.os, "write", write):
+                    return P.place(item, sfd, rfd, os.getuid(), os.getgid())
+            finally:
+                os.close(rfd)
+                os.close(sfd)
+
+        (source / "2001/01/04/e.wav").write_bytes(data)
+        self.assertEqual(place("2001/01/04/d.wav", lambda fd, b: real(fd, bytes(b[:7]))), "placed")
+        self.assertEqual((root / "2001/01/04/d.wav").read_bytes(), data)
+        self.assertEqual(place("2001/01/04/e.wav", lambda fd, b: real(fd, bytes(b[:-1])) + 1), "error")
+        self.assertFalse((root / "2001/01/04/e.wav").exists())
         self.assertEqual([p.name for p in root.rglob("*.part")], [])
 
 

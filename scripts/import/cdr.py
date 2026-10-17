@@ -324,20 +324,28 @@ def local_minute(utc):
     return utc.replace(tzinfo=dt.timezone.utc).astimezone(CDR_TZ).replace(second=0, tzinfo=None)
 
 
+def callee_matches(dst, to):
+    """Whether the callee of a CDR row may be the To of a recording name: the same number; an empty To; an IVR marker or
+    a menu choice (after the incoming menu the dialplan names the file after the DID while the row keeps `t`, `i`, `s`
+    or a digit); the same number after the dialplan's rewrites (8… → +7…, 0… → +…, local XXXXXX → 78352XXXXXX: the
+    last digits agree)."""
+    if dst == to or not to:
+        return True
+    d, t = dst.lstrip("+"), to.lstrip("+")
+    if not d.isdigit() or len(d) <= 2:
+        return True
+    n = min(len(d), len(t), 10)
+    return t.isdigit() and n >= 6 and d[-n:] == t[-n:]
+
+
 def d31_candidates(index, parsed):
-    """D-31: the local minute and the caller of the file name; the callee breaks ties; ±1 minute only when the exact
-    minute gives nothing. → candidate (key, callee) pairs."""
+    """D-31: every call of the caller of the file name that started within a minute of the name's local minute (the
+    name carries the minute recording began — after the menu it can be the next one) and whose callee may be the
+    name's To. → candidate (key, callee) pairs: one is the owner, several are never guessed (external review
+    2026-10-17: a callee lost in the menu or a call of the next minute was not seen)."""
     when, frm, to = parsed
-
-    def around(tolerance):
-        out = []
-        for delta in range(-tolerance, tolerance + 1):
-            out += index.get((when + dt.timedelta(minutes=delta), frm), [])
-        if len({k for k, _ in out}) > 1:
-            out = [c for c in out if c[1] == to] or out
-        return out
-
-    return around(0) or around(1)
+    return [c for delta in (-1, 0) for c in index.get((when + dt.timedelta(minutes=delta), frm), [])
+            if callee_matches(c[1], to)]
 
 
 # --- the plan --------------------------------------------------------------------------------------------------------
@@ -464,19 +472,25 @@ def build(mysql_rows, csv_records, inventory, rules, t0):
 
 
 def match_recordings(groups, after_t0, inventory, files, flags):
-    """The recording of every call (`group.recording` or `group.recording_reason`) and the fate of every file."""
-    claims, referenced = defaultdict(list), set()
+    """The recording of every call (`group.recording` or `group.recording_reason`) and the fate of every file.
+
+    Every file gets the set of calls that may have written it (a MySQL row naming it, and D-31 over every call without
+    a path of its own and the CSV lines after T0); a file is attached only when that set is one call and that call may
+    have written no other file — decided after all files are seen, so the order of the files never matters."""
+    owners, named, referenced = defaultdict(set), defaultdict(set), set()
     by_key = {g.key: g for g in groups}
+    known = set()  # calls that named their file: sub-monitor ran for them once, they wrote no other name
     for group in groups:
         paths = {l.recordingpath for l in group.legs if l.recordingpath}
         if not paths:
             continue
+        known.add(group.key)
         rels = {p[len(MONITOR):] for p in paths if p.startswith(MONITOR)}
         referenced |= rels
         if len(paths) > 1:
             group.recording_reason = "ambiguous_paths"
             for rel in rels:
-                claims[rel].append(None)  # claimed by a call that cannot have it
+                owners[rel].add(None)  # claimed by a call that cannot have it
             continue
         if not rels:
             group.recording_reason = "outside_monitor"
@@ -485,81 +499,68 @@ def match_recordings(groups, after_t0, inventory, files, flags):
         if rel not in inventory:
             group.recording_reason = "missing_in_snapshot"
             continue
-        claims[rel].append(group.key)
-    # D-31 sees every call (and the CSV lines after T0) as a candidate owner of a file name; a file no MySQL row names
-    # goes only to a CSV-only call — the file of a MySQL call without recordingpath is never given to another call
-    index, roots = defaultdict(list), {}
+        owners[rel].add(group.key)
+        named[rel].add(group.key)
+    index = defaultdict(list)
     for group in groups:
+        if group.key in known:
+            continue
         first = group.first or group.legs
         root = first[0].alias or first[0]
-        roots[group.key] = (local_minute(root.start), root.src, root.dst)
-        index[(roots[group.key][0], root.src)].append((group.key, root.dst))
+        index[(local_minute(root.start), root.src)].append((group.key, root.dst))
     for leg in after_t0:
-        key = f"after_t0:{leg.ref[1]}"
-        roots[key] = (local_minute(leg.start), leg.src, leg.dst)
-        index[(roots[key][0], leg.src)].append((key, leg.dst))
-    validation, ambiguous = Counter(), set()
+        index[(local_minute(leg.start), leg.src)].append((f"after_t0:{leg.ref[1]}", leg.dst))
     for rel in sorted(inventory):
         parsed = parse_name(rel)
-        if rel in referenced:
-            # the same name built for another call (same local minute, caller and callee): the file was written twice
-            if parsed is not None:
-                claims[rel] += [k for k, r in roots.items() if r == parsed and k not in claims[rel]]
-            continue
         if parsed is None:
-            files[rel] = "name_unparsed"
+            if rel not in referenced:
+                files[rel] = "name_unparsed"
             continue
-        keys = {k for k, _ in d31_candidates(index, parsed)}
-        if not keys:
-            files[rel] = "no_match"
-        elif len(keys) > 1:
-            files[rel] = "ambiguous"
-            ambiguous |= keys
-        else:
-            key = keys.pop()
-            if key in by_key and by_key[key].source != "csv":
-                files[rel] = "mysql_call_without_path"  # D-31 is for CSV-only calls (D-31, D-177)
-            else:
-                claims[rel].append(key)
+        owners[rel] |= {k for k, _ in d31_candidates(index, parsed)}
+    files_of = defaultdict(set)
+    for rel, keys in owners.items():
+        for key in keys - {None}:
+            files_of[key].add(rel)
     # D-31 checked on the files MySQL names (the audit's validation, counts only)
-    full = defaultdict(list)
+    validation, full = Counter(), defaultdict(list)
     for group in groups:
         for leg in group.legs:
             root = leg.alias or leg
             full[(local_minute(root.start), root.src)].append((group.key, root.dst))
-    for rel in referenced:
-        parsed = parse_name(rel) if rel in inventory else None
-        owners = {k for k in claims.get(rel, []) if k}
-        if parsed is None or len(owners) != 1:
+    for rel, keys in named.items():
+        parsed = parse_name(rel)
+        if parsed is None or len(keys) != 1:
             continue
         found = {k for k, _ in d31_candidates(full, parsed)}
-        validation["d31_check_correct" if found == owners else "d31_check_ambiguous" if owners <= found
+        validation["d31_check_correct" if found == keys else "d31_check_ambiguous" if keys <= found
                    else "d31_check_wrong"] += 1
     flags.update(validation)
-    for rel, keys in claims.items():
-        owners = set(keys)
-        if len(owners) > 1 or None in owners:
-            files[rel] = "claimed_twice"
-            for k in owners - {None}:
-                if k in by_key:
-                    by_key[k].recording_reason = "claimed_twice"
-                    by_key[k].recording = None
+    for rel in sorted(inventory):
+        if rel in files:
             continue
-        key = owners.pop()
-        if key.startswith("after_t0:"):
-            files[rel] = "call_after_t0"
-            continue
-        group = by_key[key]
-        if inventory[rel][0] <= HEADER_ONLY:
-            files[rel] = "without_audio"
-            group.recording_reason = "without_audio"
-        elif group.direction is None:
-            files[rel] = f"no_call:{group.reason}"
+        keys = owners.get(rel, set())
+        if not keys:
+            files[rel] = "no_match"
+        elif len(keys) > 1 or None in keys:
+            files[rel] = "claimed_twice" if rel in referenced else "ambiguous"
         else:
-            files[rel] = "candidate"
-            group.recording = rel
-    for rel in inventory:
-        files.setdefault(rel, "no_match")
+            key = next(iter(keys))
+            if key.startswith("after_t0:"):
+                files[rel] = "call_after_t0"
+            elif rel not in referenced and by_key[key].source != "csv":
+                files[rel] = "mysql_call_without_path"  # D-31 is for CSV-only calls (D-31, D-177)
+            elif len(files_of[key]) > 1:
+                files[rel] = "ambiguous"  # the call may have written several names: none of them is certainly its
+            elif inventory[rel][0] <= HEADER_ONLY:
+                files[rel] = "without_audio"
+            elif by_key[key].direction is None:
+                files[rel] = f"no_call:{by_key[key].reason}"
+            else:
+                files[rel] = "candidate"
+                by_key[key].recording = rel
     for group in groups:
-        if group.direction and group.recording is None and group.recording_reason is None:
-            group.recording_reason = "ambiguous_d31" if group.key in ambiguous else "none"
+        if not group.direction or group.recording is not None or group.recording_reason is not None:
+            continue
+        fates = {files[rel] for rel in files_of.get(group.key, ())}
+        group.recording_reason = ("claimed_twice" if "claimed_twice" in fates else "ambiguous_d31" if "ambiguous" in fates
+                                  else "without_audio" if "without_audio" in fates else "none")

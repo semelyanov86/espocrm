@@ -12,8 +12,9 @@ production, where the files already are in the Asterisk directory and EspoCRM on
   directory descriptors opened with O_NOFOLLOW|O_DIRECTORY from the root's and the source's descriptors (a component
   replaced by a link meanwhile is refused, not followed — the PBX user owns the day directories); day directories are
   created 0750 for uid:gid (the root's default ACL lets EspoCRM read);
-- the bytes are copied into a part file while hashing; size and sha256 must equal the sealed inventory; the file is
-  published with link(2): an existing file is never replaced — the same bytes are `present`, others a `conflict`;
+- the bytes are copied into a part file while hashing; size and sha256 must equal the sealed inventory, and the part
+  file read back must equal them too (a short write is never published); the file is published with link(2): an
+  existing file is never replaced — the same bytes are `present`, others a `conflict`;
 - part files of an interrupted run are removed first.
 """
 import argparse
@@ -109,11 +110,18 @@ def place(item, source_fd, root_fd, uid, gid):
         os.close(sfd)
 
 
+def write_all(fd, data):
+    """os.write may write part of the buffer (a full disk, a signal): the rest is written until done or an error."""
+    view = memoryview(data)
+    while view:
+        view = view[os.write(fd, view):]
+
+
 def publish(sfd, dfd, name, item, uid, gid):
-    """Part file in the day directory (by its descriptor), size and sha256 checked, then link(2) under the final name:
-    an existing file is never replaced."""
+    """Part file in the day directory (by its descriptor), size and sha256 of the source checked, the part file read
+    back and checked again, then link(2) under the final name: an existing file is never replaced."""
     tmp = f".itvolga-place-{secrets.token_hex(8)}.part"
-    tfd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=dfd)
+    tfd = os.open(tmp, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=dfd)
     try:
         h, size = hashlib.sha256(), 0
         while True:
@@ -122,10 +130,13 @@ def publish(sfd, dfd, name, item, uid, gid):
                 break
             h.update(chunk)
             size += len(chunk)
-            os.write(tfd, chunk)
+            write_all(tfd, chunk)
         if size != item["size"] or h.hexdigest() != item["sha256"]:
             return "source_mismatch"
         os.fsync(tfd)
+        os.lseek(tfd, 0, os.SEEK_SET)
+        if digest(tfd) != (item["size"], item["sha256"]):
+            return "error"  # the copy is not the bytes read: never published (external review 2026-10-17)
         os.fchown(tfd, uid, gid)
         os.fchmod(tfd, 0o644)
         try:
