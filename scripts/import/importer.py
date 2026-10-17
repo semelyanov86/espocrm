@@ -1045,7 +1045,7 @@ def render_column_tables(report, run_id, field_map, ledger_rows=None):
     targets = defaultdict(set)
     with open(field_map, newline="", encoding="utf-8") as fh:
         for row in csv.DictReader(fh):
-            target = ".".join(p for p in (row["target_entity"], row["target_field"]) if p)
+            target = ".".join(p for p in (row["target_entity"], row["target_field"]) if p and p != "—")
             if target:
                 targets[(row["source_module"], f"{row['source_table']}.{row['source_column']}")].add(target)
     lines = ["# Импорт Vtiger — каждая колонка (этап 08)", "",
@@ -1068,7 +1068,10 @@ def render_column_tables(report, run_id, field_map, ledger_rows=None):
             c["fate"], ", ".join(sorted(targets.get((c["module"], c["column"]), ()))), c["nonempty"],
             c.get("verified") if rule else "", c.get("mismatch") if rule else "", c.get("unaccounted") if rule else "",
             ", ".join(f"{k}={v}" for k, v in sorted((c.get("outcomes") or {}).items())))) + " |")
-    if ledger_rows is not None:
+    if ledger_rows is None:
+        lines += ["", "## Каждая непустая колонка снимка", "", "Нет: полная сверка колонок снимка в прогоне не выполнялась "
+                  "(нет `ledger.jsonl`)."]
+    else:
         lines += ["", "## Каждая непустая колонка снимка", "",
                   "Обе схемы снимка, счётчики сервера (`tables.json`). Класс — полная сверка (`import.md`): `import` — "
                   "таблица, которую читает импорт (живые записи сверены по одному, удалённые в Vtiger и строки вне границ "
@@ -1175,7 +1178,7 @@ def render_measures(aggregates):
     """Stage 08: each finance measure of aggregates.json — equal or not in both comparisons; a value only for the
     counting measures (amounts stay private, aggregates.py)."""
     if not aggregates:
-        return []
+        return ["", "Меры по одной: нет — в прогоне нет `aggregates.json` (финансы не сверялись)."]
     reader = {m["measure"]: m for m in aggregates.get("reader") or []}
     writer = {m["measure"]: m for m in aggregates.get("writer") or []}
     mark = lambda m: "—" if m is None else ("=" if m["equal"] else "**≠**")  # noqa: E731
@@ -1193,6 +1196,34 @@ def render_measures(aggregates):
         value = (reader.get(name) or writer[name])["left"] if counting else ""
         lines.append(f"| `{name}` | {kind} | {mark(reader.get(name))} | {mark(writer.get(name))} | {value} |")
     return lines
+
+
+def detail_gaps(report, aggregates, ledger_rows):
+    """Stage 08: the per-measure and per-column tables come from aggregates.json and ledger.jsonl; a missing, short,
+    duplicated or disagreeing file would publish a summary whose totals (report.json) its tables do not prove."""
+    gaps = []
+    agg = report.get("aggregates") or {}
+    for side in ("reader", "writer"):
+        claimed = agg.get(side) or {}
+        if not claimed.get("measures"):
+            continue
+        rows = (aggregates or {}).get(side)
+        if rows is None:
+            gaps.append(f"aggregates.json:{side} missing")
+            continue
+        names = [m.get("measure") for m in rows]
+        if (len(rows) != claimed["measures"] or len(set(names)) != len(names)
+                or sum(1 for m in rows if not m.get("equal")) != claimed.get("unequal", 0)):
+            gaps.append(f"aggregates.json:{side} differs")
+    led = report.get("ledger") or {}
+    if led.get("columns"):
+        if ledger_rows is None:
+            gaps.append("ledger.jsonl missing")
+        elif (len(ledger_rows) != led["columns"]
+              or len({(r.get("schema"), r.get("table"), r.get("column")) for r in ledger_rows}) != len(ledger_rows)
+              or sum(r.get("nonempty", 0) for r in ledger_rows) != led.get("values", 0)):
+            gaps.append("ledger.jsonl differs")
+    return gaps
 
 
 # --- CLI -------------------------------------------------------------------------------------------------
@@ -1232,6 +1263,9 @@ def cmd_summary(args):
     aggregates = json.loads(agg_path.read_text(encoding="utf-8")) if agg_path.is_file() else None
     ledger_rows = ([json.loads(line) for line in ledger_path.read_text(encoding="utf-8").splitlines() if line]
                    if ledger_path.is_file() else None)
+    gaps = detail_gaps(report, aggregates, ledger_rows)
+    if gaps:
+        raise SnapshotError("summary not written: the run's detail files disagree with report.json: " + ", ".join(gaps))
     outputs = [(Path(args.out), render_summary(report, args.run, aggregates)),
                (Path(args.columns_out), render_column_tables(report, args.run, REPO / "docs" / "migration" /
                                                              "field-map.csv", ledger_rows))]

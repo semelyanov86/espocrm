@@ -56,8 +56,9 @@ def checksums(names):
 
 def uploads():
     """relative path → [size, sha256] of every file of data/upload (read as root: the files belong to the stand); a
-    fresh installation has no data/upload until its first file (stage 08) — an empty storage."""
-    script = ('[ -d "$0" ] || exit 0; '
+    fresh installation has no data/upload until its first file (stage 08) — an absent path is an empty storage, a path
+    of another kind (a file, a dangling link) is an error."""
+    script = ('[ -e "$0" ] || [ -L "$0" ] || exit 0; '  # a path of another kind fails at cd below
               'cd "$0" && find . -type f -printf "%s\\t%P\\0" | while IFS=$\'\\t\' read -r -d "" size path; do '
               'printf "%s\\t%s\\t%s\\n" "$size" "$(sha256sum -- "$path" | cut -d" " -f1)" '
               '"$(printf %s "$path" | od -An -tx1 | tr -d " \\n")"; done')

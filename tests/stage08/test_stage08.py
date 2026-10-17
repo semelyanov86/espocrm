@@ -6,6 +6,8 @@
   amounts stay private) and the per-column tables of import-columns.md (one row per column, counts only), on a
   synthetic report.
 """
+import argparse
+import json
 import subprocess
 import sys
 import tempfile
@@ -55,6 +57,8 @@ def synthetic_aggregates():
 
 
 class FreshInstallation(unittest.TestCase):
+    @unittest.skipUnless((REPO / "vendor" / "autoload.php").is_file(),
+                         "the EspoCRM core is not unpacked here (task stand:install): no core FileManager")
     def test_first_file_creates_the_upload_directory(self):
         run = subprocess.run(["php", str(REPO / "tests/stage08/blob_receiver_fresh.php")], capture_output=True,
                              text=True, timeout=60)
@@ -72,6 +76,23 @@ class FreshInstallation(unittest.TestCase):
             fingerprint.UPLOAD = saved
             missing.parent.rmdir()
 
+    def test_fingerprint_refuses_a_storage_path_of_another_kind(self):
+        """A file or a dangling link where data/upload should be is a broken storage, never an empty one."""
+        work = Path(tempfile.mkdtemp(prefix="itvolga-stage08-"))
+        saved = fingerprint.UPLOAD
+        try:
+            (work / "file").write_text("not a directory", encoding="utf-8")
+            (work / "link").symlink_to(work / "absent")
+            for path in (work / "file", work / "link"):
+                fingerprint.UPLOAD = path
+                with self.assertRaises(fingerprint.SnapshotError, msg=path.name):
+                    fingerprint.uploads()
+        finally:
+            fingerprint.UPLOAD = saved
+            for child in work.iterdir():
+                child.unlink()
+            work.rmdir()
+
 
 class Summary(unittest.TestCase):
     def test_measures_one_by_one_without_amounts(self):
@@ -87,6 +108,7 @@ class Summary(unittest.TestCase):
     def test_summary_without_aggregates_file(self):
         text = importer.render_summary(synthetic_report(), "20000101T000000")
         self.assertNotIn("### Меры по одной", text)
+        self.assertIn("Меры по одной: нет — в прогоне нет `aggregates.json`", text)
 
     def test_column_tables_one_row_per_column(self):
         ledger_rows = [
@@ -117,7 +139,60 @@ class Summary(unittest.TestCase):
     def test_column_tables_without_ledger(self):
         text = importer.render_column_tables(synthetic_report(), "20000101T000000",
                                              REPO / "docs" / "migration" / "field-map.csv")
-        self.assertNotIn("## Каждая непустая колонка снимка", text)
+        self.assertIn("Нет: полная сверка колонок снимка в прогоне не выполнялась", text)
+        self.assertNotIn("—.—", text)  # the map's placeholder target of an excluded column is no target
+
+
+class DetailFiles(unittest.TestCase):
+    """The per-measure and per-column tables must prove the totals of report.json (external review of stage 08, B1)."""
+
+    def setUp(self):
+        self.report = synthetic_report()
+        self.report["ledger"] = {"columns": 2, "values": 9, "status": "pass"}
+        self.aggregates = synthetic_aggregates()
+        self.ledger = [{"cls": "excluded", "column": "a", "fates": [], "nonempty": 5, "schema": "vtiger7", "table": "t"},
+                       {"cls": "excluded", "column": "b", "fates": [], "nonempty": 4, "schema": "vtiger7", "table": "t"}]
+
+    def test_complete_files(self):
+        self.assertEqual([], importer.detail_gaps(self.report, self.aggregates, self.ledger))
+
+    def test_missing_short_duplicated_or_disagreeing_files(self):
+        short = {**self.aggregates, "writer": self.aggregates["writer"][:2]}
+        twice = {**self.aggregates, "writer": self.aggregates["writer"][:2] + self.aggregates["writer"][:1]}
+        unequal = {**self.aggregates, "reader": [{**m, "equal": True} for m in self.aggregates["reader"]]}
+        for aggregates, ledger, gap in (
+                (None, self.ledger, "aggregates.json:reader missing"),
+                (short, self.ledger, "aggregates.json:writer differs"),
+                (twice, self.ledger, "aggregates.json:writer differs"),
+                (unequal, self.ledger, "aggregates.json:reader differs"),
+                (self.aggregates, None, "ledger.jsonl missing"),
+                (self.aggregates, self.ledger[:1], "ledger.jsonl differs"),
+                (self.aggregates, [self.ledger[0], self.ledger[0]], "ledger.jsonl differs"),
+                (self.aggregates, [self.ledger[0], {**self.ledger[1], "nonempty": 3}], "ledger.jsonl differs")):
+            self.assertIn(gap, importer.detail_gaps(self.report, aggregates, ledger))
+
+    def test_run_without_the_sections_needs_no_files(self):
+        report = {**self.report, "aggregates": {}, "ledger": {}}
+        self.assertEqual([], importer.detail_gaps(report, None, None))
+
+    def test_summary_is_not_written_when_files_disagree(self):
+        root = Path(tempfile.mkdtemp(prefix="itvolga-stage08-"))
+        run, out = root / "20000101T000000", root / "out"
+        run.mkdir()
+        out.mkdir()
+        (run / "report.json").write_text(json.dumps(self.report), encoding="utf-8")
+        (run / "aggregates.json").write_text(json.dumps(self.aggregates), encoding="utf-8")
+        (run / "ledger.jsonl").write_text(json.dumps(self.ledger[0]) + "\n", encoding="utf-8")
+        saved, importer.IMPORT_ROOT = importer.IMPORT_ROOT, root
+        try:
+            args = argparse.Namespace(run=run.name, out=str(out / "summary.md"), columns_out=str(out / "columns.md"))
+            with self.assertRaises(importer.SnapshotError):
+                importer.cmd_summary(args)
+            self.assertEqual([], list(out.iterdir()))
+        finally:
+            importer.IMPORT_ROOT = saved
+            for path in (*run.iterdir(), run, out, root):
+                path.rmdir() if path.is_dir() else path.unlink()
 
 
 def table_rows(text):
