@@ -1,0 +1,22 @@
+---
+# Overrides of the disposable test target (loaded after vars.yml of the overlay and the synthetic vault, which
+# scripts/deploy/test-target.sh generates from vault.yml.example — random values, never committed).
+# Only the sites the test needs: Vtiger on serv.itvolga.com (a static marker page instead of PHP 7.4 — the
+# php74-fpm container is not part of the test) and the MCP vhost the role apache always renders.
+web_sites:
+  - name: serv_itvolga
+    server_name: serv.itvolga.com
+    docroot: /var/www/serv_itvolga/vtiger7
+    php_version: "7.4"
+    log_prefix: server.itvolga
+    allow_override: "All"
+    directory_index: false
+    basic_auth: true
+    enabled: "{{ itvolga_crm_primary == 'vtiger' }}"
+proxy_sites: []
+static_sites: []
+redirect_sites: []
+certbot_domains:
+  - serv.itvolga.com
+# The test CA of the fixture certificate of serv.itvolga.com (prepare.yml); production verifies Let's Encrypt.
+espocrm_health_ca_file: /etc/espocrm-test/ca.pem

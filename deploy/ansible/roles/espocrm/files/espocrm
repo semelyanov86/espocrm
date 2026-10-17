@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# EspoCRM console on the server (role espocrm): bin/command as the EspoCRM user with PHP 8.5 and a clean environment.
+#   sudo espocrm version | rebuild | clear-cache | app-check | run-job Cleanup | itvolga-… | config:get name
+# Do not run bin/command directly (its `#!/usr/bin/env php` and the root user would be wrong); stdin is passed on.
+# shellcheck source=/dev/null
+source /usr/local/lib/espocrm/lib.sh
+require_root
+[[ $# -gt 0 ]] || set -- help
+espo_cmd "$@"

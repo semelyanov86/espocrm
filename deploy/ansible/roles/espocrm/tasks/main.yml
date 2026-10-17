@@ -1,0 +1,42 @@
+---
+# Порядок важен: инструменты (консоль espocrm, помощники конфигурации) нужны установке; настройки — до применения
+# модуля; телефония — после применения (служба слушателя читает метаданные модуля); vhost — последним, когда
+# EspoCRM уже отвечает. Повторный прогон ничего не меняет (проверяется tests: второй прогон — changed=0).
+- name: Check preconditions (mode, secrets, PHP 8.5, no backup or restore in progress)
+  ansible.builtin.import_tasks: preflight.yml
+
+- name: Prepare packages, the system user and directories
+  ansible.builtin.import_tasks: system.yml
+
+- name: Deploy the EspoCRM core of the pinned release
+  ansible.builtin.import_tasks: core.yml
+
+- name: Deploy the Itvolga module of the migration repository
+  ansible.builtin.import_tasks: module.yml
+
+- name: Deploy the maintenance tools
+  ansible.builtin.import_tasks: tools.yml
+
+- name: Create the EspoCRM database and its user
+  ansible.builtin.import_tasks: database.yml
+
+- name: Configure the dedicated PHP-FPM master
+  ansible.builtin.import_tasks: fpm.yml
+
+- name: Install EspoCRM and enforce its settings
+  ansible.builtin.import_tasks: install.yml
+
+- name: Apply the module after a change of code
+  ansible.builtin.import_tasks: apply.yml
+
+- name: Configure the telephony integration
+  ansible.builtin.import_tasks: telephony.yml
+
+- name: Schedule cron.php
+  ansible.builtin.import_tasks: cron.yml
+
+- name: Configure the Apache vhosts
+  ansible.builtin.import_tasks: apache.yml
+
+- name: Configure fail2ban for the EspoCRM login
+  ansible.builtin.import_tasks: fail2ban.yml

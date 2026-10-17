@@ -56,6 +56,7 @@ TASKS.md                  состояние этапов, блокеры, ст�
 Taskfile.yml              команды стенда, аудита и проверок (go-task)
 custom/, client/custom/   собственный код EspoCRM (единственные части EspoCRM в Git)
 deploy/local/             настройки стенда (stand.conf), шаблон секретов, шаблоны конфигов
+deploy/ansible/           Ansible EspoCRM для сервера (этап 09): роль espocrm, плейбуки 11/12, патч Ansible сервера, проверочная машина
 docs/local-stand.md       инструкция запуска локального стенда
 docs/migration/
   source-inventory.md     инвентаризация источника (модули, поля, статусы, ACL, файлы, логика)
@@ -67,6 +68,8 @@ docs/migration/
   print-forms.md          печатные формы и шаблоны
   decisions.md            журнал решений (D-xx)
   open-questions.md       открытые вопросы (Q-xx)
+  deploy.md               развёртывание EspoCRM на сервере (роль Ansible, backup/restore, health)
+  cutover.md              runbook этапов 10–11 и откат
   evidence.md             время, источники, воспроизводимые запросы
 scripts/
   audit/                  воспроизводимый read-only аудит источника

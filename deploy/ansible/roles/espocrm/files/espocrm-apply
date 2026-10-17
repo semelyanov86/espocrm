@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Apply the Itvolga module after a change of code (role espocrm): the commands of `task model:apply` of the stand —
+# clear-cache, rebuild, roles/teams/tabs, legal entity and counters, settlement of documents, report folders and
+# standard reports (insert by seedKey only), client timestamp — then a graceful reload of PHP-FPM (OPcache) and a
+# restart of a running telephony listener (it reads the metadata of the module).
+# shellcheck source=/dev/null
+source /usr/local/lib/espocrm/lib.sh
+require_root
+
+steps=(
+    "clear-cache"
+    "rebuild"
+    "itvolga-setup-acl"
+    "itvolga-setup-finance"
+    "itvolga-finance-settle --silent"
+    "itvolga-setup-reports"
+    "update-app-timestamp"
+)
+for step in "${steps[@]}"; do
+    log "espocrm $step"
+    # shellcheck disable=SC2086 # the step is a command and its flags
+    espo_cmd $step >/dev/null
+done
+if unit_active "$FPM_UNIT"; then systemctl reload "$FPM_UNIT"; fi
+if unit_active "$TELEPHONY_UNIT"; then systemctl restart "$TELEPHONY_UNIT"; fi
+log "module applied: $(cat "$ESPO_ROOT/.itvolga-module" 2>/dev/null || echo '?')"

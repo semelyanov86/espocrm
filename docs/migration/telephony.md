@@ -135,8 +135,9 @@ WebSocket на стенде выключен). Состояние карточе
 - Журнал: каждое прослушивание — «История действий», действие `listen` («Прослушивание записи»): пишется, если у этого
   пользователя по этому звонку нет записи за последние 10 минут (перемотка не плодит строк, обойти журнал, пропустив
   начало файла, нельзя).
-- Доступ к файлам: production — ACL `u:<пользователь EspoCRM>:rx` на `/var/spool/asterisk/monitor` (каталог `750`, файлы
-  `644`), не членство в группе asterisk (`deploy/production/telephony/recordings-acl.sh.example`); стенд — то же для
+- Доступ к файлам: production — ACL `u:espocrm:rx` и default ACL на `/var/spool/asterisk/monitor` (каталог `750`, файлы
+  `644`) и ACL только прохода `u:espocrm:--x` на родителе `/var/spool/asterisk` (`asterisk:root 0750`, проверено только
+  чтением 2026-10-17), не членство в группе asterisk — роль Ansible `espocrm` (этап 09, `deploy.md` §6); стенд — ACL
   `/var/lib/itvolga-espo/telephony/monitor`.
 
 ## 8. Слушатель (D-166)

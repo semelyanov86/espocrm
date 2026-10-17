@@ -1,10 +1,11 @@
 # TASKS — состояние миграции
 
-**Текущий этап:** 08 — Полная локальная репетиция — **завершён** 2026-10-17 (результат и проверки — «Этап 08 — результат», порядок — `docs/migration/rehearsal.md`; внешнее ревью коммита `9767655` — FAIL, 1 блокирующее и 3 предупреждения — исправлены в `d4a3bf1`).
-**Предыдущий этап:** 07.2 — История PBXManager, CDR и WAV — завершён 2026-10-17; внешнее ревью коммита `a10b3c3` — FAIL, 3 блокирующих — исправлены (коммит `697fa60`).
-**Следующий этап:** 09 — Ansible и план cutover (новая сессия; стартовая команда — в конце файла). Этапы 10 и 11 — только по отдельному разрешению.
-**Production:** не менялся и в этапе 08 не читался (источник — защищённый снимок `20261012T191003`); 2026-10-17 (07.2) только прочитан пояс сервера Asterisk; 2026-10-13 только прочитан (Asterisk: версия, AMI, контексты, запись — `asterisk -rx "… show …"`, адресные `grep`; классы номеров CDR — счётчики `READ ONLY`); AMI-пользователи интеграции на сервер не добавлялись (этап 10).
-**Стенд:** http://crm.itvolga.test — `admin`, пароль в `/data/itvolga/espo-private/stand/local.env`; `task stand:health`. В базе стенда — **реальные данные**: результат финального прогона репетиции 08 — чистая установка EspoCRM, `task model:apply` и полный импорт снимка `20261012T191003` итоговым кодом (backup `20261017T141826-stage08-final`); синтетики тестов прежних этапов больше нет (прежнее состояние — backup `20261017T130727-pre-stage08`); UI-фикстура ключа безопасности для проверки YubiKey владельца создана заново после финального прогона (`tests/security_key_stand/ui_fixture.py`, 2FA с TOTP и ключом включена). Снимки экрана — только в `/data/itvolga/espo-private/stand/evidence/`, карточки с полями доступа не открывать.
+**Текущий этап:** 09 — Ansible и план cutover — **завершён** 2026-10-17 (результат и проверки — «Этап 09 — результат»; код — `deploy/ansible/`, контракт — `docs/migration/deploy.md`, runbook этапов 10–11 и откат — `docs/migration/cutover.md`).
+**Предыдущий этап:** 08 — Полная локальная репетиция — завершён 2026-10-17; внешнее ревью коммита `9767655` — FAIL, исправлено в `d4a3bf1`.
+**Следующий этап:** 10 — Размещение рядом с Vtiger — **только по отдельному явному разрешению владельца** (стартовая команда — в конце файла). Этап 11 — тоже только по отдельному разрешению.
+**Production:** не менялся. 2026-10-17 (этап 09) только прочитан: `stat`/`du`/`dpkg -S`/`php -m`/списки служб, таймеров, сайтов, jail и сертификатов (`evidence.md`, «Этап 09»); 2026-10-17 (07.2) — пояс сервера Asterisk; 2026-10-13 — Asterisk, AMI, классы номеров CDR (`READ ONLY`). `/data/server` не менялся (только чтение и его собственные `task ansible:lint`/`ansible:syntax`; `git status` чистый). AMI-пользователи интеграции на сервер не добавлялись (этап 10).
+**Стенд:** http://crm.itvolga.test — `admin`, пароль в `/data/itvolga/espo-private/stand/local.env`; `task stand:health`. В базе стенда — **реальные данные**: результат финального прогона репетиции 08 (backup `20261017T141826-stage08-final`), этапом 09 не менялся; UI-фикстура ключа безопасности для проверки YubiKey владельца (`tests/security_key_stand/ui_fixture.py`). Снимки экрана — только в `/data/itvolga/espo-private/stand/evidence/`, карточки с полями доступа не открывать.
+**Проверочная машина этапа 09:** контейнер `itvolga-espo-ansible-target` (синтетика, `task ansible:test`, удаляется `task ansible:test-down`; vault — случайные значения в `build/ansible-test`, 600).
 
 ## Этапы
 
@@ -30,11 +31,69 @@
 | 07.1 | Живая телефония на изолированном Asterisk | ✅ завершён | 2026-10-13 |
 | 07.2 | История PBXManager, CDR и WAV | ✅ завершён | 2026-10-17 |
 | 08 | Полная локальная репетиция | ✅ завершён | 2026-10-17 |
-| 09 | Ansible и план cutover | ⏳ | — |
+| 09 | Ansible и план cutover | ✅ завершён | 2026-10-17 |
 | 10 | Размещение рядом с Vtiger (только по отдельному разрешению) | 🔒 | — |
 | 11 | Переключение (только по отдельному разрешению) | 🔒 | — |
 
 Промпты этапов: `git show 2052380:MIGRATION_PROMPTS.md` (файл удалён из рабочей копии пользователем; в коммит этапа 01 это удаление не включено).
+
+## Этап 09 — результат
+
+Сделано (2026-10-17):
+- [x] Прочитаны `AGENTS.md`, `TASKS.md`, `rehearsal.md`, `local-stand.md`, `telephony.md`, `import.md` и `/data/server/ansible`
+  (плейбуки 02–04, 09, 10, `site.yml`, vars, роли apache/php/php_docker/vtiger/lahic/mysql/backup/asterisk/fail2ban/certbot,
+  шаблоны, Taskfile) — только чтение; факты production перепроверены только чтением (`evidence.md`, «Этап 09»).
+- [x] Решения владельца (вопросы сессии, 2026-10-17): имя — только `serv.itvolga.com` (до переключения EspoCRM на
+  `127.0.0.1:8443`), без HTTP Basic Auth — вход EspoCRM + обязательная 2FA (клиент EspoCRM шлёт свой `Authorization: Basic`),
+  Vtiger после переключения без веб-доступа, данные — импорт на стенде и перенос пакетом (D-181, D-183, D-187).
+- [x] Роль `deploy/ansible/roles/espocrm` (D-180…D-186): ядро 10.0.9 (sha256), модуль — `git archive` коммита, свой мастер
+  PHP-FPM **8.5** от `espocrm` (PHP 7.4/`php74-fpm` не трогается), БД `espocrm@127.0.0.1`, cron, телефония (ACL записей с
+  проходом через `/var/spool/asterisk`, пользователи AMI, слушатель), vhost и переключатель `serv.itvolga.com`, jail
+  fail2ban, настройки как код (2FA, websocket выключен, `cleanupDeletedRecords=false`), инструменты `espocrm-*`
+  (backup/restore/проверка восстановления/health/отпечаток/изменения после момента).
+- [x] Плейбуки `11-espocrm.yml` (развёртывание + health) и `12-crm-switch.yml` (vtiger → maintenance → espocrm и обратно);
+  патч общих файлов сервера (18 файлов: `itvolga_crm_primary`, `enabled` роли apache, cron роли vtiger, тир `recordings`
+  и ночной пакет EspoCRM роли backup — **`/var/spool/asterisk/monitor` в покрытии backup**, секреты в `vault.yml.example`,
+  Taskfile, `CLAUDE.md` сервера); сборка и установка — `scripts/deploy/overlay.sh`.
+- [x] Перенос стенд ⇄ production — `scripts/deploy/bundle.sh` (формат пакета стенда; равенство — отпечатком).
+- [x] Runbook этапов 10–11 и откат — `docs/migration/cutover.md`; контракт — `deploy.md`; D-180…D-188; Q-54 дополнен,
+  Q-55…Q-57 открыты; `telephony.md`, `import.md`, `rehearsal.md`, `local-stand.md`, `AGENTS.md`, `CLAUDE.md`, Taskfile.
+- [x] Примеры этапа 07.1 `recordings-acl.sh.example` и `itvolga-espo-telephony.service.example` заменены ролью
+  (пример ACL на production не работал бы: родитель `asterisk:root 0750`).
+
+Проверки (2026-10-17):
+- `/data/server` (`ed38172`, без изменений): `task ansible:syntax` — 3 плейбука OK; `task ansible:lint` — 0 нарушений,
+  0 предупреждений, 249 файлов (профиль production); `git status` до и после — чисто.
+- Наложение (`task ansible:overlay`): `task ansible:syntax` — 5 плейбуков OK (site, 09, 10, 11, 12); `task ansible:lint` —
+  **0 нарушений, 0 предупреждений, 303 файла** (профиль production).
+- `task ansible:test` с нуля итоговым кодом — **код 0, 16 мин 12 с**: подготовка (роли сервера) ok=96/failed=0; роль —
+  первый прогон ok=81/changed=47, **повтор changed=0**, **`--check --diff` changed=0**; сценарий backup → изменение →
+  restore (отпечаток = пакету), `espocrm-restore-check` пакета и из restic `db`/`recordings` — 0 FAIL, пакет формата
+  стенда — отпечаток = пакету; телефония — права AMI как задумано, слушатель подключён, повтор changed=0; переключение
+  maintenance → espocrm → vtiger — каждое состояние проверено (503 / EspoCRM / Vtiger с Basic) и повтор changed=0
+  (`evidence.md`, «Этап 09»).
+- Дополнительно: негативный контроль дрейфа (`--check` видит правку ядра и настроек, прогон возвращает); запасной номер
+  телефонии сохраняется при restore; таймеры `backup-db`/`backup-recordings` через systemd; сбой хука не мешает restic
+  остальных БД; `bundle.sh pull/push` (транспорт `docker exec`), `espocrm-restore-check --mysql`.
+- Найдено и исправлено проверочной машиной (8, `evidence.md`): ACL прохода через `/var/spool/asterisk` (на production
+  `asterisk:root 0750` — пример 07.1 не сработал бы), `test -r` rust-coreutils не видит ACL, блокировка cron Vtiger в
+  `/tmp` (root не открывает), потеря reload после прерванного переключения, два источника неидемпотентности rsync,
+  строгий X.509 Python, `python3-passlib` для роли apache.
+- `scripts/check-secrets.sh` — 0 находок (рабочее дерево, 1268 файлов); `--history` — перед коммитом (ниже).
+- Только чтением на production (2026-10-17): PHP 8.5.4 и расширения, MySQL 8.4.11, Apache 2.4.66, сайты, сертификаты,
+  каталоги записей и их права, пакеты `acl` и `rust-coreutils`, таймеры backup, jail fail2ban, ресурсы.
+
+Не сделано / вне рамок 09:
+- Production и `/data/server` не менялись: роль не применялась к серверу, сертификат и restic в Облако Mail.ru не
+  проверялись на настоящих сервисах, объёмы production — только по счётчикам (`du`).
+- `php74-fpm` в проверочную машину не входит (Docker в Docker): соседство с Vtiger/Lahic проверено разбором (роль не
+  трогает `php_docker`, его `web_sites` 7.4, `php8.5-fpm`), не запуском.
+- Обратный путь production → стенд (`scripts/stand/restore.sh` пакета production) — формат тот же по построению, запуск —
+  этап 10 до окна (`cutover.md` §1.6); `bundle.sh` по ssh не запускался (production только читается), транспорт `docker
+  exec` проверен на проверочной машине.
+- Бан fail2ban не моделировался (jail загружается, фильтр — по формату журнала combined).
+- Исходящая почта EspoCRM (Q-55), живая телефония до переключения (Q-56), включение очистки удалённых записей (Q-57) —
+  решения владельца.
 
 ## Вне этапов — контрагент и адреса нового документа (2026-10-17)
 
@@ -814,6 +873,7 @@ B1 страж фактов пропускал объект без загрузк
 
 ## Приватные результаты (вне Git, содержимое не публиковать)
 
+- Этап 09 приватных результатов не создавал: проверочная машина — синтетика (`build/ansible-test/`: vault со случайными значениями 600, журналы прогонов; контейнер `itvolga-espo-ansible-target`, удаляется `task ansible:test-down`).
 - `/data/itvolga/espo-private/import/<прогон>/` — прогоны этапа 08 (700/600): `20261017T131149` (первый, сбой файлов), `20261017T131353` (сходимость), `20261017T131624` (полный импорт), `20261017T131813` (повтор), `20261017T140124` (`--check-only` после restore), **`20261017T141529` (финальный полный импорт итоговым кодом — источник сводки)**, `20261017T141707` (его повтор); учение — `import/drills/20261017T135342/protocol.json` (прогоны `…135414`, `…135428`, `…135508`, `…135629`).
 - `/data/itvolga/espo-private/stand/backups/20261017T141826-stage08-final` — **стенд после финального прогона** (чистая установка + модуль + полный импорт итоговым кодом); `…131948-stage08-rehearsal` — после первого прогона (проверка restore); `…130727-pre-stage08` — стенд до этапа 08 (данные 06.2–07.2 и синтетика тестов); `…131149-pre-import` — чистая установка с модулем до импорта; `…130901-pre-restore`, `…135342-pre-drill`, `…135345-pre-restore` и прочие `-pre-*` — страховочные.
 - `/data/itvolga/espo-private/stand/fingerprints/20261017T1[34]*-stage08-*.json` — отпечатки стенда (репетиция, restore, финальный прогон: пустой стенд, до и после повтора).
@@ -873,19 +933,20 @@ B1 страж фактов пропускал объект без загрузк
 - `/data/itvolga/espo-private/stand/backups/` — backup проверок стенда (`…-restore-test`, `…-after-review`, страховочные `…-pre-restore` и др.).
 - `/data/itvolga/espo-private/stand/evidence/` — полные выводы health-check проверок этапа 02 и скриншот входа.
 
-## Стартовая команда следующей сессии (этап 09)
+## Стартовая команда следующей сессии (этап 10)
 
-Стартовая команда этапа 08 использована 2026-10-17 (раздел «Этап 08 — результат»).
+Стартовая команда этапа 09 использована 2026-10-17 (раздел «Этап 09 — результат»). Этап 10 — **только по отдельному
+явному разрешению владельца**: команда ниже начинается с этого разрешения (промпт 10, `git show 2052380:MIGRATION_PROMPTS.md`).
 
 ```
-Прочитай AGENTS.md, TASKS.md (в том числе «Этап 08 — результат»), docs/migration/rehearsal.md, local-stand.md,
-telephony.md (production: deploy/production/telephony/), import.md и /data/server/ansible (включая playbooks/04-apps.yml,
-vars, роли apache/vtiger/mysql/backup/asterisk, шаблоны и Taskfile) — только чтение; production — только чтение.
-Затем выполни этап 09 из `git show 2052380:MIGRATION_PROMPTS.md`: как код — идемпотентное развёртывание EspoCRM рядом с
-Vtiger (отдельная БД и пользователь, Apache/HTTPS/HTTP Basic Auth или согласованная замена, cron, права, health-check,
-backup БД/вложений/WAV и практический restore, /var/spool/asterisk/monitor в backup, PHP 7.4/php74-fpm сохранить — им
-пользуется Lahic); учесть выводы репетиции 08 (свежая установка без data/upload и data/logs, порядок rehearsal.md,
---recordings verify, cleanupDeletedRecords до последней дельты, websocket). task ansible:lint, task ansible:syntax и
-применимые check; cutover/rollback runbook. Обнови TASKS.md, запусти scripts/check-secrets.sh --history, создай коммит,
-отдай на ревью Codex gpt-6.1-sol и остановись: production-размещение — только по отдельной команде (этап 10).
+Этим сообщением я отдельно разрешаю разместить EspoCRM на рабочем сервере рядом с Vtiger, не переключая serv.itvolga.com.
+Прочитай AGENTS.md, TASKS.md (в том числе «Этап 09 — результат»), docs/migration/deploy.md, cutover.md (§1 — порядок
+этапа 10), decisions.md D-180…D-188, open-questions.md (Q-54…Q-57) и заново проверь локальные результаты
+(task ansible:lint, task ansible:syntax, task ansible:test). Ответь на Q-55 и Q-56 или оставь их по умолчанию.
+Выполни этап 10 по cutover.md §1: проверки только чтением, свежие backup и практическое восстановление Vtiger,
+scripts/deploy/overlay.sh install --stage10 и коммит в /data/server, секреты в vault, task ansible:backup,
+task ansible:espocrm с коммитом модуля, импорт снимка на стенде и перенос пакетом (отпечатки равны), интерфейс через
+туннель :8443, проба обратного пути, backup и espocrm-restore-check. Vtiger оставь системой записи; Asterisk не
+перезапускай (только manager reload). Покажи факты, потери истории и план окна; обнови TASKS.md, создай коммит,
+отдай на ревью Codex gpt-6.1-sol и остановись перед переключением vhost (этап 11 — отдельным сообщением).
 ```

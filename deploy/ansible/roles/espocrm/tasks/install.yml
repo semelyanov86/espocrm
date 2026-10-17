@@ -1,0 +1,48 @@
+---
+- name: Read whether EspoCRM is installed
+  ansible.builtin.command:
+    cmd: "{{ espocrm_sbin_dir }}/espocrm config:get isInstalled"
+  register: espocrm_installed
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+# Первичная установка — той же последовательностью, что стенд (files/install.sh); секреты — только через stdin.
+- name: Install EspoCRM from the CLI
+  ansible.builtin.command:
+    cmd: "{{ espocrm_lib_dir }}/install.sh"
+    stdin: >-
+      {{ {'database': espocrm_database_settings.database,
+          'admin': {'username': espocrm_admin_username, 'password': espocrm_admin_password},
+          'settings': espocrm_install_settings} | to_json }}
+  when: espocrm_installed.stdout | trim != 'true'
+  changed_when: true
+  no_log: true
+
+# Каждый прогон: реквизиты БД (config-internal.php), siteUrl режима, настройки входа и 2FA, websocket, очистка
+# удалённых записей. Помощник пишет только отличающееся и называет изменённые параметры (без значений).
+# В --check — то же сравнение без записи (diff): дрейф виден, ничего не пишется.
+- name: Enforce the database settings and the settings of the role
+  ansible.builtin.command:
+    cmd: "{{ espocrm_sbin_dir }}/espocrm-config {{ 'diff' if ansible_check_mode else 'set' }}"
+    stdin: "{{ espocrm_database_settings | combine(espocrm_server_settings) | to_json }}"
+  register: espocrm_settings_applied
+  changed_when: (espocrm_settings_applied.stdout | from_json).changed | length > 0
+  check_mode: false
+  when: espocrm_installed.stdout | trim == 'true' or not ansible_check_mode
+  no_log: true
+
+- name: Show the names of the changed EspoCRM settings
+  ansible.builtin.debug:
+    msg: "Изменены параметры: {{ (espocrm_settings_applied.stdout | from_json).changed | join(', ') }}"
+  when:
+    - espocrm_settings_applied.stdout is defined
+    - (espocrm_settings_applied.stdout | from_json).changed | length > 0
+
+- name: Reset the administrator password from the vault (one-off, -e espocrm_admin_reset=true)
+  ansible.builtin.command:
+    cmd: "{{ espocrm_sbin_dir }}/espocrm set-password {{ espocrm_admin_username }}"
+    stdin: "{{ espocrm_admin_password }}"
+  when: espocrm_admin_reset | bool
+  changed_when: true
+  no_log: true

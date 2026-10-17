@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# Local backup of EspoCRM on the server (role espocrm, D-186) — the bundle format of the stand
+# (scripts/stand/backup.sh), so a bundle moves between the stand and production both ways (D-187):
+#   db.sql.gz        mysqldump of the EspoCRM database (InnoDB snapshot, --single-transaction)
+#   files.tar.gz     data/ (without cache/ and tmp/), custom/Espo/{Custom,Modules}, client/custom
+#   table-counts.tsv exact row count of every table (restore and restore check verify it)
+#   MANIFEST         versions, module commit, schema charset; SHA256SUMS over all of the above
+#
+#   espocrm-backup [--label NAME] [--online]   → $BACKUP_DIR/bundles/<time>[-label]/ (gzip)
+#   espocrm-backup --nightly                   → $BACKUP_DIR/nightly/ (plain db.sql and files.tar, replaced each
+#                                                night; restic tier db deduplicates it; the previous one — nightly.prev)
+# By default the telephony listener, cron and PHP-FPM are paused for the duration (seconds), so the dump, the row
+# counts and the files describe one state. --online keeps them running (counts_exact=0: restore only warns).
+# shellcheck source=/dev/null
+source /usr/local/lib/espocrm/lib.sh
+require_root
+
+label="" quiesce=1 nightly=0
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --label) label="${2:?}"; shift 2 ;;
+        --online) quiesce=0; shift ;;
+        --nightly) nightly=1; shift ;;
+        *) die "usage: espocrm-backup [--label NAME] [--online] | --nightly" ;;
+    esac
+done
+[[ -z "$label" || "$label" =~ ^[a-z0-9-]+$ ]] || die "label: lowercase letters, digits and '-' only"
+[[ $nightly == 0 || -z "$label" ]] || die "--nightly takes no label"
+unit_active mysql || die "MySQL is not running"
+[[ -f "$ESPO_ROOT/data/config-internal.php" ]] || die "EspoCRM is not installed in $ESPO_ROOT"
+
+ops_lock
+umask 077
+install -d -m 0700 "$BACKUP_DIR" "$BACKUP_DIR/bundles"
+name="$(date +%Y%m%dT%H%M%S)${label:+-$label}"
+if [[ $nightly == 1 ]]; then
+    name="$name-nightly"
+    dir="$BACKUP_DIR/.nightly-$name"
+else
+    dir="$BACKUP_DIR/bundles/$name"
+fi
+mkdir -m 0700 "$dir"
+
+on_exit() {
+    local rc=$?
+    resume_writers
+    if [[ $rc -ne 0 ]]; then rm -rf "$dir"; warn "backup failed; incomplete $dir removed"; fi
+}
+trap on_exit EXIT
+if [[ $quiesce == 1 ]]; then
+    log "pausing writers (telephony listener, cron, $FPM_UNIT)"
+    pause_writers
+fi
+
+log "dumping database $DB_NAME"
+dump=(mysqldump --single-transaction --quick --routines --triggers --events --hex-blob --no-tablespaces
+      --set-gtid-purged=OFF --default-character-set=utf8mb4 "$DB_NAME")
+if [[ $nightly == 1 ]]; then "${dump[@]}" >"$dir/db.sql"; else "${dump[@]}" | gzip -6 >"$dir/db.sql.gz"; fi
+table_counts >"$dir/table-counts.tsv"
+
+log "archiving data/ and customisations"
+tar_args=(-C "$ESPO_ROOT" --exclude=data/cache --exclude=data/tmp data custom/Espo/Custom custom/Espo/Modules
+          client/custom)
+if [[ $nightly == 1 ]]; then tar -cf "$dir/files.tar" "${tar_args[@]}"; else tar -czf "$dir/files.tar.gz" "${tar_args[@]}"; fi
+
+resume_writers
+
+IFS=$'\t' read -r db_cs db_coll < <(mysql_root -N -B -e "SELECT default_character_set_name,
+    default_collation_name FROM information_schema.schemata WHERE schema_name='$DB_NAME'")
+db_file="$(basename "$(bundle_db "$dir")")"
+files_file="$(basename "$(bundle_files "$dir")")"
+{
+    echo "name=$name"
+    echo "created=$(date -Is)"
+    echo "origin=production"
+    echo "host=$SERVER_NAME"
+    echo "quiesced=$quiesce"
+    echo "counts_exact=$quiesce"
+    echo "espocrm_version=$(espo_cmd version)"
+    echo "mysql_version=$(mysql_root -N -B -e 'SELECT @@version')"
+    echo "db_name=$DB_NAME"
+    echo "db_charset=$db_cs"
+    echo "db_collation=$db_coll"
+    echo "tables=$(wc -l <"$dir/table-counts.tsv")"
+    echo "rows_total=$(awk '{s+=$2} END{print s+0}' "$dir/table-counts.tsv")"
+    echo "files_in_archive=$(tar -tf "$dir/$files_file" | grep -vc '/$')"
+    echo "git_head=$(cat "$ESPO_ROOT/.itvolga-module" 2>/dev/null || echo unknown)"
+    echo "git_custom_dirty=0"
+} >"$dir/MANIFEST"
+if [[ "$db_file" == *.gz ]]; then gzip -t "$dir/$db_file"; fi
+tar -tf "$dir/$files_file" >/dev/null
+( cd "$dir" && sha256sum "$db_file" "$files_file" table-counts.tsv MANIFEST >SHA256SUMS )
+
+if [[ $nightly == 1 ]]; then
+    # Replace the nightly bundle atomically enough for restic (03:00 tiers run after 02:30): new → nightly,
+    # the previous one → nightly.prev.
+    rm -rf "$BACKUP_DIR/nightly.prev"
+    if [[ -d "$BACKUP_DIR/nightly" ]]; then mv "$BACKUP_DIR/nightly" "$BACKUP_DIR/nightly.prev"; fi
+    mv "$dir" "$BACKUP_DIR/nightly"
+    dir="$BACKUP_DIR/nightly"
+fi
+trap - EXIT
+
+log "backup ready: $dir ($(du -sh "$dir" | cut -f1))"
+printf '%s\n' "$dir"

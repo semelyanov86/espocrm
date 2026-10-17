@@ -1,0 +1,20 @@
+# {{ ansible_managed }}
+[Unit]
+Description=PHP-FPM {{ espocrm_php_version }} master of EspoCRM ({{ espocrm_server_name }})
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=notify
+RuntimeDirectory={{ espocrm_fpm_run_dir | basename }}
+RuntimeDirectoryMode=0755
+ExecStartPre={{ espocrm_php_fpm_bin }} --test --fpm-config {{ espocrm_fpm_config }}
+ExecStart={{ espocrm_php_fpm_bin }} --nodaemonize --fpm-config {{ espocrm_fpm_config }}
+ExecReload=/bin/kill -USR2 $MAINPID
+Restart=on-failure
+RestartSec=5
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

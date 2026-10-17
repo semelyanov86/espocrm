@@ -1,0 +1,179 @@
+---
+# Disposable test target (scripts/deploy/test-target.sh): what production already has before the role espocrm —
+# the server roles php (PHP 8.5), mysql (MySQL 8.4), apache, fail2ban, backup — and fixtures in place of what the
+# test cannot reproduce: a certificate of serv.itvolga.com from a test CA (instead of Let's Encrypt), Asterisk of the
+# Ubuntu archive with an AMI configured as on production, synthetic recordings, a static marker page and the cron
+# entry of Vtiger (instead of Vtiger on php74-fpm), a local rclone remote (instead of Mail.ru). Synthetic data only.
+
+- name: Fixtures of the disposable test target
+  hosts: all
+  become: true
+  gather_facts: true
+
+  tasks:
+    # python3-passlib/bcrypt: the htpasswd module of the role apache (on production they come with the role base,
+    # which the test does not run).
+    - name: Install fixture packages (Asterisk of the Ubuntu archive, ACL tools, passlib)
+      ansible.builtin.apt:
+        name:
+          - asterisk
+          - acl
+          - python3-passlib
+          - python3-bcrypt
+        state: present
+        update_cache: true
+
+    - name: Configure the AMI as on production (enabled, 127.0.0.1, manager.d included)
+      ansible.builtin.copy:
+        dest: /etc/asterisk/manager.conf
+        owner: asterisk
+        group: asterisk
+        mode: "0640"
+        content: |
+          ; Test target: the settings of the production manager.conf (read-only check 2026-10-13).
+          [general]
+          enabled = yes
+          port = 5038
+          bindaddr = 127.0.0.1
+          webenabled = no
+          displayconnects = no
+          #include "manager.d/*.conf"
+      register: test_manager_conf
+
+    - name: Ensure manager.d exists
+      ansible.builtin.file:
+        path: /etc/asterisk/manager.d
+        state: directory
+        owner: root
+        group: asterisk
+        mode: "0750"
+
+    - name: Restart Asterisk after the AMI configuration
+      ansible.builtin.systemd:
+        name: asterisk
+        state: restarted
+        enabled: true
+      when: test_manager_conf is changed
+
+    - name: Ensure the Asterisk message log exists (jail asterisk of the role fail2ban)
+      ansible.builtin.copy:
+        content: ""
+        dest: /var/log/asterisk/messages.log
+        force: false
+        owner: asterisk
+        group: asterisk
+        mode: "0640"
+
+    - name: Create the recordings directory as on production (asterisk:asterisk 0750)
+      ansible.builtin.file:
+        path: /var/spool/asterisk/monitor/2001/01/02
+        state: directory
+        owner: asterisk
+        group: asterisk
+        mode: "0755"
+
+    - name: Restrict the recordings root as on production
+      ansible.builtin.file:
+        path: /var/spool/asterisk/monitor
+        state: directory
+        owner: asterisk
+        group: asterisk
+        mode: "0750"
+
+    - name: Write synthetic recordings (silence, synthetic numbers)
+      ansible.builtin.shell:
+        cmd: |
+          python3 - <<'PY'
+          import os, struct
+          base = "/var/spool/asterisk/monitor/2001/01/02"
+          for i, (src, dst) in enumerate([("9990001", "111"), ("112", "9990002"), ("9990003", "113")]):
+              path = f"{base}/2001-01-02-10-0{i}_From.{src}_To.{dst}.wav"
+              if os.path.exists(path):
+                  continue
+              data = b"\0\0" * 8000 * (i + 1)
+              head = b"RIFF" + struct.pack("<I", 36 + len(data)) + b"WAVEfmt " + struct.pack("<IHHIIHH", 16, 1, 1, 8000, 16000, 2, 16) + b"data" + struct.pack("<I", len(data))
+              with open(path, "wb") as f:
+                  f.write(head + data)
+              os.chown(path, int(os.popen("id -u asterisk").read()), int(os.popen("id -g asterisk").read()))
+              os.chmod(path, 0o644)
+              print("written", os.path.basename(path))
+          PY
+      register: test_recordings
+      changed_when: "'written' in test_recordings.stdout"
+
+    - name: Create the directory of the test CA
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /etc/espocrm-test
+        - /etc/letsencrypt/live/serv.itvolga.com
+
+    - name: Issue a test CA and a certificate of serv.itvolga.com (in place of Let's Encrypt)
+      ansible.builtin.shell:
+        cmd: |
+          set -e
+          cd /etc/espocrm-test
+          # Extensions of a real CA chain: Python 3.13+ verifies certificates strictly (VERIFY_X509_STRICT).
+          openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj "/CN=itvolga-espo test CA" \
+            -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign" \
+            -addext "subjectKeyIdentifier=hash" -keyout ca.key -out ca.pem 2>/dev/null
+          openssl req -newkey rsa:2048 -nodes -subj "/CN=serv.itvolga.com" -keyout site.key -out site.csr 2>/dev/null
+          printf '%s\n' 'subjectAltName=DNS:serv.itvolga.com' 'basicConstraints=critical,CA:FALSE' \
+            'keyUsage=critical,digitalSignature,keyEncipherment' 'extendedKeyUsage=serverAuth' \
+            'subjectKeyIdentifier=hash' 'authorityKeyIdentifier=keyid' >site.ext
+          openssl x509 -req -in site.csr -CA ca.pem -CAkey ca.key -CAcreateserial -days 30 -extfile site.ext \
+            -out site.pem 2>/dev/null
+          install -m 0644 site.pem /etc/letsencrypt/live/serv.itvolga.com/fullchain.pem
+          install -m 0600 site.key /etc/letsencrypt/live/serv.itvolga.com/privkey.pem
+        creates: /etc/letsencrypt/live/serv.itvolga.com/fullchain.pem
+
+    - name: Create the Vtiger docroot
+      ansible.builtin.file:
+        path: /var/www/serv_itvolga/vtiger7
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: "0755"
+
+    - name: Create the Vtiger marker page (no PHP 7.4 in the test)
+      ansible.builtin.copy:
+        dest: /var/www/serv_itvolga/vtiger7/index.html
+        content: "vtiger-fixture\n"
+        owner: www-data
+        group: www-data
+        mode: "0644"
+
+    - name: Create the cron entry of the role vtiger
+      ansible.builtin.cron:
+        name: vtiger cron
+        user: www-data
+        minute: "*/5"
+        job: "/usr/bin/flock -n /tmp/vtigercron.lock /usr/bin/sudo -n /usr/local/bin/vtiger-cron"
+        cron_file: vtiger
+
+- name: Server roles the role espocrm relies on (PHP 8.5, MySQL 8.4, Apache, fail2ban, backup)
+  hosts: all
+  become: true
+  gather_facts: true
+
+  roles:
+    - role: php
+    - role: mysql
+    - role: apache
+    - role: fail2ban
+    - role: backup
+
+  post_tasks:
+    # The off-site remote of the test: rclone type local (/server/<tier>) under the name the role expects.
+    - name: Point the rclone remote of the role backup to a local directory
+      ansible.builtin.copy:
+        dest: /root/.config/rclone/rclone.conf
+        owner: root
+        group: root
+        mode: "0600"
+        content: |
+          # Test target: local remote instead of Mail.ru (scripts/deploy/test-target.sh).
+          [mailru]
+          type = local

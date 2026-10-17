@@ -1,0 +1,7 @@
+# {{ ansible_managed }}
+# fail2ban filter: failed logins of EspoCRM (role espocrm, D-183). The web client logs in — and passes the second
+# factor (TOTP, security key) — with GET /api/v1/App/user; a wrong password or code answers 401. Other API requests
+# with an expired token (e.g. the telephony cards polling) are not counted.
+[Definition]
+failregex = ^<HOST> \S+ \S+ \[[^\]]+\] "(?:GET|POST) /api/v1/App/user(?:\?\S*)? HTTP/[0-9.]+" 401
+ignoreregex =

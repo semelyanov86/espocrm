@@ -300,6 +300,38 @@ tasks:
     cmds:
       - python3 scripts/stand/fingerprint.py {{.CLI_ARGS}}
 
+  ansible:overlay:
+    desc: Overlay of the server Ansible (stage 09) in build/ansible-overlay — a clean clone of /data/server at deploy/ansible/SERVER_BASE + the role espocrm + playbooks 11/12 + server-ansible.patch; /data/server itself is not touched
+    cmds:
+      - scripts/deploy/overlay.sh build
+
+  ansible:lint:
+    desc: The server's own `task ansible:lint` (ansible-lint, profile production) on the overlay
+    cmds:
+      - scripts/deploy/overlay.sh build >/dev/null
+      - task -d build/ansible-overlay ansible:lint
+
+  ansible:syntax:
+    desc: The server's own `task ansible:syntax` (site, 09-certs, 10-backup, 11-espocrm, 12-crm-switch) on the overlay
+    cmds:
+      - scripts/deploy/overlay.sh build >/dev/null
+      - task -d build/ansible-overlay ansible:syntax
+
+  ansible:test:
+    desc: Disposable Ubuntu 26.04 target with systemd (Docker) — server roles, the role espocrm twice (changed=0), --check, backup/restore/restic, telephony, switch vtiger → maintenance → espocrm → vtiger (-- all|up|prepare|converge|idempotent|check|verify|telephony|switch)
+    cmds:
+      - scripts/deploy/test-target.sh {{if .CLI_ARGS}}{{.CLI_ARGS}}{{else}}all{{end}}
+
+  ansible:check:
+    desc: --check --diff of 11-espocrm.yml on the deployed disposable target (drift must be changed=0)
+    cmds:
+      - scripts/deploy/test-target.sh check
+
+  ansible:test-down:
+    desc: Remove the disposable target of ansible:test (its synthetic vault and logs in build/ansible-test too)
+    cmds:
+      - scripts/deploy/test-target.sh down
+
   check:secrets:
     desc: Scan files that would be committed for secrets and personal data
     cmds:

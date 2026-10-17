@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+"""Fingerprint of EspoCRM on the server (role espocrm, D-187) — the algorithm of scripts/stand/fingerprint.py, so the
+digest of the stand and of production can be compared directly: `CHECKSUM TABLE … EXTENDED` of every base table except
+the journals EspoCRM writes by itself (VOLATILE, calibrated on the stand 2026-10-12) and size + sha256 of every file of
+data/upload. Equal digests: the restored production holds the state the stand verified. Private JSON (file names are
+attachment ids) under $BACKUP_DIR/fingerprints (700/600); the console shows counts and the digest.
+
+  espocrm-fingerprint take LABEL     → $BACKUP_DIR/fingerprints/<time>-<label>.json
+  espocrm-fingerprint diff A B       → tables and files that differ (names and counts); exit 2 when not equal
+"""
+import argparse
+import hashlib
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+VOLATILE = ("job", "scheduled_job", "scheduled_job_log_record", "auth_token", "auth_log_record")
+NAME_RE = re.compile(r"^[a-z0-9_]+$")
+LABEL_RE = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
+
+
+def env():
+    out = {}
+    with open(os.environ.get("ESPOCRM_ENV", "/etc/espocrm/espocrm.env"), encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, value = line.split("=", 1)
+                out[key] = value.strip("'\"")
+    return out
+
+
+class Error(Exception):
+    pass
+
+
+def mysql(sql, database):
+    res = subprocess.run(["mysql", "-N", "-B", "--default-character-set=utf8mb4", database], input=sql.encode(),
+                         capture_output=True, check=False)
+    if res.returncode != 0:
+        raise Error("mysql failed")
+    return res.stdout.decode("ascii").splitlines()
+
+
+def take(cfg, label):
+    if not LABEL_RE.match(label):
+        raise Error("bad label")
+    db = cfg["DB_NAME"]
+    names = mysql("SET SESSION TRANSACTION READ ONLY;\nSELECT table_name FROM information_schema.tables "
+                  f"WHERE table_schema = '{db}' AND table_type = 'BASE TABLE' ORDER BY table_name;\n", db)
+    if any(not NAME_RE.match(n) for n in names):
+        raise Error("unexpected table name")
+    tables = {}
+    sql = "".join(f"CHECKSUM TABLE `{db}`.`{n}` EXTENDED;\n" for n in names if n not in VOLATILE)
+    for line in mysql(sql, db):
+        table, value = line.split("\t")
+        if value == "NULL":
+            raise Error(f"CHECKSUM TABLE gave NULL for {table}")
+        tables[table.split(".", 1)[1]] = value
+    if set(tables) != {n for n in names if n not in VOLATILE}:
+        raise Error("CHECKSUM TABLE did not answer for every table")
+    uploads = {}
+    upload = Path(cfg["ESPO_ROOT"]) / "data" / "upload"
+    if upload.is_symlink() or (upload.exists() and not upload.is_dir()):
+        raise Error("data/upload is not a directory")
+    if upload.is_dir():
+        for base, _, files in os.walk(upload):
+            for name in files:
+                path = Path(base) / name
+                if not path.is_file() or path.is_symlink():
+                    continue
+                h = hashlib.sha256()
+                with open(path, "rb") as f:
+                    for chunk in iter(lambda: f.read(1 << 20), b""):
+                        h.update(chunk)
+                uploads[str(path.relative_to(upload))] = [path.stat().st_size, h.hexdigest()]
+    data = {"taken_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "volatile": list(VOLATILE),
+            "tables": tables, "uploads": uploads}
+    data["digest"] = hashlib.sha256(json.dumps({k: data[k] for k in ("tables", "uploads")},
+                                               sort_keys=True).encode()).hexdigest()
+    root = Path(cfg["BACKUP_DIR"]) / "fingerprints"
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    path = root / f"{time.strftime('%Y%m%dT%H%M%S')}-{label}.json"
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(json.dumps(data, sort_keys=True))
+    return path, data
+
+
+def diff(a, b):
+    changed = sorted(t for t in set(a["tables"]) | set(b["tables"]) if a["tables"].get(t) != b["tables"].get(t))
+    files = {"added": len(b["uploads"].keys() - a["uploads"].keys()),
+             "removed": len(a["uploads"].keys() - b["uploads"].keys()),
+             "changed": sum(1 for k in a["uploads"].keys() & b["uploads"].keys() if a["uploads"][k] != b["uploads"][k])}
+    return {"equal": not changed and not any(files.values()), "tables": changed, "files": files}
+
+
+def main():
+    os.umask(0o077)
+    if os.geteuid() != 0:
+        print("[espocrm-fingerprint] ERROR: run as root", file=sys.stderr)
+        return 1
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("take").add_argument("label")
+    d = sub.add_parser("diff")
+    d.add_argument("a")
+    d.add_argument("b")
+    args = ap.parse_args()
+    try:
+        if args.cmd == "take":
+            path, data = take(env(), args.label)
+            print(f"[espocrm-fingerprint] {len(data['tables'])} tables, {len(data['uploads'])} files, digest "
+                  f"{data['digest'][:16]} → {path}", file=sys.stderr)
+            print(data["digest"])
+            return 0
+        result = diff(*(json.loads(Path(p).read_text(encoding="utf-8")) for p in (args.a, args.b)))
+        print(f"[espocrm-fingerprint] equal: {result['equal']}; tables: {', '.join(result['tables']) or 'none'}; "
+              f"files: {result['files']}", file=sys.stderr)
+        return 0 if result["equal"] else 2
+    except Error as e:
+        print(f"[espocrm-fingerprint] ERROR: {e}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

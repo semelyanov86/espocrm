@@ -1,0 +1,32 @@
+---
+# Свой мастер PHP-FPM 8.5 (как на стенде): перезапуск EspoCRM не касается php8.5-fpm (Firefly, Mautic) и
+# php74-fpm (Vtiger, Lahic). php.ini и расширения — общие для PHP 8.5 (роль php).
+- name: Deploy the PHP-FPM configuration of EspoCRM
+  ansible.builtin.template:
+    src: php-fpm.conf.j2
+    dest: "{{ espocrm_fpm_config }}"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: "{{ espocrm_php_fpm_bin }} --test --fpm-config %s"
+  notify: Restart EspoCRM PHP-FPM
+
+- name: Deploy the PHP-FPM unit of EspoCRM
+  ansible.builtin.template:
+    src: espocrm-php-fpm.service.j2
+    dest: "/etc/systemd/system/{{ espocrm_fpm_unit }}.service"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart EspoCRM PHP-FPM
+
+- name: Apply a changed unit before the service is started
+  ansible.builtin.meta: flush_handlers
+
+- name: Start and enable the PHP-FPM master of EspoCRM
+  ansible.builtin.systemd:
+    name: "{{ espocrm_fpm_unit }}"
+    state: started
+    enabled: true

@@ -1,0 +1,523 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index d3f5f3a..2d94b16 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -107,6 +107,7 @@
+ | `mautic.itvolga.com` | Mautic 7.1.2 | 8.5 | PHP-FPM, docroot `/var/www/mautic` | Перенос с сервера |
+ | `mautic.sergeyem.ru` | Mautic 7.1.2 | 8.5 | PHP-FPM, docroot `/var/www/mautic_sergey` | Перенос с сервера |
+ | `serv.itvolga.com` | Vtiger CRM 7.1 | 7.4 (Docker) | PHP-FPM, docroot `/var/www/serv_itvolga/vtiger7` | Перенос с сервера |
++| `serv.itvolga.com` (после переключения, `itvolga_crm_primary`) | EspoCRM 10 + модуль Itvolga (роль `espocrm`, плейбуки 11/12) | 8.5 (свой мастер FPM, пользователь `espocrm`) | PHP-FPM, docroot `/var/www/espocrm/public`; до переключения — только `127.0.0.1:8443` | Репозиторий миграции `/data/itvolga/espo` |
+ | `admin.itvolga.com` | Редирект → admin.migadu.com | — | 301 redirect | Только vhost |
+ | `mails.itvolga.com` | Редирект → webmail.migadu.com | — | 301 redirect | Только vhost |
+ | `cloud.sergeyem.ru` | OpenCloud | — | reverse proxy → :9200 | Свежая установка + перенос файлов из OwnCloud |
+@@ -166,6 +167,7 @@ Ubuntu 26.04 (codename `resolute`) в нативном apt-репозитори
+ | `mauticSergey` | `mautic` | Mautic (sergeyem) |
+ | `vtiger7` | `vtiger` | Vtiger CRM |
+ | `asteriskcdrdb` | `asterisk` | Asterisk CDR |
++| `espocrm` | `espocrm` (`@127.0.0.1`) | EspoCRM (роль `espocrm`, не реестр `mysql_databases`) |
+ 
+ > Immich использует **собственный PostgreSQL в Docker**, а не этот MySQL — в общую MySQL-схему не входит.
+ 
+@@ -183,7 +185,8 @@ Ubuntu 26.04 (codename `resolute`) в нативном apt-репозитори
+ | `*/6 * * * *` | `php /var/www/mautic_sergey/bin/console mautic:broadcasts:send` | www-data |
+ | `*/11 * * * *` | `php /var/www/mautic_sergey/bin/console mautic:segments:update` (и другие) | www-data |
+ | `*/2 * * * *` | `php /var/www/mautic_sergey/bin/console mautic:campaigns:trigger` | www-data |
+-| `*/5 * * * *` | `flock -n /tmp/vtigercron.lock /var/www/serv_itvolga/vtiger7/cron/vtigercron.sh` | www-data |
++| `*/5 * * * *` | `flock -n /tmp/vtigercron.lock /var/www/serv_itvolga/vtiger7/cron/vtigercron.sh` | www-data (после переключения на EspoCRM — закомментирован) |
++| `* * * * *` | `php8.5 -f /var/www/espocrm/cron.php` (`/etc/cron.d/espocrm`) | espocrm |
+ 
+ > **Исправлено:** на старом сервере `campaigns:trigger` и `firefly:cron` запускались от `root`. Все cron-задачи приложений должны работать от `www-data`.
+ 
+diff --git a/Taskfile.yml b/Taskfile.yml
+index 6e8f62b..5d9327b 100644
+--- a/Taskfile.yml
++++ b/Taskfile.yml
+@@ -37,6 +37,8 @@ tasks:
+       - ansible-playbook playbooks/site.yml --syntax-check
+       - ansible-playbook playbooks/09-certs.yml --syntax-check
+       - ansible-playbook playbooks/10-backup.yml --syntax-check
++      - ansible-playbook playbooks/11-espocrm.yml --syntax-check
++      - ansible-playbook playbooks/12-crm-switch.yml --syntax-check
+ 
+   ansible:bootstrap:
+     desc: "Bootstrap (Этап 2, первый прогон от root): создать sergey, ключи, SSH-hardening"
+@@ -127,6 +129,55 @@ tasks:
+     cmds:
+       - ansible-playbook playbooks/10-backup.yml --check --diff
+ 
++  # ---------------------------------------------------------------- EspoCRM (serv.itvolga.com)
++  #  Роль espocrm и плейбуки 11/12 — из репозитория миграции /data/itvolga/espo (этап 09);
++  #  runbook — его docs/migration/cutover.md. НЕ в site.yml. Применять только по отдельному
++  #  разрешению владельца (этап 10 — рядом с Vtiger, этап 11 — переключение).
++  ansible:espocrm:
++    desc: "EspoCRM рядом с Vtiger (11-espocrm.yml). Модуль — коммит репозитория миграции: task ansible:espocrm -- -e espocrm_module_ref=<коммит>"
++    dir: ansible
++    cmds:
++      - ansible-playbook playbooks/11-espocrm.yml {{.CLI_ARGS}}
++
++  ansible:espocrm-check:
++    desc: "Dry-run 11-espocrm.yml (--check --diff) — дрейф на развёрнутом хосте"
++    dir: ansible
++    cmds:
++      - ansible-playbook playbooks/11-espocrm.yml --check --diff {{.CLI_ARGS}}
++
++  crm:switch:
++    desc: "Переключить serv.itvolga.com по itvolga_crm_primary из vars.yml (vtiger|maintenance|espocrm) — 12-crm-switch.yml"
++    dir: ansible
++    cmds:
++      - grep -n '^itvolga_crm_primary:' inventory/group_vars/all/vars.yml
++      - ansible-playbook playbooks/12-crm-switch.yml {{.CLI_ARGS}}
++
++  espocrm:health:
++    desc: "Health-check EspoCRM на сервере (службы, 2FA, HTTP через loopback, cron, права, телефония, backup)"
++    cmds:
++      - task: _backup:ssh
++        vars: {CMD: "sudo /usr/local/sbin/espocrm-health"}
++
++  espocrm:backup:
++    desc: "Пакет EspoCRM на сервере (БД + data/, писатели на секунды приостановлены). task espocrm:backup label=pre-x"
++    cmds:
++      - task: _backup:ssh
++        vars: {CMD: "sudo /usr/local/sbin/espocrm-backup{{if .label}} --label {{.label}}{{end}}"}
++
++  espocrm:restore-check:
++    desc: "Практическая проверка восстановления EspoCRM: ночной пакет из restic (db) + записи разговоров (recordings) — без касания живой системы"
++    cmds:
++      - task: _backup:ssh
++        vars: {CMD: "sudo /usr/local/sbin/espocrm-restore-check --from-restic --recordings"}
++
++  espocrm:fingerprint:
++    desc: "Отпечаток EspoCRM на сервере (тот же алгоритм, что stand:fingerprint). task espocrm:fingerprint label=after-restore"
++    requires:
++      vars: [label]
++    cmds:
++      - task: _backup:ssh
++        vars: {CMD: "sudo /usr/local/sbin/espocrm-fingerprint take {{.label}}"}
++
+   # ---------------------------------------------------------------- Vault
+   vault:create:
+     desc: Создать зашифрованный vault.yml из шаблона
+@@ -419,7 +470,7 @@ tasks:
+       - "{{.NEW_SSH}} -t sergey@{{.NEW_HOST}} '{{.CMD}}'"
+ 
+   backup:run:
+-    desc: "Ручной прогон тира бэкапа (live-вывод). Использование: task backup:run tier=db|system|immich|opencloud"
++    desc: "Ручной прогон тира бэкапа (live-вывод). Использование: task backup:run tier=db|system|recordings|immich|opencloud"
+     requires:
+       vars: [tier]
+     cmds:
+diff --git a/ansible/inventory/group_vars/all/vars.yml b/ansible/inventory/group_vars/all/vars.yml
+index 10a1d06..9453a37 100644
+--- a/ansible/inventory/group_vars/all/vars.yml
++++ b/ansible/inventory/group_vars/all/vars.yml
+@@ -242,6 +242,21 @@ web_sites:
+     allow_override: "All"
+     directory_index: false
+     basic_auth: true            # HTTP Basic Auth (htpasswd) вместо IP-ограничения
++    # Vhost Vtiger включён только до переключения на EspoCRM (itvolga_crm_primary ниже); файлы, БД, docroot в
++    # php74-fpm и cron Vtiger остаются (cron в окне и после — закомментирован, playbooks/12-crm-switch.yml).
++    enabled: "{{ itvolga_crm_primary == 'vtiger' }}"
++
++# -----------------------------------------------------------------------------
++#  CRM serv.itvolga.com: Vtiger → EspoCRM (миграция /data/itvolga/espo, D-181).
++#  ОДИН переключатель — кто обслуживает serv.itvolga.com:
++#    vtiger      — Vtiger (до переключения); EspoCRM — только 127.0.0.1:8443 (роль espocrm);
++#    maintenance — окно переключения: страница 503, Vtiger без веб-доступа и cron;
++#    espocrm     — EspoCRM (после переключения).
++#  Смена: правка здесь → коммит → task crm:switch (playbooks/12-crm-switch.yml); rollback —
++#  вернуть значение и тот же запуск. Только по отдельному разрешению владельца (этап 11).
++#  EspoCRM — PHP 8.5 нативно, свой мастер PHP-FPM; Vtiger и Lahic — PHP 7.4 (php74-fpm).
++# -----------------------------------------------------------------------------
++itvolga_crm_primary: vtiger
+ 
+ # -----------------------------------------------------------------------------
+ #  Реестр reverse-proxy сайтов (бэкенды на loopback).
+diff --git a/ansible/inventory/group_vars/all/vault.yml.example b/ansible/inventory/group_vars/all/vault.yml.example
+index c09c1bc..40d94ec 100644
+--- a/ansible/inventory/group_vars/all/vault.yml.example
++++ b/ansible/inventory/group_vars/all/vault.yml.example
+@@ -15,6 +15,14 @@ vault_db_lahicsu_password: "CHANGE_ME_lahicsu"
+ vault_db_mautic_password: "CHANGE_ME_mautic"           # общий пользователь mautic для обеих БД
+ vault_db_vtiger_password: "CHANGE_ME_vtiger"
+ vault_db_asterisk_password: "CHANGE_ME_asterisk_cdr"
++vault_db_espocrm_password: "CHANGE_ME_espocrm_at_least_16_chars"   # роль espocrm (≥ 16 символов)
++
++# ---- EspoCRM (роль espocrm, playbooks/11-espocrm.yml; миграция /data/itvolga/espo) ----
++# Пароль администратора EspoCRM ставится при установке и разово — -e espocrm_admin_reset=true.
++vault_espocrm_admin_password: "CHANGE_ME_espocrm_admin"
++# Пользователи AMI интеграции (manager.d/itvolga-espo.conf): 16–200 печатных символов ASCII без пробелов.
++vault_espocrm_ami_listener_secret: "CHANGE_ME_ami_listener_secret"
++vault_espocrm_ami_dialer_secret: "CHANGE_ME_ami_dialer_secret_"
+ 
+ # ---- Redis ----
+ vault_redis_password: "CHANGE_ME_redis"
+diff --git a/ansible/roles/apache/README.md b/ansible/roles/apache/README.md
+index d612bd8..ac6023b 100644
+--- a/ansible/roles/apache/README.md
++++ b/ansible/roles/apache/README.md
+@@ -28,7 +28,10 @@ TLS включается **по каждому домену отдельно**,
+ 
+ ## Реестры сайтов (group_vars)
+ 
+-- `web_sites` — PHP-сайты (docroot + версия PHP);
++- `web_sites` — PHP-сайты (docroot + версия PHP); `enabled: false` — vhost рендерится,
++  но не включается (ссылка в `sites-enabled` снимается): так Vtiger уступает
++  `serv.itvolga.com` EspoCRM по переключателю `itvolga_crm_primary` (vhost EspoCRM —
++  своя роль `espocrm`, `playbooks/11-espocrm.yml`, `12-crm-switch.yml`);
+ - `proxy_sites` — reverse-proxy (loopback-бэкенды);
+ - `static_sites` — статические заглушки/лендинги (docroot, без PHP/прокси;
+   `serv.sergeyem.ru`). Роль создаёт docroot, рендерит `landing/index.html.j2` и
+diff --git a/ansible/roles/apache/defaults/main.yml b/ansible/roles/apache/defaults/main.yml
+index b9e59a4..bf012fc 100644
+--- a/ansible/roles/apache/defaults/main.yml
++++ b/ansible/roles/apache/defaults/main.yml
+@@ -36,6 +36,9 @@ apache_modules:
+   - http2
+   - actions
+ 
++# PHP-сайты реестра с enabled: false (вычисляет роль; дефолт — пусто).
++apache_disabled_sites: []
++
+ # Имена включаемых vhost-конфигов собираются из общих реестров сайтов.
+ apache_managed_sites: >-
+   {{ (web_sites | map(attribute='name') | list)
+diff --git a/ansible/roles/apache/meta/argument_specs.yml b/ansible/roles/apache/meta/argument_specs.yml
+index 14a60b8..14ac5f0 100644
+--- a/ansible/roles/apache/meta/argument_specs.yml
++++ b/ansible/roles/apache/meta/argument_specs.yml
+@@ -42,3 +42,9 @@ argument_specs:
+         elements: str
+         required: false
+         description: vhost config basenames to enable (derived from the site registries).
++      apache_disabled_sites:
++        type: list
++        elements: str
++        required: false
++        default: []
++        description: PHP sites of web_sites with enabled false (computed by the role; rendered, not enabled).
+diff --git a/ansible/roles/apache/tasks/main.yml b/ansible/roles/apache/tasks/main.yml
+index b6b9db8..b1d57b7 100644
+--- a/ansible/roles/apache/tasks/main.yml
++++ b/ansible/roles/apache/tasks/main.yml
+@@ -174,12 +174,30 @@
+     vhost_kind: static
+   notify: Reload Apache
+ 
++# PHP-сайт с enabled: false (например, Vtiger после переключения serv.itvolga.com на EspoCRM —
++# itvolga_crm_primary) остаётся отрендеренным в sites-available, но не включён: docroot, его монтирование
++# в php74-fpm и данные не трогаются. Отбор — через | bool: значение может прийти шаблоном.
++- name: Collect PHP sites switched off in the registry
++  ansible.builtin.set_fact:
++    apache_disabled_sites: "{{ (apache_disabled_sites + [item.name]) | unique }}"
++  loop: "{{ web_sites }}"
++  loop_control:
++    label: "{{ item.server_name }}"
++  when: not (item.enabled | default(true) | bool)
++
+ - name: Enable all managed vhosts
+   ansible.builtin.file:
+     src: "/etc/apache2/sites-available/{{ item }}.conf"
+     dest: "/etc/apache2/sites-enabled/{{ item }}.conf"
+     state: link
+-  loop: "{{ apache_managed_sites }}"
++  loop: "{{ apache_managed_sites | difference(apache_disabled_sites) }}"
++  notify: Reload Apache
++
++- name: Disable vhosts of PHP sites switched off in the registry
++  ansible.builtin.file:
++    path: "/etc/apache2/sites-enabled/{{ item }}.conf"
++    state: absent
++  loop: "{{ apache_disabled_sites }}"
+   notify: Reload Apache
+ 
+ - name: Disable default Apache sites
+diff --git a/ansible/roles/backup/README.md b/ansible/roles/backup/README.md
+index 2f4be6b..02bd2d7 100644
+--- a/ansible/roles/backup/README.md
++++ b/ansible/roles/backup/README.md
+@@ -12,13 +12,14 @@ restic — ради шифрования по умолчанию, дедупли
+ 
+ | Тир | Содержимое | OnCalendar | Ретенция | Сжатие | Топология |
+ |---|---|---|---|---|---|
+-| `db` | `mysqldump` польз. БД + `pg_dump` Immich | `*-*-* 02:30` | `--keep-daily 14 --keep-weekly 8 --keep-monthly 6` | max | гибрид |
+-| `system` | `/etc`, crontabs, `/var/www`, `/opt/{papra,bitwarden,open-webui,calibre-web,german-trainer,mcp-proxy}`, `/home/sergey`, `/root` | `*-*-* 03:00` | `--keep-daily 14 --keep-weekly 8 --keep-monthly 12` | max | гибрид |
++| `db` | `mysqldump` польз. БД + `pg_dump` Immich + ночной пакет EspoCRM (`/var/backups/espocrm/nightly`) | `*-*-* 02:30` | `--keep-daily 14 --keep-weekly 8 --keep-monthly 6` | max | гибрид |
++| `system` | `/etc`, crontabs, `/var/www` (без `/var/www/espocrm/data`), `/opt/{papra,bitwarden,open-webui,calibre-web,german-trainer,mcp-proxy}`, `/home/sergey`, `/root` | `*-*-* 03:00` | `--keep-daily 14 --keep-weekly 8 --keep-monthly 12` | max | гибрид |
++| `recordings` | записи разговоров `/var/spool/asterisk/monitor` (WAV) + `/var/log/asterisk/cdr-csv` (Master.csv) | `*-*-* 03:15` | `--keep-daily 14 --keep-weekly 8 --keep-monthly 24` | auto | гибрид |
+ | `immich` | `/opt/immich/library` (~22 ГБ) | `Sat *-*-* 03:30` | `--keep-weekly 8 --keep-monthly 6` | auto | гибрид |
+ | `opencloud` | `/var/lib/opencloud` (~110 ГБ) | 1-я суббота мес. `02:00` | `--keep-monthly 2` | auto | **direct** |
+ | `check` | `restic check` всех репо (1-я неделя мес. — `--read-data-subset=10%` + проверка структуры удалённых зеркал гибридных тиров) | `Sun *-*-* 04:00` | — | — | — |
+ 
+-- **Гибрид** (`db`/`system`/`immich`): restic пишет в локальный репо
++- **Гибрид** (`db`/`system`/`recordings`/`immich`): restic пишет в локальный репо
+   `/var/backups/restic/<tier>`, затем `rclone sync` → `mailru:server/<tier>`.
+ - **Direct** (`opencloud`): restic пишет прямо в `rclone:mailru:server/opencloud`
+   (не дублируем 110 ГБ локально). Бэкапится «горячим» (без остановки сервиса).
+@@ -32,6 +33,15 @@ restic — ради шифрования по умолчанию, дедупли
+ `docker exec {{immich_postgres}} pg_dump --clean --if-exists -U postgres immich`
+ в `/var/backups/pg/immich.sql`. Дампы **НЕ** gzip-уются (restic сам жмёт/дедуплицирует).
+ 
++## EspoCRM (роль `espocrm`, миграция `/data/itvolga/espo`)
++Хук тира `db` (`backup_db_pre_hooks`) после `mysqldump` запускает `espocrm-backup --nightly`:
++согласованный пакет (дамп БД `espocrm` + `data/` одного момента, писатели EspoCRM на секунды
++приостановлены, без сжатия — restic дедуплицирует) в `/var/backups/espocrm/nightly`. Живой `data/`
++исключён из тира `system`. Сбой хука не останавливает дампы и restic остальных БД — тир
++завершается ошибкой в конце (письмо). Восстановление — `espocrm-restore nightly` (или пакет из
++restic: `restic-restore-file db /var/backups/espocrm/nightly <dir>`), практическая проверка без
++касания живой системы — `espocrm-restore-check --from-restic --recordings`.
++
+ ## Bitwarden (MSSQL)
+ В тире `system` **исключён** `/opt/bitwarden/bwdata/mssql/data` (живые `.mdf`
+ копировать опасно); `mssql/backups` (`.bak`) и остальной `bwdata` — включены.
+@@ -63,7 +73,7 @@ restic `restic_<v>_linux_amd64.bz2` (распаковка `bunzip2`), rclone
+ пропускается в `--check` (как go/starship в роли `base`).
+ 
+ ## Helper-скрипты (`/usr/local/sbin`)
+-`backup-run <tier>`, `backup-check`, `backup-notify <unit>`,
++`backup-run <tier>` (`db|system|recordings|immich|opencloud`), `backup-check`, `backup-notify <unit>`,
+ `backup-seed-opencloud`, `backup-dr`, `restic-snapshots <tier>`,
+ `restic-restore-file <tier> <path> <target>`, `restic-restore-db <db>`,
+ `restic-mount <tier> [mp]`. Общая логика — `/etc/backup/lib.sh` (sourced).
+diff --git a/ansible/roles/backup/defaults/main.yml b/ansible/roles/backup/defaults/main.yml
+index c092dc3..fef5bf5 100644
+--- a/ansible/roles/backup/defaults/main.yml
++++ b/ansible/roles/backup/defaults/main.yml
+@@ -1,6 +1,6 @@
+ ---
+ # Роль backup — офсайт-бэкапы сервера в Облако Mail.ru через restic + rclone.
+-# Топология смешанная: тиры db/system/immich — ГИБРИД (restic в локальный репо
++# Топология смешанная: тиры db/system/recordings/immich — ГИБРИД (restic в локальный репо
+ # /var/backups/restic/<tier>, затем rclone sync в mailru:server/<tier>); тир
+ # opencloud — НАПРЯМУЮ в облако (restic -r rclone:mailru:server/opencloud), без
+ # локального дубля 110 ГБ. restic шифрует всё по умолчанию (пароль из vault).
+@@ -55,6 +55,11 @@ backup_mysql_system_dbs:
+   - performance_schema
+   - mysql
+   - sys
++# Хуки перед restic в тире db (после mysqldump): каждая команда запускается, если её файл исполним
++# (роль ещё не развёрнута — пропуск). Сбой хука не останавливает дампы и restic остальных БД: тир
++# доходит до конца и затем завершается ошибкой (письмо backup-notify).
++backup_db_pre_hooks:
++  - /usr/local/sbin/espocrm-backup --nightly
+ # Immich PostgreSQL — собственный контейнер (не общий MySQL); pg_dump через docker exec.
+ backup_immich_pg_container: immich_postgres
+ backup_immich_pg_user: postgres
+@@ -84,6 +89,10 @@ backup_tiers:
+     paths:
+       - "{{ backup_dump_mysql_dir }}"
+       - "{{ backup_dump_pg_dir }}"
++      # Согласованный ночной пакет EspoCRM (БД + data/ одного момента, без сжатия — restic дедуплицирует;
++      # пишет хук espocrm-backup --nightly ниже, роль espocrm). Восстановление — espocrm-restore nightly,
++      # проверка — espocrm-restore-check --from-restic.
++      - /var/backups/espocrm/nightly
+     excludes: []
+ 
+   - name: system
+@@ -105,8 +114,25 @@ backup_tiers:
+       - /root
+     # Bitwarden MSSQL: живые .mdf копировать опасно — исключаем mssql/data,
+     # включаем mssql/backups (.bak, попадает в bwdata автоматически).
++    # data/ EspoCRM (вложения, конфигурация с секретами) — в ночном пакете тира db (одного момента с БД);
++    # код EspoCRM в /var/www/espocrm остаётся здесь (ядро и модуль воспроизводит и роль espocrm).
+     excludes:
+       - /opt/bitwarden/bwdata/mssql/data
++      - /var/www/espocrm/data
++
++  # Записи разговоров (MixMonitor, WAV, ~1,3 ГБ на 2026-10-17, только растут) и локальный дубль CDR
++  # Asterisk (Master.csv; сам CDR — БД asteriskcdrdb в тире db). Ежедневно после system; WAV не меняются
++  # после записи — restic хранит каждый файл один раз, retention определяет, сколько живёт удалённый.
++  # Проверка восстановления — espocrm-restore-check --recordings (роль espocrm).
++  - name: recordings
++    oncalendar: "*-*-* 03:15:00"
++    topology: hybrid
++    compression: auto
++    retention: "--keep-daily 14 --keep-weekly 8 --keep-monthly 24"
++    paths:
++      - /var/spool/asterisk/monitor
++      - /var/log/asterisk/cdr-csv
++    excludes: []
+ 
+   - name: immich
+     oncalendar: "Sat *-*-* 03:30:00"
+diff --git a/ansible/roles/backup/templates/DISASTER_RECOVERY.md.j2 b/ansible/roles/backup/templates/DISASTER_RECOVERY.md.j2
+index 4f912fc..a0a63c5 100644
+--- a/ansible/roles/backup/templates/DISASTER_RECOVERY.md.j2
++++ b/ansible/roles/backup/templates/DISASTER_RECOVERY.md.j2
+@@ -1,7 +1,7 @@
+ # {{ ansible_managed }}
+ # Disaster Recovery — восстановление с нуля из Облака Mail.ru (restic + rclone)
+ 
+-> Off-site копии лежат в `{{ backup_remote_base }}/{db,system,immich,opencloud}`
++> Off-site копии лежат в `{{ backup_remote_base }}/{db,system,recordings,immich,opencloud}`
+ > (Облако Mail.ru, бэкенд rclone `mailru`). Данные зашифрованы restic.
+ > **Без `RESTIC_PASSWORD` восстановить НЕЛЬЗЯ.** Пароль — `vault_restic_password`,
+ > офлайн-копия хранится у владельца ВНЕ сервера (НЕ в Bitwarden, НЕ в облаке).
+@@ -18,7 +18,7 @@
+ mkdir -p ~/.config/rclone
+ rclone config create mailru mailru user '{{ backup_mailru_user }}' \
+   pass "$(rclone obscure 'APP_PASSWORD_ИЗ_VAULT')"
+-rclone lsd {{ backup_remote_base }}     # должны быть db/ system/ immich/ opencloud/
++rclone lsd {{ backup_remote_base }}     # должны быть db/ system/ recordings/ immich/ opencloud/
+ 
+ export RESTIC_PASSWORD='ПАРОЛЬ_ИЗ_ОФЛАЙН_КОПИИ'
+ ```
+@@ -28,10 +28,11 @@ export RESTIC_PASSWORD='ПАРОЛЬ_ИЗ_ОФЛАЙН_КОПИИ'
+ |---|---|
+ | db | `rclone:{{ backup_remote_base }}/db` |
+ | system | `rclone:{{ backup_remote_base }}/system` |
++| recordings | `rclone:{{ backup_remote_base }}/recordings` |
+ | immich | `rclone:{{ backup_remote_base }}/immich` |
+ | opencloud | `rclone:{{ backup_remote_base }}/opencloud` |
+ 
+-> На рабочем сервере db/system/immich — локальные репо (`{{ backup_local_repo_base }}/<tier>`),
++> На рабочем сервере db/system/recordings/immich — локальные репо (`{{ backup_local_repo_base }}/<tier>`),
+ > поэтому restore оттуда идёт без сети. При DR (сервер потерян) берём из облака
+ > через `rclone:` как выше.
+ 
+@@ -62,6 +63,18 @@ docker exec -i {{ backup_immich_pg_container }} psql -U {{ backup_immich_pg_user
+   {{ backup_immich_pg_db }} < /restore{{ backup_dump_pg_dir }}/{{ backup_immich_pg_db }}.sql
+ ```
+ 
++## 4а. EspoCRM и записи разговоров
++```bash
++# Ночной пакет EspoCRM (БД + data/ одного момента) — тир db:
++restic -r rclone:{{ backup_remote_base }}/db restore latest \
++  --include /var/backups/espocrm/nightly --target /restore
++# Роль espocrm (playbooks/11-espocrm.yml) ставит EspoCRM и инструменты, затем:
++espocrm-restore /restore/var/backups/espocrm/nightly --yes
++# Записи разговоров и Master.csv — тир recordings:
++restic -r rclone:{{ backup_remote_base }}/recordings restore latest --target /restore
++#   → /var/spool/asterisk/monitor (asterisk:asterisk), /var/log/asterisk/cdr-csv
++```
++
+ ## 5. Bitwarden (MSSQL)
+ Бэкап содержит `bwdata` БЕЗ живых `mssql/data` (исключены). Восстановление — из
+ `.bak` в `bwdata/mssql/backups/` штатным импортом MSSQL после `bitwarden.sh start`.
+diff --git a/ansible/roles/backup/templates/backup-run.j2 b/ansible/roles/backup/templates/backup-run.j2
+index 7c0b57c..fc271c3 100644
+--- a/ansible/roles/backup/templates/backup-run.j2
++++ b/ansible/roles/backup/templates/backup-run.j2
+@@ -1,12 +1,12 @@
+ #!/usr/bin/env bash
+ # {{ ansible_managed }}
+-# Прогон одного тира бэкапа. Использование: backup-run <db|system|immich|opencloud>
++# Прогон одного тира бэкапа. Использование: backup-run <db|system|recordings|immich|opencloud>
+ set -euo pipefail
+ # shellcheck source=/dev/null
+ . "{{ backup_lib_file }}"
+ 
+ TIER="${1:-}"
+-[ -n "$TIER" ] || die "Использование: backup-run <db|system|immich|opencloud>"
++[ -n "$TIER" ] || die "Использование: backup-run <db|system|recordings|immich|opencloud>"
+ 
+ case "$TIER" in
+ {% for t in backup_tiers %}
+@@ -55,10 +55,27 @@ dump_databases() {
+   chmod 600 "{{ backup_dump_pg_dir }}"/*.sql 2>/dev/null || true
+ }
+ 
++# Хуки тира db (backup_db_pre_hooks): согласованные пакеты приложений (EspoCRM). Сбой хука не прерывает
++# restic остальных дампов — прогон завершается ошибкой в самом конце.
++HOOK_FAILED=0
++run_db_hooks() {
++{% for hook in backup_db_pre_hooks %}
++  if [ -x "{{ hook.split() | first }}" ]; then
++    log "hook: {{ hook }}"
++    {{ hook }} >/dev/null || { log "ERROR: hook failed: {{ hook }}"; HOOK_FAILED=1; }
++  else
++    log "hook пропущен (не установлен): {{ hook.split() | first }}"
++  fi
++{% else %}
++  :
++{% endfor %}
++}
++
+ log "=== backup tier=$TIER topology=$TOPOLOGY ==="
+ 
+ if [ "$TIER" = "db" ]; then
+   dump_databases
++  run_db_hooks
+ fi
+ 
+ resolve_repo "$TIER"
+@@ -104,4 +121,5 @@ if [ "$TOPOLOGY" = "hybrid" ]; then
+   "$RCLONE" sync "$RESTIC_REPOSITORY" "{{ backup_remote_base }}/$TIER" {{ backup_rclone_sync_flags }}
+ fi
+ 
++[ "$HOOK_FAILED" -eq 0 ] || die "tier=$TIER: дампы сохранены, но хук тира не выполнен (см. журнал выше)"
+ log "=== backup tier=$TIER завершён ==="
+diff --git a/ansible/roles/backup/templates/lib.sh.j2 b/ansible/roles/backup/templates/lib.sh.j2
+index 49673eb..b200898 100644
+--- a/ansible/roles/backup/templates/lib.sh.j2
++++ b/ansible/roles/backup/templates/lib.sh.j2
+@@ -32,7 +32,7 @@ backup_topology() {
+ resolve_repo() {
+   local tier="$1" topo
+   topo="$(backup_topology "$tier")"
+-  [ -n "$topo" ] || die "Неизвестный тир: $tier (db|system|immich|opencloud)"
++  [ -n "$topo" ] || die "Неизвестный тир: $tier (db|system|recordings|immich|opencloud)"
+   if [ "$topo" = "direct" ]; then
+     export RESTIC_REPOSITORY="rclone:${REMOTE_BASE}/${tier}"
+   else
+diff --git a/ansible/roles/backup/templates/restic-snapshots.j2 b/ansible/roles/backup/templates/restic-snapshots.j2
+index 10ce3ea..0570770 100644
+--- a/ansible/roles/backup/templates/restic-snapshots.j2
++++ b/ansible/roles/backup/templates/restic-snapshots.j2
+@@ -5,7 +5,7 @@ set -uo pipefail
+ # shellcheck source=/dev/null
+ . "{{ backup_lib_file }}"
+ TIER="${1:-}"
+-[ -n "$TIER" ] || die "Использование: restic-snapshots <db|system|immich|opencloud> [флаги]"
++[ -n "$TIER" ] || die "Использование: restic-snapshots <db|system|recordings|immich|opencloud> [флаги]"
+ shift
+ resolve_repo "$TIER"
+ exec "$RESTIC" snapshots --tag "$TIER" "$@"
+diff --git a/ansible/roles/vtiger/README.md b/ansible/roles/vtiger/README.md
+index 930ee00..255e8d7 100644
+--- a/ansible/roles/vtiger/README.md
++++ b/ansible/roles/vtiger/README.md
+@@ -31,6 +31,11 @@
+ > HTTP Basic Auth (htpasswd) для `serv.itvolga.com` настраивает роль **apache**,
+ > здесь не делается.
+ 
++- **После переключения на EspoCRM** (`itvolga_crm_primary: maintenance | espocrm`,
++  `playbooks/12-crm-switch.yml`): задание cron закомментировано
++  (`vtiger_cron_disabled`), vhost выключен (`enabled` в `web_sites`); файлы, БД,
++  docroot в php74-fpm и роль остаются — rollback возвращает и то и другое.
++
+ ## Переменные
+ 
+ `vtiger_dir`, `vtiger_php_version` (7.4), `vtiger_db_name/user`,
+diff --git a/ansible/roles/vtiger/defaults/main.yml b/ansible/roles/vtiger/defaults/main.yml
+index 1a365b1..4ee0879 100644
+--- a/ansible/roles/vtiger/defaults/main.yml
++++ b/ansible/roles/vtiger/defaults/main.yml
+@@ -28,3 +28,7 @@ vtiger_php_container: php74-fpm
+ vtiger_php_uid: 33
+ vtiger_php_gid: 33
+ vtiger_cron_wrapper: /usr/local/bin/vtiger-cron
++
++# После переключения serv.itvolga.com на EspoCRM (itvolga_crm_primary: maintenance | espocrm) cron Vtiger
++# закомментирован, а не удалён (playbooks/12-crm-switch.yml держит ту же запись); rollback — снова активен.
++vtiger_cron_disabled: "{{ (itvolga_crm_primary | default('vtiger')) != 'vtiger' }}"
+diff --git a/ansible/roles/vtiger/meta/argument_specs.yml b/ansible/roles/vtiger/meta/argument_specs.yml
+index a22bc79..0873ee9 100644
+--- a/ansible/roles/vtiger/meta/argument_specs.yml
++++ b/ansible/roles/vtiger/meta/argument_specs.yml
+@@ -50,3 +50,7 @@ argument_specs:
+         type: str
+         required: false
+         description: Controller path to the Vtiger SQL dump.
++      vtiger_cron_disabled:
++        type: bool
++        required: false
++        description: Comment out the Vtiger cron job (after the switch of serv.itvolga.com to EspoCRM).
+diff --git a/ansible/roles/vtiger/tasks/main.yml b/ansible/roles/vtiger/tasks/main.yml
+index 3202a89..01590fd 100644
+--- a/ansible/roles/vtiger/tasks/main.yml
++++ b/ansible/roles/vtiger/tasks/main.yml
+@@ -186,3 +186,4 @@
+     minute: "*/5"
+     job: "/usr/bin/flock -n /tmp/vtigercron.lock /usr/bin/sudo -n {{ vtiger_cron_wrapper }}"
+     cron_file: vtiger
++    disabled: "{{ vtiger_cron_disabled | bool }}"

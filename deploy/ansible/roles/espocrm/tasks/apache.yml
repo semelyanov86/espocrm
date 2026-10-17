@@ -1,0 +1,89 @@
+---
+# Модули — уже включены ролью apache (кроме, возможно, setenvif); здесь — подстраховка без изменений.
+- name: Enable the Apache modules used by the vhost
+  community.general.apache2_module:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - headers
+    - proxy
+    - proxy_fcgi
+    - rewrite
+    - setenvif
+    - ssl
+  notify: Restart Apache
+
+# До переключения EspoCRM доступна только на 127.0.0.1:8443 с сертификатом serv.itvolga.com (он уже выпущен для
+# Vtiger): без своего имени в DNS, без HTTP Basic Auth (D-181, D-183).
+- name: Stat the certificate of the site
+  ansible.builtin.stat:
+    path: "{{ espocrm_tls_cert }}"
+  register: espocrm_cert_stat
+
+- name: Assert the certificate of the site exists
+  ansible.builtin.assert:
+    that:
+      - espocrm_cert_stat.stat.exists
+    fail_msg: "Нет {{ espocrm_tls_cert }}: сертификат {{ espocrm_server_name }} выпускает роль certbot (09-certs.yml)."
+    quiet: true
+
+- name: Deploy the maintenance page of the switch window
+  ansible.builtin.template:
+    src: maintenance.html.j2
+    dest: "{{ espocrm_maintenance_dir }}/maintenance.html"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Deploy the EspoCRM vhost
+  ansible.builtin.template:
+    src: vhost.conf.j2
+    dest: "{{ espocrm_vhost_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: espocrm_vhost
+  notify: Reload Apache
+
+- name: Enable the EspoCRM vhost
+  ansible.builtin.file:
+    src: "{{ espocrm_vhost_file }}"
+    dest: /etc/apache2/sites-enabled/espocrm.conf
+    state: link
+  register: espocrm_vhost_link
+  notify: Reload Apache
+
+# serv.itvolga.com принадлежит одной системе: Vtiger — только в режиме vtiger. Роль apache (с флагом enabled в
+# web_sites, патч этапа 09) приходит к тому же состоянию по тому же переключателю itvolga_crm_primary.
+- name: Stat the Vtiger vhost of the role apache
+  ansible.builtin.stat:
+    path: "/etc/apache2/sites-available/{{ espocrm_vtiger_vhost }}.conf"
+  register: espocrm_vtiger_vhost_stat
+
+- name: Enable the Vtiger vhost in the mode vtiger
+  ansible.builtin.file:
+    src: "/etc/apache2/sites-available/{{ espocrm_vtiger_vhost }}.conf"
+    dest: "/etc/apache2/sites-enabled/{{ espocrm_vtiger_vhost }}.conf"
+    state: link
+  register: espocrm_vtiger_link_on
+  when:
+    - espocrm_mode == 'vtiger'
+    - espocrm_vtiger_vhost_stat.stat.exists
+  notify: Reload Apache
+
+- name: Disable the Vtiger vhost in the modes maintenance and espocrm
+  ansible.builtin.file:
+    path: "/etc/apache2/sites-enabled/{{ espocrm_vtiger_vhost }}.conf"
+    state: absent
+  register: espocrm_vtiger_link_off
+  when: espocrm_mode != 'vtiger'
+  notify: Reload Apache
+
+# Сломанная конфигурация не уходит в reload: проверка до обработчиков (при сбое play останавливается).
+- name: Check the Apache configuration
+  ansible.builtin.command:
+    cmd: apache2ctl -t
+  changed_when: false
+  when: >-
+    espocrm_vhost is changed or espocrm_vhost_link is changed
+    or espocrm_vtiger_link_on is changed or espocrm_vtiger_link_off is changed

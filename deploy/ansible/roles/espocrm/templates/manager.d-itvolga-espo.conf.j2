@@ -1,0 +1,38 @@
+; {{ ansible_managed }}
+; AMI users of the EspoCRM telephony integration (stage 07.1, D-169). Production: /etc/asterisk/manager.d/itvolga-espo.conf
+; (owner root:asterisk, mode 0640), secrets from the vault instead of the placeholders, then
+;     asterisk -rx "manager reload"        ; never a restart: the running calls stay up
+;     asterisk -rx "manager show user itvolga-espo-listener"
+; manager.conf of the server already has enabled=yes, bindaddr=127.0.0.1, webenabled=no and #include "manager.d/*.conf"
+; (read-only check 2026-10-13); nothing else changes, the dialplan and the trunks are not touched.
+; The local stand renders this very file with its own secrets (deploy/telephony/entrypoint.sh).
+
+; Listener: reads the channel events of calls (class call) and only the recording file name of MixMonitor (class
+; dialplan, narrowed by the filters below); may list the channels (CoreShowChannels, class reporting) to reconcile
+; after a restart. Cannot originate, hang up, redirect, run CLI commands, read SIP passwords (class system).
+[{{ espocrm_ami_listener_user }}]
+secret = {{ espocrm_ami_listener_secret }}
+deny = 0.0.0.0/0.0.0.0
+permit = 127.0.0.1/255.255.255.255
+displayconnects = no
+read = call,dialplan
+write = reporting
+eventfilter(action(include),name(Newchannel)) =
+eventfilter(action(include),name(Newstate)) =
+eventfilter(action(include),name(DialBegin)) =
+eventfilter(action(include),name(DialEnd)) =
+eventfilter(action(include),name(BridgeEnter)) =
+eventfilter(action(include),name(BridgeLeave)) =
+eventfilter(action(include),name(Hangup)) =
+eventfilter(action(include),name(NewConnectedLine)) =
+eventfilter(action(include),name(VarSet),header(Variable),method(exact)) = MIXMONITOR_FILENAME
+
+; Dialer: click-to-call only (class originate). Receives no events; an Originate of a shell or another application
+; is refused by Asterisk itself.
+[{{ espocrm_ami_dialer_user }}]
+secret = {{ espocrm_ami_dialer_secret }}
+deny = 0.0.0.0/0.0.0.0
+permit = 127.0.0.1/255.255.255.255
+displayconnects = no
+read =
+write = originate

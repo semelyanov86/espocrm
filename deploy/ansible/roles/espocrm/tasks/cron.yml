@@ -1,0 +1,8 @@
+---
+- name: Schedule cron.php of EspoCRM every minute
+  ansible.builtin.template:
+    src: cron.j2
+    dest: "{{ espocrm_cron_file }}"
+    owner: root
+    group: root
+    mode: "0644"

@@ -1,0 +1,31 @@
+---
+- name: Stat the fail2ban configuration directory
+  ansible.builtin.stat:
+    path: /etc/fail2ban
+  register: espocrm_fail2ban_stat
+
+# Jail ждёт свой журнал при старте fail2ban: файл создаётся заранее (как mcp_error.log ролью fail2ban).
+- name: Ensure the access log of the EspoCRM vhost exists
+  ansible.builtin.copy:
+    content: ""
+    dest: "/var/log/apache2/{{ espocrm_log_prefix }}_access.log"
+    force: false
+    owner: root
+    group: adm
+    mode: "0640"
+  when: espocrm_fail2ban_enabled | bool and espocrm_fail2ban_stat.stat.exists
+
+- name: Deploy the fail2ban filter and jail of the EspoCRM login
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - { src: fail2ban-filter.conf.j2, dest: /etc/fail2ban/filter.d/espocrm-auth.conf }
+    - { src: fail2ban-jail.local.j2, dest: /etc/fail2ban/jail.d/espocrm.local }
+  loop_control:
+    label: "{{ item.dest }}"
+  when: espocrm_fail2ban_enabled | bool and espocrm_fail2ban_stat.stat.exists
+  notify: Reload fail2ban

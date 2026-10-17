@@ -1,0 +1,123 @@
+---
+argument_specs:
+  main:
+    short_description: EspoCRM next to Vtiger on serv.itvolga.com
+    description:
+      - Deploys the pinned EspoCRM release and the Itvolga module (git archive of a commit of the migration
+        repository) with a dedicated PHP 8.5 FPM master, a separate MySQL database and user, cron, the AMI listener,
+        the vhost and the fail2ban jail; keeps the security settings (mandatory 2FA, no websocket).
+      - Owns the switch of serv.itvolga.com between Vtiger and EspoCRM (itvolga_crm_primary).
+      - Installs the maintenance tools espocrm, espocrm-backup, espocrm-restore, espocrm-restore-check,
+        espocrm-health, espocrm-fingerprint, espocrm-changes-since.
+    author:
+      - Itvolga migration project
+    options:
+      espocrm_mode:
+        type: str
+        required: false
+        choices: [vtiger, maintenance, espocrm]
+        description: Who serves serv.itvolga.com; defaults to itvolga_crm_primary.
+      espocrm_server_name:
+        type: str
+        required: false
+        default: serv.itvolga.com
+        description: Name of the site (and of its Let's Encrypt certificate).
+      espocrm_preview_port:
+        type: int
+        required: false
+        default: 8443
+        description: Loopback HTTPS port of the preview vhost (127.0.0.1 only).
+      espocrm_version:
+        type: str
+        required: false
+        default: "10.0.9"
+        description: Pinned EspoCRM release; another version in the core stamp stops the role (upgrade is manual).
+      espocrm_zip_sha256:
+        type: str
+        required: false
+        description: sha256 of the release archive.
+      espocrm_module_repo:
+        type: path
+        required: false
+        default: /data/itvolga/espo
+        description: Migration repository on the controller (source of the Itvolga module).
+      espocrm_module_ref:
+        type: str
+        required: false
+        default: HEAD
+        description: Git ref of the module to deploy (resolved to a commit; only committed code is deployed).
+      espocrm_root:
+        type: path
+        required: false
+        default: /var/www/espocrm
+        description: EspoCRM root (document root is its public/).
+      espocrm_user:
+        type: str
+        required: false
+        default: espocrm
+        description: System user of PHP-FPM, cron and the listener.
+      espocrm_php_version:
+        type: str
+        required: false
+        default: "8.5"
+        description: Native PHP version of EspoCRM (PHP 7.4 of Vtiger and Lahic is not touched).
+      espocrm_db_name:
+        type: str
+        required: false
+        default: espocrm
+        description: Database of EspoCRM.
+      espocrm_db_user:
+        type: str
+        required: false
+        default: espocrm
+        description: MySQL user of EspoCRM (host 127.0.0.1, privileges on its database only).
+      espocrm_db_login_update:
+        type: str
+        required: false
+        choices: [on_create, always]
+        default: on_create
+        description: always — rotate the MySQL password to the vault value.
+      espocrm_admin_reset:
+        type: bool
+        required: false
+        default: false
+        description: Set the administrator password from the vault (after the restore of a stand bundle).
+      espocrm_cleanup_deleted_records:
+        type: bool
+        required: false
+        default: false
+        description: cleanupDeletedRecords of EspoCRM; stays false until the last delta import.
+      espocrm_enforced_settings:
+        type: dict
+        required: false
+        description: EspoCRM settings kept on every run (2FA, websocket, extension upload, password strength).
+      espocrm_security_key_rp_id:
+        type: str
+        required: false
+        default: ""
+        description: Optional parent domain as the WebAuthn RP ID of the security keys.
+      espocrm_telephony_enabled:
+        type: bool
+        required: false
+        default: false
+        description: Live telephony (AMI users, listener, click-to-call); the history player works without it.
+      espocrm_telephony_rules:
+        type: dict
+        required: false
+        default: {}
+        description: Rules of the telephony integration; empty — the production defaults (TrackerSettings).
+      espocrm_fail2ban_enabled:
+        type: bool
+        required: false
+        default: true
+        description: fail2ban jail espocrm-auth on 401 answers of the login.
+      espocrm_health_login:
+        type: bool
+        required: false
+        default: true
+        description: The health check of the playbooks logs in as the vault administrator.
+      espocrm_health_ca_file:
+        type: str
+        required: false
+        default: ""
+        description: Extra trusted CA of the HTTPS checks (the test CA of the disposable target only).

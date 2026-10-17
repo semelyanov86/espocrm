@@ -1,0 +1,52 @@
+---
+# Служебные инструменты: консоль и обслуживание EspoCRM от root (docs/migration/deploy.md, «Инструменты»).
+- name: Deploy the settings of the maintenance tools
+  ansible.builtin.template:
+    src: espocrm.env.j2
+    dest: "{{ espocrm_env_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Deploy the libraries of the maintenance tools
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ espocrm_lib_dir }}/{{ item.src }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - { src: lib.sh, mode: "0644" }
+    - { src: config.php, mode: "0644" }
+    - { src: install.sh, mode: "0750" }
+    - { src: health_http.py, mode: "0644" }
+  loop_control:
+    label: "{{ item.src }}"
+
+- name: Deploy the maintenance commands
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ espocrm_sbin_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: "0750"
+  loop:
+    - espocrm
+    - espocrm-config
+    - espocrm-apply
+    - espocrm-backup
+    - espocrm-restore
+    - espocrm-restore-check
+    - espocrm-health
+    - espocrm-fingerprint
+    - espocrm-changes-since
+
+# Настройки без секретов, которые restore пакета возвращает поверх конфигурации источника (стенда).
+- name: Deploy the settings the role keeps in the EspoCRM configuration
+  ansible.builtin.template:
+    src: settings.json.j2
+    dest: "{{ espocrm_settings_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  register: espocrm_settings_written

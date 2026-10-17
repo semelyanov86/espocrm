@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+# Brute force of the EspoCRM login (role espocrm). ignoreip of [DEFAULT] (jail.local of the role fail2ban) applies:
+# loopback, the office and the VPN are never banned. EspoCRM limits failed attempts by itself as well.
+[espocrm-auth]
+enabled = true
+port = http,https
+filter = espocrm-auth
+logpath = /var/log/apache2/{{ espocrm_log_prefix }}_access.log
+maxretry = {{ espocrm_fail2ban_maxretry }}
+findtime = {{ espocrm_fail2ban_findtime }}
+bantime = {{ espocrm_fail2ban_bantime }}

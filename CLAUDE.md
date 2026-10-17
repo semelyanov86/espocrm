@@ -55,6 +55,11 @@ task test:stage07.1                         # приёмочные тесты т
 task import:run -- --snapshot <id> --recordings verify   # история звонков: записи только проверить (production; стенд — place)
 task test:stage07.2                         # история звонков (этап 07.2): чистые тесты CDR + стенд (нужен task telephony:down)
 task test:stage08                           # тесты этапа 08 без стенда: первый файл свежей установки, сводка по мерам и колонкам
+task ansible:lint | ansible:syntax           # собственные проверки Ansible сервера на наложении (этап 09): клон /data/server + роль espocrm + патч
+task ansible:test [-- шаг]                  # одноразовая Ubuntu 26.04 с systemd (Docker): роли сервера, роль espocrm дважды, --check, backup/restore, телефония, переключение
+task ansible:check | ansible:test-down      # дрейф --check --diff на проверочной машине | удалить её
+scripts/deploy/overlay.sh status            # база патча и HEAD /data/server; install --stage10 — только этап 10
+scripts/deploy/bundle.sh push|pull …        # пакет EspoCRM стенд ⇄ production (этапы 10–11, D-187)
 ```
 
 - `docs/migration/field-map.csv` и `relations.csv` **не редактировать вручную**: правила — `scripts/audit/mapping.py`, генерация — `scripts/audit/build_maps.py` из приватного прогона.

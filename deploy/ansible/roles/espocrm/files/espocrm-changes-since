@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# What changed in EspoCRM after a moment (role espocrm, rollback runbook, D-188): per table with created_at /
+# modified_at, the rows created, modified (created before) and deleted (soft) at or after the moment. Read only
+# (READ ONLY session). The console shows counts per table; --export also writes every such row (table, id,
+# created_at, modified_at, deleted, name when the table has one) to $BACKUP_DIR/changes-<time>.tsv (600, the server
+# only: names may be personal data) — the list for re-entering the work of the switched period after a rollback.
+#
+#   espocrm-changes-since '2026-11-01 18:00:00' [--export]      (UTC, as EspoCRM stores it; the moment itself is
+#                                                               included — take it just before the switch)
+# shellcheck source=/dev/null
+source /usr/local/lib/espocrm/lib.sh
+require_root
+
+since="${1:-}" export=0
+[[ "${2:-}" == --export ]] && export=1
+[[ "$since" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}\ [0-9]{2}:[0-9]{2}:[0-9]{2}$ ]] \
+    || die "usage: espocrm-changes-since 'YYYY-MM-DD HH:MM:SS' [--export]   (UTC)"
+
+# Journals EspoCRM writes on its own; their rows are not user work.
+skip="'job','scheduled_job','scheduled_job_log_record','auth_token','auth_log_record','action_history_record',
+      'app_log_record','notification','unique_id','array_value','webhook_queue_item','webhook_event_queue_item',
+      'email_queue_item','mass_action'"
+tables="$(mysql_root -N -B -e "SELECT c.table_name FROM information_schema.columns c
+    WHERE c.table_schema = '$DB_NAME' AND c.column_name = 'created_at' AND c.table_name NOT IN ($skip)
+      AND EXISTS (SELECT 1 FROM information_schema.columns m WHERE m.table_schema = c.table_schema
+                  AND m.table_name = c.table_name AND m.column_name = 'modified_at')
+      AND EXISTS (SELECT 1 FROM information_schema.columns d WHERE d.table_schema = c.table_schema
+                  AND d.table_name = c.table_name AND d.column_name = 'deleted')
+    ORDER BY c.table_name")"
+
+out=""
+if [[ $export == 1 ]]; then
+    umask 077
+    out="$BACKUP_DIR/changes-$(date +%Y%m%dT%H%M%S).tsv"
+    printf 'table\tid\tcreated_at\tmodified_at\tdeleted\tname\n' >"$out"
+fi
+printf '%-40s %8s %8s %8s\n' table created modified deleted
+total=0
+while IFS= read -r t; do
+    [[ "$t" =~ ^[a-z0-9_]+$ ]] || continue
+    row="$(mysql_root -N -B "$DB_NAME" -e "SET SESSION TRANSACTION READ ONLY; SELECT
+        SUM(created_at >= '$since' AND deleted = 0), SUM(created_at < '$since' AND modified_at >= '$since' AND deleted = 0),
+        SUM(modified_at >= '$since' AND deleted = 1) FROM \`$t\`")"
+    read -r c m d <<<"${row//NULL/0}"
+    [[ "$c" == 0 && "$m" == 0 && "$d" == 0 ]] && continue
+    printf '%-40s %8s %8s %8s\n' "$t" "$c" "$m" "$d"
+    total=$((total + c + m + d))
+    if [[ -n "$out" ]]; then
+        name_col="''"
+        [[ -n "$(mysql_root -N -B -e "SELECT 1 FROM information_schema.columns WHERE table_schema='$DB_NAME'
+            AND table_name='$t' AND column_name='name'")" ]] && name_col="REPLACE(REPLACE(\`name\`, '\t', ' '), '\n', ' ')"
+        mysql_root -N -B "$DB_NAME" -e "SET SESSION TRANSACTION READ ONLY; SELECT '$t', id, created_at, modified_at,
+            deleted, $name_col FROM \`$t\` WHERE created_at >= '$since' OR modified_at >= '$since'" >>"$out"
+    fi
+done <<<"$tables"
+echo "---"
+echo "changes since $since UTC: $total rows${out:+; list: $out}"

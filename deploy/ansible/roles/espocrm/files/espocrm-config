@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# EspoCRM configuration without values in argv (role espocrm): `espocrm-config set < json` writes only what differs
+# and prints {"changed": [names]}; `espocrm-config get name…` prints the values (root only — may contain secrets).
+# shellcheck source=/dev/null
+source /usr/local/lib/espocrm/lib.sh
+require_root
+espo_config "$@"

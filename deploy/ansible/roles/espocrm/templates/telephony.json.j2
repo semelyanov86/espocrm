@@ -1,0 +1,7 @@
+{{ {'enabled': espocrm_telephony_enabled | bool,
+     'ami': {'address': espocrm_ami_address,
+             'listener': {'username': espocrm_ami_listener_user, 'secret': espocrm_ami_listener_secret},
+             'dialer': {'username': espocrm_ami_dialer_user, 'secret': espocrm_ami_dialer_secret}},
+     'rules': espocrm_telephony_rules,
+     'recordings': {'root': espocrm_recordings_dir, 'asteriskDir': espocrm_recordings_dir},
+     'fallbackExtensionIfMissing': espocrm_telephony_fallback_extension | string} | to_nice_json(indent=2) }}

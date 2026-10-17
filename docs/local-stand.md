@@ -145,7 +145,7 @@ task stand:restore -- latest --yes      # при необходимости ве
 ## Ограничения и заметки
 
 - **Обновление EspoCRM не автоматизировано:** при смене `ESPO_VERSION` установщик останавливается. Порядок для будущего этапа: backup → новое ядро → `task espo -- migrate` → health-check (не проверено).
-- Только HTTP; HTTPS и Basic Auth — как на production, на этапе 09.
+- Только HTTP. На production (этап 09, `docs/migration/deploy.md`) — HTTPS с сертификатом `serv.itvolga.com`, без HTTP Basic Auth: клиент EspoCRM шлёт свой `Authorization: Basic` в каждом запросе API, поэтому вход — EspoCRM + обязательная 2FA (D-183).
 - Ключ безопасности (WebAuthn, D-131) работает только в защищённом контексте: на HTTP-стенде — в Chrome с флагом `chrome://flags/#unsafely-treat-insecure-origin-as-secure` = `http://crm.itvolga.test` (headless — `--unsafely-treat-insecure-origin-as-secure=http://crm.itvolga.test` вместе с `--user-data-dir`). Ключи привязаны к RP ID `crm.itvolga.test` и на production не переносятся. Firefox (`dom.securecontext.allowlist`) — не проверено.
 - WebSocket и daemon не используются (фоновые задачи — cron + параллельные процессы); почта не настроена.
 - Параллельные задачи EspoCRM (библиотека spatie/async) запускают дочерние процессы как `php` из `PATH`; поэтому cron и консоль получают `PATH` с shim `/opt/itvolga-espo/bin/php` → `php8.5`, а health-check проверяет версию. Системный `php` рабочей станции 2026-09-29 переключён на 8.5 (`php-switch 8.5`), но стенд от этого не зависит.

@@ -1,0 +1,105 @@
+# {{ ansible_managed }}
+# EspoCRM — {{ espocrm_server_name }}, mode {{ espocrm_mode }} (role espocrm, D-181). Layout per docs.espocrm.com
+# (apache-server-configuration), as on the stand: document root public/, alias /client/, nothing else of the root is
+# reachable; PHP goes to the dedicated FPM pool. No HTTP Basic Auth: the login of EspoCRM + mandatory 2FA (D-183).
+{% macro espocrm_backend() %}
+    DocumentRoot {{ espocrm_root }}/public
+    Alias /client/ {{ espocrm_root }}/client/
+
+    <Directory {{ espocrm_root }}/>
+        Options None
+        AllowOverride None
+        Require all denied
+    </Directory>
+
+    <Directory {{ espocrm_root }}/public/>
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+        CGIPassAuth On
+    </Directory>
+
+    <Directory {{ espocrm_root }}/client/>
+        Options -Indexes
+        AllowOverride None
+        Require all granted
+        <FilesMatch "\.ph(ar|p|tml)$">
+            Require all denied
+        </FilesMatch>
+    </Directory>
+
+    # The web installer is never used: EspoCRM is installed from the CLI.
+    <Location "/install">
+        Require all denied
+    </Location>
+
+    <FilesMatch "\.ph(ar|p|tml)$">
+        <If "-f %{REQUEST_FILENAME}">
+            SetHandler "proxy:unix:{{ espocrm_fpm_socket }}|fcgi://espocrm/"
+        </If>
+    </FilesMatch>
+{% endmacro %}
+
+# Preview: only on the loopback interface, for checks and the SSH tunnel of the owner before the switch
+# (ssh -L {{ espocrm_preview_port }}:{{ espocrm_preview_address }}:{{ espocrm_preview_port }} …, docs/migration/cutover.md).
+Listen {{ espocrm_preview_address }}:{{ espocrm_preview_port }} https
+<VirtualHost {{ espocrm_preview_address }}:{{ espocrm_preview_port }}>
+    ServerName {{ espocrm_server_name }}
+    ServerSignature Off
+
+    SSLEngine on
+    SSLCertificateFile {{ espocrm_tls_cert }}
+    SSLCertificateKeyFile {{ espocrm_tls_key }}
+
+{{ espocrm_backend() }}
+    ErrorLog ${APACHE_LOG_DIR}/{{ espocrm_log_prefix }}_error.log
+    CustomLog ${APACHE_LOG_DIR}/{{ espocrm_log_prefix }}_access.log combined
+</VirtualHost>
+{% if espocrm_mode != 'vtiger' %}
+
+# Public {{ espocrm_server_name }}: {{ 'EspoCRM' if espocrm_mode == 'espocrm' else 'maintenance page of the switch window' }}.
+<VirtualHost *:80>
+    ServerName {{ espocrm_server_name }}
+    ServerSignature Off
+
+    # ACME HTTP-01 is always served and never redirected (renewal of the certificate).
+    Alias /.well-known/acme-challenge/ {{ espocrm_letsencrypt_webroot }}/.well-known/acme-challenge/
+    <Directory "{{ espocrm_letsencrypt_webroot }}/.well-known/acme-challenge/">
+        Require all granted
+    </Directory>
+
+    RewriteEngine On
+    RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}$1 [R=301,L]
+
+    ErrorLog ${APACHE_LOG_DIR}/{{ espocrm_log_prefix }}_error.log
+    CustomLog ${APACHE_LOG_DIR}/{{ espocrm_log_prefix }}_access.log combined
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName {{ espocrm_server_name }}
+    ServerSignature Off
+
+    SSLEngine on
+    SSLCertificateFile {{ espocrm_tls_cert }}
+    SSLCertificateKeyFile {{ espocrm_tls_key }}
+
+{% if espocrm_mode == 'espocrm' %}
+{{ espocrm_backend() }}
+{% else %}
+    DocumentRoot {{ espocrm_maintenance_dir }}
+    <Directory {{ espocrm_maintenance_dir }}/>
+        Options None
+        AllowOverride None
+        Require all granted
+    </Directory>
+    ErrorDocument 503 /maintenance.html
+    Header always set Retry-After "900"
+    RewriteEngine On
+    RewriteCond %{REQUEST_URI} !=/maintenance.html
+    RewriteRule ^ - [R=503,L]
+{% endif %}
+    ErrorLog ${APACHE_LOG_DIR}/{{ espocrm_log_prefix }}_error.log
+    CustomLog ${APACHE_LOG_DIR}/{{ espocrm_log_prefix }}_access.log combined
+</VirtualHost>
+{% endif %}

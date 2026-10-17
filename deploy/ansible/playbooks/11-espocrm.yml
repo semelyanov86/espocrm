@@ -1,0 +1,68 @@
+---
+# =============================================================================
+#  11-espocrm — EspoCRM рядом с Vtiger (миграция Vtiger → EspoCRM, репозиторий
+#  /data/itvolga/espo, этапы 09–11; роль espocrm, docs/migration/deploy.md).
+#
+#  НЕ в site.yml (как 09-certs и 10-backup): применяется отдельно, только по
+#  отдельному разрешению владельца (этап 10):
+#     task ansible:espocrm         # = ansible-playbook playbooks/11-espocrm.yml
+#     task ansible:espocrm-check   # --check --diff: дрейф на развёрнутом хосте
+#  Модуль Itvolga — git archive коммита репозитория миграции на контроллере:
+#     -e espocrm_module_ref=<коммит>   (по умолчанию HEAD)
+#  Кто обслуживает serv.itvolga.com — переключатель itvolga_crm_primary
+#  (group_vars/all/vars.yml); смена — playbooks/12-crm-switch.yml.
+# =============================================================================
+
+- name: EspoCRM next to Vtiger
+  hosts: all
+  become: true
+  gather_facts: true
+  # Обработчики (reload Apache, рестарт PHP-FPM и слушателя) выполняются и после сбоя задачи: иначе изменённые
+  # файлы остались бы без перезагрузки службы, а повторный прогон изменений уже не увидит.
+  force_handlers: true
+
+  roles:
+    - role: espocrm
+      tags:
+        - apps
+        - espocrm
+
+  post_tasks:
+    # Сразу после установки cron.php может ещё не отработать — повтор до 5 минут. Пароль администратора — только
+    # окружение одной команды (no_log), вывод — отдельной задачей без секретов.
+    - name: Run the EspoCRM health check
+      ansible.builtin.command:
+        cmd: /usr/local/sbin/espocrm-health
+      environment:
+        HEALTH_USER: "{{ espocrm_admin_username if espocrm_health_login | bool else '' }}"
+        HEALTH_PASSWORD: "{{ espocrm_admin_password if espocrm_health_login | bool else '' }}"
+      register: espocrm_health
+      changed_when: false
+      failed_when: false
+      until: espocrm_health.rc == 0
+      retries: 10
+      delay: 30
+      no_log: true
+      when: not ansible_check_mode
+      tags:
+        - espocrm
+        - verify
+
+    - name: Show the EspoCRM health check
+      ansible.builtin.debug:
+        var: espocrm_health.stdout_lines
+      when: not ansible_check_mode
+      tags:
+        - espocrm
+        - verify
+
+    - name: Fail when the EspoCRM health check failed
+      ansible.builtin.assert:
+        that:
+          - espocrm_health.rc == 0
+        fail_msg: "espocrm-health: есть FAIL (вывод — выше)."
+        quiet: true
+      when: not ansible_check_mode
+      tags:
+        - espocrm
+        - verify

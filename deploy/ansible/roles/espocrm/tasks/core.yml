@@ -1,0 +1,113 @@
+---
+# Ядро — закреплённый релиз (sha256): распаковка один раз в /opt/espocrm/releases, затем rsync в корень при каждом
+# прогоне (правка файлов ядра на сервере — дрейф, его вернёт следующий прогон; --check покажет его через
+# --dry-run). data/, custom/, client/custom/ и отметки роли rsync не трогает. Обновление EspoCRM не
+# автоматизировано (как на стенде): другая версия в отметке — остановка с объяснением.
+- name: Stat the installed core stamp
+  ansible.builtin.stat:
+    path: "{{ espocrm_root }}/.espocrm-core"
+  register: espocrm_core_stamp_stat
+
+- name: Read the installed core stamp
+  ansible.builtin.slurp:
+    src: "{{ espocrm_root }}/.espocrm-core"
+  register: espocrm_core_stamp
+  when: espocrm_core_stamp_stat.stat.exists
+
+- name: Refuse an automatic upgrade of the EspoCRM core
+  ansible.builtin.assert:
+    that:
+      - (espocrm_core_stamp.content | b64decode).split() | first == espocrm_version
+    fail_msg: >-
+      В {{ espocrm_root }} ядро {{ (espocrm_core_stamp.content | b64decode).split() | first }}, роль закрепляет
+      {{ espocrm_version }}: обновление EspoCRM не автоматизировано (backup → новое ядро → migrate → health,
+      docs/migration/deploy.md).
+    quiet: true
+  when: espocrm_core_stamp_stat.stat.exists
+
+- name: Download the EspoCRM release (sha256 verified)
+  ansible.builtin.get_url:
+    url: "{{ espocrm_zip_url }}"
+    dest: "{{ espocrm_release_dir }}.zip"
+    checksum: "sha256:{{ espocrm_zip_sha256 }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Unpack the EspoCRM release
+  ansible.builtin.unarchive:
+    src: "{{ espocrm_release_dir }}.zip"
+    dest: "{{ espocrm_opt_dir }}/releases"
+    remote_src: true
+    owner: root
+    group: root
+    creates: "{{ espocrm_release_dir }}/application/Espo/Core/Application.php"
+
+# rsync, а не synchronize: источник и цель — на одном сервере. --itemize-changes печатает только изменённое;
+# --omit-dir-times: время каталогов меняют data/, отметки и каркас, создаваемые в корне после синхронизации.
+- name: Synchronise the core into the EspoCRM root  # noqa: command-instead-of-module
+  ansible.builtin.command:
+    cmd: >-
+      rsync -a --omit-dir-times --delete --itemize-changes --chown=root:root --chmod=go-w
+      {{ '--dry-run' if ansible_check_mode else '' }}
+      --exclude=/data/ --exclude=/custom/ --exclude=/client/custom/
+      --exclude=/.espocrm-core --exclude=/.itvolga-module
+      {{ espocrm_release_dir }}/ {{ espocrm_root }}/
+  register: espocrm_core_sync
+  changed_when: espocrm_core_sync.stdout | length > 0
+  check_mode: false
+
+# Каркас custom/ и client/custom/ релиза — только недостающие файлы (правки администратора не перезаписываются);
+# без -a: владельца и режим существующих каталогов задают задачи ниже, rsync их не трогает.
+- name: Add missing skeleton files of the customisation directories  # noqa: command-instead-of-module
+  ansible.builtin.command:
+    cmd: >-
+      rsync -r --links --ignore-existing --itemize-changes {{ '--dry-run' if ansible_check_mode else '' }}
+      {{ espocrm_release_dir }}/{{ item }}/ {{ espocrm_root }}/{{ item }}/
+  loop:
+    - custom
+    - client/custom
+  register: espocrm_skeleton_sync
+  changed_when: espocrm_skeleton_sync.stdout | length > 0
+  check_mode: false
+
+- name: Write the core stamp
+  ansible.builtin.copy:
+    content: "{{ espocrm_core_stamp_line }}\n"
+    dest: "{{ espocrm_root }}/.espocrm-core"
+    owner: root
+    group: root
+    mode: "0644"
+  register: espocrm_core_stamp_write
+
+# Записывает EspoCRM только сюда (Permission::$writableMap ядра проверяет верхний уровень); код модуля Itvolga
+# внутри custom/Espo/Modules и client/custom/modules остаётся root (module.yml). Свежая установка не имеет
+# data/upload и data/logs до первого файла (этап 08) — каталоги создаются сразу.
+- name: Create the writable directories of EspoCRM
+  ansible.builtin.file:
+    path: "{{ espocrm_root }}/{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.owner }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: data, owner: "{{ espocrm_user }}", mode: "0770" }
+    - { path: data/upload, owner: "{{ espocrm_user }}", mode: "0770" }
+    - { path: data/logs, owner: "{{ espocrm_user }}", mode: "0770" }
+    - { path: custom/Espo/Custom, owner: "{{ espocrm_user }}", mode: "0770" }
+    - { path: custom/Espo/Modules, owner: "{{ espocrm_user }}", mode: "0755" }
+    - { path: client/custom, owner: "{{ espocrm_user }}", mode: "0755" }
+    - { path: client/custom/modules, owner: root, mode: "0755" }
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Give the EspoCRM user its data and admin customisations
+  ansible.builtin.file:
+    path: "{{ espocrm_root }}/{{ item }}"
+    state: directory
+    recurse: true
+    owner: "{{ espocrm_user }}"
+    group: "{{ espocrm_user }}"
+  loop:
+    - data
+    - custom/Espo/Custom

@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+# Restore EspoCRM on the server from a bundle (role espocrm, D-186, D-187) — a bundle of espocrm-backup or of the
+# stand (scripts/stand/backup.sh: the verified import of a snapshot reaches production this way).
+#
+#   espocrm-restore <bundle-dir|name|nightly> [--yes] [--no-safety-backup] [--with-custom]
+#
+# 1. verify SHA256SUMS and the EspoCRM version; take a safety bundle of the current state (…-pre-restore);
+# 2. keep the server-owned configuration of the live installation (database, telephony; SERVER_CONFIG_KEYS);
+# 3. pause the listener, cron and PHP-FPM; import the dump into a staging database and verify exact row counts
+#    there (strict for quiesced bundles) — a bad bundle never touches the live database;
+# 4. swap: live tables → <db>__prev_<ts>, staging tables → <db> (atomic RENAME TABLE);
+# 5. replace data/ (and, with --with-custom or for a bundle of this server, custom/Espo/Custom and client/custom
+#    except the module, which belongs to Ansible), keeping the previous directories aside; put the server-owned
+#    configuration and the role settings (/etc/espocrm/settings.json) back; permissions; rebuild;
+# 6. resume, wait for cron.php, espocrm-health. Only after it passes are the previous tables and directories
+#    dropped. On a failure after step 4 the writers stay stopped and the rollback command is printed.
+# shellcheck source=/dev/null
+source /usr/local/lib/espocrm/lib.sh
+require_root
+
+target="" yes=0 safety=1 custom=auto
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --yes) yes=1 ;;
+        --no-safety-backup) safety=0 ;;
+        --with-custom) custom=1 ;;
+        -*) die "unknown option $1" ;;
+        *) target="$1" ;;
+    esac
+    shift
+done
+[[ -n "$target" ]] || die "usage: espocrm-restore <bundle-dir|name|nightly> [--yes] [--no-safety-backup] [--with-custom]"
+if [[ -d "$target" ]]; then dir="$(cd "$target" && pwd)"
+elif [[ "$target" == nightly ]]; then dir="$BACKUP_DIR/nightly"
+else dir="$BACKUP_DIR/bundles/$target"; fi
+
+log "verifying $dir"
+bundle_verify "$dir"
+counts_exact="$(manifest_get "$dir" counts_exact)"; counts_exact="${counts_exact:-$(manifest_get "$dir" quiesced)}"
+db_cs="$(manifest_get "$dir" db_charset)"; db_coll="$(manifest_get "$dir" db_collation)"
+origin="$(manifest_get "$dir" origin)"
+if [[ $custom == auto ]]; then [[ "$origin" == production ]] && custom=1 || custom=0; fi
+
+if [[ $yes != 1 ]]; then
+    read -r -p "Restore $(manifest_get "$dir" name) (${origin:-stand}) over EspoCRM ($DB_NAME and data/)? [y/N] " answer
+    [[ "$answer" =~ ^[yY]$ ]] || die "aborted"
+fi
+
+safety_dir=""
+if [[ $safety == 1 ]]; then
+    log "safety backup of the current state"
+    safety_dir="$("$SBIN_DIR/espocrm-backup" --label pre-restore)"
+fi
+ops_lock
+umask 077
+
+ts="$(date +%Y%m%dT%H%M%S)"
+aside="$BACKUP_DIR/.restore-aside-$ts"
+stage_db="${DB_NAME}__restore_$ts"
+prev_db="${DB_NAME}__prev_$ts"
+server_config="$STATE_DIR/server-config-$ts.json"
+phase=verify finished=0
+
+on_exit() {
+    local rc=$?
+    [[ $finished == 1 ]] && return 0
+    if [[ $phase == verify ]]; then
+        mysql_root -e "DROP DATABASE IF EXISTS \`$stage_db\`" || true
+        rm -f "$server_config"
+        resume_writers
+        warn "restore aborted before any change (rc=$rc): EspoCRM is unchanged and running"
+        return
+    fi
+    pause_writers || true
+    warn "restore FAILED in phase '$phase' (rc=$rc): the listener, cron and $FPM_UNIT are stopped."
+    warn "Previous tables: database $prev_db; previous directories: $aside; server configuration: $server_config."
+    if [[ -n "$safety_dir" ]]; then
+        warn "Roll back with: espocrm-restore $safety_dir --yes --no-safety-backup"
+    else
+        warn "No safety bundle was taken: move the tables of $prev_db and the directories in $aside back manually."
+    fi
+}
+trap on_exit EXIT
+
+log "keeping the server-owned configuration (${SERVER_CONFIG_KEYS[*]})"
+espo_config get "${SERVER_CONFIG_KEYS[@]}" >"$server_config"
+# A key the live configuration does not have is removed after the restore (null), so no setting of the source
+# installation (e.g. the AMI users of the stand's test PBX) survives in production.
+python3 - "$server_config" "${SERVER_CONFIG_KEYS[@]}" <<'PY' || die "the live configuration has no database block"
+import json, sys
+path, keys = sys.argv[1], sys.argv[2:]
+with open(path, encoding="utf-8") as f:
+    data = json.load(f)
+if "database" not in data:
+    sys.exit(1)
+for key in keys:
+    data.setdefault(key, None)
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(data, f, ensure_ascii=False)
+PY
+
+log "pausing writers (telephony listener, cron, $FPM_UNIT)"
+pause_writers
+
+log "importing the dump into staging database $stage_db ($db_cs / $db_coll)"
+mysql_root -e "CREATE DATABASE \`$stage_db\` CHARACTER SET $db_cs COLLATE $db_coll"
+bundle_cat_db "$dir" | mysql_root "$stage_db"
+[[ "$(db_extra_objects "$stage_db")" == 0 ]] || die "the dump contains views/triggers/routines/events; not supported"
+if diff -q <(table_counts "$stage_db") "$dir/table-counts.tsv" >/dev/null; then
+    log "staging database verified: $(wc -l <"$dir/table-counts.tsv") tables, row counts identical to the bundle"
+elif [[ "$counts_exact" == 1 ]]; then
+    diff <(table_counts "$stage_db") "$dir/table-counts.tsv" | head -20 >&2 || true
+    die "row counts of the dump differ from the bundle record"
+else
+    warn "online bundle: row counts differ from the ones taken next to the dump (expected under load)"
+fi
+
+phase=swap
+log "swapping databases (previous tables -> $prev_db)"
+mysql_root -e "CREATE DATABASE \`$prev_db\`"
+if [[ "$(mysql_root -N -B -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='$DB_NAME'")" != 0 ]]; then
+    [[ "$(db_extra_objects "$DB_NAME")" == 0 ]] || die "$DB_NAME contains views/triggers/routines/events; not supported"
+    move_tables "$DB_NAME" "$prev_db"
+fi
+# Recreate the (now empty) live database with the charset of the bundle; grants on it are kept by name.
+mysql_root -e "DROP DATABASE IF EXISTS \`$DB_NAME\`; CREATE DATABASE \`$DB_NAME\` CHARACTER SET $db_cs COLLATE $db_coll"
+move_tables "$stage_db" "$DB_NAME"
+mysql_root -e "DROP DATABASE \`$stage_db\`"
+
+phase=files
+log "restoring files (previous directories -> $aside)"
+install -d -m 0700 "$aside"
+paths=(data)
+[[ $custom == 1 ]] && paths+=(custom/Espo/Custom client/custom)
+for p in "${paths[@]}"; do
+    if [[ -e "$ESPO_ROOT/$p" ]]; then
+        mkdir -p "$aside/$(dirname "$p")"
+        mv "$ESPO_ROOT/$p" "$aside/$p"
+    fi
+done
+files="$(bundle_files "$dir")"
+tar_z=(); [[ "$files" == *.gz ]] && tar_z=(-z)
+# The module (custom/Espo/Modules, client/custom/modules/itvolga) is code of the commit Ansible deployed: never
+# taken from a bundle.
+tar -C "$ESPO_ROOT" "${tar_z[@]}" -xf "$files" --exclude=client/custom/modules/itvolga "${paths[@]}"
+if [[ $custom == 1 && -d "$aside/client/custom/modules/itvolga" ]]; then
+    mkdir -p "$ESPO_ROOT/client/custom/modules"
+    mv "$aside/client/custom/modules/itvolga" "$ESPO_ROOT/client/custom/modules/itvolga"
+fi
+for p in data/upload data/logs custom/Espo/Custom client/custom client/custom/modules; do mkdir -p "$ESPO_ROOT/$p"; done
+chown -R "$ESPO_USER:$ESPO_USER" "$ESPO_ROOT/data" "$ESPO_ROOT/custom/Espo/Custom"
+chown "$ESPO_USER:$ESPO_USER" "$ESPO_ROOT/client/custom"
+chmod 0770 "$ESPO_ROOT/data" "$ESPO_ROOT/custom/Espo/Custom"
+chmod 0755 "$ESPO_ROOT/client/custom"
+chown root:root "$ESPO_ROOT/client/custom/modules"
+
+phase=configure
+log "putting back the server-owned configuration and the role settings"
+espo_config set <"$server_config" >/dev/null
+espo_config set <"$SETTINGS_FILE" >/dev/null
+rm -f "$server_config"
+[[ "$(espo_cmd db:check 2>&1)" == OK ]] || die "EspoCRM cannot connect to its database after the restore"
+espo_cmd clear-cache >/dev/null
+espo_cmd rebuild >/dev/null
+
+phase=health
+since="$(date +%s)"
+resume_writers
+if [[ ! -f "$CRON_FILE" ]]; then die "no cron entry $CRON_FILE (re-run the role espocrm)"; fi
+wait_cron_run "$since" || true
+"$SBIN_DIR/espocrm-health" --restore-ts "$ts" || die "health check failed after the restore"
+
+finished=1
+mysql_root -e "DROP DATABASE \`$prev_db\`"
+rm -rf "$aside"
+log "restore of $(manifest_get "$dir" name) completed; previous tables and directories removed"

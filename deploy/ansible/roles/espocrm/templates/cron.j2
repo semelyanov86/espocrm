@@ -1,0 +1,7 @@
+# {{ ansible_managed }}
+# EspoCRM scheduler (role espocrm), every minute as {{ espocrm_user }}. Output: journalctl -t {{ espocrm_cron_tag }}
+# espocrm-backup / espocrm-restore park this file as {{ espocrm_cron_file | basename }}.paused while they run.
+SHELL=/bin/sh
+# `php` in PATH is a shim to {{ espocrm_php_bin }} (parallel job processes are started as `php`, D-35).
+PATH={{ espocrm_path }}
+* * * * * {{ espocrm_user }} {{ espocrm_php_bin }} -f {{ espocrm_root }}/cron.php 2>&1 | /usr/bin/logger -t {{ espocrm_cron_tag }}

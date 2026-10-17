@@ -1,0 +1,33 @@
+---
+# Производные значения роли (не для переопределения).
+espocrm_release_dir: "{{ espocrm_opt_dir }}/releases/EspoCRM-{{ espocrm_version }}"
+espocrm_core_stamp_line: "{{ espocrm_version }} {{ espocrm_zip_sha256 }}"
+espocrm_vhost_file: /etc/apache2/sites-available/espocrm.conf
+espocrm_cron_file: /etc/cron.d/espocrm
+espocrm_cron_tag: espocrm-cron
+espocrm_fpm_config: "{{ espocrm_etc_dir }}/php-fpm.conf"
+espocrm_env_file: "{{ espocrm_etc_dir }}/espocrm.env"
+espocrm_settings_file: "{{ espocrm_etc_dir }}/settings.json"
+espocrm_telephony_file: "{{ espocrm_etc_dir }}/telephony.json"
+espocrm_pending_apply: "{{ espocrm_state_dir }}/apply-pending"
+espocrm_pending_telephony: "{{ espocrm_state_dir }}/telephony-pending"
+espocrm_ami_file: "{{ espocrm_asterisk_manager_d }}/itvolga-espo.conf"
+espocrm_preview_url: "https://{{ espocrm_server_name }}:{{ espocrm_preview_port }}"
+espocrm_public_url: "https://{{ espocrm_server_name }}"
+# Настройки конфигурации без секретов, которые роль держит при каждом прогоне; restore пакета возвращает их же.
+espocrm_server_settings: >-
+  {{ espocrm_enforced_settings
+     | combine({'siteUrl': espocrm_site_url,
+                'cleanupDeletedRecords': espocrm_cleanup_deleted_records | bool,
+                'defaultPermissions': {'user': espocrm_user, 'group': espocrm_user},
+                'itvolgaSecurityKeyRpId': (espocrm_security_key_rp_id if espocrm_security_key_rp_id | length > 0
+                                           else none)}) }}
+espocrm_database_settings:
+  database:
+    platform: Mysql
+    host: "{{ espocrm_db_host }}"
+    port: "{{ espocrm_db_port | string }}"
+    dbname: "{{ espocrm_db_name }}"
+    user: "{{ espocrm_db_user }}"
+    password: "{{ espocrm_db_password }}"
+    charset: utf8mb4

@@ -1,0 +1,30 @@
+---
+# Применение модуля (как task model:apply стенда) — после первой установки и после любой смены кода ядра или
+# модуля; отметка module.yml переживает сбой прогона.
+- name: Mark the module apply as pending after the first installation
+  ansible.builtin.copy:
+    content: "install\n"
+    dest: "{{ espocrm_pending_apply }}"
+    owner: root
+    group: root
+    mode: "0600"
+  when: espocrm_installed.stdout | trim != 'true'
+
+- name: Stat the pending module apply
+  ansible.builtin.stat:
+    path: "{{ espocrm_pending_apply }}"
+  register: espocrm_apply_pending
+
+- name: Apply the module (clear-cache, rebuild, roles, finance, reports, client timestamp)
+  ansible.builtin.command:
+    cmd: "{{ espocrm_sbin_dir }}/espocrm-apply"
+  when:
+    - espocrm_apply_pending.stat.exists
+    - not ansible_check_mode
+  changed_when: true
+
+- name: Clear the pending module apply
+  ansible.builtin.file:
+    path: "{{ espocrm_pending_apply }}"
+    state: absent
+  when: not ansible_check_mode

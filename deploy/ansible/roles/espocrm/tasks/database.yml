@@ -1,0 +1,27 @@
+---
+# Отдельная БД и пользователь на общем MySQL 8.4 (роль mysql): права — только на свою БД, вход — только с
+# 127.0.0.1 (EspoCRM ходит по TCP). Кодировка — как на стенде (utf8mb4_unicode_ci; пакет переноса несёт свою).
+- name: Create the EspoCRM database
+  community.mysql.mysql_db:
+    name: "{{ espocrm_db_name }}"
+    encoding: utf8mb4
+    collation: "{{ espocrm_db_collation }}"
+    state: present
+    login_user: root
+    login_password: "{{ espocrm_mysql_login_password }}"
+    login_unix_socket: "{{ espocrm_mysql_socket }}"
+  no_log: true
+
+- name: Create the EspoCRM database user
+  community.mysql.mysql_user:
+    name: "{{ espocrm_db_user }}"
+    host: "{{ espocrm_db_host }}"
+    password: "{{ espocrm_db_password }}"
+    plugin: caching_sha2_password
+    update_password: "{{ espocrm_db_login_update }}"
+    priv: "{{ espocrm_db_name }}.*:ALL"
+    state: present
+    login_user: root
+    login_password: "{{ espocrm_mysql_login_password }}"
+    login_unix_socket: "{{ espocrm_mysql_socket }}"
+  no_log: true

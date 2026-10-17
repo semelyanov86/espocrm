@@ -1,0 +1,177 @@
+---
+# Роль espocrm — EspoCRM рядом с Vtiger на serv.itvolga.com (миграция /data/itvolga/espo, этап 09, D-180…D-188).
+# EspoCRM — PHP 8.5 нативного репозитория Ubuntu 26.04 (свой мастер PHP-FPM, пользователь espocrm); PHP 7.4
+# (php74-fpm в Docker: Vtiger, Lahic) роль не трогает. Ядро — закреплённый релиз (sha256), модуль Itvolga —
+# git archive коммита репозитория миграции, отдельная БД и пользователь MySQL, cron, служба слушателя AMI,
+# vhost Apache, jail fail2ban, служебные скрипты backup/restore/health/fingerprint.
+
+# --- Кто обслуживает serv.itvolga.com (D-181) -----------------------------------------------------------------
+#   vtiger      — до переключения: serv.itvolga.com → Vtiger; EspoCRM — только 127.0.0.1:8443 (SSH-туннель);
+#   maintenance — окно переключения: serv.itvolga.com → страница 503, Vtiger без веб-доступа и cron;
+#   espocrm     — после переключения: serv.itvolga.com → EspoCRM.
+# Источник — общий переключатель inventory itvolga_crm_primary (group_vars/all/vars.yml).
+espocrm_mode: "{{ itvolga_crm_primary | default('vtiger') }}"
+espocrm_server_name: serv.itvolga.com
+espocrm_preview_address: 127.0.0.1
+espocrm_preview_port: 8443
+espocrm_tls_cert: "/etc/letsencrypt/live/{{ espocrm_server_name }}/fullchain.pem"
+espocrm_tls_key: "/etc/letsencrypt/live/{{ espocrm_server_name }}/privkey.pem"
+espocrm_letsencrypt_webroot: "{{ apache_letsencrypt_webroot | default('/var/www/letsencrypt') }}"
+espocrm_log_prefix: espocrm
+# Vhost Vtiger роли apache (web_sites.name): в режимах maintenance/espocrm роль снимает его ссылку из sites-enabled,
+# в режиме vtiger возвращает — serv.itvolga.com всегда принадлежит одной системе.
+espocrm_vtiger_vhost: serv_itvolga
+# siteUrl EspoCRM: адрес, с которого работают пользователи. RP ID ключей безопасности — имя хоста (без порта),
+# поэтому ключи, зарегистрированные через туннель :8443, действуют и после переключения (D-182).
+espocrm_site_url: >-
+  {{ 'https://' ~ espocrm_server_name if espocrm_mode == 'espocrm'
+     else 'https://' ~ espocrm_server_name ~ ':' ~ espocrm_preview_port }}
+
+# --- Ядро EspoCRM (тот же релиз, что на стенде: deploy/local/stand.conf) --------------------------------------
+espocrm_version: "10.0.9"
+espocrm_zip_url: "https://github.com/espocrm/espocrm/releases/download/{{ espocrm_version }}/EspoCRM-{{ espocrm_version }}.zip"
+# sha256 опубликован GitHub для ассета релиза и пересчитан локально 2026-09-29 (стенд).
+espocrm_zip_sha256: "9b53a4f88013155193a5d1052b2108743bd2c93e2075c84febd33c4af17e32e5"
+
+# --- Модуль Itvolga: git archive коммита репозитория миграции (на контроллере) -----------------------------------
+espocrm_module_repo: /data/itvolga/espo
+espocrm_module_ref: HEAD
+espocrm_module_paths:
+  - custom/Espo/Modules/Itvolga
+  - client/custom/modules/itvolga
+espocrm_module_build_dir: "{{ espocrm_module_repo }}/build/deploy"
+
+# --- Пути на сервере ---------------------------------------------------------------------------------------------
+espocrm_root: /var/www/espocrm
+espocrm_user: espocrm
+espocrm_opt_dir: /opt/espocrm
+espocrm_etc_dir: /etc/espocrm
+espocrm_lib_dir: /usr/local/lib/espocrm
+espocrm_sbin_dir: /usr/local/sbin
+espocrm_state_dir: /var/lib/espocrm
+espocrm_backup_dir: /var/backups/espocrm
+espocrm_maintenance_dir: /var/www/espocrm-maintenance
+espocrm_ops_lock: /run/lock/espocrm-ops.lock
+
+# --- PHP 8.5 (нативный репозиторий; ставит роль php — здесь только проверка) -------------------------------------
+espocrm_php_version: "8.5"
+espocrm_php_bin: "/usr/bin/php{{ espocrm_php_version }}"
+espocrm_php_fpm_bin: "/usr/sbin/php-fpm{{ espocrm_php_version }}"
+# spatie/async запускает параллельные задачи как `php` из PATH (D-35): shim на закреплённую версию.
+espocrm_bin_dir: "{{ espocrm_opt_dir }}/bin"
+espocrm_path: "{{ espocrm_bin_dir }}:/usr/local/bin:/usr/bin:/bin"
+espocrm_php_extensions:
+  - bcmath
+  - ctype
+  - curl
+  - dom
+  - exif
+  - gd
+  - iconv
+  - intl
+  - json
+  - mbstring
+  - openssl
+  - pdo_mysql
+  - sodium
+  - xml
+  - xmlwriter
+  - zip
+espocrm_php_cli_extensions:
+  - pcntl
+  - posix
+espocrm_fpm_unit: espocrm-php-fpm
+espocrm_fpm_run_dir: /run/espocrm-php-fpm
+espocrm_fpm_socket: "{{ espocrm_fpm_run_dir }}/espocrm.sock"
+espocrm_fpm_max_children: 20
+espocrm_php_memory_limit: 256M
+espocrm_php_max_execution_time: 180
+espocrm_upload_max_size: 50M
+
+# --- MySQL: отдельная БД и пользователь (сервер — роль mysql, root — vault) ------------------------------------
+espocrm_db_name: espocrm
+espocrm_db_user: espocrm
+# EspoCRM подключается только по TCP (параметра сокета у него нет); MySQL слушает 127.0.0.1.
+espocrm_db_host: 127.0.0.1
+espocrm_db_port: 3306
+espocrm_db_collation: utf8mb4_unicode_ci
+espocrm_db_password: "{{ vault_db_espocrm_password }}"
+# caching_sha2_password не сравнивается без пароля в открытом виде: пароль ставится при создании, смена —
+# прогоном с -e espocrm_db_login_update=always (затем роль переписывает его и в config-internal.php).
+espocrm_db_login_update: on_create
+espocrm_mysql_login_password: "{{ vault_mysql_root_password }}"
+espocrm_mysql_socket: /var/run/mysqld/mysqld.sock
+
+# --- Первичная установка (как стенд, deploy/local/stand.conf) ---------------------------------------------------
+espocrm_admin_username: admin
+espocrm_admin_password: "{{ vault_espocrm_admin_password }}"
+# Пароль администратора ставится при установке. Пакет стенда приносит своего администратора (import.md: «принимает
+# существующего администратора»): после restore такого пакета — разовый прогон с -e espocrm_admin_reset=true.
+espocrm_admin_reset: false
+espocrm_install_settings:
+  language: ru_RU
+  timeZone: Europe/Moscow
+  dateFormat: DD.MM.YYYY
+  timeFormat: HH:mm
+  weekStart: 1
+  defaultCurrency: RUB
+  baseCurrency: RUB
+  currencyList: [RUB]
+  decimalMark: ","
+  thousandSeparator: " "
+  applicationName: Центр информационных технологий CRM
+  theme: Light
+  avatarsDisabled: true
+
+# --- Настройки, которые роль держит при каждом прогоне (как код; правка в интерфейсе откатится) ----------------
+# cleanupDeletedRecords: ядро физически вычищает мягко удалённые записи через 2 месяца, а с ними «надгробия»
+# D-148 и отметки дельты deletedInSource — до последней дельты (этап 11) выключено (D-185).
+espocrm_cleanup_deleted_records: false
+# Вход без HTTP Basic Auth: пароль EspoCRM + обязательная 2FA (TOTP или ключ безопасности) — решение владельца
+# 2026-10-17 (D-183). auth2FAForced ядро применяет к обычным пользователям; администраторы включают 2FA сами
+# (health-check предупреждает).
+espocrm_enforced_settings:
+  useWebSocket: false
+  jobRunInParallel: true
+  adminExtensionUpload: false
+  adminUpgradeDisabled: true
+  auth2FA: true
+  auth2FAForced: true
+  auth2FAMethodList: [Totp, ItvolgaSecurityKey]
+  authUsernameFailedAttemptsLimitEnabled: true
+  passwordStrengthLength: 10
+  passwordStrengthNumberCount: 1
+  passwordStrengthBothCases: true
+# Необязательный родительский домен RP ключей безопасности (itvolgaSecurityKeyRpId, D-128); пусто — имя хоста.
+espocrm_security_key_rp_id: ""
+
+# --- Телефония (этап 07.1, docs/migration/telephony.md) --------------------------------------------------------
+# Настройки EspoCRM (корень записей, правила, учётки AMI) пишутся всегда: прослушивание истории звонков работает и
+# без живой интеграции. espocrm_telephony_enabled — живая интеграция: пользователи AMI в Asterisk (manager reload,
+# без рестарта), служба слушателя, звонок из CRM; включается на этапе 10 решением владельца.
+espocrm_telephony_enabled: false
+espocrm_telephony_unit: espocrm-telephony
+espocrm_ami_address: "tcp://127.0.0.1:5038"
+espocrm_ami_listener_user: itvolga-espo-listener
+espocrm_ami_dialer_user: itvolga-espo-dialer
+espocrm_ami_listener_secret: "{{ vault_espocrm_ami_listener_secret }}"
+espocrm_ami_dialer_secret: "{{ vault_espocrm_ami_dialer_secret }}"
+espocrm_asterisk_manager_d: /etc/asterisk/manager.d
+espocrm_asterisk_group: asterisk
+espocrm_recordings_dir: /var/spool/asterisk/monitor
+espocrm_telephony_rules: {}
+espocrm_telephony_fallback_extension: "108"
+
+# --- fail2ban: перебор входа EspoCRM (401 на App/user) в журнале vhost ------------------------------------------
+espocrm_fail2ban_enabled: true
+espocrm_fail2ban_maxretry: 8
+espocrm_fail2ban_findtime: 600
+espocrm_fail2ban_bantime: 3600
+
+# --- Проверки ----------------------------------------------------------------------------------------------------
+# Проверка входа администратором в post_tasks (пароль из vault через окружение одной команды). После включения
+# администратором 2FA ответ «нужен второй шаг» проверка тоже засчитывает.
+espocrm_health_login: true
+# Дополнительный доверенный CA для HTTPS-проверок (только одноразовая проверочная машина tests — свой тестовый CA);
+# цепочка и имя сертификата проверяются всегда. На production — пусто (Let's Encrypt).
+espocrm_health_ca_file: ""

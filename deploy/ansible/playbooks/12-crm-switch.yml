@@ -1,0 +1,119 @@
+---
+# =============================================================================
+#  12-crm-switch — кто обслуживает serv.itvolga.com (D-181, runbook —
+#  docs/migration/cutover.md репозитория миграции /data/itvolga/espo).
+#
+#  Состояние задаёт ОДИН переключатель в group_vars/all/vars.yml:
+#     itvolga_crm_primary: vtiger       # до переключения (Vtiger; EspoCRM — 127.0.0.1:8443)
+#     itvolga_crm_primary: maintenance  # окно: страница 503, Vtiger без веб-доступа и cron
+#     itvolga_crm_primary: espocrm      # после переключения
+#  Правка vars.yml → коммит → task crm:switch. Rollback — вернуть значение и
+#  тот же запуск. Роли apache и espocrm приходят к одному состоянию, Apache
+#  перечитывает конфигурацию один раз в конце play (проверка apache2ctl -t до).
+#  Только по отдельному разрешению владельца (этап 11).
+# =============================================================================
+
+- name: Switch serv.itvolga.com between Vtiger and EspoCRM
+  hosts: all
+  become: true
+  gather_facts: true
+  # Обработчики (reload Apache, PHP-FPM) выполняются и после сбоя задачи: файлы vhost уже могли смениться.
+  force_handlers: true
+
+  pre_tasks:
+    - name: Assert the switch value is known
+      ansible.builtin.assert:
+        that:
+          - itvolga_crm_primary in ['vtiger', 'maintenance', 'espocrm']
+        fail_msg: "itvolga_crm_primary = '{{ itvolga_crm_primary | default('') }}': vtiger | maintenance | espocrm."
+        quiet: true
+      tags:
+        - crm_switch
+
+  roles:
+    - role: apache
+      tags:
+        - crm_switch
+        - apache
+    - role: espocrm
+      tags:
+        - crm_switch
+        - espocrm
+
+  tasks:
+    # Та же запись, что ставит роль vtiger (имя, пользователь, файл и задание совпадают): в окне и после
+    # переключения она закомментирована, при rollback — снова активна. Файлы, БД и cron Vtiger не удаляются.
+    - name: Pause or resume the Vtiger cron
+      ansible.builtin.cron:
+        name: vtiger cron
+        user: www-data
+        minute: "*/5"
+        job: "/usr/bin/flock -n /tmp/vtigercron.lock /usr/bin/sudo -n /usr/local/bin/vtiger-cron"
+        cron_file: vtiger
+        disabled: "{{ itvolga_crm_primary != 'vtiger' }}"
+      tags:
+        - crm_switch
+
+    # Идущий vtigercron.php дописывает своё до снимка источника: ждём освобождения его блокировки (до 10 мин).
+    # От www-data: файл блокировки — его, в /tmp со sticky-битом, и root его не откроет (fs.protected_regular).
+    - name: Wait until a running Vtiger cron job has finished
+      ansible.builtin.command:
+        cmd: runuser -u www-data -- flock -w 600 /tmp/vtigercron.lock true
+      changed_when: false
+      when: itvolga_crm_primary != 'vtiger'
+      tags:
+        - crm_switch
+
+  post_tasks:
+    - name: Apply the reload of Apache before the checks
+      ansible.builtin.meta: flush_handlers
+
+    # Повтор после прерванного прогона не видит изменений файлов и не вызвал бы reload: состояние переключателя
+    # доводится до работающего Apache всегда (после проверки конфигурации; reload — graceful).
+    - name: Check the Apache configuration of the switched state
+      ansible.builtin.command:
+        cmd: apache2ctl -t
+      changed_when: false
+      tags:
+        - crm_switch
+
+    - name: Reload Apache into the switched state
+      ansible.builtin.service:
+        name: apache2
+        state: reloaded
+      changed_when: false
+      tags:
+        - crm_switch
+
+    - name: Run the EspoCRM health check of the new state
+      ansible.builtin.command:
+        cmd: /usr/local/sbin/espocrm-health
+      register: crm_switch_health
+      changed_when: false
+      failed_when: false
+      until: crm_switch_health.rc == 0
+      retries: 6
+      delay: 20
+      when: not ansible_check_mode
+      tags:
+        - crm_switch
+        - verify
+
+    - name: Show the EspoCRM health check of the new state
+      ansible.builtin.debug:
+        var: crm_switch_health.stdout_lines
+      when: not ansible_check_mode
+      tags:
+        - crm_switch
+        - verify
+
+    - name: Fail when the new state is not healthy
+      ansible.builtin.assert:
+        that:
+          - crm_switch_health.rc == 0
+        fail_msg: "espocrm-health после переключения: есть FAIL (вывод — выше); rollback — docs/migration/cutover.md."
+        quiet: true
+      when: not ansible_check_mode
+      tags:
+        - crm_switch
+        - verify

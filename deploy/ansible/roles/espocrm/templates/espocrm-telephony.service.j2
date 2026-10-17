@@ -1,0 +1,29 @@
+# {{ ansible_managed }}
+# AMI listener of the EspoCRM telephony (stage 07.1, D-164; role espocrm). Starts at boot: the production PBX always
+# runs. Exit 78 = not configured: no restart; any other failure: a new process reconciles the calls with the PBX.
+[Unit]
+Description=AMI listener of the EspoCRM telephony ({{ espocrm_server_name }})
+After=network.target asterisk.service mysql.service
+Wants=mysql.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User={{ espocrm_user }}
+Group={{ espocrm_user }}
+WorkingDirectory={{ espocrm_root }}
+Environment=PATH={{ espocrm_path }}
+ExecStart={{ espocrm_php_bin }} {{ espocrm_root }}/command.php itvolga-telephony-listen
+Restart=always
+RestartSec=5
+RestartPreventExitStatus=78
+KillSignal=SIGTERM
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+UMask=0007
+SyslogIdentifier={{ espocrm_telephony_unit }}
+
+[Install]
+WantedBy=multi-user.target

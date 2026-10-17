@@ -1721,6 +1721,101 @@ C — сходится (создано 249, 7070 без изменений), п�
 - Дополнительно: тест первого файла пропускается с причиной, где ядро не распаковано (чистый клон); цель-заглушка карты «—»
   у исключённых колонок в `import-columns.md` больше не выводится как «—.—».
 
+## Этап 09 — Ansible и план переключения (2026-10-17)
+
+Задание — промпт 09 (`git show 2052380:MIGRATION_PROMPTS.md`); контракт — `deploy.md`, runbook — `cutover.md`, решения —
+D-180…D-188. Production и `/data/server` не менялись: на сервере — только чтение (ниже), `/data/server` — чтение и
+собственные `task ansible:lint`/`ansible:syntax` (`git status` до и после — чисто), наложение собирается из его клона.
+
+### Решения владельца (2026-10-17, вопросы этой сессии)
+
+| Вопрос | Ответ | Решение |
+|---|---|---|
+| Имя EspoCRM до переключения (`crm.itvolga.com` указывает на чужой, не отвечающий адрес; `espo.itvolga.com` нет) | только `serv.itvolga.com`; до переключения — доступ с сервера | D-181 |
+| HTTP Basic Auth перед EspoCRM ломает её клиент | без Basic, вход EspoCRM + 2FA | D-183 |
+| Vtiger после переключения | без веб-доступа | D-181 |
+| Перенос данных на production | импорт на стенде + перенос пакетом | D-187 |
+
+### Проверки только чтением (production, 2026-10-17)
+
+Команды — `scripts/audit/lib.sh` (`remote_sh`), только `stat`/`ls`/`du`/`dpkg -S`/`php -m`/`systemctl list-*`/`getent`:
+
+| Факт | Значение |
+|---|---|
+| ОС, PHP | Ubuntu 26.04 LTS; `php8.5` и `php-fpm8.5` 8.5.4, все нужные расширения (в CLI и FPM: bcmath, ctype, curl, dom, exif, gd, iconv, intl, json, mbstring, openssl, pdo_mysql, sodium, xml, xmlwriter, zip; в CLI — pcntl, posix) |
+| MySQL, Apache | 8.4.11; Apache 2.4.66, модули `ssl rewrite proxy_fcgi headers setenvif auth_basic …` |
+| Службы PHP | `php8.5-fpm` и `php-docker` (контейнер `php74-fpm` работает 8 недель) |
+| Сайты, сертификаты | 17 vhost в `sites-enabled`, сертификат `serv.itvolga.com` есть |
+| Пользователь `espocrm` | нет |
+| Записи | `/var/spool/asterisk` `asterisk:root 750`, `monitor` `asterisk:asterisk 750`, ACL нет; 187 файлов, 1,3 ГБ; `cdr-csv` 60 КБ |
+| Пакет `acl` (setfacl) | **нет** |
+| `/usr/bin/test` | `rust-coreutils` |
+| Backup, fail2ban | таймеры `backup-{db,system,check,immich,opencloud}`; jail `apache-auth, apache-badbots, asterisk, mcp-secret, sshd`; restic локально 31 ГБ, дампы 2 ГБ |
+| Ресурсы | 6 CPU, 17 ГиБ (10 свободно), диск — 738 ГБ свободно из 969 |
+| Вход | `sergey` — `/bin/bash`, sudo без пароля |
+| DNS | `serv.itvolga.com`, `lahic.itvolga.com`, `serv.sergeyem.ru` → адрес production (inventory сервера); `crm.itvolga.com` → другой адрес, не отвечает |
+
+### Ansible: базовая линия и наложение
+
+- `/data/server` на `ed38172` (без изменений): `task ansible:syntax` — 3 плейбука OK; `task ansible:lint` — **0 нарушений,
+  0 предупреждений, 249 файлов**, профиль production.
+- Наложение (`task ansible:overlay`: клон на `ed38172` + роль + плейбуки 11/12 + патч 18 файлов):
+  `task ansible:syntax` — 5 плейбуков OK (site, 09-certs, 10-backup, 11-espocrm, 12-crm-switch); `task ansible:lint` —
+  **0 нарушений, 0 предупреждений, 303 файла**, профиль production (по ходу исправлены 2 `no-handler`: вывод имён настроек —
+  явное условие; отметка «pending» телефонии — `noqa` с причиной: отметка на диске переживает сбой прогона, обработчик — нет).
+
+### Одноразовая машина (`task ansible:test`)
+
+Команда — `task ansible:test` (`scripts/deploy/test-target.sh all`): контейнер с нуля, **16 мин 12 с, код 0** (финальный
+прогон итоговым кодом этапа, 2026-10-17 18:51–19:07). Роли сервера — из наложения без изменений; vault — случайные значения,
+данные — синтетические.
+
+| Шаг | Результат | Время |
+|---|---|---|
+| Подготовка: фикстуры + роли php, mysql, apache, fail2ban, backup | ok=96, changed=73, failed=0 (роли сервера при повторе — 0 изменений, кроме фикстур) | 2 мин 19 с |
+| `11-espocrm.yml`, первая установка | ok=81, changed=47, failed=0; health — 0 FAIL, 2 WARN (администратор без 2FA, ночного пакета ещё нет); PHP-FPM 8.5.4, требования PHP/БД/прав — все приемлемы | 1 мин 34 с |
+| `11-espocrm.yml`, повтор | **changed=0** | 42 с |
+| `--check --diff` | **changed=0**, ни одного diff | 40 с |
+| Сценарий backup/restore | синтетический контрагент, документ с файлом (API через превью `:8443`); пакет `t1` → новый контрагент → `espocrm-changes-since` (account 1, note 1) → `espocrm-restore t1`: **отпечаток после restore = отпечатку пакета** (172 таблицы, 2 файла); `espocrm-restore-check t1` — 177 таблиц, числа строк = записи пакета, файлов 882 = MANIFEST, вложений без файла 0, выборка 2 из 2 побайтно; `backup-run db` (хук → ночной пакет) и `backup-run recordings`; `--from-restic --recordings` — 0 FAIL, записи 3 из 3 равны; пакет «формата стенда» (без `origin`) → restore только `data/` → отпечаток = отпечатку пакета; временных БД не осталось | ≈ 2 мин |
+| Телефония (`-e espocrm_telephony_enabled=true`) | ok=74, changed=13; повтор **changed=0**; права AMI: слушатель — вход, `CoreShowChannels` да, Originate denied; набор — вход, Command/Hangup/`CoreShowChannels` denied; слушатель `connected`; файл AMI = `manager.d-itvolga-espo.conf.example` (кроме секретов); выключение — файл удалён, служба остановлена | ≈ 3 мин |
+| Переключение `12-crm-switch.yml` | `maintenance`: changed=6, повтор 0 — `serv.itvolga.com` 503 (и с паролем Basic), превью 200, cron Vtiger закомментирован; `espocrm`: changed=5, повтор 0 — страница EspoCRM 200 без Basic; откат `vtiger`: changed=8, повтор 0 — без пароля 401, с Basic 200 (маркер Vtiger), cron активен; health каждого состояния — 0 FAIL | ≈ 6 мин |
+
+Дополнительно на той же машине (после финального прогона; код — итоговый):
+- негативный контроль дрейфа: правка файла ядра и `useWebSocket=true` вручную → `--check` показал 3 задачи (ядро,
+  отметка применения, настройки), прогон роли вернул исходное;
+- запасной внутренний номер телефонии (правка после финального прогона: ключ `itvolgaTelephonyFallbackExtension` —
+  серверный): пакет с 119, живое 108 → после restore 108; повтор роли — changed=0, сценарий — снова зелёный;
+- путь таймеров: `systemctl start backup-db.service` — success, хук записал ночной пакет;
+  `backup-recordings.service` — success; при удержанной блокировке EspoCRM хук упал, снимок restic `db` всё равно
+  сохранён и синхронизирован, служба — `exit-code` (письмо `backup-notify`);
+- `scripts/deploy/bundle.sh pull` и `push` через `BUNDLE_REMOTE="docker exec -i …"`: каталоги 700, файлы 600, SHA256SUMS
+  проверены на приёмной стороне, `espocrm-restore-check` присланного пакета — 0 FAIL; склейка аргументов ssh (`%q`)
+  проверена локально (bash);
+- `espocrm-restore-check --mysql espocrm` — 177 таблиц, набор = живой; дамп без таблиц — явный FAIL.
+
+### Найдено проверочной машиной и исправлено
+
+| # | Что | Где проявилось бы | Исправление |
+|---|---|---|---|
+| 1 | Родитель корня записей `/var/spool/asterisk` — `asterisk:root 0750`: ACL только на `monitor` (пример этапа 07.1) не пускает `espocrm` к файлам | production: прослушивание записей — 404/403 | роль: ACL прохода `u:espocrm:--x` на родителе; пример заменён ролью; факт на production подтверждён `stat` |
+| 2 | `test -r/-w` Ubuntu 26.04 (`rust-coreutils`) не учитывает ACL | ложные FAIL health-check | проверки прав через `access(2)` (Python) и чтение файла записи |
+| 3 | Root не открывает `/tmp/vtigercron.lock` (файл www-data в sticky `/tmp`, `fs.protected_regular`) | переключение падало бы на ожидании cron Vtiger | ожидание от www-data (`runuser`) |
+| 4 | Прерванный прогон переключения менял файлы vhost без reload; повтор не видит изменений | `serv.itvolga.com` остался бы в старом состоянии | `force_handlers` в обоих плейбуках, безусловный reload после `apache2ctl -t` в `12-crm-switch.yml` |
+| 5 | rsync каркаса `custom/` с `-a` сбрасывал владельца уже существующих каталогов | каждый прогон `changed` | каркас — без атрибутов (`-r --links --ignore-existing`) |
+| 6 | Время каталогов ядра меняют `data/`, отметки и каркас, созданные после синхронизации | второй прогон после свежей установки — `changed` | `--omit-dir-times` для ядра и модуля |
+| 7 | Python 3.13+ проверяет X.509 строго | только тестовый CA | расширения CA и листа как у настоящей цепочки (на production — Let's Encrypt); проверка цепочки не отключается |
+| 8 | `htpasswd` роли apache требует `python3-passlib` | только проверочная машина (роль base не запускается) | фикстура |
+
+### Не сделано / ограничения
+
+- Production и `/data/server` не менялись; роль к серверу не применялась (этап 10). Не проверены на настоящих сервисах:
+  выпуск/продление сертификата для vhost EspoCRM, restic в Облако Mail.ru, бан fail2ban, соседство с `php74-fpm` (контейнер
+  PHP 7.4 в проверочную машину не входит — роль не трогает `php_docker`, сайты 7.4 и `php8.5-fpm`).
+- Обратный путь `scripts/stand/restore.sh` с пакетом production не запускался (стенд с реальными данными не трогали):
+  формат тот же по построению, проба — этап 10 до окна (`cutover.md` §1.6). `bundle.sh` по ssh не запускался.
+- Исходящая почта (Q-55), живая телефония до переключения (Q-56), включение очистки удалённых записей (Q-57) — решения
+  владельца.
+
 ## Вне этапов — контрагент и адреса нового документа (D-179), 2026-10-17
 
 Факты источника (локальная копия кода Vtiger 7.1.0 SP01, только чтение): `Potentials_Record_Model::getInventoryMappingFields` — `related_to` → `account_id`, `contact_id` → `contact_id` для документов, создаваемых со сделки (`Inventory_Edit_View`: `setParentRecordData` при `sourceModule` Accounts, Contacts, Potentials); адреса документа копирует клиент `Inventory_Edit_Js.copyAddressDetails` (`addressFieldsMapping.Accounts`: `bill_*` → `bill_*`, `ship_*` → `ship_*`), у организации без адреса — сообщение `JS_SELECTED_ACCOUNT_DOES_NOT_HAVE_AN_ADDRESS` без изменений. Сделка в EspoCRM: `Opportunity.contact` заполняет импорт (`spec.py`, `contact_id` → `contact`).

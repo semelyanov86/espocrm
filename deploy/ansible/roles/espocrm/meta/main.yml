@@ -1,0 +1,19 @@
+---
+galaxy_info:
+  role_name: espocrm
+  author: Itvolga migration project
+  description: >-
+    EspoCRM 10 next to Vtiger on serv.itvolga.com — PHP 8.5 FPM master, own database, the Itvolga module of the
+    migration repository, cron, telephony listener, vhost switch, backup/restore/health tools.
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - all
+  galaxy_tags:
+    - espocrm
+    - php
+    - crm
+
+dependencies: []

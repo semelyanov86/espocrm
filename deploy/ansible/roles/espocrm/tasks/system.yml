@@ -1,0 +1,52 @@
+---
+# acl — ACL чтения записей разговоров (на production setfacl нет, проверено 2026-10-17); unzip — релиз EspoCRM;
+# rsync — синхронизация ядра и модуля в корень EspoCRM.
+- name: Install packages used by the role
+  ansible.builtin.apt:
+    name:
+      - acl
+      - rsync
+      - unzip
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+# Отдельный системный пользователь: данные CRM недоступны сайтам www-data (как на стенде, docs/local-stand.md).
+- name: Create the system user of EspoCRM
+  ansible.builtin.user:
+    name: "{{ espocrm_user }}"
+    system: true
+    create_home: false
+    home: /nonexistent
+    shell: /usr/sbin/nologin
+    comment: EspoCRM (serv.itvolga.com)
+
+- name: Create root-owned directories of the role
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ espocrm_opt_dir }}", mode: "0755" }
+    - { path: "{{ espocrm_opt_dir }}/releases", mode: "0755" }
+    - { path: "{{ espocrm_opt_dir }}/module", mode: "0755" }
+    - { path: "{{ espocrm_bin_dir }}", mode: "0755" }
+    - { path: "{{ espocrm_etc_dir }}", mode: "0755" }
+    - { path: "{{ espocrm_lib_dir }}", mode: "0755" }
+    - { path: "{{ espocrm_state_dir }}", mode: "0700" }
+    - { path: "{{ espocrm_backup_dir }}", mode: "0700" }
+    - { path: "{{ espocrm_maintenance_dir }}", mode: "0755" }
+    - { path: "{{ espocrm_root }}", mode: "0755" }
+  loop_control:
+    label: "{{ item.path }}"
+
+# Параллельные процессы задач (spatie/async) запускаются как `php` из PATH — shim на PHP 8.5 (D-35).
+- name: Link the php shim to PHP {{ espocrm_php_version }}
+  ansible.builtin.file:
+    src: "{{ espocrm_php_bin }}"
+    dest: "{{ espocrm_bin_dir }}/php"
+    state: link
+    owner: root
+    group: root

@@ -1,0 +1,213 @@
+#!/usr/bin/env bash
+# Practical restore check of EspoCRM backups without touching the live installation (role espocrm, D-186).
+#
+#   espocrm-restore-check [<bundle-dir|name|nightly>] [--from-restic] [--recordings] [--keep]
+#   espocrm-restore-check --mysql <db>       (e.g. vtiger7: the dump of another database from the restic tier db)
+#
+# Bundle (default: nightly): SHA256SUMS and version; the dump is imported into a temporary database
+# <db>__check_<ts> (sql_log_bin=0, dropped at the end) and its exact row counts are compared with the bundle record;
+# the archive holds as many files as the MANIFEST says; every attachment row of the restored database has its file in
+# the archive (no more missing than in the live installation); a sample of upload files is byte-equal to the live
+# files. --from-restic first restores the nightly bundle from the latest snapshot of the restic tier db (the off-site
+# path). --recordings restores the latest snapshot of the restic tier recordings (/var/spool/asterisk/monitor) into a
+# staging directory and compares every file with the live one (size and sha256). --mysql restores the dump
+# /var/backups/mysql/<db>.sql of the latest snapshot of the tier db into a temporary database and compares its tables
+# with the live database (same set of tables; row counts differ only by the work done since the dump — reported).
+# Output: counts only; the report goes to $BACKUP_DIR/checks/<time>.json (600). Exit 1 on any failure.
+# shellcheck source=/dev/null
+source /usr/local/lib/espocrm/lib.sh
+require_root
+
+target=nightly from_restic=0 recordings=0 keep=0 bundle_given=0 mysql_db=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --from-restic) from_restic=1 ;;
+        --recordings) recordings=1 ;;
+        --keep) keep=1 ;;
+        --mysql) mysql_db="${2:?}"; shift ;;
+        -*) die "unknown option $1" ;;
+        *) target="$1"; bundle_given=1 ;;
+    esac
+    shift
+done
+[[ $from_restic == 0 || $bundle_given == 0 ]] || die "--from-restic checks the nightly bundle of the restic tier db"
+[[ -z "$mysql_db" || "$mysql_db" =~ ^[A-Za-z0-9_]+$ ]] || die "bad database name"
+check_bundle=1
+[[ -n "$mysql_db" && $bundle_given == 0 && $from_restic == 0 ]] && check_bundle=0
+
+ops_lock
+umask 077
+ts="$(date +%Y%m%dT%H%M%S)"
+work="$BACKUP_DIR/.check-$ts"
+check_db="${DB_NAME}__check_$ts"
+report_dir="$BACKUP_DIR/checks"
+install -d -m 0700 "$work" "$report_dir"
+FAILS=0
+declare -A R=()
+
+report() { # status name detail
+    printf '%-5s %-34s %s\n' "$1" "$2" "${3:-}"
+    [[ "$1" == FAIL ]] && FAILS=$((FAILS + 1))
+    return 0
+}
+
+cleanup() {
+    mysql_root -e "DROP DATABASE IF EXISTS \`$check_db\`" >/dev/null 2>&1 || true
+    if [[ $keep == 0 ]]; then rm -rf "$work"; fi
+}
+trap cleanup EXIT
+
+restic_tier() { # tier cmd... — run restic of the role backup on a tier (its own functions, in a subshell)
+    local tier="$1"; shift
+    [[ -r /etc/backup/lib.sh ]] || die "the role backup is not deployed (/etc/backup/lib.sh)"
+    ( # shellcheck disable=SC1091
+      . /etc/backup/lib.sh; resolve_repo "$tier"; "$RESTIC" "$@" )
+}
+
+# --- another database of the tier db (Vtiger) -------------------------------------------------------------------
+if [[ -n "$mysql_db" ]]; then
+    other_db="${mysql_db}__check_$ts"
+    log "restoring /var/backups/mysql/$mysql_db.sql from the latest snapshot of the restic tier db"
+    restic_tier db restore latest --include "/var/backups/mysql/$mysql_db.sql" --target "$work/mysql" >/dev/null
+    dump="$work/mysql/var/backups/mysql/$mysql_db.sql"
+    [[ -s "$dump" ]] && report OK "mysql $mysql_db: dump" "$(du -h "$dump" | cut -f1) restored from restic" \
+        || { report FAIL "mysql $mysql_db: dump" "not in the latest snapshot"; exit 1; }
+    mysql_root -e "CREATE DATABASE \`$other_db\`"
+    trap 'mysql_root -e "DROP DATABASE IF EXISTS \`$other_db\`" >/dev/null 2>&1 || true; cleanup' EXIT
+    mysql_root --init-command="SET SESSION sql_log_bin=0" "$other_db" <"$dump"
+    table_counts "$other_db" >"$work/mysql-restored.tsv" \
+        || { report FAIL "mysql $mysql_db: restored" "no tables in the restored dump"; exit 1; }
+    table_counts "$mysql_db" >"$work/mysql-live.tsv" || : >"$work/mysql-live.tsv"
+    same_tables="$(diff <(cut -f1 "$work/mysql-restored.tsv") <(cut -f1 "$work/mysql-live.tsv") >/dev/null && echo yes || echo no)"
+    differ="$(join -t $'\t' "$work/mysql-restored.tsv" "$work/mysql-live.tsv" | awk -F'\t' '$2 != $3' | wc -l)"
+    R[mysql_db]="$mysql_db" R[mysql_tables]="$(wc -l <"$work/mysql-restored.tsv")"
+    R[mysql_rows]="$(awk '{s+=$2} END{print s+0}' "$work/mysql-restored.tsv")" R[mysql_tables_differ]="$differ"
+    [[ "$same_tables" == yes ]] && s=OK || s=FAIL
+    report "$s" "mysql $mysql_db: restored" "${R[mysql_tables]} tables, ${R[mysql_rows]} rows; same tables as live: $same_tables"
+    report INFO "mysql $mysql_db: since the dump" "$differ tables with another row count in the live database"
+    mysql_root -e "DROP DATABASE \`$other_db\`"
+fi
+
+# --- the bundle -----------------------------------------------------------------------------------------------
+if [[ $check_bundle == 0 ]]; then
+    :
+elif [[ $from_restic == 1 ]]; then
+    log "restoring the nightly bundle from the latest snapshot of the restic tier db"
+    restic_tier db restore latest --include "$BACKUP_DIR/nightly" --target "$work/restic" >/dev/null
+    dir="$work/restic$BACKUP_DIR/nightly"
+    R[source]=restic-db
+elif [[ -d "$target" ]]; then dir="$(cd "$target" && pwd)"; R[source]=directory
+elif [[ "$target" == nightly ]]; then dir="$BACKUP_DIR/nightly"; R[source]=nightly
+else dir="$BACKUP_DIR/bundles/$target"; R[source]=bundle; fi
+
+if [[ $check_bundle == 1 ]]; then
+    ( bundle_verify "$dir" ) && report OK "bundle: checksums, version" "$(manifest_get "$dir" name)" \
+        || { report FAIL "bundle: checksums, version" "$dir"; exit 1; }
+    R[bundle]="$(manifest_get "$dir" name)"
+    R[created]="$(manifest_get "$dir" created)"
+    counts_exact="$(manifest_get "$dir" counts_exact)"
+    created_epoch="$(date -d "${R[created]}" +%s)"
+
+    log "importing the dump into $check_db (sql_log_bin=0)"
+    mysql_root -e "CREATE DATABASE \`$check_db\` CHARACTER SET $(manifest_get "$dir" db_charset) \
+        COLLATE $(manifest_get "$dir" db_collation)"
+    bundle_cat_db "$dir" | mysql_root --init-command="SET SESSION sql_log_bin=0" "$check_db"
+    table_counts "$check_db" >"$work/counts.tsv"
+    tables="$(wc -l <"$work/counts.tsv")"
+    rows="$(awk '{s+=$2} END{print s+0}' "$work/counts.tsv")"
+    R[tables]="$tables" R[rows]="$rows"
+    if cmp -s "$work/counts.tsv" "$dir/table-counts.tsv"; then
+        report OK "db: row counts" "$tables tables, $rows rows — identical to the bundle record"
+    elif [[ "$counts_exact" == 1 ]]; then
+        report FAIL "db: row counts" "$(diff "$work/counts.tsv" "$dir/table-counts.tsv" | grep -c '^[<>]') lines differ"
+    else
+        report WARN "db: row counts" "online bundle, counts taken next to the dump differ"
+    fi
+
+    files="$(bundle_files "$dir")"
+    tar -tf "$files" | grep -v '/$' | sort >"$work/members.txt"
+    n_files="$(wc -l <"$work/members.txt")"
+    R[files]="$n_files"
+    [[ "$n_files" == "$(manifest_get "$dir" files_in_archive)" ]] && s=OK || s=FAIL
+    report "$s" "files: archive" "$n_files files (MANIFEST $(manifest_get "$dir" files_in_archive))"
+
+    # An attachment lives in data/upload/<sourceId or id> (EspoUploadDir storage).
+    attachment_sql="SELECT DISTINCT COALESCE(NULLIF(source_id, ''), id) FROM attachment
+        WHERE deleted = 0 AND (storage IS NULL OR storage = '' OR storage = 'EspoUploadDir')"
+    mysql_root -N -B "$check_db" -e "$attachment_sql" | sort -u >"$work/attachments.txt"
+    sed -n 's|^data/upload/||p' "$work/members.txt" | sort -u >"$work/uploads.txt"
+    missing_bundle="$(comm -23 "$work/attachments.txt" "$work/uploads.txt" | wc -l)"
+    mysql_root -N -B "$DB_NAME" -e "$attachment_sql" | sort -u >"$work/attachments-live.txt"
+    ( cd "$ESPO_ROOT/data/upload" 2>/dev/null && find . -maxdepth 1 -type f -printf '%P\n' ) | sort -u >"$work/uploads-live.txt"
+    missing_live="$(comm -23 "$work/attachments-live.txt" "$work/uploads-live.txt" | wc -l)"
+    R[attachments]="$(wc -l <"$work/attachments.txt")" R[attachments_missing]="$missing_bundle"
+    R[attachments_missing_live]="$missing_live"
+    [[ "$missing_bundle" -le "$missing_live" ]] && s=OK || s=FAIL
+    report "$s" "files: attachments" "$(wc -l <"$work/attachments.txt") rows; without a file: $missing_bundle (live: $missing_live)"
+
+    # Byte check: up to 20 uploads that existed unchanged when the bundle was made (none to compare: a warning).
+    sample=0 equal=0
+    while IFS= read -r f; do
+        live="$ESPO_ROOT/data/upload/$f"
+        [[ -f "$live" && "$(stat -c %Y "$live")" -le "$created_epoch" ]] || continue
+        sample=$((sample + 1))
+        a="$(tar -xOf "$files" "data/upload/$f" | sha256sum | cut -d' ' -f1)"
+        b="$(sha256sum "$live" | cut -d' ' -f1)"
+        [[ "$a" == "$b" ]] && equal=$((equal + 1))
+        [[ $sample -ge 20 ]] && break
+    done < <(shuf "$work/uploads.txt")
+    R[sample]="$sample" R[sample_equal]="$equal"
+    if [[ "$sample" != "$equal" ]]; then s=FAIL
+    elif [[ "$sample" == 0 && -s "$work/uploads.txt" ]]; then s=WARN
+    else s=OK; fi
+    report "$s" "files: byte sample" "$equal of $sample upload files equal to the live ones"
+fi
+
+# --- recordings (restic tier recordings) -------------------------------------------------------------------------
+if [[ $recordings == 1 ]]; then
+    log "restoring the latest snapshot of the restic tier recordings"
+    snap_time="$(restic_tier recordings snapshots latest --json | python3 -c 'import json, sys; print(json.load(sys.stdin)[0]["time"])')"
+    restic_tier recordings restore latest --include "$RECORDINGS_DIR" --target "$work/rec" >/dev/null
+    python3 - "$work/rec$RECORDINGS_DIR" "$RECORDINGS_DIR" >"$work/recordings.txt" <<'PY'
+import hashlib, os, sys
+restored, live = sys.argv[1], sys.argv[2]
+def files(root):
+    out = {}
+    for base, _, names in os.walk(root):
+        for n in names:
+            p = os.path.join(base, n)
+            if os.path.isfile(p) and not os.path.islink(p):
+                out[os.path.relpath(p, root)] = p
+    return out
+def sha(p):
+    h = hashlib.sha256()
+    with open(p, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+a, b = files(restored), files(live)
+equal = differ = 0
+for rel, p in a.items():
+    if rel in b:
+        if os.path.getsize(p) == os.path.getsize(b[rel]) and sha(p) == sha(b[rel]):
+            equal += 1
+        else:
+            differ += 1
+print(len(a), equal, differ, len(a.keys() - b.keys()), len(b.keys() - a.keys()))
+PY
+    read -r r_total r_equal r_differ r_gone r_new <"$work/recordings.txt"
+    R[recordings_snapshot]="$snap_time" R[recordings]="$r_total" R[recordings_equal]="$r_equal"
+    R[recordings_differ]="$r_differ" R[recordings_deleted_live]="$r_gone" R[recordings_newer_live]="$r_new"
+    [[ "$r_differ" == 0 && "$r_total" -gt 0 ]] && s=OK || s=FAIL
+    report "$s" "recordings: restic tier" "snapshot $snap_time: $r_total files, $r_equal equal, $r_differ differ"
+    report INFO "recordings: since the snapshot" "$r_new new live files, $r_gone deleted live"
+fi
+
+# --- report -------------------------------------------------------------------------------------------------------
+R[fails]="$FAILS"
+for k in "${!R[@]}"; do printf '%s\t%s\n' "$k" "${R[$k]}"; done \
+    | python3 -c 'import json, sys; print(json.dumps(dict(l.rstrip("\n").split("\t", 1) for l in sys.stdin), sort_keys=True))' \
+    >"$report_dir/$ts.json"
+echo "---"
+echo "restore check: $FAILS failed; report $report_dir/$ts.json"
+[[ $FAILS -eq 0 ]]

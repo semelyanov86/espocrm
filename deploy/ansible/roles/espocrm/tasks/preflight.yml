@@ -1,0 +1,81 @@
+---
+- name: Assert the CRM mode is known
+  ansible.builtin.assert:
+    that:
+      - espocrm_mode in ['vtiger', 'maintenance', 'espocrm']
+    fail_msg: "itvolga_crm_primary/espocrm_mode = '{{ espocrm_mode }}': ожидается vtiger | maintenance | espocrm."
+    quiet: true
+
+# Значения секретов не выводятся: assert печатает только выражение условия.
+- name: Assert the secrets of EspoCRM are present in the vault
+  ansible.builtin.assert:
+    that:
+      - espocrm_db_password | length >= 16
+      - espocrm_admin_password | length >= 12
+      - espocrm_mysql_login_password | length > 0
+      - espocrm_ami_listener_secret is match('^[!-~]{16,200}$')
+      - espocrm_ami_dialer_secret is match('^[!-~]{16,200}$')
+    fail_msg: >-
+      Нет секретов EspoCRM в vault (vault_db_espocrm_password ≥ 16, vault_espocrm_admin_password ≥ 12,
+      vault_espocrm_ami_listener_secret и vault_espocrm_ami_dialer_secret — 16–200 печатных символов ASCII):
+      task vault:edit, шаблон — vault.yml.example.
+    quiet: true
+
+# Блокировку держат espocrm-backup / espocrm-restore / espocrm-restore-check: роль не правит cron, FPM и
+# конфигурацию посреди их работы. Файла блокировки нет — значит, ничего не запущено (проверка ничего не создаёт).
+- name: Check that no EspoCRM backup or restore is running
+  ansible.builtin.command:
+    cmd: "sh -c 'test ! -e {{ espocrm_ops_lock }} || flock -n {{ espocrm_ops_lock }} true'"
+  register: espocrm_ops_lock_check
+  changed_when: false
+  failed_when: espocrm_ops_lock_check.rc != 0
+  check_mode: false
+
+- name: Stat the PHP binaries of version {{ espocrm_php_version }}
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ espocrm_php_bin }}"
+    - "{{ espocrm_php_fpm_bin }}"
+  register: espocrm_php_binaries
+
+- name: Assert the PHP binaries are installed by the role php, version {{ espocrm_php_version }}
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: "Нет {{ item.item }}: PHP {{ espocrm_php_version }} ставит роль php (02-web.yml, php_versions)."
+    quiet: true
+  loop: "{{ espocrm_php_binaries.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Read the version and the modules of PHP CLI and PHP-FPM
+  ansible.builtin.command:
+    argv: "{{ item }}"
+  loop:
+    - ["{{ espocrm_php_bin }}", "-r", "echo PHP_VERSION;"]
+    - ["{{ espocrm_php_bin }}", "-m"]
+    - ["{{ espocrm_php_fpm_bin }}", "-m"]
+  register: espocrm_php_probe
+  changed_when: false
+  check_mode: false
+
+# EspoCRM 10 требует PHP >= 8.3 < 8.6; PHP 7.4 (php74-fpm, Vtiger и Lahic) остаётся в Docker и не затрагивается.
+- name: Assert PHP version and extensions required by EspoCRM and the module
+  vars:
+    espocrm_php_actual: "{{ espocrm_php_probe.results[0].stdout | trim }}"
+    espocrm_cli_modules: "{{ espocrm_php_probe.results[1].stdout_lines | map('lower') | list }}"
+    espocrm_fpm_modules: "{{ espocrm_php_probe.results[2].stdout_lines | map('lower') | list }}"
+  ansible.builtin.assert:
+    that:
+      - espocrm_php_actual is version(espocrm_php_version, '>=')
+      - espocrm_php_actual is version('8.6', '<')
+      - espocrm_php_actual.startswith(espocrm_php_version ~ '.')
+      - espocrm_php_extensions | difference(espocrm_cli_modules) | length == 0
+      - espocrm_php_extensions | difference(espocrm_fpm_modules) | length == 0
+      - espocrm_php_cli_extensions | difference(espocrm_cli_modules) | length == 0
+    fail_msg: >-
+      PHP {{ espocrm_php_actual }}: нет расширений CLI
+      {{ (espocrm_php_extensions + espocrm_php_cli_extensions) | difference(espocrm_cli_modules) }},
+      FPM {{ espocrm_php_extensions | difference(espocrm_fpm_modules) }} (роль php, php_extensions).
+    quiet: true

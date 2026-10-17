@@ -1,0 +1,249 @@
+#!/usr/bin/env bash
+# Health check of EspoCRM on the server (role espocrm; the server variant of scripts/stand/health.sh): services,
+# EspoCRM CLI checks, settings of the login (2FA, D-183), HTTP through the loopback vhosts, cron, permissions, the
+# vhost switch (D-181), telephony, backups, certificate, restore leftovers. One line per check; exit 1 on any FAIL.
+#
+#   espocrm-health [--restore-ts TS]
+# HEALTH_USER / HEALTH_PASSWORD in the environment (never argv) add the login check (Ansible passes the vault
+# administrator; a second-step answer of a 2FA account counts as a success).
+# shellcheck source=/dev/null
+source /usr/local/lib/espocrm/lib.sh
+require_root
+
+own_ts=none
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --restore-ts) own_ts="${2:?}"; shift 2 ;;
+        *) die "usage: espocrm-health [--restore-ts TS]" ;;
+    esac
+done
+
+FAILS=0 WARNS=0
+report() { # status name detail
+    printf '%-5s %-36s %s\n' "$1" "$2" "${3:-}"
+    case "$1" in FAIL) FAILS=$((FAILS + 1)) ;; WARN) WARNS=$((WARNS + 1)) ;; esac
+    return 0
+}
+strip_ansi() { sed -E 's/\x1b\[[0-9;]*m//g'; }
+# access(2) as another user — the kernel applies the ACLs; `test -r` of the uutils coreutils of Ubuntu 26.04 looks
+# at the mode bits only and misses an ACL grant.
+can_as() { # user r|w|rx path
+    /usr/sbin/runuser -u "$1" -- python3 -c 'import os, sys
+m = {"r": os.R_OK, "w": os.W_OK, "rx": os.R_OK | os.X_OK}[sys.argv[1]]
+sys.exit(0 if os.access(sys.argv[2], m) else 1)' "$2" "$3" 2>/dev/null
+}
+
+# --- services ----------------------------------------------------------------------------------------------------
+units=(mysql apache2 cron "$FPM_UNIT")
+[[ "$TELEPHONY_ENABLED" == 1 ]] && units+=("$TELEPHONY_UNIT")
+for unit in "${units[@]}"; do
+    state="$(systemctl is-active "$unit" 2>/dev/null || true)"
+    enabled="$(systemctl is-enabled "$unit" 2>/dev/null || true)"
+    [[ "$state" == active && "$enabled" == enabled ]] && s=OK || s=FAIL
+    report "$s" "service: $unit" "$state, $enabled"
+done
+
+# --- EspoCRM CLI ---------------------------------------------------------------------------------------------------
+v="$(espo_cmd version 2>/dev/null || true)"
+[[ "$v" == "$ESPO_VERSION" ]] && s=OK || s=FAIL
+report "$s" "espo: version" "${v:-?} (pinned $ESPO_VERSION)"
+[[ "$(espo_cmd db:check 2>&1)" == OK ]] && s=OK || s=FAIL
+report "$s" "espo: db:check" "$DB_NAME"
+if out="$(espo_cmd app-check 2>&1 | strip_ansi)"; then
+    report OK "espo: app-check" "$(tr '\n' ';' <<<"$out" | sed 's/;$//; s/;/; /g')"
+else
+    report FAIL "espo: app-check" "$(tr '\n' ';' <<<"$out")"
+fi
+if out="$(espo_cmd check-file-permissions 2>&1 | strip_ansi)"; then
+    report OK "espo: writable dirs" "$(grep -c ' OK : ' <<<"$out") OK as $ESPO_USER"
+else
+    report FAIL "espo: writable dirs" "$(grep 'FAIL' <<<"$out" | tr '\n' ' ')"
+fi
+commit="$(cat "$ESPO_ROOT/.itvolga-module" 2>/dev/null || true)"
+[[ -n "$commit" ]] && s=OK || s=FAIL
+report "$s" "module: commit" "${commit:0:12}"
+[[ -f "$STATE_DIR/apply-pending" ]] && report WARN "module: apply" "pending (re-run the role espocrm)" \
+    || report OK "module: apply" "done"
+
+# --- settings that the role keeps (values without secrets) -----------------------------------------------------
+settings="$(espo_config get siteUrl useWebSocket auth2FA auth2FAForced auth2FAMethodList cleanupDeletedRecords \
+    adminExtensionUpload maintenanceMode 2>/dev/null || echo '{}')"
+while IFS=$'\t' read -r status name detail; do report "$status" "$name" "$detail"; done < <(
+    SETTINGS="$settings" python3 - <<'PY'
+import json, os
+s = json.loads(os.environ["SETTINGS"] or "{}")
+def row(ok, name, detail, warn=False):
+    print("\t".join(["OK" if ok else ("WARN" if warn else "FAIL"), name, detail]))
+row(s.get("siteUrl") == os.environ["SITE_URL"], "settings: siteUrl", str(s.get("siteUrl")))
+row(s.get("useWebSocket") is False, "settings: websocket", f"useWebSocket {s.get('useWebSocket')}")
+methods = s.get("auth2FAMethodList") or []
+row(s.get("auth2FA") is True and s.get("auth2FAForced") is True and {"Totp", "ItvolgaSecurityKey"} <= set(methods),
+    "settings: 2FA", f"on {s.get('auth2FA')}, forced {s.get('auth2FAForced')}, methods {', '.join(methods)}")
+want = os.environ["CLEANUP_DELETED_RECORDS"] == "1"
+row(s.get("cleanupDeletedRecords") is want, "settings: cleanupDeletedRecords", f"{s.get('cleanupDeletedRecords')}")
+row(s.get("adminExtensionUpload") is False, "settings: extension upload", f"{s.get('adminExtensionUpload')}")
+maint = bool(s.get("maintenanceMode"))
+row(not (maint and os.environ["CRM_MODE"] == "espocrm"), "settings: maintenanceMode", f"{maint}", warn=True)
+PY
+)
+if row="$(mysql_root -N -B "$DB_NAME" -e "SELECT
+        SUM(u.type = 'regular' AND COALESCE(d.auth2_f_a, 0) = 0), SUM(u.type = 'admin' AND COALESCE(d.auth2_f_a, 0) = 0),
+        SUM(u.type IN ('regular', 'admin'))
+        FROM user u LEFT JOIN user_data d ON d.user_id = u.id AND d.deleted = 0
+        WHERE u.deleted = 0 AND u.is_active = 1" 2>/dev/null)"; then
+    IFS=$'\t' read -r reg_no adm_no total <<<"$row"
+    reg_no="${reg_no/NULL/0}"; adm_no="${adm_no/NULL/0}"; total="${total/NULL/0}"
+    [[ "$adm_no" == 0 ]] && s=OK || s=WARN
+    report "$s" "users: 2FA" "$total active; without 2FA: $reg_no regular (asked at login), $adm_no admin"
+else
+    report FAIL "users: 2FA" "cannot query users"
+fi
+
+# --- HTTP through the loopback vhosts ------------------------------------------------------------------------------
+http_check() { # url connect expect
+    local out rc=0
+    out="$(HEALTH_URL="$1" HEALTH_CONNECT="$2" HEALTH_EXPECT="$3" HEALTH_CA_FILE="$HEALTH_CA_FILE" \
+        ESPO_VERSION="$ESPO_VERSION" PHP_VERSION="$PHP_VERSION" python3 "$LIB_DIR/health_http.py" 2>/dev/null)" || rc=$?
+    grep -v '^# http checks completed$' <<<"$out" || true
+    FAILS=$((FAILS + $(grep -c '^FAIL' <<<"$out" || true)))
+    WARNS=$((WARNS + $(grep -c '^WARN' <<<"$out" || true)))
+    grep -q '^# http checks completed$' <<<"$out" || report FAIL "http: $1" "health_http.py did not complete (rc=$rc)"
+}
+http_check "$PREVIEW_URL" "$PREVIEW_CONNECT" espocrm
+case "$CRM_MODE" in
+    espocrm) http_check "$PUBLIC_URL" "$PUBLIC_CONNECT" espocrm ;;
+    maintenance) HEALTH_USER="" HEALTH_PASSWORD="" http_check "$PUBLIC_URL" "$PUBLIC_CONNECT" maintenance ;;
+esac
+# serv.itvolga.com belongs to exactly one system (D-181).
+vtiger_link=absent; [[ -e "$APACHE_SITES_ENABLED/$VTIGER_VHOST.conf" ]] && vtiger_link=enabled
+espo_public=no; grep -q '^<VirtualHost \*:443>' "$APACHE_SITES_ENABLED/espocrm.conf" 2>/dev/null && espo_public=yes
+case "$CRM_MODE" in
+    vtiger) [[ $vtiger_link == enabled && $espo_public == no ]] && s=OK || s=FAIL ;;
+    *) [[ $vtiger_link == absent && $espo_public == yes ]] && s=OK || s=FAIL ;;
+esac
+report "$s" "vhost: $SERVER_NAME" "mode $CRM_MODE: Vtiger vhost $vtiger_link, EspoCRM public $espo_public"
+
+# --- cron / background jobs ---------------------------------------------------------------------------------------
+[[ -f "$CRON_FILE" ]] && report OK "cron: $CRON_FILE" "present" || report FAIL "cron: $CRON_FILE" "missing"
+cron_php="$(/usr/sbin/runuser -u "$ESPO_USER" -- env -i PATH="$ESPO_PATH" php -r 'echo PHP_VERSION;' 2>/dev/null || true)"
+[[ "$cron_php" == "$PHP_VERSION".* ]] && s=OK || s=FAIL
+report "$s" "cron: php in PATH" "${cron_php:-?} (parallel job processes)"
+last_file="$ESPO_ROOT/data/cache/application/cronLastRunTime.php"
+if mtime="$(stat -c %Y "$last_file" 2>/dev/null)"; then
+    age=$(( $(date +%s) - mtime ))
+    [[ $age -le 150 ]] && s=OK || s=FAIL
+    report "$s" "cron: last cron.php run" "${age}s ago (limit 150s)"
+else
+    report FAIL "cron: last cron.php run" "never ($last_file missing)"
+fi
+if row="$(mysql_root -N -B "$DB_NAME" -e "SELECT
+        SUM(status='Success' AND executed_at > UTC_TIMESTAMP() - INTERVAL 15 MINUTE),
+        SUM(status='Failed' AND modified_at > UTC_TIMESTAMP() - INTERVAL 1 DAY),
+        (SELECT COUNT(*) FROM scheduled_job WHERE deleted=0 AND status='Active')
+        FROM job WHERE deleted=0" 2>/dev/null)"; then
+    IFS=$'\t' read -r ok_jobs failed_jobs scheduled <<<"$row"
+    ok_jobs="${ok_jobs/NULL/0}"; failed_jobs="${failed_jobs/NULL/0}"
+    [[ "$ok_jobs" -gt 0 ]] && s=OK || s=FAIL
+    report "$s" "cron: jobs done (15 min)" "$ok_jobs successful; $scheduled active scheduled jobs"
+    [[ "$failed_jobs" -eq 0 ]] && s=OK || s=WARN
+    report "$s" "cron: failed jobs (24 h)" "$failed_jobs"
+else
+    report FAIL "cron: jobs" "cannot query the job table"
+fi
+
+# --- permissions ---------------------------------------------------------------------------------------------------
+stat_data="$(stat -c '%U:%G %a' "$ESPO_ROOT/data")"
+[[ "$stat_data" == "$ESPO_USER:$ESPO_USER 770" ]] && s=OK || s=FAIL
+report "$s" "perms: data/" "$stat_data"
+if can_as www-data r "$ESPO_ROOT/data/config-internal.php"; then
+    report FAIL "perms: config-internal.php" "readable by www-data"
+else
+    report OK "perms: config-internal.php" "not readable by www-data"
+fi
+if grep -q "'password'" "$ESPO_ROOT/data/config.php"; then
+    report FAIL "perms: secrets placement" "a password is stored in data/config.php"
+else
+    report OK "perms: secrets placement" "DB credentials only in config-internal.php"
+fi
+writable=()
+for p in application/Espo/Core/Application.php public custom/Espo/Modules/Itvolga/Resources/module.json \
+         client/custom/modules/itvolga; do
+    can_as "$ESPO_USER" w "$ESPO_ROOT/$p" && writable+=("$p")
+done
+[[ ${#writable[@]} -eq 0 ]] && report OK "perms: code read-only" "$ESPO_USER cannot modify the core and the module" \
+    || report FAIL "perms: code read-only" "writable by $ESPO_USER: ${writable[*]}"
+
+# --- telephony ------------------------------------------------------------------------------------------------------
+if [[ -d "$RECORDINGS_DIR" ]]; then
+    sample="$(find "$RECORDINGS_DIR" -type f -name '*.wav' -print -quit 2>/dev/null || true)"
+    if can_as "$ESPO_USER" rx "$RECORDINGS_DIR" \
+            && { [[ -z "$sample" ]] || /usr/sbin/runuser -u "$ESPO_USER" -- head -c 1 "$sample" >/dev/null 2>&1; }; then
+        report OK "telephony: recordings" "$ESPO_USER can read $RECORDINGS_DIR${sample:+ (a recording read)}"
+    else
+        report FAIL "telephony: recordings" "$ESPO_USER cannot read $RECORDINGS_DIR"
+    fi
+    # Every call with a recording points into the root (a relative path, D-171): after a transfer of the stand state
+    # the files must be the originals of the server (the stand import bound them by the sha256 of the snapshot).
+    if paths="$(mysql_root -N -B "$DB_NAME" -e "SELECT c_recording_path FROM \`call\` WHERE deleted = 0
+            AND c_recording_path IS NOT NULL AND c_recording_path <> ''" 2>/dev/null)"; then
+        read -r rec_total rec_missing < <(python3 -c '
+import os, sys
+root = os.path.realpath(sys.argv[1])
+paths = [p for p in sys.stdin.read().splitlines() if p]
+missing = sum(1 for p in paths if not os.path.isfile(os.path.join(root, p))
+              or not os.path.realpath(os.path.join(root, p)).startswith(root + "/"))
+print(len(paths), missing)' "$RECORDINGS_DIR" <<<"$paths")
+        [[ "$rec_missing" == 0 ]] && s=OK || s=WARN
+        report "$s" "telephony: call recordings" "$rec_total calls with a recording, $rec_missing files missing"
+    else
+        report FAIL "telephony: call recordings" "cannot query the call table"
+    fi
+else
+    report WARN "telephony: recordings" "$RECORDINGS_DIR does not exist"
+fi
+if [[ "$TELEPHONY_ENABLED" == 1 ]]; then
+    tel_state="$(python3 -c '
+import json, sys, datetime
+d = json.load(open(sys.argv[1]))
+age = (datetime.datetime.now(datetime.timezone.utc) - datetime.datetime.strptime(d["aliveAt"], "%Y-%m-%dT%H:%M:%SZ")
+       .replace(tzinfo=datetime.timezone.utc)).total_seconds()
+print(d.get("state"), int(age), d.get("ambiguousExtensions", 0))' "$ESPO_ROOT/data/itvolga-telephony-status.json" 2>/dev/null \
+        || echo "none 9999 0")"
+    read -r tel_s tel_age tel_amb <<<"$tel_state"
+    [[ "$tel_s" == connected && "$tel_age" -le 30 ]] && s=OK || s=FAIL
+    report "$s" "telephony: listener" "$tel_s, alive ${tel_age}s ago"
+    [[ "$tel_amb" == 0 ]] && s=OK || s=WARN
+    report "$s" "telephony: extensions" "$tel_amb shared by several active users"
+else
+    report OK "telephony: live integration" "off (espocrm_telephony_enabled)"
+fi
+
+# --- backups, certificate, leftovers ------------------------------------------------------------------------------
+if [[ -f "$BACKUP_DIR/nightly/MANIFEST" ]]; then
+    age_h=$(( ($(date +%s) - $(stat -c %Y "$BACKUP_DIR/nightly/MANIFEST")) / 3600 ))
+    [[ $age_h -le 26 ]] && s=OK || s=WARN
+    report "$s" "backup: nightly bundle" "$(manifest_get "$BACKUP_DIR/nightly" name), ${age_h} h old"
+else
+    report WARN "backup: nightly bundle" "none yet (backup-db.timer runs espocrm-backup --nightly at 02:30)"
+fi
+if end="$(openssl x509 -enddate -noout -in "$TLS_CERT" 2>/dev/null)"; then
+    days=$(( ($(date -d "${end#notAfter=}" +%s) - $(date +%s)) / 86400 ))
+    if [[ $days -lt 3 ]]; then s=FAIL; elif [[ $days -lt 14 ]]; then s=WARN; else s=OK; fi
+    report "$s" "tls: certificate" "$SERVER_NAME, $days days left"
+else
+    report FAIL "tls: certificate" "$TLS_CERT unreadable"
+fi
+left_db="$(mysql_root -N -B -e "SELECT COUNT(*) FROM information_schema.schemata WHERE (schema_name
+    LIKE '${DB_NAME}\\_\\_prev\\_%' OR schema_name LIKE '${DB_NAME}\\_\\_restore\\_%'
+    OR schema_name LIKE '${DB_NAME}\\_\\_check\\_%') AND schema_name NOT LIKE '%\\_$own_ts'" 2>/dev/null || echo '?')"
+left_dir="$(find "$BACKUP_DIR" -mindepth 1 -maxdepth 1 \( -name '.restore-aside-*' -o -name '.check-*' -o -name '.nightly-*' \) \
+    ! -name ".restore-aside-$own_ts" 2>/dev/null | wc -l)"
+if [[ "$left_db" == 0 && "$left_dir" == 0 ]]; then
+    report OK "restore: leftovers" "none"
+else
+    report WARN "restore: leftovers" "$left_db databases, $left_dir directories (a failed restore keeps them on purpose)"
+fi
+
+echo "---"
+echo "health: $FAILS failed, $WARNS warnings"
+[[ $FAILS -eq 0 ]]

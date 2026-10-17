@@ -1,0 +1,125 @@
+---
+# Чтение записей разговоров пользователем EspoCRM — ACL одного пользователя, не членство в группе asterisk (та
+# читает /etc/asterisk с секретами SIP); default ACL покрывает каталоги, которые Asterisk создаёт позже (D-171).
+# Нужно и без живой интеграции: прослушивание истории звонков.
+- name: Stat the recordings directory of Asterisk
+  ansible.builtin.stat:
+    path: "{{ espocrm_recordings_dir }}"
+  register: espocrm_recordings_stat
+
+# Родитель корня записей на production — asterisk:root 0750 (проверено только чтением 2026-10-17): без права
+# прохода ACL самого корня не работает. Только проход (--x): содержимое /var/spool/asterisk не читается.
+- name: Let the EspoCRM user traverse the parent of the recordings directory
+  ansible.posix.acl:
+    path: "{{ espocrm_recordings_dir | dirname }}"
+    entity: "{{ espocrm_user }}"
+    etype: user
+    permissions: x
+    state: present
+  when: espocrm_recordings_stat.stat.exists
+
+- name: Grant the EspoCRM user read access to the recordings
+  ansible.posix.acl:
+    path: "{{ espocrm_recordings_dir }}"
+    entity: "{{ espocrm_user }}"
+    etype: user
+    permissions: rx
+    default: "{{ item }}"
+    state: present
+  loop: [false, true]
+  loop_control:
+    label: "{{ 'default ACL' if item else 'ACL' }}"
+  when: espocrm_recordings_stat.stat.exists
+
+# Настройки интеграции EspoCRM (itvolga-setup-telephony, JSON через stdin): учётки AMI, правила, корень записей,
+# запасной внутренний номер (только если в EspoCRM он не задан). Файл 0600 root — те же секреты, что в
+# config-internal.php; применяется при изменении (отметка переживает сбой прогона).
+- name: Deploy the telephony settings of EspoCRM
+  ansible.builtin.template:
+    src: telephony.json.j2
+    dest: "{{ espocrm_telephony_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  register: espocrm_telephony_written
+  no_log: true
+
+# Не обработчик: отметка на диске переживает сбой прогона (обработчик бы потерялся), применение — ниже.
+- name: Mark the telephony settings as pending  # noqa: no-handler
+  ansible.builtin.copy:
+    content: "pending\n"
+    dest: "{{ espocrm_pending_telephony }}"
+    owner: root
+    group: root
+    mode: "0600"
+  when: espocrm_telephony_written is changed
+
+- name: Stat the pending telephony settings
+  ansible.builtin.stat:
+    path: "{{ espocrm_pending_telephony }}"
+  register: espocrm_telephony_pending
+
+- name: Apply the telephony settings of EspoCRM
+  ansible.builtin.shell:
+    cmd: "{{ espocrm_sbin_dir }}/espocrm itvolga-setup-telephony < {{ espocrm_telephony_file }}"
+  when:
+    - espocrm_telephony_pending.stat.exists
+    - not ansible_check_mode
+  changed_when: true
+
+- name: Clear the pending telephony settings
+  ansible.builtin.file:
+    path: "{{ espocrm_pending_telephony }}"
+    state: absent
+  when: not ansible_check_mode
+
+# Живая интеграция: два пользователя AMI с минимальными правами (manager reload, без рестарта Asterisk; диалплан
+# и транки не меняются), служба слушателя. Выключена — файла пользователей нет, служба остановлена.
+- name: Deploy the AMI users of EspoCRM
+  ansible.builtin.template:
+    src: manager.d-itvolga-espo.conf.j2
+    dest: "{{ espocrm_ami_file }}"
+    owner: root
+    group: "{{ espocrm_asterisk_group }}"
+    mode: "0640"
+  when: espocrm_telephony_enabled | bool
+  notify: Reload the Asterisk manager
+  no_log: true
+
+- name: Remove the AMI users of EspoCRM
+  ansible.builtin.file:
+    path: "{{ espocrm_ami_file }}"
+    state: absent
+  when: not (espocrm_telephony_enabled | bool)
+  notify: Reload the Asterisk manager
+
+- name: Deploy the unit of the AMI listener
+  ansible.builtin.template:
+    src: espocrm-telephony.service.j2
+    dest: "/etc/systemd/system/{{ espocrm_telephony_unit }}.service"
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart the EspoCRM telephony listener
+
+- name: Apply changed units and AMI users before the listener starts
+  ansible.builtin.meta: flush_handlers
+
+- name: Set the state of the AMI listener
+  ansible.builtin.systemd:
+    name: "{{ espocrm_telephony_unit }}"
+    state: "{{ 'started' if espocrm_telephony_enabled | bool else 'stopped' }}"
+    enabled: "{{ espocrm_telephony_enabled | bool }}"
+
+# Самопроверка прав AMI (коды, без значений): слушатель — список каналов да, Originate нет; набор — Command,
+# Hangup и список каналов нет (telephony.md).
+- name: Check the AMI rights of the EspoCRM users
+  ansible.builtin.command:
+    cmd: "{{ espocrm_sbin_dir }}/espocrm itvolga-setup-telephony --check"
+  register: espocrm_ami_check
+  changed_when: false
+  when:
+    - espocrm_telephony_enabled | bool
+    - not ansible_check_mode

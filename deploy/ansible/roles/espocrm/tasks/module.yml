@@ -1,0 +1,115 @@
+---
+# Модуль Itvolga — содержимое коммита репозитория миграции (git archive на контроллере), а не рабочего каталога:
+# незакоммиченные правки на сервер не попадают. Архив детерминирован (те же байты для того же коммита), поэтому
+# копирование идемпотентно. Код модуля на сервере принадлежит root: EspoCRM его не меняет.
+- name: Resolve the module ref to a commit on the controller  # noqa: command-instead-of-module
+  ansible.builtin.command:
+    argv: [git, -C, "{{ espocrm_module_repo }}", rev-parse, --verify, "{{ espocrm_module_ref }}^{commit}"]
+  delegate_to: localhost
+  become: false
+  run_once: true
+  register: espocrm_module_rev
+  changed_when: false
+  check_mode: false
+
+- name: Remember the module commit
+  ansible.builtin.set_fact:
+    espocrm_module_commit: "{{ espocrm_module_rev.stdout | trim }}"
+    espocrm_module_tar: "itvolga-module-{{ espocrm_module_rev.stdout | trim }}.tar"
+    espocrm_module_stage: "{{ espocrm_opt_dir }}/module/{{ espocrm_module_rev.stdout | trim }}"
+
+- name: Create the module build directory on the controller
+  ansible.builtin.file:
+    path: "{{ espocrm_module_build_dir }}"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  check_mode: false
+
+- name: Archive the module of the commit on the controller  # noqa: command-instead-of-module
+  ansible.builtin.command:
+    argv: "{{ ['git', '-C', espocrm_module_repo, 'archive', '--format=tar',
+               '--output=' ~ espocrm_module_build_dir ~ '/' ~ espocrm_module_tar, espocrm_module_commit, '--']
+              + espocrm_module_paths }}"
+    creates: "{{ espocrm_module_build_dir }}/{{ espocrm_module_tar }}"
+  delegate_to: localhost
+  become: false
+  run_once: true
+  check_mode: false
+
+- name: Copy the module archive to the server
+  ansible.builtin.copy:
+    src: "{{ espocrm_module_build_dir }}/{{ espocrm_module_tar }}"
+    dest: "{{ espocrm_opt_dir }}/module/{{ espocrm_module_tar }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Create the staging directory of the commit
+  ansible.builtin.file:
+    path: "{{ espocrm_module_stage }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Unpack the module of the commit
+  ansible.builtin.unarchive:
+    src: "{{ espocrm_opt_dir }}/module/{{ espocrm_module_tar }}"
+    dest: "{{ espocrm_module_stage }}"
+    remote_src: true
+    owner: root
+    group: root
+    creates: "{{ espocrm_module_stage }}/{{ espocrm_module_paths | first }}"
+
+# --checksum: сравнение по содержимому (время файлов архива — время коммита).
+- name: Synchronise the module into the EspoCRM root  # noqa: command-instead-of-module
+  ansible.builtin.command:
+    cmd: >-
+      rsync -a --omit-dir-times --delete --checksum --itemize-changes --chown=root:root --chmod=D0755,F0644
+      {{ '--dry-run' if ansible_check_mode else '' }}
+      {{ espocrm_module_stage }}/{{ item }}/ {{ espocrm_root }}/{{ item }}/
+  loop: "{{ espocrm_module_paths }}"
+  register: espocrm_module_sync
+  changed_when: espocrm_module_sync.stdout | length > 0
+  check_mode: false
+
+- name: Write the module stamp
+  ansible.builtin.copy:
+    content: "{{ espocrm_module_commit }}\n"
+    dest: "{{ espocrm_root }}/.itvolga-module"
+    owner: root
+    group: root
+    mode: "0644"
+  register: espocrm_module_stamp
+
+# Отметка переживает сбой прогона: применение (apply.yml) выполнится и при следующем запуске.
+- name: Mark the module apply as pending after a change of code
+  ansible.builtin.copy:
+    content: "{{ espocrm_module_commit }}\n"
+    dest: "{{ espocrm_pending_apply }}"
+    owner: root
+    group: root
+    mode: "0600"
+  when: >-
+    espocrm_core_sync is changed or espocrm_module_sync is changed or espocrm_module_stamp is changed
+    or espocrm_core_stamp_write is changed
+
+- name: Find staging copies of other commits
+  ansible.builtin.find:
+    paths: "{{ espocrm_opt_dir }}/module"
+    file_type: any
+    excludes:
+      - "{{ espocrm_module_commit }}"
+      - "{{ espocrm_module_tar }}"
+  register: espocrm_module_old
+
+- name: Remove staging copies of other commits
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ espocrm_module_old.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
