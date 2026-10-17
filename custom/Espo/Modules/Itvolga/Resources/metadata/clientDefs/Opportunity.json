@@ -2,15 +2,36 @@
     "relationshipPanels": {
         "cQuotes": {
             "selectDisabled": true,
-            "unlinkDisabled": true
+            "unlinkDisabled": true,
+            "createAttributeMap": {
+                "accountId": "accountId",
+                "accountName": "accountName",
+                "contactId": "contactId",
+                "contactName": "contactName"
+            },
+            "createHandler": "itvolga:handlers/finance/account-address"
         },
         "cSalesOrders": {
             "selectDisabled": true,
-            "unlinkDisabled": true
+            "unlinkDisabled": true,
+            "createAttributeMap": {
+                "accountId": "accountId",
+                "accountName": "accountName",
+                "contactId": "contactId",
+                "contactName": "contactName"
+            },
+            "createHandler": "itvolga:handlers/finance/account-address"
         },
         "cInvoices": {
             "selectDisabled": true,
-            "unlinkDisabled": true
+            "unlinkDisabled": true,
+            "createAttributeMap": {
+                "accountId": "accountId",
+                "accountName": "accountName",
+                "contactId": "contactId",
+                "contactName": "contactName"
+            },
+            "createHandler": "itvolga:handlers/finance/account-address"
         }
     }
 }

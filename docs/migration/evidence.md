@@ -1721,6 +1721,25 @@ C — сходится (создано 249, 7070 без изменений), п�
 - Дополнительно: тест первого файла пропускается с причиной, где ядро не распаковано (чистый клон); цель-заглушка карты «—»
   у исключённых колонок в `import-columns.md` больше не выводится как «—.—».
 
+## Вне этапов — контрагент и адреса нового документа (D-179), 2026-10-17
+
+Факты источника (локальная копия кода Vtiger 7.1.0 SP01, только чтение): `Potentials_Record_Model::getInventoryMappingFields` — `related_to` → `account_id`, `contact_id` → `contact_id` для документов, создаваемых со сделки (`Inventory_Edit_View`: `setParentRecordData` при `sourceModule` Accounts, Contacts, Potentials); адреса документа копирует клиент `Inventory_Edit_Js.copyAddressDetails` (`addressFieldsMapping.Accounts`: `bill_*` → `bill_*`, `ship_*` → `ship_*`), у организации без адреса — сообщение `JS_SELECTED_ACCOUNT_DOES_NOT_HAVE_AN_ADDRESS` без изменений. Сделка в EspoCRM: `Opportunity.contact` заполняет импорт (`spec.py`, `contact_id` → `contact`).
+
+Механизм ядра (EspoCRM, `client/lib/original/espo-main.js`, только чтение): `CreateRelatedHelper.process` — `createAttributeMap` и `createHandler.getAttributes(parent)` панели связей; `views/fields/link.select` — `relationshipPanels.<поле>.selectFieldHandler.getAttributes(выбранная запись)`; ошибка запроса с `xhr.errorIsHandled = true` окна ошибки не показывает.
+
+Проверка в браузере (отдельный headless Chrome с собственным профилем, Playwriter `--direct`, администратор стенда; синтетические контрагенты A — оба адреса, B — только адрес для счёта, C — без адреса, контакт и сделка A; записи удалены по своим id, документы не сохранялись):
+
+| Сценарий | Результат |
+|---|---|
+| Сделка → «Счета» «+» → «Полная форма» | контрагент A, контакт, сделка, адрес для счёта и адрес доставки A |
+| Контрагент A → «Предложения» «+» → «Полная форма» | контрагент A, оба адреса A |
+| Контакт → «Акты» «+» → «Полная форма» | контрагент A, контакт, оба адреса A |
+| Выбор контрагента B в форме счёта | адрес для счёта B, адрес доставки пуст (у B нет) |
+| Затем выбор контрагента C (без адреса) | адреса не меняются |
+| Обработчик с несуществующим контрагентом и с пустым `accountId` | `{}`, окна ошибки нет (в журнале браузера — только 404 сетевого запроса) |
+
+Снимок формы акта — `/data/itvolga/espo-private/stand/evidence/account-address/act-from-contact.png` (600). `task model:check` — 0 ошибок.
+
 ## Вне этапов — ключ безопасности (YubiKey, WebAuthn), 2026-10-06
 
 Решения D-128…D-132, контракт — `security-key.md`. Ядро EspoCRM 10.0.9 и `vendor/` не менялись; production не трогался.

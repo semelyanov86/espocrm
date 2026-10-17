@@ -19,6 +19,9 @@
             "selectDisabled": true,
             "unlinkDisabled": true,
             "rowActionsView": "views/record/row-actions/relationship-view-only"
+        },
+        "account": {
+            "selectFieldHandler": "itvolga:handlers/finance/account-address"
         }
     },
     "sidePanels": {

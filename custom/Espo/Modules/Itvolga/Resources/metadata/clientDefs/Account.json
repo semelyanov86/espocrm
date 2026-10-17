@@ -2,19 +2,23 @@
     "relationshipPanels": {
         "cQuotes": {
             "selectDisabled": true,
-            "unlinkDisabled": true
+            "unlinkDisabled": true,
+            "createHandler": "itvolga:handlers/finance/account-address"
         },
         "cSalesOrders": {
             "selectDisabled": true,
-            "unlinkDisabled": true
+            "unlinkDisabled": true,
+            "createHandler": "itvolga:handlers/finance/account-address"
         },
         "cInvoices": {
             "selectDisabled": true,
-            "unlinkDisabled": true
+            "unlinkDisabled": true,
+            "createHandler": "itvolga:handlers/finance/account-address"
         },
         "cActs": {
             "selectDisabled": true,
-            "unlinkDisabled": true
+            "unlinkDisabled": true,
+            "createHandler": "itvolga:handlers/finance/account-address"
         },
         "cPayments": {
             "selectDisabled": true,
