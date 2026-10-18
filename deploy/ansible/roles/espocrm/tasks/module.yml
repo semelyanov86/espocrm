@@ -18,6 +18,46 @@
     espocrm_module_tar: "itvolga-module-{{ espocrm_module_rev.stdout | trim }}.tar"
     espocrm_module_stage: "{{ espocrm_opt_dir }}/module/{{ espocrm_module_rev.stdout | trim }}"
 
+# CD (D-194) выкладывает коммиты main с GitHub: роль из отставшей рабочей копии вернула бы модуль назад. Развёрнутый
+# коммит должен быть предком выкладываемого (или им самим); неизвестный контроллеру — git pull. Намеренный откат —
+# -e espocrm_module_allow_downgrade=true.
+- name: Read the deployed module commit
+  ansible.builtin.slurp:
+    src: "{{ espocrm_root }}/.itvolga-module"
+  register: espocrm_module_deployed_stamp
+  failed_when: false
+
+- name: Remember the deployed module commit
+  ansible.builtin.set_fact:
+    espocrm_module_deployed: "{{ espocrm_module_deployed_stamp.content | default('') | b64decode | trim }}"
+
+- name: Check that the deployed module commit is in the history of the commit to deploy  # noqa: command-instead-of-module
+  ansible.builtin.command:
+    argv: [git, -C, "{{ espocrm_module_repo }}", merge-base, --is-ancestor, "{{ espocrm_module_deployed }}",
+           "{{ espocrm_module_commit }}"]
+  delegate_to: localhost
+  become: false
+  register: espocrm_module_ancestry
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when:
+    - espocrm_module_deployed is match('^[0-9a-f]{40}$')
+    - espocrm_module_deployed != espocrm_module_commit
+    - not espocrm_module_allow_downgrade | bool
+
+- name: Refuse to take the module back from the deployed commit
+  ansible.builtin.assert:
+    that:
+      - espocrm_module_ancestry.rc == 0
+    fail_msg: >-
+      На сервере модуль {{ espocrm_module_deployed[:12] }}, роль выложила бы {{ espocrm_module_commit[:12] }}:
+      {{ 'коммит сервера неизвестен контроллеру' if espocrm_module_ancestry.rc == 128
+         else 'это не продолжение коммита сервера' }} (его мог выложить CD из main, D-194). git pull в
+      {{ espocrm_module_repo }}; намеренный откат — -e espocrm_module_allow_downgrade=true.
+    quiet: true
+  when: espocrm_module_ancestry is not skipped
+
 - name: Create the module build directory on the controller
   ansible.builtin.file:
     path: "{{ espocrm_module_build_dir }}"

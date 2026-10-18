@@ -40,6 +40,24 @@ espocrm_module_paths:
   - custom/Espo/Modules/Itvolga
   - client/custom/modules/itvolga
 espocrm_module_build_dir: "{{ espocrm_module_repo }}/build/deploy"
+# Роль не возвращает модуль к коммиту старше развёрнутого (его мог выложить CD из main, D-194): рабочая копия
+# контроллера отстала — git pull; намеренный откат — -e espocrm_module_allow_downgrade=true.
+espocrm_module_allow_downgrade: false
+
+# --- Непрерывная выкладка модуля (CD, D-194; docs/migration/deploy.md §11) ----------------------------------------
+# GitHub Actions (.github/workflows/deploy.yml) после push в main входит пользователем espocrm_cd_user с ключом
+# espocrm_cd_ssh_public_key (закрытая часть — только секрет окружения production репозитория на GitHub) и просит
+# выложить коммит; сервер сам скачивает его из espocrm_cd_repo_url и выкладывает, только если он в espocrm_cd_branch.
+# false — ключ и sudoers снимаются (espocrm-deploy от root остаётся для ручного запуска).
+espocrm_cd_enabled: true
+espocrm_cd_user: espocrm-deploy
+espocrm_cd_home: /var/lib/espocrm-deploy
+espocrm_cd_repo_url: https://github.com/semelyanov86/espocrm.git
+espocrm_cd_branch: main
+espocrm_cd_ssh_public_key: >-
+  ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIF9r6Z8P4YcUJxbZT6X3Md2TLvroj/9pHw7rz/ymtbDM github-actions-deploy@semelyanov86/espocrm
+# Пакет espocrm-backup --online перед каждой выкладкой, которая меняет файлы (метка deploy-<коммит>): сколько хранить.
+espocrm_cd_keep_bundles: 5
 
 # --- Пути на сервере ---------------------------------------------------------------------------------------------
 espocrm_root: /var/www/espocrm

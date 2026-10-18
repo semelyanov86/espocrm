@@ -2084,6 +2084,60 @@ Health в конце: 0 FAIL, 1 предупреждение (администр
 - На сервере лежат пакеты первого переноса (`…092458-for-production`, номер 119 у 17 звонков) и проб — 549 МБ всего в
   `/var/backups/espocrm` (700/600); удаление — решение владельца.
 
+## Вне этапов — непрерывная выкладка модуля (CD, D-194), 2026-10-18
+
+Запрос владельца: после push в GitHub изменения сами уходят на сервер. Решения владельца (вопросы сессии): GitHub
+Actions + SSH; перед выкладкой — только синтаксис (добавлен и JSON модуля: битые метаданные останавливают EspoCRM так же).
+
+### Факты (только чтение, 2026-10-18)
+
+- Репозиторий `semelyanov86/espocrm` — **публичный**, Actions включены, окружений нет; локальный `main` впереди
+  `origin/main` на 8 коммитов (этапы 09–10).
+- Сервер: SSH 22 открыт (UFW роли firewall), `PermitRootLogin no`, `PasswordAuthentication no`, `UsePAM yes`, без
+  `AllowUsers`; jail `sshd`; `sudo` → sudo-rs 0.2.13 (пакет `sudo` 1.9.17 тоже стоит), `@includedir /etc/sudoers.d`,
+  роли сервера валидируют sudoers `visudo -cf`; git 2.53; GitHub по HTTPS доступен (200); модуль `e698dab`, отметка
+  ядра = роли; пакеты `/var/backups/espocrm/bundles` 447 МБ (6), ночной — 102 МБ; диск — 736 ГБ свободно.
+- Код модуля `e698dab..113ce23` не менялся (`git diff --stat` пуст).
+- `git archive` путей модуля: git 2.43 (контроллер) и 2.53 (Ubuntu 26.04) — один sha256 (`6e974aae…`): архив CD и роли
+  совпадает байт в байт.
+- Ключ хоста `serv.sergeyem.ru` (ED25519 `SHA256:vHoVAWbC…ROo0`) — тот же, что в `known_hosts` контроллера.
+
+### Проверки
+
+- `task lint:module` (php:8.5-cli, 8.5.7): 338 PHP, 442 JSON — OK; негативный контроль (битый PHP и JSON) — оба найдены,
+  код 1; shellcheck (`espocrm-deploy`, `espocrm-deploy-ssh`, `espocrm-backup`, `lint-module.sh`) — чисто.
+- `task ansible:lint` — 0/0 (307 файлов); `task ansible:syntax` — 5 плейбуков.
+- `task ansible:test` с нуля: все прежние шаги зелёные (роль дважды `changed=0`, `--check`, дрейф, backup/restore,
+  телефония, переключение). Новый шаг `cd` нашёл три дефекта, исправлены, шаг повторён — код 0:
+  1. коммит другой ветки отвергался с сообщением «нет в репозитории» (зеркало скачивает только `main`) — одно сообщение
+     «не в ветке main»;
+  2. `espocrm-health` сразу после `espocrm-apply` — FAIL «cron.php never» (`clear-cache` стирает отметку) — ожидание
+     одного запуска cron, как в `espocrm-restore`; там же счётчик «files changed» считал файлы, у которых сменилось только
+     время (каждый коммит ставит своё), — считается и требует пакета только изменение содержимого;
+  3. роль после выкладки CD — `changed=2` (рестарт слушателя): применённое состояние телефонии роли содержит коммит
+     модуля — CD записывает в него новый модуль (`espocrm-apply` слушателя уже перезапустил); после — `changed=0`.
+- Шаг `cd` проверяет: роль отказывается вернуть модуль к `HEAD~1` («не продолжение») и к неизвестному контроллеру
+  коммиту («неизвестен»), с `espocrm_module_allow_downgrade=true` — выкладывает; принудительная команда отвергает пустой
+  запрос, `id`, короткий хеш, `deploy <sha>; id`, лишний аргумент; коммит другой ветки и несуществующий — отказ; пауза —
+  отказ, `--resume`; выкладка коммита роли через `runuser` → принудительная команда → sudo: `applied yes`, health 0
+  FAIL, не больше 6 строк в сессии; роль после неё — `changed=0`; новый коммит `main` с файлом модуля — `files changed
+  1, applied yes, backup …-deploy-…`, файл `root:root 644`, отметки, `apply-pending` снят, в `/opt/espocrm/module`
+  только копия этого коммита, пакет цел (`SHA256SUMS`), `git_head` пакета — прежний коммит; повтор — `files changed 0,
+  applied no, backup none`; старый коммит `main` — отказ «older than the deployed»; `git revert` + выкладка — файл удалён;
+  роль возвращает модуль к `HEAD`, повтор — `changed=0`.
+- Итог выкладки, который увидит публичный журнал Actions (пример проверочной машины): `deploy of <sha>`, `health: 0
+  failed, 1 warnings`, `deployed <sha12>: files changed 1, applied yes, backup <время>-deploy-<sha12>`; подробности
+  health и шагов — только в журнале сервера.
+- `scripts/check-secrets.sh` — 0 находок (рабочее дерево; `user@host` в документах и адреса тестовых коммитов
+  переформулированы, исключения не добавлялись); `--history` — 0.
+
+### Не проверено на проверочной машине
+
+- sudo-rs (в образе — классический sudo; на production — sudo-rs) и настоящий вход по SSH (в образе нет sshd):
+  принудительная команда вызывалась `runuser` с `SSH_ORIGINAL_COMMAND` — путь SSH → `restrict,command=` проверяется
+  выкладкой с GitHub на production.
+- Ожидание блокировки (15 мин) и хранение 5 последних пакетов `deploy-*` не моделировались.
+
 ## Вне этапов — контрагент и адреса нового документа (D-179), 2026-10-17
 
 Факты источника (локальная копия кода Vtiger 7.1.0 SP01, только чтение): `Potentials_Record_Model::getInventoryMappingFields` — `related_to` → `account_id`, `contact_id` → `contact_id` для документов, создаваемых со сделки (`Inventory_Edit_View`: `setParentRecordData` при `sourceModule` Accounts, Contacts, Potentials); адреса документа копирует клиент `Inventory_Edit_Js.copyAddressDetails` (`addressFieldsMapping.Accounts`: `bill_*` → `bill_*`, `ship_*` → `ship_*`), у организации без адреса — сообщение `JS_SELECTED_ACCOUNT_DOES_NOT_HAVE_AN_ADDRESS` без изменений. Сделка в EspoCRM: `Opportunity.contact` заполняет импорт (`spec.py`, `contact_id` → `contact`).

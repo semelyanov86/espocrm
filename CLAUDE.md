@@ -61,6 +61,9 @@ task ansible:check | ansible:test-down      # дрейф --check --diff на п�
 scripts/deploy/overlay.sh status            # база патча, HEAD /data/server, совпадают ли роль и плейбуки; install --stage10 — выполнен на этапе 10
 scripts/deploy/overlay.sh sync              # после этапа 10: роль и плейбуки 11/12 → /data/server (затем коммит там, D-193)
 scripts/deploy/bundle.sh push|pull …        # пакет EspoCRM стенд ⇄ production (этапы 10–11, D-187)
+task lint:module                            # синтаксис модуля (php -l, JSON) — тот же, что перед выкладкой CD (D-194)
+gh workflow run deploy.yml                  # CD: выложить голову main на сервер вручную (обычно — сам после push в main, если менялся модуль)
+ssh sergey@serv.sergeyem.ru sudo espocrm-deploy --status | --pause "<причина>" | --resume   # CD на сервере: состояние, пауза (окно этапа 11)
 scripts/deploy/stand-admin.sh park|unpark|repark   # администратор пакета production на стенде на время дельты (этап 11, D-187); почту и ящики пакета restore стенда выключает сам (park-mail); unpark возвращает их и оставляет писателей стенда остановленными, repark паркует снова и запускает
 ```
 

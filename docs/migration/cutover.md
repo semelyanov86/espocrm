@@ -138,6 +138,9 @@ missing»).
 
 Накануне: объявить окно; убедиться, что `backup-db`, `backup-system`, `backup-recordings` прошли этой ночью,
 `task espocrm:restore-check` и `espocrm-restore-check --mysql vtiger7` — 0 FAIL; стенд и сервер на коммите `C`.
+Перед шагом 1 — пауза CD модуля (D-194, `deploy.md` §11): сервер `sudo espocrm-deploy --pause "cutover"` (ждёт идущую
+выкладку; push в `main` во время окна сервер не изменит, выкладка в GitHub станет красной), после шага 8 —
+`sudo espocrm-deploy --resume`; коммит `C` — тот, что показывает `sudo espocrm-deploy --status`.
 
 | # | Шаг | Команды | Оценка |
 |---|---|---|---|

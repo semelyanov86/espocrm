@@ -1,0 +1,70 @@
+---
+# Непрерывная выкладка модуля (CD, D-194; docs/migration/deploy.md §11). GitHub Actions после push в main входит по SSH
+# пользователем espocrm_cd_user. Его ключ в authorized_keys ограничен (restrict) принудительной командой
+# espocrm-deploy-ssh: она принимает только «deploy <коммит>» и через sudo запускает espocrm-deploy от root, а тот сам
+# скачивает коммит с GitHub и выкладывает его, только если коммит есть в ветке. Домашний каталог и ключи пользователя
+# принадлежат root: сменить себе ключ или команду он не может.
+- name: Deploy the SSH forced command of the CD key
+  ansible.builtin.copy:
+    src: espocrm-deploy-ssh
+    dest: "{{ espocrm_lib_dir }}/espocrm-deploy-ssh"
+    owner: root
+    group: root
+    mode: "0755"
+
+# Пароля нет ("*", не «заблокирован»): вход только по ключу. Оболочка нужна sshd, чтобы выполнить принудительную команду.
+- name: Create the CD user
+  ansible.builtin.user:
+    name: "{{ espocrm_cd_user }}"
+    system: true
+    create_home: false
+    home: "{{ espocrm_cd_home }}"
+    shell: /bin/sh
+    password: "*"
+    comment: CD of the Itvolga module (GitHub Actions)
+  when: espocrm_cd_enabled | bool
+
+- name: Create the root-owned home and SSH directories of the CD user
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ espocrm_cd_home }}"
+    - "{{ espocrm_cd_home }}/.ssh"
+  when: espocrm_cd_enabled | bool
+
+- name: Allow the CD key only the forced command
+  ansible.builtin.copy:
+    content: |
+      # Role espocrm (D-194): the CD key of GitHub Actions can only ask for a deploy of a commit of {{ espocrm_cd_branch }}.
+      restrict,command="{{ espocrm_lib_dir }}/espocrm-deploy-ssh" {{ espocrm_cd_ssh_public_key }}
+    dest: "{{ espocrm_cd_home }}/.ssh/authorized_keys"
+    owner: root
+    group: root
+    mode: "0644"
+  when: espocrm_cd_enabled | bool
+
+# Аргументы sudo не ограничивает: их задаёт принудительная команда, а espocrm-deploy проверяет их сам.
+- name: Let the CD user run espocrm-deploy as root
+  ansible.builtin.copy:
+    content: |
+      # Role espocrm (D-194): CD of the Itvolga module.
+      {{ espocrm_cd_user }} ALL=(root) NOPASSWD: {{ espocrm_sbin_dir }}/espocrm-deploy
+    dest: /etc/sudoers.d/espocrm-deploy
+    owner: root
+    group: root
+    mode: "0440"
+    validate: "visudo -cf %s"
+  when: espocrm_cd_enabled | bool
+
+- name: Remove the CD access when CD is disabled
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ espocrm_cd_home }}/.ssh/authorized_keys"
+    - /etc/sudoers.d/espocrm-deploy
+  when: not espocrm_cd_enabled | bool

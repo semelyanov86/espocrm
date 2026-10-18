@@ -40,6 +40,7 @@
     - espocrm-health
     - espocrm-fingerprint
     - espocrm-changes-since
+    - espocrm-deploy
 
 # Настройки без секретов, которые restore пакета возвращает поверх конфигурации источника (стенда).
 - name: Deploy the settings the role keeps in the EspoCRM configuration

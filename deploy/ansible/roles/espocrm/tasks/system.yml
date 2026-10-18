@@ -1,10 +1,11 @@
 ---
 # acl — ACL чтения записей разговоров (на production setfacl нет, проверено 2026-10-17); unzip — релиз EspoCRM;
-# rsync — синхронизация ядра и модуля в корень EspoCRM.
+# rsync — синхронизация ядра и модуля в корень EspoCRM; git — коммиты модуля для espocrm-deploy (CD, D-194).
 - name: Install packages used by the role
   ansible.builtin.apt:
     name:
       - acl
+      - git
       - rsync
       - unzip
     state: present

@@ -318,9 +318,14 @@ tasks:
       - task -d build/ansible-overlay ansible:syntax
 
   ansible:test:
-    desc: Disposable Ubuntu 26.04 target with systemd (Docker) — server roles, the role espocrm twice (changed=0), --check, backup/restore/restic, telephony, switch vtiger → maintenance → espocrm → vtiger (-- all|up|prepare|converge|idempotent|check|drift|verify|telephony|switch)
+    desc: Disposable Ubuntu 26.04 target with systemd (Docker) — server roles, the role espocrm twice (changed=0), --check, backup/restore/restic, telephony, switch vtiger → maintenance → espocrm → vtiger, CD of the module (-- all|up|prepare|converge|idempotent|check|drift|verify|telephony|switch|cd)
     cmds:
       - scripts/deploy/test-target.sh {{if .CLI_ARGS}}{{.CLI_ARGS}}{{else}}all{{end}}
+
+  lint:module:
+    desc: Syntax gate of the CD (D-194) — php -l of every PHP file and json_decode of every JSON file of the module (PHP 8.5)
+    cmds:
+      - scripts/deploy/lint-module.sh
 
   ansible:check:
     desc: --check --diff of 11-espocrm.yml on the deployed disposable target (drift must be changed=0)

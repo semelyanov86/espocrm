@@ -17,6 +17,9 @@
 - name: Deploy the maintenance tools
   ansible.builtin.import_tasks: tools.yml
 
+- name: Configure the continuous deployment of the module (CD)
+  ansible.builtin.import_tasks: cd.yml
+
 - name: Create the EspoCRM database and its user
   ansible.builtin.import_tasks: database.yml
 

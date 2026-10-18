@@ -2,8 +2,8 @@
 # Disposable test target of the server Ansible with the role espocrm (stage 09, D-180): a container of Ubuntu 26.04
 # (the release of production) with systemd, reached over the Docker connection. Production is never contacted.
 #
-#   test-target.sh all          up → prepare → converge → idempotent → check → drift → verify → telephony → switch
-#   test-target.sh up | prepare | converge | idempotent | check | drift | verify | telephony | switch | down | shell
+#   test-target.sh all          up → prepare → converge → idempotent → check → drift → verify → telephony → switch → cd
+#   test-target.sh up | prepare | converge | idempotent | check | drift | verify | telephony | switch | cd | down | shell
 #
 # The overlay (scripts/deploy/overlay.sh) is the code under test: the role espocrm, the playbooks 11/12 and the
 # patched server roles. The vault of the test is generated from vault.yml.example with random values
@@ -123,6 +123,17 @@ assert_unchanged() { # logfile name
 prepare() { inventory; playbook prepare.yml prepare; }
 converge() { inventory; playbook 11-espocrm.yml converge; }
 idempotent() { inventory; playbook 11-espocrm.yml idempotent; assert_unchanged idempotent; }
+
+playbook_fails() { # name logfile pattern [args...] — the run must fail, its log must hold the pattern
+    local book="$1" name="$2" pattern="$3"; shift 3
+    local rc=0
+    log "ansible-playbook $book $* → $LOGS/$name.log (a refusal expected)"
+    ANSIBLE_CONFIG="$RUN/ansible.cfg" ansible-playbook "$OVERLAY/ansible/playbooks/$book" "$@" >"$LOGS/$name.log" 2>&1 \
+        || rc=$?
+    [[ $rc != 0 ]] || die "$name: the run succeeded, a refusal was expected"
+    grep -qF "$pattern" "$LOGS/$name.log" || { tail -30 "$LOGS/$name.log" >&2; die "$name: failed without '$pattern'"; }
+    log "$name: refused ($pattern)"
+}
 
 assert_task_changed() { # logfile task-name
     grep -A2 -F "TASK [espocrm : $2]" "$LOGS/$1.log" | grep -qE '^changed:' \
@@ -398,6 +409,139 @@ CHECK
     done
 }
 
+# Continuous deployment (D-194): the forced command of the CD key → sudo → espocrm-deploy against a bare repository in
+# the target that plays GitHub (espocrm_cd_repo_url of zz-test.yml), and the guard of the role against going back.
+cd_step() {
+    inventory
+    local head prev
+    head="$(git -C "$REPO" rev-parse HEAD)"
+    prev="$(git -C "$REPO" rev-parse HEAD~1)"
+    playbook 11-espocrm.yml cd-start -e espocrm_module_allow_downgrade=true   # the module of HEAD (a repeated step)
+    playbook_fails 11-espocrm.yml cd-guard-older "продолжение" -e espocrm_module_ref=HEAD~1
+    playbook 11-espocrm.yml cd-downgrade -e espocrm_module_ref=HEAD~1 -e espocrm_module_allow_downgrade=true
+    git -C "$REPO" bundle create "$RUN/cd.bundle" HEAD >/dev/null 2>&1
+    docker cp "$RUN/cd.bundle" "$CONTAINER:/root/cd.bundle" >/dev/null
+    log "CD scenario on the target (requests, main only, pause, deploy of the role's commit) → $LOGS/cd-1.log"
+    in_target -e HEAD_COMMIT="$head" -e PREV_COMMIT="$prev" "$CONTAINER" bash -s >"$LOGS/cd-1.log" 2>&1 <<'SCENARIO' \
+        || { tail -30 "$LOGS/cd-1.log" >&2; die "CD scenario 1 failed, log $LOGS/cd-1.log"; }
+set -euo pipefail
+source /etc/espocrm/espocrm.env
+step() { printf '\n=== %s\n' "$*"; }
+ssh_cmd() { runuser -u espocrm-deploy -- env SSH_ORIGINAL_COMMAND="$1" "$LIB_DIR/espocrm-deploy-ssh"; }
+refused() { # expected-text request
+    local out rc=0
+    out="$(ssh_cmd "$2" 2>&1)" || rc=$?
+    printf '%s\n' "$out"
+    [[ $rc != 0 ]] || { echo "UNEXPECTED: '$2' succeeded"; exit 1; }
+    grep -qF "$1" <<<"$out" || { echo "UNEXPECTED: '$2' failed without '$1'"; exit 1; }
+}
+commit_as_test() { git -C "$1" -c user.name=cd-test -c user.email=cd-test commit -q "${@:2}"; }
+
+step "GitHub of the test: $CD_REPO_URL, main = the commit of the role"
+rm -rf "$CD_REPO_URL"
+git init -q --bare --initial-branch=main "$CD_REPO_URL"
+git -C "$CD_REPO_URL" fetch -q /root/cd.bundle "HEAD:refs/heads/main"
+
+step "Requests the forced command refuses (nothing reaches sudo)"
+refused "the only accepted command" ""
+refused "the only accepted command" "id"
+refused "the only accepted command" "deploy ${HEAD_COMMIT:0:12}"
+refused "the only accepted command" "deploy $HEAD_COMMIT; id"
+refused "the only accepted command" "deploy $HEAD_COMMIT --pause"
+[[ "$(cat "$ESPO_ROOT/.itvolga-module")" == "$PREV_COMMIT" ]]
+
+step "Commits outside main are refused"
+work="$(mktemp -d)"
+git clone -q "$CD_REPO_URL" "$work"
+commit_as_test "$work" --allow-empty -m "side branch"
+side="$(git -C "$work" rev-parse HEAD)"
+git -C "$work" push -q origin HEAD:refs/heads/side
+refused "is not on the branch main" "deploy $side"
+refused "is not on the branch main" "deploy 0123456789abcdef0123456789abcdef01234567"
+
+step "Paused deploys are refused"
+espocrm-deploy --pause "cutover test"
+refused "deploys are paused" "deploy $HEAD_COMMIT"
+espocrm-deploy --resume
+espocrm-deploy --status
+
+step "Deploy of the commit of the role through the forced command and sudo"
+out="$(ssh_cmd "deploy $HEAD_COMMIT")"
+printf '%s\n' "$out"
+grep -q "applied yes" <<<"$out"
+grep -q "^health: 0 failed" <<<"$out"
+[[ "$(wc -l <<<"$out")" -le 6 ]]   # summary lines only; the full log stays on the server
+[[ "$(cat "$ESPO_ROOT/.itvolga-module")" == "$HEAD_COMMIT" ]]
+grep -q " $HEAD_COMMIT\$" "$STATE_DIR/apply-applied"
+test ! -e "$STATE_DIR/apply-pending"
+test -s "$(find "$STATE_DIR/deploy/logs" -name '*.log' | LC_ALL=C sort | tail -1)"
+SCENARIO
+    sed -n 's/^=== /    /p' "$LOGS/cd-1.log" >&2
+    # After a deploy by CD the role (same commit) changes nothing: same archive bytes, staging, stamp, applied state.
+    playbook 11-espocrm.yml cd-role-after
+    assert_unchanged cd-role-after
+    log "CD scenario on the target (a module change, repeat, older commit, revert) → $LOGS/cd-2.log"
+    in_target -e HEAD_COMMIT="$head" "$CONTAINER" bash -s >"$LOGS/cd-2.log" 2>&1 <<'SCENARIO' \
+        || { tail -30 "$LOGS/cd-2.log" >&2; die "CD scenario 2 failed, log $LOGS/cd-2.log"; }
+set -euo pipefail
+source /etc/espocrm/espocrm.env
+step() { printf '\n=== %s\n' "$*"; }
+ssh_cmd() { runuser -u espocrm-deploy -- env SSH_ORIGINAL_COMMAND="$1" "$LIB_DIR/espocrm-deploy-ssh"; }
+commit_as_test() { git -C "$1" -c user.name=cd-test -c user.email=cd-test commit -q "${@:2}"; }
+marker=client/custom/modules/itvolga/cd-test.txt
+
+step "A new commit of main that changes the module: backup, files, apply, health"
+work="$(mktemp -d)"
+git clone -q "$CD_REPO_URL" "$work"
+printf 'cd test\n' >"$work/$marker"
+git -C "$work" add "$marker"
+commit_as_test "$work" -m "cd test: a module change"
+new="$(git -C "$work" rev-parse HEAD)"
+git -C "$work" push -q origin HEAD:refs/heads/main
+out="$(ssh_cmd "deploy $new")"
+printf '%s\n' "$out"
+grep -q "files changed [1-9][0-9]*, applied yes, backup [0-9T]*-deploy-${new:0:12}\$" <<<"$out"
+grep -q "^health: 0 failed" <<<"$out"
+[[ "$(stat -c '%U:%G %a' "$ESPO_ROOT/$marker")" == "root:root 644" ]]
+[[ "$(cat "$ESPO_ROOT/.itvolga-module")" == "$new" ]]
+grep -q " $new\$" "$STATE_DIR/apply-applied"
+test ! -e "$STATE_DIR/apply-pending"
+[[ "$(find "$OPT_DIR/module" -mindepth 1 -maxdepth 1 | wc -l)" == 3 ]]   # the staging copy, its mark and the archive
+bundle="$(find "$BACKUP_DIR/bundles" -mindepth 1 -maxdepth 1 -name "*-deploy-${new:0:12}" | tail -1)"
+( cd "$bundle" && sha256sum -c --quiet SHA256SUMS )
+grep -qx "git_head=$HEAD_COMMIT" "$bundle/MANIFEST"   # the state before the deploy
+
+step "The same commit again: nothing to do"
+out="$(ssh_cmd "deploy $new")"
+printf '%s\n' "$out"
+grep -q "files changed 0, applied no, backup none\$" <<<"$out"
+
+step "An older commit of main is refused"
+rc=0; out="$(ssh_cmd "deploy $HEAD_COMMIT" 2>&1)" || rc=$?
+printf '%s\n' "$out"
+[[ $rc != 0 ]] && grep -q "older than the deployed" <<<"$out"
+
+step "Rollback the CD way: git revert on main"
+git -C "$work" -c user.name=cd-test -c user.email=cd-test revert --no-edit HEAD >/dev/null
+reverted="$(git -C "$work" rev-parse HEAD)"
+git -C "$work" push -q origin HEAD:refs/heads/main
+out="$(ssh_cmd "deploy $reverted")"
+printf '%s\n' "$out"
+grep -q "files changed [1-9][0-9]*, applied yes" <<<"$out"
+test ! -e "$ESPO_ROOT/$marker"
+[[ "$(cat "$ESPO_ROOT/.itvolga-module")" == "$reverted" ]]
+SCENARIO
+    sed -n 's/^=== /    /p' "$LOGS/cd-2.log" >&2
+    # The deployed revert is unknown to the controller: the role refuses until git pull or an explicit rollback.
+    playbook_fails 11-espocrm.yml cd-guard-unknown "неизвестен"
+    playbook 11-espocrm.yml cd-back -e espocrm_module_allow_downgrade=true
+    playbook 11-espocrm.yml cd-back-again
+    assert_unchanged cd-back-again
+    [[ "$(docker exec "$CONTAINER" cat /var/www/espocrm/.itvolga-module)" == "$head" ]] \
+        || die "cd: the role did not bring the module back to $head"
+    log "cd: forced command, main only, pause, deploys with backup, revert; the role guards and converges back"
+}
+
 down() {
     docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
     rm -rf "$RUN"
@@ -406,8 +550,9 @@ down() {
 
 cmd="${1:-all}"
 case "$cmd" in
-    all) up; prepare; converge; idempotent; check; drift; verify; telephony; switch ;;
+    all) up; prepare; converge; idempotent; check; drift; verify; telephony; switch; cd_step ;;
     up|prepare|converge|idempotent|check|drift|verify|telephony|switch|down) "$cmd" ;;
+    cd) cd_step ;;
     shell) docker exec -it "$CONTAINER" bash ;;
-    *) die "usage: test-target.sh all|up|prepare|converge|idempotent|check|drift|verify|telephony|switch|down|shell" ;;
+    *) die "usage: test-target.sh all|up|prepare|converge|idempotent|check|drift|verify|telephony|switch|cd|down|shell" ;;
 esac

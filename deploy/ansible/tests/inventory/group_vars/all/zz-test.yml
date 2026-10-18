@@ -20,3 +20,5 @@ certbot_domains:
   - serv.itvolga.com
 # The test CA of the fixture certificate of serv.itvolga.com (prepare.yml); production verifies Let's Encrypt.
 espocrm_health_ca_file: /etc/espocrm-test/ca.pem
+# CD (D-194): "GitHub" of the test is a bare repository in the target (test-target.sh cd creates it).
+espocrm_cd_repo_url: /srv/itvolga-espo-cd.git

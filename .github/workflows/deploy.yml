@@ -1,0 +1,63 @@
+# Continuous deployment of the Itvolga module to the server (D-194, docs/migration/deploy.md §11).
+# A push to main that changes the module: syntax of its PHP and JSON files, then SSH to the server as espocrm-deploy.
+# The key (secret DEPLOY_SSH_KEY of the environment production, branch main only) runs one forced command there —
+# "deploy <commit>": the server fetches that commit from this repository itself and deploys it only if it is on main.
+# Infrastructure (the Ansible role, settings, secrets) is not deployed from here: overlay.sh sync + the role run.
+# This log is public: the server answers with summary lines only, its full log stays on the server.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - custom/Espo/Modules/Itvolga/**
+      - client/custom/modules/itvolga/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy at a time; a newer push waits for the running deploy instead of cancelling it.
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  lint:
+    name: Syntax of the module (PHP 8.5, JSON)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: php -l and json_decode of every file of the module
+        run: >-
+          docker run --rm -v "$PWD:/src:ro" -w /src
+          php:8.5-cli@sha256:01a109229f4465bc9ef042d9198f09a4d9da7775a825dbd8572dcdbd8756c4d3
+          bash scripts/deploy/lint-module.sh
+
+  deploy:
+    name: Deploy to the server
+    needs: lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - name: Ask the server to deploy this commit
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: serv.sergeyem.ru
+          DEPLOY_USER: espocrm-deploy
+          # ED25519 host key of the server, SHA256:vHoVAWbCFoQuqNrKVr+l5UIifUHwQMz1Wo90Q74ROo0
+          DEPLOY_HOST_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGfkzNcmUyA9+eW+QtRo7qDc1sHCxTL5eMUCFLGieaHX
+        run: |
+          set -euo pipefail
+          umask 077
+          dir="$(mktemp -d)"
+          trap 'rm -rf "$dir"' EXIT
+          printf '%s\n' "$DEPLOY_SSH_KEY" >"$dir/key"
+          printf '%s %s\n' "$DEPLOY_HOST" "$DEPLOY_HOST_KEY" >"$dir/known_hosts"
+          ssh -i "$dir/key" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes \
+              -o UserKnownHostsFile="$dir/known_hosts" -o ConnectTimeout=30 -o ServerAliveInterval=30 \
+              "$DEPLOY_USER@$DEPLOY_HOST" "deploy $GITHUB_SHA"

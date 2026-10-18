@@ -1,0 +1,221 @@
+#!/usr/bin/env bash
+# Continuous deployment of the Itvolga module (role espocrm, D-194): deploy one commit of the branch CD_BRANCH of the
+# GitHub repository of the migration with the steps of the role (tasks module.yml and apply.yml) — git archive of the
+# commit into $OPT_DIR/module/<commit>, rsync --checksum into the EspoCRM root with the pending mark written first, the
+# module stamp, espocrm-apply when the deployed state differs from the last applied one — then espocrm-health. The
+# server fetches the commit itself: whoever asks for a deploy can only choose a commit that is already on the branch,
+# never send code.
+#
+#   espocrm-deploy <commit>           deploy (40 hex digits); a commit older than the deployed one is refused — roll
+#                                     back with git revert and a push
+#   espocrm-deploy --ci <commit>      the same for the SSH key of GitHub Actions (espocrm-deploy-ssh): the full output
+#                                     goes to $STATE_DIR/deploy/logs on the server, the SSH session (a public Actions
+#                                     log) gets summary lines only
+#   espocrm-deploy --pause [REASON]   refuse deploys until --resume (waits for a running deploy, backup or restore)
+#   espocrm-deploy --resume | --status
+# Before the files change, espocrm-backup --online saves the database and files (label deploy-<commit>; the last
+# CD_KEEP_BUNDLES such bundles are kept). The operations lock is held throughout: no backup, restore, restore check or
+# role run in between (the role checks the same lock).
+# shellcheck source=/dev/null
+source /usr/local/lib/espocrm/lib.sh
+require_root
+
+exec 3>&1
+ci=0
+say() { printf '%s\n' "$*" >&3; [[ $ci == 0 ]] || log "$*"; }
+# Errors reach the summary too: the messages of this tool and of lib.sh carry no data.
+die() {
+    printf '[%s] ERROR: %s\n' "$TOOL" "$*" >&2
+    [[ $ci == 0 ]] || printf 'ERROR: %s\n' "$*" >&3
+    exit 1
+}
+usage() { die "usage: espocrm-deploy [--ci] <commit> | --pause [REASON] | --resume | --status"; }
+
+action="" commit="" reason=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --ci) ci=1; shift ;;
+        --pause) action=pause; shift; reason="$*"; break ;;
+        --resume) action=resume; shift ;;
+        --status) action=status; shift ;;
+        -*) usage ;;
+        *) [[ -z "$action" ]] || usage; action=deploy; commit="$1"; shift ;;
+    esac
+done
+[[ -n "$action" ]] || usage
+
+read -r -a paths <<<"$MODULE_PATHS"
+CD_DIR="$STATE_DIR/deploy"
+REPO_DIR="$CD_DIR/repo.git"
+LOG_DIR="$CD_DIR/logs"
+PAUSE_FILE="$STATE_DIR/deploy-paused"
+STAMP="$ESPO_ROOT/.itvolga-module"
+APPLIED="$STATE_DIR/apply-applied"
+PENDING="$STATE_DIR/apply-pending"
+TELEPHONY_APPLIED="$STATE_DIR/telephony-applied.json"
+MODULE_DIR="$OPT_DIR/module"
+umask 022
+
+# Wait for a running deploy, backup or restore instead of failing at once (the nightly backup takes minutes).
+lock_wait() {
+    exec 9>"$OPS_LOCK"
+    if ! flock -n 9; then
+        log "waiting for another EspoCRM operation (lock $OPS_LOCK, up to 15 min)"
+        flock -w 900 9 || die "another EspoCRM operation holds $OPS_LOCK for 15 min"
+    fi
+}
+
+write_file() { # path mode content — atomically, like the copy module of the role
+    printf '%s\n' "$3" >"$1.tmp"
+    chmod "$2" "$1.tmp"
+    mv -f "$1.tmp" "$1"
+}
+
+case "$action" in
+    pause)
+        lock_wait
+        write_file "$PAUSE_FILE" 0600 "${reason:-paused} ($(date -u '+%Y-%m-%d %H:%M UTC'))"
+        say "deploys paused: $(cat "$PAUSE_FILE")"
+        exit 0 ;;
+    resume)
+        rm -f "$PAUSE_FILE"
+        say "deploys resumed"
+        exit 0 ;;
+    status)
+        say "deployed: $(cat "$STAMP" 2>/dev/null || echo none)"
+        say "applied:  $(cat "$APPLIED" 2>/dev/null || echo none)"
+        if [[ -e "$PENDING" ]]; then say "pending:  apply of $(cat "$PENDING")"; fi
+        if [[ -e "$PAUSE_FILE" ]]; then say "paused:   $(cat "$PAUSE_FILE")"; else say "paused:   no"; fi
+        last="$(find "$LOG_DIR" -maxdepth 1 -name '*.log' 2>/dev/null | LC_ALL=C sort | tail -1)"
+        say "last CD log: ${last:-none}"
+        exit 0 ;;
+esac
+
+[[ "$commit" =~ ^[0-9a-f]{40}$ ]] || die "a commit is 40 lowercase hex digits"
+install -d -m 0700 "$CD_DIR" "$LOG_DIR"
+if [[ $ci == 1 ]]; then
+    log_file="$LOG_DIR/$(date -u +%Y%m%dT%H%M%SZ)-${commit:0:12}.log"
+    exec >"$log_file" 2>&1
+    chmod 0600 "$log_file"
+    mapfile -t old < <(find "$LOG_DIR" -maxdepth 1 -name '*.log' | LC_ALL=C sort | head -n -30)
+    [[ ${#old[@]} == 0 ]] || rm -f -- "${old[@]}"
+fi
+stage="start"
+on_exit() {
+    local rc=$?
+    rm -f "$STAMP.tmp" "$APPLIED.tmp" "$PENDING.tmp" "$TELEPHONY_APPLIED.tmp"
+    [[ $rc == 0 ]] || say "deploy of ${commit:0:12} FAILED at: $stage${log_file:+ (log on the server: $log_file)}"
+}
+trap on_exit EXIT
+
+say "deploy of $commit"
+stage="lock"
+lock_wait
+export ESPOCRM_OPS_LOCKED=1
+[[ ! -e "$PAUSE_FILE" ]] || die "deploys are paused on the server: $(cat "$PAUSE_FILE") (espocrm-deploy --resume)"
+core="$(cat "$ESPO_ROOT/.espocrm-core" 2>/dev/null || true)"
+[[ "${core%% *}" == "$ESPO_VERSION" ]] \
+    || die "the core stamp of $ESPO_ROOT is not EspoCRM $ESPO_VERSION (deploy the role espocrm first)"
+state="$core $commit"
+
+# --- Fetch the branch from GitHub and check the commit -----------------------------------------------------------
+stage="fetch"
+export GIT_TERMINAL_PROMPT=0
+repo() { git --git-dir="$REPO_DIR" "$@"; }
+[[ -f "$REPO_DIR/HEAD" ]] || git init -q --bare "$REPO_DIR"
+repo config remote.origin.url "$CD_REPO_URL"
+repo config remote.origin.fetch "+refs/heads/$CD_BRANCH:refs/remotes/origin/$CD_BRANCH"
+timeout 600 git --git-dir="$REPO_DIR" fetch -q --no-tags --prune origin || die "cannot fetch $CD_REPO_URL"
+# Only the branch is fetched: a commit of another branch is not even in the mirror.
+{ repo cat-file -e "$commit^{commit}" 2>/dev/null \
+    && repo merge-base --is-ancestor "$commit" "refs/remotes/origin/$CD_BRANCH"; } \
+    || die "commit $commit is not on the branch $CD_BRANCH of $CD_REPO_URL"
+
+deployed="$(cat "$STAMP" 2>/dev/null || true)"
+if [[ "$deployed" =~ ^[0-9a-f]{40}$ && "$deployed" != "$commit" ]]; then
+    if repo cat-file -e "$deployed^{commit}" 2>/dev/null; then
+        ! repo merge-base --is-ancestor "$commit" "$deployed" \
+            || die "commit ${commit:0:12} is older than the deployed ${deployed:0:12}: roll back with git revert and a push"
+        repo merge-base --is-ancestor "$deployed" "$commit" \
+            || say "warning: the deployed ${deployed:0:12} is not an ancestor of ${commit:0:12}; replacing it"
+    else
+        say "warning: the deployed ${deployed:0:12} is not on $CD_BRANCH (a role run from an unpushed commit?); replacing it"
+    fi
+fi
+
+# --- Staging copy of the commit (the paths and the archive name of the role) ------------------------------------
+stage="stage"
+tar_file="$MODULE_DIR/itvolga-module-$commit.tar"
+stage_dir="$MODULE_DIR/$commit"
+if [[ ! -f "$stage_dir.complete" ]]; then
+    repo archive --format=tar --output="$tar_file.part" "$commit" -- "${paths[@]}"
+    chmod 0644 "$tar_file.part"
+    mv -f "$tar_file.part" "$tar_file"
+    rm -rf "$stage_dir"
+    install -d -m 0755 "$stage_dir"
+    tar -xf "$tar_file" -C "$stage_dir" --no-same-owner
+    write_file "$stage_dir.complete" 0644 "$commit"
+fi
+
+rsync_module() { # path [--dry-run] — the flags of the role
+    rsync -a --omit-dir-times --delete --checksum --itemize-changes --chown=root:root --chmod=D0755,F0644 "${@:2}" \
+        "$stage_dir/$1/" "$ESPO_ROOT/$1/"
+}
+# Any difference is synchronised, as by the role; only a content change (not "." — a new commit also gives every file
+# the time of that commit) counts in the summary and asks for a backup.
+changes=0 content=0
+for p in "${paths[@]}"; do
+    diff="$(rsync_module "$p" --dry-run)"
+    [[ -n "$diff" ]] || continue
+    changes=$((changes + $(wc -l <<<"$diff")))
+    content=$((content + $(grep -vc '^\.' <<<"$diff" || true)))
+done
+applied="$(cat "$APPLIED" 2>/dev/null || true)"
+
+# --- Backup, files, stamp, apply ----------------------------------------------------------------------------------
+backup="none"
+if [[ $content -gt 0 ]]; then
+    stage="backup"
+    label="deploy-${commit:0:12}"
+    "$SBIN_DIR/espocrm-backup" --online --label "$label"
+    backup="$(find "$BACKUP_DIR/bundles" -mindepth 1 -maxdepth 1 -type d -name "*-$label" | LC_ALL=C sort | tail -1)"
+    mapfile -t old < <(find "$BACKUP_DIR/bundles" -mindepth 1 -maxdepth 1 -type d -name '*-deploy-*' \
+        | LC_ALL=C sort | head -n "-$CD_KEEP_BUNDLES")
+    [[ ${#old[@]} == 0 ]] || rm -rf -- "${old[@]}"
+fi
+if [[ $changes -gt 0 ]]; then
+    stage="sync"
+    write_file "$PENDING" 0600 "$commit"
+    for p in "${paths[@]}"; do rsync_module "$p"; done
+fi
+stage="stamp"
+[[ "$deployed" == "$commit" ]] || write_file "$STAMP" 0644 "$commit"
+
+applied_now="no"
+if [[ -e "$PENDING" || "$applied" != "$state" ]]; then
+    stage="apply"
+    apply_started="$(date +%s)"
+    "$SBIN_DIR/espocrm-apply"
+    write_file "$APPLIED" 0600 "$state"
+    # The applied telephony state of the role (tasks/telephony.yml) names the module too, and espocrm-apply has just
+    # restarted the listener for it: record that, or the next role run restarts the listener once more.
+    if [[ -f "$TELEPHONY_APPLIED" ]]; then
+        write_file "$TELEPHONY_APPLIED" 0600 "$(sed -E "s/\"module\": \"[^\"]*\"/\"module\": \"$state\"/" "$TELEPHONY_APPLIED")"
+    fi
+    rm -f "$PENDING"
+    applied_now="yes"
+fi
+
+stage="cleanup"
+find "$MODULE_DIR" -mindepth 1 -maxdepth 1 ! -name "$commit" ! -name "$commit.complete" \
+    ! -name "itvolga-module-$commit.tar" -exec rm -rf -- {} +
+
+stage="health"
+# clear-cache of the apply removes the mark of the last cron.php run: wait for one run, as espocrm-restore does.
+[[ $applied_now == no ]] || wait_cron_run "$apply_started" || true
+health_rc=0
+health_out="$("$SBIN_DIR/espocrm-health" 2>&1)" || health_rc=$?
+printf '%s\n' "$health_out" >&2
+[[ $ci == 0 ]] || say "${health_out##*$'\n'}"
+say "deployed ${commit:0:12}: files changed $content, applied $applied_now, backup ${backup##*/}"
+[[ $health_rc == 0 ]] || die "espocrm-health reports a failure (details in the log on the server)"

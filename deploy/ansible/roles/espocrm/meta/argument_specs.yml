@@ -8,7 +8,7 @@ argument_specs:
         the vhost and the fail2ban jail; keeps the security settings (mandatory 2FA, no websocket).
       - Owns the switch of serv.itvolga.com between Vtiger and EspoCRM (itvolga_crm_primary).
       - Installs the maintenance tools espocrm, espocrm-backup, espocrm-restore, espocrm-restore-check,
-        espocrm-health, espocrm-fingerprint, espocrm-changes-since.
+        espocrm-health, espocrm-fingerprint, espocrm-changes-since, espocrm-deploy (CD of the module, D-194).
     author:
       - Itvolga migration project
     options:
@@ -46,6 +46,45 @@ argument_specs:
         required: false
         default: HEAD
         description: Git ref of the module to deploy (resolved to a commit; only committed code is deployed).
+      espocrm_module_allow_downgrade:
+        type: bool
+        required: false
+        default: false
+        description: Allow a module commit older than (or diverged from) the deployed one (CD deploys main, D-194).
+      espocrm_cd_enabled:
+        type: bool
+        required: false
+        default: true
+        description: SSH access of GitHub Actions for the continuous deployment of the module (forced command, sudo).
+      espocrm_cd_user:
+        type: str
+        required: false
+        default: espocrm-deploy
+        description: System user of the CD key (root-owned home and authorized_keys).
+      espocrm_cd_home:
+        type: path
+        required: false
+        default: /var/lib/espocrm-deploy
+        description: Home of the CD user.
+      espocrm_cd_repo_url:
+        type: str
+        required: false
+        default: https://github.com/semelyanov86/espocrm.git
+        description: Repository espocrm-deploy fetches the commits from.
+      espocrm_cd_branch:
+        type: str
+        required: false
+        default: main
+        description: Only commits of this branch are deployed.
+      espocrm_cd_ssh_public_key:
+        type: str
+        required: false
+        description: Public key of the CD (the private key is a secret of the GitHub environment production).
+      espocrm_cd_keep_bundles:
+        type: int
+        required: false
+        default: 5
+        description: Pre-deploy bundles (label deploy-<commit>) to keep.
       espocrm_root:
         type: path
         required: false

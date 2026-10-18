@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# SSH forced command of the CD key (role espocrm, D-194): authorized_keys of the CD user runs this instead of whatever
+# the client asked for. The only accepted request is "deploy <40-hex commit>", handed to root through sudo; the
+# commit must be on the branch of the repository (espocrm-deploy fetches and checks it itself).
+set -euo pipefail
+if [[ "${SSH_ORIGINAL_COMMAND:-}" =~ ^deploy\ ([0-9a-f]{40})$ ]]; then
+    exec /usr/bin/sudo -n /usr/local/sbin/espocrm-deploy --ci "${BASH_REMATCH[1]}"
+fi
+echo "espocrm-deploy-ssh: the only accepted command is: deploy <40-hex commit>" >&2
+exit 2

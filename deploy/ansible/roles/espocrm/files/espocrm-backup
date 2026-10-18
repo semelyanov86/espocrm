@@ -12,6 +12,7 @@
 # By default the telephony listener, cron and PHP-FPM are paused for the duration (seconds), so the dump, the row
 # counts and the files describe one state. --online keeps them running (counts_exact=0: restore only warns).
 # --paused (espocrm-restore only, with ESPOCRM_OPS_LOCKED=1): the caller holds the lock and has stopped the writers.
+# ESPOCRM_OPS_LOCKED=1 alone (espocrm-deploy): the caller holds the lock, the writers run as with --online or not.
 # shellcheck source=/dev/null
 source /usr/local/lib/espocrm/lib.sh
 require_root
@@ -32,7 +33,7 @@ done
 unit_active mysql || die "MySQL is not running"
 [[ -f "$ESPO_ROOT/data/config-internal.php" ]] || die "EspoCRM is not installed in $ESPO_ROOT"
 
-[[ $paused == 1 ]] || ops_lock
+[[ $paused == 1 || "${ESPOCRM_OPS_LOCKED:-}" == 1 ]] || ops_lock
 umask 077
 install -d -m 0700 "$BACKUP_DIR" "$BACKUP_DIR/bundles"
 name="$(date +%Y%m%dT%H%M%S)${label:+-$label}"

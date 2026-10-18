@@ -6,6 +6,7 @@
 **Production (изменён этапом 10, 2026-10-18, по разрешению владельца):** EspoCRM 10.0.9 + модуль `e698dab` рядом с Vtiger — `/var/www/espocrm`, БД `espocrm`, свой PHP-FPM 8.5 от `espocrm`, cron, vhost только на `127.0.0.1:8443`, jail `espocrm-auth`, живая телефония (пользователи AMI через `manager reload`, слушатель), почта из Vtiger, тир backup `recordings`, ночной пакет EspoCRM в тире `db`. Данные — импорт снимка `20261018T091226`, отпечаток `d4a4b661092f5369` = стенду. **`serv.itvolga.com` — Vtiger** (`itvolga_crm_primary: vtiger`), Vtiger — система записи; Asterisk, `php74-fpm`, Apache не перезапускались (Apache — reload). `/data/server`: `a6508c1` (наложение), `3914215` и `41c7633` (sync роли после исправлений); не отправлялись (`git push` не делался). Администратор EspoCRM — `admin`, пароль — `vault_espocrm_admin_password` (`cd /data/server && task vault:edit`), 2FA администратору включить при первом входе.
 **Стенд:** http://crm.itvolga.test — `admin`, пароль в `/data/itvolga/espo-private/stand/local.env`; `task stand:health`. В базе стенда — **состояние, перенесённое на production** (пакет `20261018T104855-for-production-b`, отпечаток `d4a4b661092f5369`); запасной внутренний номер телефонии — 108 (D-192). UI-фикстура ключа безопасности 2026-10-17 этим состоянием снята (создаётся заново `tests/security_key_stand/ui_fixture.py create`). Снимки экрана — только в `/data/itvolga/espo-private/stand/evidence/`, карточки с полями доступа не открывать.
 **Проверочная машина этапа 09:** после прогона 2026-10-18 снята (`task ansible:test-down`); поднимается заново `task ansible:test`.
+**CD модуля (вне этапов, D-194):** push в `main`, который меняет модуль, → GitHub Actions → сервер выкладывает коммит сам (`deploy.md` §11); на время окна этапа 11 — `sudo espocrm-deploy --pause`. Состояние — раздел «Вне этапов — непрерывная выкладка модуля».
 
 ## Этапы
 
@@ -36,6 +37,30 @@
 | 11 | Переключение (только по отдельному разрешению) | 🔒 | — |
 
 Промпты этапов: `git show 2052380:MIGRATION_PROMPTS.md` (файл удалён из рабочей копии пользователем; в коммит этапа 01 это удаление не включено).
+
+## Вне этапов — непрерывная выкладка модуля (CD, 2026-10-18)
+
+Запрос владельца: после push изменения сами уходят на сервер. Решения владельца: GitHub Actions + SSH, перед выкладкой —
+только синтаксис. Решение D-194, контракт — `deploy.md` §11, проверки — `evidence.md`, «Вне этапов — непрерывная выкладка».
+
+Сделано (код и проверочная машина):
+- [x] `.github/workflows/deploy.yml`: push в `main`, который меняет `custom/Espo/Modules/Itvolga` или
+  `client/custom/modules/itvolga` (и ручной запуск) → `scripts/deploy/lint-module.sh` (`php -l` + JSON на PHP 8.5, образ
+  по digest; локально `task lint:module`) → окружение `production` → SSH `espocrm-deploy` с закреплённым ключом хоста.
+- [x] Роль `espocrm`: `tasks/cd.yml` (пользователь без пароля, домашний каталог и `authorized_keys` — root, ключ только с
+  `restrict,command=espocrm-deploy-ssh`, sudoers на одну команду с `visudo -cf`), `files/espocrm-deploy` (зеркало `main`
+  с GitHub, только коммиты `main` не старше развёрнутого, шаги роли под блокировкой операций, пакет `--online` при
+  изменении содержимого, `apply-pending` до файлов, `espocrm-apply`, применённые состояния модуля и телефонии, ожидание
+  cron, `espocrm-health`; публичной сессии — только итог; `--pause/--resume/--status`), защита модуля в
+  `tasks/module.yml` (`espocrm_module_allow_downgrade`), `git` в пакетах, `espocrm-backup` под блокировкой вызывающего.
+- [x] Проверки: lint 0/0 (307 файлов), 5 плейбуков, `task ansible:test` с нуля — все шаги зелёные, новый шаг `cd` нашёл
+  3 дефекта (исправлены, шаг повторён — код 0); `lint:module` с негативным контролем; shellcheck; секреты — 0.
+- [x] Документы: `deploy.md` §11, D-194, `cutover.md` (пауза CD на окно этапа 11), `AGENTS.md`, `CLAUDE.md`.
+- [x] Ключ CD: открытая часть — в роли, закрытая — `/data/itvolga/espo-private/deploy/github-actions-ed25519` (600).
+
+Осталось (production и GitHub — по подтверждению владельца): push `main`; `overlay.sh sync` → коммит в `/data/server` →
+`task ansible:espocrm` (пользователь CD, ключ, sudoers, инструмент); окружение `production` (только `main`) и секрет
+`DEPLOY_SSH_KEY`; выкладка `gh workflow run deploy.yml` → зелёная, `sudo espocrm-deploy --status` на сервере.
 
 ## Этап 10 — результат
 
@@ -1044,7 +1069,7 @@ evidence.md «Этап 10». До действий: task espocrm:restore-check �
 backup прошли, стенд и сервер на одном коммите модуля, запасной номер стенда = 108. Окно по cutover.md §2: maintenance,
 финальный снимок, production → стенд (park), дельта и контроль (строки, поля, связи, деньги, файлы, звонки), стенд →
 production с --carry-calls-from, отпечатки, переключение espocrm (записать T), проверки пользовательских сценариев,
-телефонии без изменения маршрутизации и backup. При критическом сбое — откат по §3 с учётом записей после T. Vtiger,
+телефонии без изменения маршрутизации и backup. CD модуля на время окна — sudo espocrm-deploy --pause "cutover", после — --resume. При критическом сбое — откат по §3 с учётом записей после T. Vtiger,
 PHP 7.4/php74-fpm, cron, БД, файлы и роли не удаляй. Обнови TASKS.md, создай коммит, отдай на ревью Codex gpt-6.1-sol
 и сообщи факты, ограничения и точные команды.
 ```
