@@ -6,3 +6,11 @@
     owner: root
     group: root
     mode: "0644"
+
+# A tool that pauses the writers parks the entry as .paused (espocrm-backup, espocrm-restore; espocrm-changes-since
+# --keep-writers-paused leaves it so on purpose until this run). The role does not run during them (preflight), so a
+# parked copy here is a leftover: the entry above is the one cron reads.
+- name: Remove a parked copy of the cron entry
+  ansible.builtin.file:
+    path: "{{ espocrm_cron_file }}.paused"
+    state: absent

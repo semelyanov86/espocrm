@@ -61,7 +61,7 @@ task ansible:check | ansible:test-down      # дрейф --check --diff на п�
 scripts/deploy/overlay.sh status            # база патча, HEAD /data/server, совпадают ли роль и плейбуки; install --stage10 — выполнен на этапе 10
 scripts/deploy/overlay.sh sync              # после этапа 10: роль и плейбуки 11/12 → /data/server (затем коммит там, D-193)
 scripts/deploy/bundle.sh push|pull …        # пакет EspoCRM стенд ⇄ production (этапы 10–11, D-187)
-scripts/deploy/stand-admin.sh park|unpark   # администратор пакета production на стенде на время дельты (этап 11, D-187); почту и ящики пакета restore стенда выключает сам (park-mail), unpark возвращает
+scripts/deploy/stand-admin.sh park|unpark|repark   # администратор пакета production на стенде на время дельты (этап 11, D-187); почту и ящики пакета restore стенда выключает сам (park-mail); unpark возвращает их и оставляет писателей стенда остановленными, repark паркует снова и запускает
 ```
 
 - `docs/migration/field-map.csv` и `relations.csv` **не редактировать вручную**: правила — `scripts/audit/mapping.py`, генерация — `scripts/audit/build_maps.py` из приватного прогона.

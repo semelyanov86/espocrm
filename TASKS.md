@@ -3,7 +3,7 @@
 **Текущий этап:** 10 — Размещение рядом с Vtiger — **завершён** 2026-10-18 (результат и проверки — «Этап 10 — результат»; runbook и потери истории — `docs/migration/cutover.md` §1.7 и §2; доказательства — `evidence.md`, «Этап 10»).
 **Предыдущий этап:** 09 — Ansible и план cutover — завершён 2026-10-17; два раунда внешнего ревью исправлены (`94261b8`, `e698dab`).
 **Следующий этап:** 11 — Переключение `serv.itvolga.com` — **только по отдельному явному разрешению владельца** (стартовая команда — в конце файла).
-**Production (изменён этапом 10, 2026-10-18, по разрешению владельца):** EspoCRM 10.0.9 + модуль `e698dab` рядом с Vtiger — `/var/www/espocrm`, БД `espocrm`, свой PHP-FPM 8.5 от `espocrm`, cron, vhost только на `127.0.0.1:8443`, jail `espocrm-auth`, живая телефония (пользователи AMI через `manager reload`, слушатель), почта из Vtiger, тир backup `recordings`, ночной пакет EspoCRM в тире `db`. Данные — импорт снимка `20261018T091226`, отпечаток `d4a4b661092f5369` = стенду. **`serv.itvolga.com` — Vtiger** (`itvolga_crm_primary: vtiger`), Vtiger — система записи; Asterisk, `php74-fpm`, Apache не перезапускались (Apache — reload). `/data/server`: `a6508c1` (наложение), `3914215` (sync роли); не отправлялись (`git push` не делался). Администратор EspoCRM — `admin`, пароль — `vault_espocrm_admin_password` (`cd /data/server && task vault:edit`), 2FA администратору включить при первом входе.
+**Production (изменён этапом 10, 2026-10-18, по разрешению владельца):** EspoCRM 10.0.9 + модуль `e698dab` рядом с Vtiger — `/var/www/espocrm`, БД `espocrm`, свой PHP-FPM 8.5 от `espocrm`, cron, vhost только на `127.0.0.1:8443`, jail `espocrm-auth`, живая телефония (пользователи AMI через `manager reload`, слушатель), почта из Vtiger, тир backup `recordings`, ночной пакет EspoCRM в тире `db`. Данные — импорт снимка `20261018T091226`, отпечаток `d4a4b661092f5369` = стенду. **`serv.itvolga.com` — Vtiger** (`itvolga_crm_primary: vtiger`), Vtiger — система записи; Asterisk, `php74-fpm`, Apache не перезапускались (Apache — reload). `/data/server`: `a6508c1` (наложение), `3914215` и `41c7633` (sync роли после исправлений); не отправлялись (`git push` не делался). Администратор EspoCRM — `admin`, пароль — `vault_espocrm_admin_password` (`cd /data/server && task vault:edit`), 2FA администратору включить при первом входе.
 **Стенд:** http://crm.itvolga.test — `admin`, пароль в `/data/itvolga/espo-private/stand/local.env`; `task stand:health`. В базе стенда — **состояние, перенесённое на production** (пакет `20261018T104855-for-production-b`, отпечаток `d4a4b661092f5369`); запасной внутренний номер телефонии — 108 (D-192). UI-фикстура ключа безопасности 2026-10-17 этим состоянием снята (создаётся заново `tests/security_key_stand/ui_fixture.py create`). Снимки экрана — только в `/data/itvolga/espo-private/stand/evidence/`, карточки с полями доступа не открывать.
 **Проверочная машина этапа 09:** после прогона 2026-10-18 снята (`task ansible:test-down`); поднимается заново `task ansible:test`.
 
@@ -78,6 +78,18 @@
 
 Времена для окна этапа 11 (измерено): снимок с проверкой 2 мин 20 с; обратный путь с проверочным проходом 113 с; полный
 импорт 1 мин 37 с; push 21 с; restore production 1 мин 3 с…1 мин 15 с; прогон роли ≈ 1 мин. Окно ≈ 12–15 мин (`cutover.md` §2).
+
+Внешнее ревью (2026-10-18): диапазон `e698dab..1f1e938`, Codex `gpt-6.1-sol` (worktree, read-only, без сети; приватный
+каталог и `/data/server` на время ревью закрыты правами) — **FAIL**, 3 блокирующих и 4 предупреждения, все подтверждены и
+исправлены (`evidence.md`, «Этап 10», «Внешнее ревью»): B1 — охрана чистого дерева `overlay.sh` при сбое `git`; B2 —
+почта production на стенде после `unpark` (писатели стенда остаются остановленными, `production_data=1`, `repark`;
+проверено синтетическими ящиками); B3 — откат: `changes-since --against` останавливает писателей, `--keep-writers-paused`
+до переключения; W1 — обязательная проверка запасного номера; W2 — пакет со ссылками или устройствами отвергается до
+изменений; W3 — довод D-192 исправлен, счётчик `trunk-nedost` в CDR перед импортом окна; W4 — счётчики потерь истории.
+Повторная проверка: lint 0/0, 5 плейбуков, `task ansible:test` с нуля — все шаги failed=0, повторы changed=0 (плюс
+`--keep-writers-paused` и восстановление писателей ролью); production — `overlay.sh sync` → `41c7633` → роль changed=2,
+health 0 FAIL, `changes-since --against` перенесённого пакета — только `user`/`user_data`, свежий ночной пакет →
+`espocrm:restore-check` 0 FAIL (20 из 20 побайтно). Исправления Codex повторно не проверял.
 
 Не сделано / ограничения:
 - Звонок из CRM и живой звонок слушателя на production не проверялись (звонков не было; настоящий вызов не делался);

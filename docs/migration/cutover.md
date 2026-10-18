@@ -80,7 +80,8 @@ task snapshot:create && task snapshot:verify -- <S>                        # 19/
 task stand:backup -- --label pre-stage10
 task stand:restore -- 20260929T232413-pre-restore --yes --skip-custom      # чистая установка (rehearsal.md, шаг 3)
 test "$(git rev-parse HEAD)" = "$C" && task model:apply && task telephony:up && task telephony:down   # стенд — на коммите C
-task espo -- config:get itvolgaTelephonyFallbackExtension                  # 108 = production (D-192), иначе импорт CDR неверен
+[[ "$(task espo -- config:get itvolgaTelephonyFallbackExtension 2>/dev/null | tail -1)" == 108 ]] \
+  || echo "СТОП: запасной номер стенда не 108 — task espo -- config:set itvolgaTelephonyFallbackExtension 108"   # D-192
 task import:run -- --snapshot <S>                                          # проблем 0, проверка — все equal
 task stand:fingerprint -- take pre-repeat && task import:run -- --snapshot <S> && task stand:fingerprint -- take post-repeat
 task stand:backup -- --label for-production                                # пакет с остановленными писателями
@@ -111,9 +112,10 @@ missing»).
   файле до `unpark`, D-189) → `scripts/deploy/stand-admin.sh park` (хеш пароля и 2FA
   администратора — в приватный файл, стенду — пароль `local.env` без 2FA: импорт скачивает файлы как администратор) →
   `task telephony:up && task telephony:down` → `task import:run -- --snapshot <S> --check-only` (все equal) →
-  `scripts/deploy/stand-admin.sh unpark` (администратор и ящики — обратно; отпечаток стенда = до `park`, проверено
-  2026-10-17) → стенд вернуть
-  `task stand:restore -- <for-production> --yes --skip-custom`. Проверочный проход здесь — **обязательная** проверка
+  `scripts/deploy/stand-admin.sh unpark` (администратор и ящики — обратно; писатели стенда — cron, PHP-FPM,
+  слушатель — останавливаются до возврата значений и **остаются остановленными**: ящики production активны только в
+  БД; отпечаток стенда = до `park`, проверено 2026-10-17 и 2026-10-18) → стенд вернуть
+  `task stand:restore -- <for-production> --yes --skip-custom` (restore запускает писателей). Проверочный проход здесь — **обязательная** проверка
   переноса: на этапе 10 он нашёл 17 звонков CDR с запасным номером тестовой АТС (D-192).
 - Backup: сервер `task backup:run tier=db` (хук → `/var/backups/espocrm/nightly`), `task backup:run tier=recordings`,
   `task espocrm:restore-check` (ночной пакет из restic + записи) и на сервере `sudo espocrm-restore-check --mysql vtiger7`.
@@ -142,8 +144,8 @@ missing»).
 | 1 | Запись в Vtiger остановлена | `vars.yml`: `itvolga_crm_primary: maintenance` → коммит → сервер `task crm:switch` (vhost Vtiger выключен, страница 503, cron Vtiger закомментирован, ожидание идущего `vtigercron.php`) | 1–3 мин |
 | 2 | Финальный снимок | `task snapshot:create && task snapshot:verify -- <F>` | ≈ 2–5 мин (транзакция ≈ 6 с, файлы ≈ 1,4 ГиБ, проверка) |
 | 3 | Production → стенд | сервер `task espocrm:backup label=pre-delta` → `scripts/deploy/bundle.sh pull <имя>` → `ESPO_HEALTH_LOGIN=0 task stand:restore -- <имя> --yes --skip-custom` → `scripts/deploy/stand-admin.sh park` → `task telephony:up && task telephony:down` | ≈ 3 мин (restore стенда ≈ 70 с) |
-| 4 | Дельта и контроль | `task import:run -- --snapshot <F>`: проблем 0, проверка — все `equal`, удаления в пределах предохранителя `max(25, 5 %)`; деньги, налоги, файлы, звонки — `report.json`; `task import:summary -- <прогон>` | ≈ 2 мин |
-| 5 | Стенд → production | `scripts/deploy/stand-admin.sh unpark` (пароль и 2FA администратора production, ящики почты — обратно) → `task stand:backup -- --label cutover` → `task stand:fingerprint -- take cutover` (D′) → `bundle.sh push` → на сервере `sudo espocrm-restore …/<cutover> --yes --carry-calls-from <pre-delta>` (звонки, которые слушатель записал после пакета шага 3, — сохранены до замены и возвращены до запуска слушателя, D-191; «put back: N; skipped: 0») → `sudo espocrm-fingerprint take cutover` = D′ при N = 0, иначе отличие только в таблицах звонков | ≈ 5 мин |
+| 4 | Дельта и контроль | до записи — запасной номер стенда = 108 и в CDR production нет каналов `trunk-nedost` (единственный транк, которым правила стенда отличаются от production, D-192): `source scripts/audit/lib.sh && remote_sql asteriskcdrdb <<<"SELECT COUNT(*) FROM cdr WHERE channel LIKE '%nedost%' OR dstchannel LIKE '%nedost%'"` = 0; `task import:run -- --snapshot <F>`: проблем 0, проверка — все `equal`, удаления в пределах предохранителя `max(25, 5 %)`; деньги, налоги, файлы, звонки — `report.json`; `task import:summary -- <прогон>` | ≈ 2 мин |
+| 5 | Стенд → production | `scripts/deploy/stand-admin.sh unpark` (пароль и 2FA администратора production, ящики почты — обратно; писатели стенда остановлены и остаются остановленными) → `task stand:backup -- --label cutover` (в MANIFEST `production_data=1`: restore такого пакета на стенде снова выключит почту) → `task stand:fingerprint -- take cutover` (D′) → `scripts/deploy/stand-admin.sh repark` (почта и администратор стенда снова припаркованы, затем писатели запускаются) → `bundle.sh push` → на сервере `sudo espocrm-restore …/<cutover> --yes --carry-calls-from <pre-delta>` (звонки, которые слушатель записал после пакета шага 3, — сохранены до замены и возвращены до запуска слушателя, D-191; «put back: N; skipped: 0») → `sudo espocrm-fingerprint take cutover` = D′ при N = 0, иначе отличие только в таблицах звонков | ≈ 5 мин |
 | 6 | Переключение | `vars.yml`: `itvolga_crm_primary: espocrm` → коммит → сервер `task crm:switch`; **записать время T (UTC)** | 1–2 мин |
 | 7 | Проверки | сервер `task espocrm:health`; сценарии интерфейса пользователями; печатные формы; звонок (если живая телефония включена) | 10 мин |
 | 8 | После | сервер `task backup:run tier=db`, `task espocrm:restore-check`; объявить | 5 мин |
@@ -162,14 +164,14 @@ missing»).
 - **История изменений Vtiger** (`vtiger_modtracker_*`, история статусов) не переносится — остаётся в защищённом снимке
   (D-08).
 - **Звонки:** пропуск PBXManager/CDR 2024-07-31…2026-06-12 — источников нет (D-16); звонки PBXManager 2019–2024 — без
-  аудио, ссылка коннектора хранится как `cLegacyRecordingUrl` (1033 ссылки, D-10); внутренние звонки (номер из трёх
-  цифр) не переносятся — 209 PBXManager; из CDR не импортируются звонки линии тренажёра (127) и конференции (2) —
+  аудио, ссылка коннектора хранится как `cLegacyRecordingUrl` у 902 перенесённых звонков (D-10; ещё 131 ссылка — у
+  исключённых внутренних); внутренние звонки (номер из трёх цифр) не переносятся — 209 PBXManager; из CDR не импортируются звонки линии тренажёра (127) и конференции (2) —
   перенесено 83 звонка из 212.
 - **Записи разговоров:** из 189 WAV привязано 66; не привязаны 9 файлов с несколькими возможными звонками (имя
   `sub-monitor` — минута и номера, Q-54), 1 файл двух звонков, 5 пустых (≤ 44 байт), 108 — линии тренажёра. Файлы
   остаются на сервере и в тире `recordings`.
-- **Файлы:** 8 имён файлов без файла в источнике, 5 фото контактов без файла, 3 документа без вложения (D-23); файлы
-  удалённых в Vtiger записей (334 строки вложений без файла) не переносятся.
+- **Файлы:** имя файла без самого файла в источнике — 8 (5 фото контактов и 3 документа, D-23); 8 файлов `storage/` без
+  записи Vtiger не переносятся (D-23); вложения удалённых в Vtiger записей (334 строки без файла) не переносятся.
 - **Не переносятся по решению:** workflows и шаблоны писем, определения отчётов Vtiger (свой модуль отчётов, D-84),
   портал, периодические счета, интеграции (IMAP, Google, SPVoip, Jivosite, банк «Точка», 1С) — D-15; личные ящики
   MailManager (3) — подключаются в EspoCRM заново (D-189); адреса и домашние телефоны сотрудников, кэш вложений
@@ -183,7 +185,7 @@ missing»).
 | Когда | Что делать |
 |---|---|
 | До шага 6 (окно, Vtiger не менялся с шага 1) | `itvolga_crm_primary: vtiger` → коммит → сервер `task crm:switch`: vhost и cron Vtiger вернулись, данные Vtiger целы. EspoCRM остаётся как есть для повтора. |
-| После шага 6, критический сбой | 1) **сначала закрыть запись**: `itvolga_crm_primary: maintenance` → `task crm:switch` (страница 503, пользователи EspoCRM больше не пишут; слушатель телефонии — `-e espocrm_telephony_enabled=false`, если он включён); 2) на сервере `sudo espocrm-changes-since --against <пакет cutover> --export` — полное сравнение с состоянием момента переключения (добавленное, удалённое, связи, изменённое — по содержимому всех колонок, и без отметок времени; счётчики по таблицам и приватный список `/var/backups/espocrm/changes-*.tsv`, 600: только `id`, ссылки `*_id`/`*_type`, флаг удаления и время — без значений, запись открывается в EspoCRM по `id`), для быстрой оценки — `sudo espocrm-changes-since '<T>'` по времени; 3) `itvolga_crm_primary: vtiger` → `task crm:switch`; 4) сделанное после T вносится в Vtiger вручную по списку (звонки этого периода — в CDR и WAV при любом исходе); 5) EspoCRM и её данные не удаляются: при повторном переключении записи, созданные в EspoCRM (без `vtigerId`), импорт не трогает, импортированные — обновляет дельта. |
+| После шага 6, критический сбой | 1) **сначала закрыть запись**: `itvolga_crm_primary: maintenance` → `task crm:switch` (страница 503, пользователи EspoCRM больше не пишут; слушатель телефонии — `-e espocrm_telephony_enabled=false`, если он включён); 2) на сервере `sudo espocrm-changes-since --against <пакет cutover> --export --keep-writers-paused` — писатели EspoCRM (cron, PHP-FPM, слушатель) останавливаются до сравнения и остаются остановленными до шага 3 (его прогон роли их запускает): после списка в EspoCRM ничего не пишется; полное сравнение с состоянием момента переключения (добавленное, удалённое, связи, изменённое — по содержимому всех колонок, и без отметок времени; счётчики по таблицам и приватный список `/var/backups/espocrm/changes-*.tsv`, 600: только `id`, ссылки `*_id`/`*_type`, флаг удаления и время — без значений, запись открывается в EspoCRM по `id`), для быстрой оценки — `sudo espocrm-changes-since '<T>'` по времени; 3) `itvolga_crm_primary: vtiger` → `task crm:switch`; 4) сделанное после T вносится в Vtiger вручную по списку (звонки этого периода — в CDR и WAV при любом исходе); 5) EspoCRM и её данные не удаляются: при повторном переключении записи, созданные в EspoCRM (без `vtigerId`), импорт не трогает, импортированные — обновляет дельта. |
 | После переключения, повреждены данные EspoCRM (остаёмся на EspoCRM) | сначала `espocrm-changes-since --against <пакет>` (что будет потеряно), затем `sudo espocrm-restore <пакет pre-restore\|cutover\|nightly> --yes` (с `--carry-calls-from <тот же пакет>` звонки слушателя после пакета сохраняются); страховочный пакет текущего состояния restore снимает сам — под той же блокировкой и при уже остановленных писателях. Сбой restore печатает команду отката с `--server-config <файл>` (серверные ключи сохранены до замены `data/`): её выполнить как есть — она снова запускает PHP-FPM, cron и слушатель. Остатки неудачного прогона (`espocrm__prev_*`, `.restore-aside-*`) после успешного отката удаляются вручную (health предупреждает). |
 
 Нельзя: удалять Vtiger, `php74-fpm`, БД, cron, роли; выключать 2FA или метод «Ключ безопасности» в настройках, пока им

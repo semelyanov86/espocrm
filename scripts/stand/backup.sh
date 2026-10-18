@@ -70,6 +70,9 @@ IFS=$'\t' read -r db_cs db_coll < <(mysql_root -N -B -e "SELECT default_characte
     echo "files_in_archive=$(tar -tzf "$dir/files.tar.gz" | grep -vc '/$')"
     echo "git_head=$(git -C "$REPO_ROOT" rev-parse HEAD)"
     echo "git_custom_dirty=$(git -C "$REPO_ROOT" status --porcelain -- custom client/custom | wc -l)"
+    # The stand holds the unparked data of production (scripts/deploy/stand-admin.sh unpark): its administrator and its
+    # active mail accounts — restore.sh treats such a bundle like a bundle of production (mail off on the stand).
+    if "$REPO_ROOT/scripts/deploy/stand-admin.sh" unparked; then echo "production_data=1"; fi
 } >"$dir/MANIFEST"
 gzip -t "$dir/db.sql.gz"
 tar -tzf "$dir/files.tar.gz" >/dev/null

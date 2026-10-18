@@ -39,6 +39,9 @@ fi
 
 log "verifying checksums of $dir"
 ( cd "$dir" && sha256sum -c --quiet SHA256SUMS ) || die "checksum mismatch — backup is damaged"
+# Only directories and regular files (the extraction runs as root; a bundle of production comes from another host).
+others="$(tar -tvzf "$dir/files.tar.gz" | grep -cv '^[-d]' || true)"
+[[ "$others" == 0 ]] || die "the backup holds $others archive entries that are neither files nor directories"
 manifest() { sed -n "s/^$1=//p" "$dir/MANIFEST"; }
 backup_version="$(manifest espocrm_version)"
 [[ "$backup_version" == "$ESPO_VERSION" ]] \
@@ -52,7 +55,10 @@ if [[ $custom == 1 && -n "$(git -C "$REPO_ROOT" status --porcelain -- "${custom_
     die "uncommitted changes in ${custom_dirs[*]}: commit them or use --skip-custom"
 fi
 
-if [[ "$(manifest origin)" == production ]]; then
+# A bundle of production, or of the stand holding the unparked data of production (stand-admin.sh unpark).
+production_data=0
+if [[ "$(manifest origin)" == production || "$(manifest production_data)" == 1 ]]; then production_data=1; fi
+if [[ $production_data == 1 ]]; then
     "$REPO_ROOT/scripts/deploy/stand-admin.sh" check   # values parked from an earlier production bundle: unpark first
 fi
 
@@ -143,7 +149,9 @@ log "re-applying permissions, DB credentials and cron"
 # A bundle of production (stages 10-11, D-187) carries the outgoing mail of production (D-189) and its mail accounts:
 # the stand must never send or fetch real mail — all of it switched off before PHP-FPM and cron start (the account
 # values are parked and go back with scripts/deploy/stand-admin.sh unpark).
-if [[ "$(manifest origin)" == production ]]; then
+# The database is replaced: the unparked data of production (stand-admin.sh unpark) is gone with it.
+rm -f "$STAND_PRIVATE_DIR/production-unparked.env"
+if [[ $production_data == 1 ]]; then
     log "bundle of production: its outgoing mail and mail accounts are switched off on the stand"
     printf '%s' '{"smtpServer": "", "smtpUsername": "", "smtpPassword": "", "outboundEmailIsShared": false}' \
         | as_user "$ESPO_USER" "$PHP_BIN" "$STAND_DIR/php/set-config.php" "$ESPO_ROOT"

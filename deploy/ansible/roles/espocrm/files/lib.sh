@@ -89,6 +89,12 @@ bundle_verify() { # dir
     [[ "$v" == "$ESPO_VERSION" ]] || die "the bundle is from EspoCRM $v, the core is $ESPO_VERSION (same version only)"
     [[ "$(manifest_get "$1" db_charset)" =~ ^[a-z0-9_]+$ && "$(manifest_get "$1" db_collation)" =~ ^[a-z0-9_]+$ ]] \
         || die "bad charset in MANIFEST"
+    # Only directories and regular files: a symbolic or hard link (or a device) in the archive would let the extraction
+    # and the chown/chmod of espocrm-restore (root) reach outside the installation. Bundles of the stand and of this
+    # server never hold one (checked 2026-10-18).
+    local others
+    others="$(tar -tvf "$(bundle_files "$1")" | grep -cv '^[-d]' || true)"
+    [[ "$others" == 0 ]] || die "the bundle $1 holds $others archive entries that are neither files nor directories"
 }
 
 # Stop every writer of the EspoCRM database and files: the telephony listener, the cron entry (cron ignores file

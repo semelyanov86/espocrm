@@ -9,9 +9,13 @@
 #                             real mail (the SMTP of the system is cleared by restore.sh itself, D-189)
 #   stand-admin.sh park       after `task stand:restore` of the production bundle: keep the administrator's password
 #                             hash and 2FA fields in a private file (600), give the stand its local.env password, 2FA off
-#   stand-admin.sh unpark     before `task stand:backup` of the bundle going back: put the kept values back exactly
-#                             (password, its version, 2FA, modified_at of the user row, the mail accounts) and drop the
-#                             stand's tokens
+#   stand-admin.sh unpark     before `task stand:backup` of the bundle going back: pause the writers of the stand
+#                             (listener, cron, PHP-FPM) and leave them paused — the mail accounts of production are
+#                             active again —, put the kept values back exactly (password, its version, 2FA, modified_at
+#                             of the user row, the mail accounts) and drop the stand's tokens; a backup taken now is
+#                             marked production_data=1 (restore.sh parks its mail like a bundle of production)
+#   stand-admin.sh repark     after that backup and the fingerprint: park the mail and the administrator again, then
+#                             start the writers paused by unpark (a restore of the stand starts them as well)
 #   stand-admin.sh check      fails while anything is parked (restore.sh refuses a new production bundle then)
 #
 # Values never reach argv or the console: SQL goes to the stand MySQL through stdin, the kept file is private.
@@ -19,6 +23,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/../stand/lib.sh"
 
 PARKED="$STAND_PRIVATE_DIR/admin-parked.json"
 MAIL_PARKED="$STAND_PRIVATE_DIR/mail-parked.json"
+# Present while the stand holds the unparked data of production with its writers paused: what unpark paused
+# (WRITERS_* of pause_writers), read back by repark; scripts/stand/backup.sh marks its bundle, restore.sh removes it.
+UNPARKED="$STAND_PRIVATE_DIR/production-unparked.env"
 
 admin_id() {
     local id
@@ -72,9 +79,17 @@ SQL
 check() {
     [[ ! -e "$PARKED" && ! -e "$MAIL_PARKED" ]] || die "parked values of a production bundle remain ($STAND_PRIVATE_DIR): unpark first"
 }
+unparked() { [[ -f "$UNPARKED" ]]; }  # for scripts/stand/backup.sh
 
 unpark() {
     [[ -f "$PARKED" || -f "$MAIL_PARKED" ]] || die "nothing parked ($PARKED, $MAIL_PARKED)"
+    [[ ! -e "$UNPARKED" ]] || die "already unparked ($UNPARKED): repark or restore the stand"
+    # The mail accounts of production become active again: cron (fetching, sending) must not run from here until they
+    # are parked again (repark) or the database is replaced (restore.sh).
+    log "pausing the writers of the stand (listener, cron, $FPM_UNIT); they stay paused until repark or a restore"
+    pause_writers
+    ( umask 077; printf 'WRITERS_CRON=%s\nWRITERS_FPM=%s\nWRITERS_TELEPHONY=%s\n' \
+        "$WRITERS_CRON" "$WRITERS_FPM" "$WRITERS_TELEPHONY" >"$UNPARKED" )
     if [[ -f "$MAIL_PARKED" ]]; then
         python3 - "$MAIL_PARKED" <<'PY' | mysql_root "$DB_NAME"
 import json, sys
@@ -118,11 +133,25 @@ PY
     rm -f "$PARKED"
     log "administrator unparked: password, 2FA and the user row of production are back, stand tokens dropped"
 }
+repark() {
+    [[ -f "$UNPARKED" ]] || die "nothing unparked ($UNPARKED)"
+    [[ "$(cat "$UNPARKED")" =~ ^WRITERS_CRON=[01]$'\n'WRITERS_FPM=[01]$'\n'WRITERS_TELEPHONY=[01]$ ]] \
+        || die "bad $UNPARKED"
+    # shellcheck source=/dev/null
+    source "$UNPARKED"
+    [[ -f "$MAIL_PARKED" ]] || park_mail
+    [[ -f "$PARKED" ]] || park
+    rm -f "$UNPARKED"
+    resume_writers
+    log "parked again; the writers of the stand run"
+}
 
 case "${1:-}" in
     park) park ;;
     park-mail) park_mail ;;
     unpark) unpark ;;
+    repark) repark ;;
     check) check ;;
-    *) die "usage: stand-admin.sh park | park-mail | unpark | check" ;;
+    unparked) unparked ;;
+    *) die "usage: stand-admin.sh park | park-mail | unpark | repark | check | unparked" ;;
 esac

@@ -84,15 +84,25 @@ status() {
 
 sync() {
     [[ -d "$SERVER_REPO/ansible/roles/espocrm" ]] || die "the overlay is not installed in $SERVER_REPO (install --stage10)"
-    [[ -z "$(git -C "$SERVER_REPO" status --porcelain)" ]] || die "$SERVER_REPO has uncommitted changes"
+    require_clean_server
     copy_own "$SERVER_REPO"
     git -C "$SERVER_REPO" status --short -- "${OWN[@]}" >&2
     log "synced into $SERVER_REPO: review, then commit there"
 }
 
+# The server repository must be a git work tree (its top) without changes: a failing git (not a repository, dubious
+# ownership) prints nothing, and an empty status must not pass for a clean tree before copy_own replaces the role.
+require_clean_server() {
+    local top status
+    top="$(git -C "$SERVER_REPO" rev-parse --show-toplevel)" || die "git failed in $SERVER_REPO"
+    [[ "$top" == "$(cd "$SERVER_REPO" && pwd -P)" ]] || die "$SERVER_REPO is not the top of a git work tree"
+    status="$(git -C "$SERVER_REPO" status --porcelain)" || die "git status failed in $SERVER_REPO"
+    [[ -z "$status" ]] || die "$SERVER_REPO has uncommitted changes"
+}
+
 install() {
     [[ "${1:-}" == --stage10 ]] || die "install changes /data/server: only at stage 10, with --stage10"
-    [[ -z "$(git -C "$SERVER_REPO" status --porcelain)" ]] || die "$SERVER_REPO has uncommitted changes"
+    require_clean_server
     [[ "$(git -C "$SERVER_REPO" rev-parse HEAD)" == "$BASE" ]] || die "$SERVER_REPO is not at the base $BASE"
     git -C "$SERVER_REPO" apply --check "$PATCH"
     copy_own "$SERVER_REPO"
