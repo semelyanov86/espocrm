@@ -2156,6 +2156,14 @@ Actions + SSH; перед выкладкой — только синтаксис
 роль снимает отметку в конце, ссылка в модуле и на месте каталога модуля — отказ, файлы вне коммита не появились), роль
 после выкладки CD и после возврата — `changed=0`; `--check --diff` — `changed=0`. Исправления Codex повторно не проверял.
 
+### Production и GitHub (2026-10-18)
+
+`git push` (`c20c3c3..2a41768`); `/data/server` `e1c34d0` (sync роли); роль на production — changed=20 (архив и
+применение модуля `2a41768`, инструменты, пользователь CD, `authorized_keys` и sudoers root 0644/0440), health 0 FAIL;
+окружение GitHub `production` (только `main`), секрет `DEPLOY_SSH_KEY`; ручной запуск workflow (12:02 UTC),
+`success`: на сервере sudo-rs 0.2.13 и настоящий SSH (`restrict,command=`) — выкладка `files changed 0, applied no` (коммит
+только что выложила роль). Ключом CD: `id`, короткий хеш, `deploy <sha>; id` — отказ; `-L` — проброс запрещён.
+
 ### Не проверено на проверочной машине
 
 - sudo-rs (в образе — классический sudo; на production — sudo-rs) и настоящий вход по SSH (в образе нет sshd):

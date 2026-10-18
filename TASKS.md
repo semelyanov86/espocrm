@@ -62,9 +62,21 @@
   символические ссылки и подмодули в модуле не выкладываются, причина паузы не уходит в публичный журнал, `--status` до
   первой выкладки, `.tmp` — только у владельца блокировки. Шаг `cd` повторён — код 0, `--check` — `changed=0`.
 
-Осталось (production и GitHub — по подтверждению владельца): push `main`; `overlay.sh sync` → коммит в `/data/server` →
-`task ansible:espocrm` (пользователь CD, ключ, sudoers, инструмент); окружение `production` (только `main`) и секрет
-`DEPLOY_SSH_KEY`; выкладка `gh workflow run deploy.yml` → зелёная, `sudo espocrm-deploy --status` на сервере.
+Production и GitHub (2026-10-18, по подтверждению владельца в сессии: «применить сейчас», push — да):
+- [x] `git push origin main` (`c20c3c3..2a41768`: коммиты этапов 09–10 и CD; `check-secrets --history` — 0); workflow
+  push не запускал (модуль не менялся).
+- [x] `overlay.sh sync` → `/data/server` `e1c34d0` (не отправлялся); `--check --diff` роли с развёрнутым коммитом модуля —
+  только CD и инструменты (7), Apache/Vtiger/Asterisk не затронуты; `task ansible:espocrm` (модуль `2a41768`) — changed=20,
+  health 0 FAIL, 1 предупреждение (администратор без 2FA, как прежде).
+- [x] GitHub: окружение `production` (политика веток — только `main`), секрет `DEPLOY_SSH_KEY`.
+- [x] `gh workflow run deploy.yml` → ручной запуск 2026-10-18 12:02 UTC — оба задания зелёные: `lint-module: 338 PHP, 442 JSON — OK
+  (8.5.11)`, на сервере через SSH → принудительную команду → **sudo-rs** → `deployed 2a417689ab47: files changed 0,
+  applied no, backup none`, `health: 0 failed, 1 warnings`.
+- [x] Негативные проверки ключом CD на production: `id`, короткий хеш, `deploy <sha>; id` — отказ принудительной
+  команды; проброс порта (`-L`) — отказ (`restrict`); `sudo espocrm-deploy --status` — `2a41768`, пауза — нет.
+
+Не проверено: выкладка с изменением файлов модуля на production (на проверочной машине — да; первый настоящий push модуля
+пройдёт по ней); ожидание блокировки ночного backup; бан fail2ban IP раннера GitHub (выкладка тогда красная — повторить).
 
 ## Этап 10 — результат
 
