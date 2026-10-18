@@ -2212,7 +2212,7 @@ Actions + SSH; перед выкладкой — только синтаксис
 |---|---|---|
 | CD | `sudo espocrm-deploy --pause "cutover"` | `paused: cutover (17:49)` |
 | 1 | `vars.yml` → `maintenance`, `/data/server` `2ee0428`, `task crm:switch` | ok=127, changed=19, failed=0, 2 мин 26 с; health 0 FAIL; снаружи `/` и `index.php` — 503, `Retry-After: 900`; `/etc/cron.d/vtiger` — 0 активных строк; процессов `vtigercron.php` 0 |
-| 2 | `task snapshot:create` | `20261018T195236`, 1444,5 МиБ, проверка 19/19 (vtiger7 784/197 076, CDR 129, записи 108/108, WAV 189); `snapshot:diff` с `20261018T091226` — изменений нет |
+| 2 | `task snapshot:create` | `20261018T195236`, 1444,5 МиБ, проверка 19/19 (vtiger7 784/197 076, CDR 129, записи 108/108, WAV 189); `snapshot:diff` с `20261018T091226`: записи CRM (`vtiger_crmentity`), CDR и файлы не менялись, служебная `vtiger_cron_task` — 10 строк изменены (cron Vtiger до шага 1) |
 | 3 | `task espocrm:backup label=pre-delta` → `bundle.sh pull` → `ESPO_HEALTH_LOGIN=0 task stand:restore … --skip-custom` → `stand-admin.sh park` → `telephony:up/down` | пакет 90 МБ; pull 8 с; restore стенда 41 с (SMTP и ящики пакета выключены), health 0/0 |
 | 4 | `task import:run -- --snapshot 20261018T195236` | прогон `20261018T195650`, 1 мин 23 с, код 2 (только находки): план 7454 операции, удалений 0, `unchanged=7323`, `equal=7323`, `absent=214` (`ContactAccess` без значений), проблем нет; находки = этапа 10 (`conflict` 47, `dangling` 24, `invoice_act_total` 5, `external_url_invalid` 1, `no_target` 66, `recording_unavailable:without_audio` 4, `type_conflict` 23); CDR 83 из 212, записи 66; файлы 205 скачаны через стенд с sha256 источника |
 | 4 | `task import:summary -- 20261018T195650` | агрегаты: чтение 112 / запись 112 мер, «не равно» 0; колонки по модулям — расхождений 0, неучтённых 128 (= этапа 10); связи — 0; полная сверка колонок снимка — классы и числа = этапа 10; счётчики номеров — изменений 0 |
@@ -2248,6 +2248,34 @@ Actions + SSH; перед выкладкой — только синтаксис
 - Администратор без 2FA; пользователи неактивны (D-195) — сценарии других ролей на production не проверялись (ACL ролей —
   стенд этапа 10 с теми же данными).
 - Причина жёсткого сброса VPS не выяснялась.
+
+### Внешнее ревью (Codex `gpt-6.1-sol`, 2026-10-18)
+
+Коммит `d6d5b4d` (диапазон `0c243cf..d6d5b4d`), отдельный worktree, `codex exec --sandbox read-only --ephemeral`, без сети;
+приватный каталог и `/data/server` на время ревью закрыты правами (000, затем 700/775). Итог — **FAIL**, 2 блокирующих,
+4 предупреждения, 1 заметка; каждое проверено по коду:
+
+| № | Замечание | Проверка | Исправление |
+|---|---|---|---|
+| B1 | Откат не ставит CD на паузу: после `--keep-writers-paused` блокировка операций свободна, выкладка выполнила бы `espocrm-apply` после списка | подтверждено (`espocrm-deploy` берёт ту же блокировку, но после `changes-since` она отпущена) | §3 и `TASKS.md`: первый шаг отката — `sudo espocrm-deploy --pause rollback`, `--resume` — после решения владельца |
+| B2 | Совет `git pull` перед прогоном роли: `HEAD` контроллера ≠ развёрнутому → роль разворачивает его и выполняет `espocrm-apply` (`itvolga-setup-acl` переписывает роли) до списка изменений | подтверждено (`espocrm_apply_state` = ядро + коммит; в окне шаг 1 так и применил `0c243cf`) | каждый прогон роли и `crm:switch` на production — с `-e espocrm_module_ref=<deployed>` из `espocrm-deploy --status` (после `git fetch`): `cutover.md` §2.1, §3, `deploy.md` §10–11, `TASKS.md`, `AGENTS.md` |
+| W3 | Переключение обратно на `vtiger` (прогон роли) снова запускает писателей EspoCRM (cron с рассылками отчётов, PHP-FPM, слушатель) после списка | подтверждено (`fpm.yml`, `cron.yml`, `telephony.yml`; `resume_writers` ночного backup поднимает только остановленное им самим) | §3: сразу после переключения — второй `changes-since --against … --export --keep-writers-paused`, он окончательный; писатели остаются остановленными до решения |
+| W4 | Экспорт «без значений» берёт любую колонку `*_id`: `contact_access.anydesk_id` (поле доступа) попал бы в TSV | подтверждено: в схеме 13 колонок `*_id` со значениями, не ссылками (`anydesk_id`, `email.message_id`, `password_change_request.request_id`, `client_id`, `oidc_client_id`, `bank_transaction_id`, номера звонков Asterisk…) | `espocrm-changes-since`: из `*_id` — только `varchar(17)` (id EspoCRM) и `vtiger_id`; проверено SQL отбора на схеме стенда (у `contact_access` — `id`, ссылки, `vtiger_id`, время) и экспортом на production (ключи — только id, ссылки, типы, время; тестовый файл удалён) |
+| W5 | Различие схем после выкладки: сравниваются только общие колонки, строки новой таблицы не экспортируются | подтверждено | строки новой таблицы — в экспорт как добавленные; различие колонок — строка в выводе и предупреждение в конце; `deploy.md` §7 |
+| W6 | Стенд «припаркован» (`repark`): restore пакета production откажет на `stand-admin.sh check` | подтверждено (`restore.sh`) | `TASKS.md` (строка стенда) и §3: перед restore пакета production — `stand-admin.sh unpark` |
+| N7 | «Разница снимков — изменений нет» неточно: 10 строк `vtiger_cron_task` | подтверждено (`snapshot-delta.md`) | формулировка: записи CRM, CDR и файлы не менялись, служебная `vtiger_cron_task` — 10 строк |
+
+Повторная проверка (2026-10-18): `bash -n`, shellcheck (образ `koalaman/shellcheck:stable`) — 0; `task ansible:lint` 0/0
+(309 файлов), `task ansible:syntax` 5 плейбуков; `task ansible:test` с нуля — **код 0, 34 мин 38 с** (сценарий
+`changes-since --against`: «account added 1, changed 1», без ложного предупреждения о схеме; переключения и повторы
+changed=0; шаг `cd`). Production: `overlay.sh sync` → `/data/server` `cb790d9` → `--check --diff` и прогон роли с
+`-e espocrm_module_ref=0c243cf…` — changed=1 (только `espocrm-changes-since`), `espocrm-apply` не выполнялся, health 0/0.
+Исправления Codex повторно не проверял (один раунд).
+
+### После ревью
+
+Владелец включил 2FA администратору (health 2026-10-18 — 0 failed, 0 warnings). Пакет `cutover` снят до этого: restore
+из него вернёт администратора без 2FA — после такого restore включить её заново.
 
 ## Вне этапов — контрагент и адреса нового документа (D-179), 2026-10-17
 

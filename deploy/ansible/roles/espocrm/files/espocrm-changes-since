@@ -2,8 +2,9 @@
 # What changed in EspoCRM after a moment (role espocrm, rollback runbook, D-188). Read only for the live database
 # (READ ONLY sessions); the console shows counts per table, --export writes the changed rows to
 # $BACKUP_DIR/changes-<time>.tsv (600, the server only) — the list for re-entering the work of the switched period after
-# a rollback. The export holds no values: only the id, the links (*_id, *_type), the deleted flag and the times of each
-# row; the record itself is opened in EspoCRM by its id (AGENTS.md: access fields, names and secrets never in reports).
+# a rollback. The export holds no values: only the id, the links (*_id columns that hold an EspoCRM id, *_type), the
+# Vtiger key (vtiger_id), the deleted flag and the times of each row; the record itself is opened in EspoCRM by its id
+# (AGENTS.md: access fields, names and secrets never in reports — anydesk_id, message_id, request_id are not links).
 #
 #   espocrm-changes-since '2026-11-01 18:00:00' [--export]
 #       per table with created_at / modified_at / deleted: rows created, modified (created before) and soft-deleted at
@@ -49,15 +50,30 @@ if [[ $export == 1 ]]; then
     printf 'table\tchange\tid\trow\n' >"$out"
 fi
 
-# JSON_OBJECT of the columns without values: id, deleted, times, links (*_id, *_type). Arguments: db table alias.
+# JSON_OBJECT of the columns without values: id, deleted, times, the Vtiger key, links (*_id with the type of an EspoCRM
+# id — varchar(17); other *_id columns hold values: anydesk_id, message_id, request_id, client_id…) and *_type.
+# Arguments: db table alias.
 safe_json() {
     mysql_root -N -B <<SQL
 SET SESSION group_concat_max_len = 1048576;
 SELECT CONCAT('JSON_OBJECT(', GROUP_CONCAT(CONCAT('''', column_name, ''', $3.\`', column_name, '\`')
     ORDER BY ordinal_position SEPARATOR ', '), ')')
 FROM information_schema.columns WHERE table_schema = '$1' AND table_name = '$2'
-  AND (column_name IN ('id', 'deleted', 'created_at', 'modified_at')
-       OR column_name LIKE '%\\_id' OR column_name LIKE '%\\_type');
+  AND (column_name IN ('id', 'deleted', 'created_at', 'modified_at', 'vtiger_id')
+       OR (column_name LIKE '%\\_id' AND column_type = 'varchar(17)') OR column_name LIKE '%\\_type');
+SQL
+}
+
+# Columns only in the live table / only in the bundle (a deploy after the bundle changed the schema). Arguments: table.
+column_diff() {
+    mysql_root -N -B <<SQL
+SELECT
+  (SELECT COUNT(*) FROM information_schema.columns c WHERE c.table_schema = '$DB_NAME' AND c.table_name = '$1'
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns r WHERE r.table_schema = '$ref'
+                     AND r.table_name = c.table_name AND r.column_name = c.column_name)),
+  (SELECT COUNT(*) FROM information_schema.columns r WHERE r.table_schema = '$ref' AND r.table_name = '$1'
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns c WHERE c.table_schema = '$DB_NAME'
+                     AND c.table_name = r.table_name AND c.column_name = r.column_name));
 SQL
 }
 
@@ -131,12 +147,24 @@ tables="$(mysql_root -N -B -e "SELECT t.table_name FROM information_schema.table
                   AND c.table_name = t.table_name AND c.column_name = 'id')
     ORDER BY t.table_name")"
 printf '%-40s %8s %8s %8s\n' table added removed changed
+schema_diff=0
 while IFS= read -r t; do
     [[ "$t" =~ ^[a-z0-9_]+$ ]] || continue
     if [[ -z "$(mysql_root -N -B -e "SELECT 1 FROM information_schema.tables WHERE table_schema='$ref' AND table_name='$t'")" ]]; then
         a="$(mysql_root -N -B "$DB_NAME" -e "SET SESSION TRANSACTION READ ONLY; SELECT COUNT(*) FROM \`$t\`")"
         printf '%-40s %8s %8s %8s  (no such table in the bundle)\n' "$t" "$a" 0 0
-        total=$((total + a)); continue
+        total=$((total + a)); schema_diff=$((schema_diff + 1))
+        if [[ -n "$out" && "$a" != 0 ]]; then
+            mysql_root -N -B -e "SET SESSION TRANSACTION READ ONLY;
+                SELECT '$t', 'added', l.id, $(safe_json "$DB_NAME" "$t" l) FROM \`$DB_NAME\`.\`$t\` l" >>"$out"
+        fi
+        continue
+    fi
+    read -r only_live only_bundle <<<"$(column_diff "$t")"
+    if [[ "$only_live" != 0 || "$only_bundle" != 0 ]]; then
+        printf '%-40s columns only live %s, only in the bundle %s: rows compared on the common columns\n' \
+            "$t" "$only_live" "$only_bundle"
+        schema_diff=$((schema_diff + 1))
     fi
     lj="$(content_json "$t" l)"
     bj="$(content_json "$t" b)"
@@ -159,4 +187,8 @@ while IFS= read -r t; do
     fi
 done <<<"$tables"
 echo "---"
+if [[ $schema_diff != 0 ]]; then
+    echo "WARNING: the schema of $schema_diff tables differs from the bundle (a deploy after it): values of columns" \
+        "the bundle lacks are not compared — check those tables by hand"
+fi
 echo "changes against $(manifest_get "$dir" name): $total rows${out:+; list: $out}"

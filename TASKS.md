@@ -3,8 +3,8 @@
 **Текущий этап:** 11 — Переключение `serv.itvolga.com` — **завершён** 2026-10-18 (результат и проверки — «Этап 11 — результат»; окно и откат — `docs/migration/cutover.md` §2.1 и §3; доказательства — `evidence.md`, «Этап 11»).
 **Предыдущий этап:** 10 — Размещение рядом с Vtiger — завершён 2026-10-18; внешнее ревью исправлено (`113ce23`).
 **Дальше:** период проверки на EspoCRM. Удаление Vtiger, `php74-fpm`, cron, БД, файлов и ролей — **только по отдельному подтверждению владельца после периода проверки** (раздел «Следующая сессия» в конце файла).
-**Production (этап 11, 2026-10-18, по разрешению владельца):** **`serv.itvolga.com` — EspoCRM** с **T = 2026-10-18 18:03:21 UTC** (`itvolga_crm_primary: espocrm`, `siteUrl` `https://serv.itvolga.com`); Vtiger — без веб-доступа, cron Vtiger закомментирован, БД `vtiger7`, файлы, docroot, `php74-fpm` и роли — на месте. EspoCRM 10.0.9 + модуль `0c243cf` (код = `2a41768`), данные — финальная дельта снимка `20261018T195236` (изменений нет) + пакет `20261018T195914-cutover`, отпечаток `27bd3bad8bfe6693` = стенду. **Активен только `admin`** (D-195): 6 пользователей неактивны, номер 108 — у `admin`. Пароль `admin` = `vault_espocrm_admin_password`, копия — `/data/itvolga/espo-private/production/espocrm-admin-password.txt` (600); 2FA администратору — включить владельцу. Asterisk не перезапускался и не перечитывался; маршрутизация не менялась. `/data/server`: `2ee0428` (maintenance), `7a18681` (espocrm) — не отправлялись (`git push` — решение владельца). CD модуля — снят с паузы.
-**Стенд:** http://crm.itvolga.test — `admin`, пароль в `/data/itvolga/espo-private/stand/local.env`; `task stand:health`. В базе стенда — **данные production момента переключения** (pre-delta + дельта + деактивация пользователей; пакет `20261018T195914-cutover` = отпечаток `27bd3bad8bfe6693`), администратор и почта production **припаркованы** (`stand-admin.sh repark`), писатели стенда работают; запасной внутренний номер — 108 (D-192). Снимки экрана — только в `/data/itvolga/espo-private/stand/evidence/`, карточки с полями доступа не открывать.
+**Production (этап 11, 2026-10-18, по разрешению владельца):** **`serv.itvolga.com` — EspoCRM** с **T = 2026-10-18 18:03:21 UTC** (`itvolga_crm_primary: espocrm`, `siteUrl` `https://serv.itvolga.com`); Vtiger — без веб-доступа, cron Vtiger закомментирован, БД `vtiger7`, файлы, docroot, `php74-fpm` и роли — на месте. EspoCRM 10.0.9 + модуль `0c243cf` (код = `2a41768`), данные — финальная дельта снимка `20261018T195236` (записи CRM без изменений) + пакет `20261018T195914-cutover`, отпечаток `27bd3bad8bfe6693` = стенду. **Активен только `admin`** (D-195): 6 пользователей неактивны, номер 108 — у `admin`. Пароль `admin` = `vault_espocrm_admin_password`, копия — `/data/itvolga/espo-private/production/espocrm-admin-password.txt` (600); 2FA администратору включена владельцем (health 0/0). Asterisk не перезапускался и не перечитывался; маршрутизация не менялась. `/data/server`: `2ee0428` (maintenance), `7a18681` (espocrm), `cb790d9` (исправление ревью) — отправлены в GitHub по просьбе владельца. CD модуля — снят с паузы.
+**Стенд:** http://crm.itvolga.test — `admin`, пароль в `/data/itvolga/espo-private/stand/local.env`; `task stand:health`. В базе стенда — **данные production момента переключения** (pre-delta + дельта + деактивация пользователей; пакет `20261018T195914-cutover` = отпечаток `27bd3bad8bfe6693`), администратор и почта production **припаркованы** (`stand-admin.sh repark`), писатели стенда работают; перед restore любого пакета production — `scripts/deploy/stand-admin.sh unpark` (иначе restore откажет: `stand-admin.sh check`); запасной внутренний номер — 108 (D-192). Снимки экрана — только в `/data/itvolga/espo-private/stand/evidence/`, карточки с полями доступа не открывать.
 **Проверочная машина этапа 09:** после прогона 2026-10-18 снята (`task ansible:test-down`); поднимается заново `task ansible:test`.
 **CD модуля (вне этапов, D-194):** push в `main`, который меняет модуль, → GitHub Actions → сервер выкладывает коммит сам (`deploy.md` §11); окно этапа 11 — пауза 17:49–18:10 UTC, снята (`deployed 0c243cf`, `paused: no`). Состояние — раздел «Вне этапов — непрерывная выкладка модуля».
 
@@ -60,7 +60,8 @@
 Окно (`cutover.md` §2.1):
 - [x] 17:49 CD — пауза; **шаг 1** `maintenance` (`/data/server` `2ee0428`, `task crm:switch` 2 мин 26 с, failed=0): снаружи
   503 `Retry-After: 900`, cron Vtiger — 0 активных строк, `vtigercron.php` не выполняется.
-- [x] **Шаг 2** снимок `20261018T195236` (2 мин 22 с, проверка 19/19); разница с `20261018T091226` — изменений нет.
+- [x] **Шаг 2** снимок `20261018T195236` (2 мин 22 с, проверка 19/19); разница с `20261018T091226`: записи CRM, CDR и файлы не
+  менялись (служебная `vtiger_cron_task` — 10 строк, cron Vtiger работал до шага 1).
 - [x] **Шаг 3** пакет `20261018T195506-pre-delta` → pull → restore стенда (почта и ящики production выключены) → `park` →
   телефония (1 мин 28 с).
 - [x] **Шаг 4** дельта `import/20261018T195650` (1 мин 23 с): 7323 `unchanged`/`equal`, удалений 0, проблем нет, находки =
@@ -90,17 +91,30 @@
 - [x] Документы: `cutover.md` §2.1, §3 (пакет и T), `deploy.md`, D-195, `evidence.md` «Этап 11», `AGENTS.md`, сводки
   `import-summary.md`/`import-columns.md` (прогон `20261018T195650`), `snapshot-delta.md`, `snapshot-protocol.md`.
 
+Внешнее ревью (2026-10-18): коммит `d6d5b4d`, Codex `gpt-6.1-sol` (worktree, read-only, без сети; приватный каталог и
+`/data/server` закрыты правами) — **FAIL**, 2 блокирующих, 4 предупреждения, 1 заметка — все подтверждены и исправлены
+(`evidence.md`, «Этап 11», «Внешнее ревью»): B1 — при откате CD на паузу; B2 — прогоны роли на production только с
+`-e espocrm_module_ref=<deployed>` (иначе `espocrm-apply` до списка); W3 — окончательный список после переключения на
+`vtiger`, писатели остаются остановленными; W4 — экспорт `changes-since` брал бы `anydesk_id`, `message_id`, токены —
+теперь только ссылки `varchar(17)` и `vtiger_id`; W5 — новые таблицы в экспорте, предупреждение о различии схем;
+W6 — `unpark` перед restore стенда; N7 — формулировка разницы снимков. Повторно: shellcheck 0, lint 0/0 (309 файлов),
+syntax 5, **`task ansible:test` с нуля — код 0** (34 мин 38 с); production — `/data/server` `cb790d9`, роль с модулем
+`0c243cf` — changed=1 (только инструмент), без применения модуля, health 0/0; экспорт проверен (ключи — только id,
+ссылки, типы, время). Исправления Codex повторно не проверял.
+
+После ревью: **владелец включил 2FA администратору** — health production 0 failed, 0 warnings. Пакет `cutover` снят до
+этого: restore из него вернёт администратора без 2FA.
+
 Не сделано / ограничения:
 - **Пользователи неактивны** (D-195): работать в EspoCRM может только `admin`. Включение — владелец (ниже).
-- **Администратор без 2FA** — health предупреждает; включить владельцу при первом входе (`https://serv.itvolga.com`).
 - Живой звонок через слушателя, звонок из CRM, письмо через Migadu, бан fail2ban, продление сертификата EspoCRM-vhost —
   на production не проверялись (звонков с загрузки не было; настоящий вызов и письмо не делались).
 - `task crm:switch` прогоняет роль с модулем `HEAD` контроллера: на шаге 1 он развернул `0c243cf` (код = `2a41768`) и
-  выполнил `espocrm-apply` (17:51); его записи заменил restore шага 5 (отпечаток = стенду). Перед следующим переключением
-  — `git pull` в `/data/itvolga/espo` (иначе роль откажется возвращать модуль назад, D-194).
+  выполнил `espocrm-apply` (17:51); его записи заменил restore шага 5 (отпечаток = стенду). Любой прогон роли (и `crm:switch`)
+  на production — с `-e espocrm_module_ref=<deployed>` (коммит из `sudo espocrm-deploy --status`, в рабочей копии — после `git fetch`): иначе роль развернёт `HEAD` контроллера и выполнит `espocrm-apply` (запись в БД: роли, финансы, отчёты), а коммит старше развёрнутого — отказ (D-194); внешнее ревью этапа 11, B2.
 - Причина жёсткого сброса VPS 17:09 UTC не выяснялась (журнал без завершения — сброс извне).
 - На сервере — пакеты окна (`…195506-pre-delta`, `…195914-cutover`, `…200020-pre-restore`) и прежние; удаление — решение
-  владельца. `/data/server` не отправлялся в GitHub.
+  владельца.
 
 ## Вне этапов — непрерывная выкладка модуля (CD, 2026-10-18)
 
@@ -1142,18 +1156,24 @@ B1 страж фактов пропускал объект без загрузк
 Стартовая команда этапа 11 использована 2026-10-18 (раздел «Этап 11 — результат»). Этапов миграции больше нет; дальше —
 период проверки на EspoCRM и решения владельца:
 
-1. **Владелец:** войти `admin` на `https://serv.itvolga.com` (пароль — `/data/itvolga/espo-private/production/espocrm-admin-password.txt`)
-   и включить себе 2FA («Настройки» → «Безопасность»; TOTP или ключ безопасности).
+1. **Сделано 2026-10-18:** владелец вошёл `admin` на `https://serv.itvolga.com` (пароль —
+   `/data/itvolga/espo-private/production/espocrm-admin-password.txt`) и включил себе 2FA. После restore пакета
+   `cutover` (снят до этого) 2FA администратору включить заново.
 2. **Включение пользователей (по решению владельца, D-195):** администратор у каждого — «Пароль» и «Активен», пользователь
    при первом входе настраивает 2FA. После включения номера пользователей снова получают звонки (`ExtensionDirectory`).
 3. **Откат при критическом сбое** — `cutover.md` §3, строка «После шага 6»: пакет момента переключения
-   `20261018T195914-cutover`, T = `2026-10-18 18:03:21` UTC:
+   `20261018T195914-cutover`, T = `2026-10-18 18:03:21` UTC; M — развёрнутый коммит модуля (`deployed` в `--status`):
    ```
-   # /data/server: itvolga_crm_primary: maintenance → git commit → task crm:switch
+   ssh sergey@serv.sergeyem.ru sudo espocrm-deploy --pause rollback && ssh sergey@serv.sergeyem.ru sudo espocrm-deploy --status
+   git -C /data/itvolga/espo fetch   # коммит M должен быть в рабочей копии
+   # /data/server: itvolga_crm_primary: maintenance → git commit → task crm:switch -- -e espocrm_module_ref=M
    ssh sergey@serv.sergeyem.ru sudo espocrm-changes-since --against /var/backups/espocrm/bundles/20261018T195914-cutover --export --keep-writers-paused
-   # /data/server: itvolga_crm_primary: vtiger → git commit → task crm:switch   (vhost и cron Vtiger вернутся)
+   # /data/server: itvolga_crm_primary: vtiger → git commit → task crm:switch -- -e espocrm_module_ref=M   (vhost и cron Vtiger вернутся)
+   ssh sergey@serv.sergeyem.ru sudo espocrm-changes-since --against /var/backups/espocrm/bundles/20261018T195914-cutover --export --keep-writers-paused
    ```
-   Затем сделанное после T — в Vtiger вручную по списку `/var/backups/espocrm/changes-*.tsv` (без значений).
+   Второй список — окончательный (прогон роли снова запускает писателей EspoCRM; после него они остаются остановленными до
+   следующего прогона роли). Сделанное после T — в Vtiger вручную по нему (`/var/backups/espocrm/changes-*.tsv`, без
+   значений); CD (`--resume`) и роль — только после решения владельца.
 4. **Удаление Vtiger, `php74-fpm`, cron Vtiger, БД `vtiger7`, файлов и ролей** — только отдельной командой владельца после
    периода проверки, например:
    ```
