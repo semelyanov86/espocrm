@@ -60,6 +60,8 @@ fail2ban…). До этапа 10 он только читается, поэто�
 | `maintenance` (окно) | страница 503 «CRM переезжает» (`Retry-After`), ACME доступен | `127.0.0.1:8443` | vhost выключен, cron закомментирован (ожидание идущего `vtigercron.php`) |
 | `espocrm` (после) | EspoCRM | и `127.0.0.1:8443` | vhost выключен, cron закомментирован; файлы, БД, docroot в `php74-fpm`, роли — остаются |
 
+**С 2026-10-18 18:03:21 UTC (этап 11) режим — `espocrm`** (`/data/server` `7a18681`; `cutover.md` §2.1).
+
 Смена: правка `vars.yml` → коммит → `task crm:switch` (`12-crm-switch.yml`: роли apache и espocrm приходят к одному
 состоянию, `apache2ctl -t`, **один** reload в конце play, `force_handlers`, безусловный reload после прерванного
 прогона; затем `espocrm-health`). Откат — вернуть значение и тот же запуск. `siteUrl` EspoCRM до переключения —
@@ -197,6 +199,11 @@ production, синтетические WAV, страница-маркер и cro
 
 ## 10. Ограничения и не проверено
 
+- Проверено на production на этапе 11 (2026-10-18, `evidence.md`, «Этап 11»): переключение `vtiger` → `maintenance` →
+  `espocrm` (страница 503, cron Vtiger выключен, публичный vhost EspoCRM с сертификатом Vtiger), перенос пакетом с
+  `--carry-calls-from`, backup и проверка восстановления после переключения. `task crm:switch` прогоняет роль целиком —
+  с модулем `HEAD` контроллера (`espocrm_module_ref`): до прогона — `git pull` в `/data/itvolga/espo` (иначе роль
+  откажется вернуть модуль, выложенный CD; другой коммит — `espocrm-apply`).
 - Проверено на production на этапе 10 (2026-10-18, `evidence.md`, «Этап 10»): роль (первый прогон changed=51, повтор и
   `--check --diff` — changed=0), vhost-превью на `127.0.0.1:8443` с сертификатом Vtiger (снаружи порт закрыт), соседство с
   Vtiger (`serv.itvolga.com` — Vtiger, Apache только перечитал конфигурацию, `php74-fpm` и Asterisk не перезапускались,

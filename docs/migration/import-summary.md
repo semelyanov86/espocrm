@@ -2,7 +2,7 @@
 
 Генерируется: `task import:summary -- <прогон>` (`scripts/import/importer.py summary`). Только счётчики: ни значений, ни идентификаторов записей. Машинный отчёт с причинами по каждой записи и колонке — вне Git (`/data/itvolga/espo-private/import/<прогон>/`). Контракт импорта — `import.md`.
 
-- Прогон: `20261018T104535`; снимок: `20261018T091226`; код: `0c51d23` (незакоммиченных файлов инструмента: 0).
+- Прогон: `20261018T195650`; снимок: `20261018T195236`; код: `0c243cf` (незакоммиченных файлов инструмента: 0).
 - Итог: **findings**; проблемы: нет; находки: conflict=47, dangling=24, discrepancy:invoice_act_total=5, external_url_invalid=1, no_target=66, recording_unavailable:without_audio=4, type_conflict=23.
 - «Тишина» (изменение числа строк стенда: уведомления, напоминания, подписки, записи ленты без vtigerId, письма, вебхуки, журнал действий): action_history_record=0, email_not_imported=0, note_not_imported=0, notification=0, reminder=0, stream_subscription=0, webhook_queue_item=0.
 
@@ -10,39 +10,39 @@
 
 | Сущность | Источник | Запись | Проверка | Удержаны | Возвращено после хуков |
 |---|---|---|---|---|---|
-| Account | 180 | created=180 | equal=180 | — | modifiedAt=180 |
-| Act | 404 | created=404 | equal=404 | — | modifiedAt=404 |
-| ActItem | 417 | created=417 | equal=417 | — | — |
-| Attachment | 205 | created=205 | equal=205 | — | — |
-| Call | 1133 | created=924 | equal=924 | excluded:internal_call=209 | modifiedAt=924 |
-| Case | 45 | created=45 | equal=45 | — | modifiedAt=45 |
-| Contact | 341 | created=341 | equal=341 | — | modifiedAt=341 |
-| ContactAccess | 341 | created=127, skipped=214 | absent=214, equal=127 | — | — |
-| Document | 215 | created=215 | equal=215 | — | modifiedAt=215 |
-| DocumentFolder | 1 | created=1 | equal=1 | — | — |
-| Email | 29 | created=29 | equal=29 | — | modifiedAt=29 |
-| Invoice | 636 | created=636 | equal=636 | — | modifiedAt=636 |
-| InvoiceItem | 712 | created=712 | equal=712 | — | — |
-| KnowledgeBaseArticle | 63 | created=63 | equal=63 | — | modifiedAt=63 |
-| KnowledgeBaseCategory | 1 | created=1 | equal=1 | — | — |
-| Lead | 225 | created=225 | equal=225 | — | convertedAt=5, modifiedAt=225 |
-| LegalEntity | 1 | updated=1 | equal=1 | — | — |
-| Meeting | 7 | created=7 | equal=7 | — | modifiedAt=7 |
-| Note | 78 | created=78 | equal=78 | — | modifiedAt=78 |
-| Opportunity | 156 | created=156 | equal=156 | — | modifiedAt=156 |
-| Payment | 799 | created=799 | equal=799 | — | modifiedAt=799 |
-| PaymentAllocation | 627 | created=627 | equal=627 | — | — |
-| Product | 28 | created=28 | equal=28 | — | modifiedAt=28 |
-| Project | 54 | created=54 | equal=54 | — | modifiedAt=54 |
-| ProjectTask | 493 | created=493 | equal=493 | — | modifiedAt=493 |
-| Quote | 24 | created=24 | equal=24 | — | modifiedAt=24 |
-| QuoteItem | 27 | created=27 | equal=27 | — | — |
-| SalesOrder | 14 | created=14 | equal=14 | — | modifiedAt=14 |
-| SalesOrderItem | 14 | created=14 | equal=14 | — | — |
-| Task | 62 | created=62 | equal=62 | — | contactId=3, dateCompleted=59, modifiedAt=62 |
-| User | 7 | adopted=1, created=6 | equal=7 | — | — |
-| Vendor | 3 | created=3 | equal=3 | — | modifiedAt=3 |
-| VtigerArchive | 321 | created=321 | equal=321 | — | — |
+| Account | 180 | unchanged=180 | equal=180 | — | — |
+| Act | 404 | unchanged=404 | equal=404 | — | — |
+| ActItem | 417 | unchanged=417 | equal=417 | — | — |
+| Attachment | 205 | unchanged=205 | equal=205 | — | — |
+| Call | 1133 | unchanged=924 | equal=924 | excluded:internal_call=209 | — |
+| Case | 45 | unchanged=45 | equal=45 | — | — |
+| Contact | 341 | unchanged=341 | equal=341 | — | — |
+| ContactAccess | 341 | skipped=214, unchanged=127 | absent=214, equal=127 | — | — |
+| Document | 215 | unchanged=215 | equal=215 | — | — |
+| DocumentFolder | 1 | unchanged=1 | equal=1 | — | — |
+| Email | 29 | unchanged=29 | equal=29 | — | — |
+| Invoice | 636 | unchanged=636 | equal=636 | — | — |
+| InvoiceItem | 712 | unchanged=712 | equal=712 | — | — |
+| KnowledgeBaseArticle | 63 | unchanged=63 | equal=63 | — | — |
+| KnowledgeBaseCategory | 1 | unchanged=1 | equal=1 | — | — |
+| Lead | 225 | unchanged=225 | equal=225 | — | — |
+| LegalEntity | 1 | unchanged=1 | equal=1 | — | — |
+| Meeting | 7 | unchanged=7 | equal=7 | — | — |
+| Note | 78 | unchanged=78 | equal=78 | — | — |
+| Opportunity | 156 | unchanged=156 | equal=156 | — | — |
+| Payment | 799 | unchanged=799 | equal=799 | — | — |
+| PaymentAllocation | 627 | unchanged=627 | equal=627 | — | — |
+| Product | 28 | unchanged=28 | equal=28 | — | — |
+| Project | 54 | unchanged=54 | equal=54 | — | — |
+| ProjectTask | 493 | unchanged=493 | equal=493 | — | — |
+| Quote | 24 | unchanged=24 | equal=24 | — | — |
+| QuoteItem | 27 | unchanged=27 | equal=27 | — | — |
+| SalesOrder | 14 | unchanged=14 | equal=14 | — | — |
+| SalesOrderItem | 14 | unchanged=14 | equal=14 | — | — |
+| Task | 62 | unchanged=62 | equal=62 | — | — |
+| User | 7 | unchanged=7 | equal=7 | — | — |
+| Vendor | 3 | unchanged=3 | equal=3 | — | — |
+| VtigerArchive | 321 | unchanged=321 | equal=321 | — | — |
 
 ## Колонки источника по модулям
 
@@ -313,9 +313,9 @@
 - Маржа строк: notComputed=265, ok=905.
 - Причины расхождений: linked_invoice_act_totals_differ=5.
 - Распределение платежей (D-11, категория:решение): both_same_invoice:allocate=426, conflict_rel_other_invoice:allocate=38, rel_only:allocate=4, rel_only:none=52, related_to_invoice_only:allocate=152, related_to_salesorder:allocate=7, unallocated:none=120.
-- Пометки источника (`itvolga-finance-verify`): Act: noLineTax / exact=404, Invoice: groupTaxAdded / exact=2, Invoice: lineTaxNotApplied / exact=148, Invoice: noLineTax / exact=485, Invoice: taxIncludedInPrice / exact=1, Quote: lineTaxNotApplied / exact=23, Quote: noLineTax / exact=1, SalesOrder: lineTaxNotApplied / exact=13, SalesOrder: noLineTax / exact=1.
+- Пометки источника (`itvolga-finance-verify`): Act: noLineTax / exact (unchanged)=404, Invoice: groupTaxAdded / exact (unchanged)=2, Invoice: lineTaxNotApplied / exact (unchanged)=148, Invoice: noLineTax / exact (unchanged)=485, Invoice: taxIncludedInPrice / exact (unchanged)=1, Quote: lineTaxNotApplied / exact (unchanged)=23, Quote: noLineTax / exact (unchanged)=1, SalesOrder: lineTaxNotApplied / exact (unchanged)=13, SalesOrder: noLineTax / exact (unchanged)=1.
 - Оплата документов (`itvolga-finance-settle --silent`): Invoice unchanged=636, SalesOrder unchanged=14; расхождение после пересчёта: 0.
-- Счётчики номеров (cur_id источника, только вверх): изменений 1, ниже источника: 0.
+- Счётчики номеров (cur_id источника, только вверх): изменений 0, ниже источника: 0.
 
 ## Агрегаты (точные суммы decimal)
 
@@ -496,7 +496,7 @@
 
 PBXManager: записей 1116, перенесено 907, внутренних не переносится 209, удержано по другим причинам 0; SPCallPopup 210 (слито 204); архивных ссылок коннектора (не аудио, D-10) 1033; клиенты по номеру — matches 8, none 819, parent 67.
 
-CDR (граница T0 снимка 2026-10-18 07:12:28 UTC; записи — режим `place`): строк MySQL 129, строк CSV 220; звонков (групп плеч) 212.
+CDR (граница T0 снимка 2026-10-18 17:52:38 UTC; записи — режим `place`): строк MySQL 129, строк CSV 220; звонков (групп плеч) 212.
 
 | Что | Счётчики |
 |---|---|
@@ -504,7 +504,7 @@ CDR (граница T0 снимка 2026-10-18 07:12:28 UTC; записи — р
 | Строки CSV | call 18, duplicate_of_mysql 129, not_imported:conference 2, not_imported:trainer 71 |
 | Звонки по классам | Inbound 33, Outbound 50, conference 2, trainer 127 |
 | Звонки по источнику | csv:call 18, csv:not_imported 73, mysql:call 65, mysql:not_imported 56 |
-| Запись и проверка | apply:created 83, check:equal 83 |
+| Запись и проверка | apply:unchanged 83, check:equal 83 |
 | Файлы записей | ambiguous 9, attached 66, claimed_twice 1, no_call:trainer 108, without_audio 5 |
 | Нет записи у звонка | without_audio 4 |
 | D-31 на известных парах | ambiguous 4, correct 103 |
