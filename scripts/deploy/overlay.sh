@@ -26,6 +26,8 @@ die() { printf '[overlay] ERROR: %s\n' "$*" >&2; exit 1; }
 copy_own() { # dest-root
     rm -rf "$1/ansible/roles/espocrm"
     cp -a "$OVERLAY_SRC/roles/espocrm" "$1/ansible/roles/espocrm"
+    # bytecode left by local runs of the tools (health_http.py) is not part of the role
+    find "$1/ansible/roles/espocrm" -name __pycache__ -type d -prune -exec rm -rf {} +
     cp "$OVERLAY_SRC/playbooks/11-espocrm.yml" "$OVERLAY_SRC/playbooks/12-crm-switch.yml" "$1/ansible/playbooks/"
 }
 

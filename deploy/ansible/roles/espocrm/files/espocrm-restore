@@ -183,7 +183,8 @@ tar_z=(); [[ "$files" == *.gz ]] && tar_z=(-z)
 tar -C "$ESPO_ROOT" "${tar_z[@]}" -xf "$files" --exclude=client/custom/modules/itvolga "${paths[@]}"
 for p in data/upload data/logs custom/Espo/Custom client/custom client/custom/modules; do mkdir -p "$ESPO_ROOT/$p"; done
 chown -R "$ESPO_USER:$ESPO_USER" "$ESPO_ROOT/data" "$ESPO_ROOT/custom/Espo/Custom"
-chmod 0770 "$ESPO_ROOT/data" "$ESPO_ROOT/custom/Espo/Custom"
+# The same modes as the role (core.yml): a bundle of the stand brings data/upload 0775 and no data/logs.
+chmod 0770 "$ESPO_ROOT/data" "$ESPO_ROOT/data/upload" "$ESPO_ROOT/data/logs" "$ESPO_ROOT/custom/Espo/Custom"
 # The same as the role (core.yml): the parent of the module code is root:espocrm 1775.
 chown "root:$ESPO_USER" "$ESPO_ROOT/client/custom"
 chmod 1775 "$ESPO_ROOT/client/custom"
