@@ -18,6 +18,32 @@
     espocrm_module_tar: "itvolga-module-{{ espocrm_module_rev.stdout | trim }}.tar"
     espocrm_module_stage: "{{ espocrm_opt_dir }}/module/{{ espocrm_module_rev.stdout | trim }}"
 
+# Только каталоги и обычные файлы: rsync от root прошёл бы по символической ссылке на месте каталога модуля (косая
+# черта в конце источника) и скопировал бы файлы вне коммита; подмодуль в архиве пуст. Так же проверяет espocrm-deploy.
+- name: List symbolic links and submodules of the module in the commit  # noqa: command-instead-of-module
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      for p in {{ espocrm_module_paths | map('quote') | join(' ') }}; do
+      test "$(git -C {{ espocrm_module_repo | quote }} cat-file -t {{ espocrm_module_commit }}:"$p")" = tree
+      || echo "not a directory: $p"; done;
+      git -C {{ espocrm_module_repo | quote }} ls-tree -r {{ espocrm_module_commit }} --
+      {{ espocrm_module_paths | map('quote') | join(' ') }} | awk '$1 == "120000" || $2 == "commit"'
+    executable: /bin/bash
+  delegate_to: localhost
+  become: false
+  run_once: true
+  register: espocrm_module_links
+  changed_when: false
+  check_mode: false
+
+- name: Refuse symbolic links and submodules in the module
+  ansible.builtin.assert:
+    that:
+      - espocrm_module_links.stdout | length == 0
+    fail_msg: "Коммит {{ espocrm_module_commit[:12] }}: в модуле символические ссылки или подмодули — не выкладывается."
+    quiet: true
+
 # CD (D-194) выкладывает коммиты main с GitHub: роль из отставшей рабочей копии вернула бы модуль назад. Развёрнутый
 # коммит должен быть предком выкладываемого (или им самим); неизвестный контроллеру — git pull. Намеренный откат —
 # -e espocrm_module_allow_downgrade=true.

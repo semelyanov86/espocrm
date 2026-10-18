@@ -1,0 +1,24 @@
+---
+# CD (D-194) не выкладывает модуль, пока идёт прогон роли: отметка ставится под блокировкой операций (идущая выкладка,
+# backup или restore держат её — тогда прогон останавливается здесь) и снимается последней задачей роли (cd_release.yml).
+# Прогон, упавший до конца, оставляет отметку: CD не выкладывает 2 часа или до следующего прогона роли
+# (sudo espocrm-deploy --resume снимает её сразу).
+- name: Hold the CD of the module for the duration of the role run
+  ansible.builtin.shell:
+    cmd: >-
+      exec 9>{{ espocrm_ops_lock | quote }} && flock -n 9
+      && date -u '+%s' >{{ (espocrm_state_dir ~ '/deploy-held-by-role') | quote }}
+  register: espocrm_cd_hold
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert no CD deploy, backup or restore is running
+  ansible.builtin.assert:
+    that:
+      - espocrm_cd_hold.rc == 0
+    fail_msg: >-
+      Блокировку {{ espocrm_ops_lock }} держит выкладка CD, backup или restore EspoCRM: повторить прогон после неё
+      (sudo espocrm-deploy --status).
+    quiet: true
+  when: not ansible_check_mode

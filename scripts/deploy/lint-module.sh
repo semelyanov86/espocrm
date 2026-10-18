@@ -7,6 +7,13 @@ cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 paths=(custom/Espo/Modules/Itvolga client/custom/modules/itvolga)
 fail=0
 
+# Directories and regular files only: the server copies the module as root and refuses symbolic links (D-194).
+for p in "${paths[@]}"; do
+    [[ -d "$p" && ! -L "$p" ]] || { echo "$p: not a directory"; fail=1; }
+done
+links="$(find "${paths[@]}" -type l)"
+[[ -z "$links" ]] || { printf 'symbolic links:\n%s\n' "$links"; fail=1; }
+
 php_files="$(find "${paths[@]}" -type f -name '*.php' | wc -l)"
 # exit 1 instead of the 255 of php -l: xargs goes on and reports every broken file.
 # shellcheck disable=SC2016 # $1 of the inner shell

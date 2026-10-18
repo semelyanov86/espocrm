@@ -12,10 +12,10 @@
 #                                     goes to $STATE_DIR/deploy/logs on the server, the SSH session (a public Actions
 #                                     log) gets summary lines only
 #   espocrm-deploy --pause [REASON]   refuse deploys until --resume (waits for a running deploy, backup or restore)
-#   espocrm-deploy --resume | --status
+#   espocrm-deploy --resume | --status   --resume also drops the hold of a role run that failed before its end
 # Before the files change, espocrm-backup --online saves the database and files (label deploy-<commit>; the last
-# CD_KEEP_BUNDLES such bundles are kept). The operations lock is held throughout: no backup, restore, restore check or
-# role run in between (the role checks the same lock).
+# CD_KEEP_BUNDLES such bundles are kept). The operations lock is held throughout: no backup, restore or restore check in
+# between; a run of the role holds deploys with a mark written under the same lock and removed at its end.
 # shellcheck source=/dev/null
 source /usr/local/lib/espocrm/lib.sh
 require_root
@@ -53,6 +53,8 @@ STAMP="$ESPO_ROOT/.itvolga-module"
 APPLIED="$STATE_DIR/apply-applied"
 PENDING="$STATE_DIR/apply-pending"
 TELEPHONY_APPLIED="$STATE_DIR/telephony-applied.json"
+HOLD_FILE="$STATE_DIR/deploy-held-by-role"
+HOLD_MAX_AGE=7200
 MODULE_DIR="$OPT_DIR/module"
 umask 022
 
@@ -78,7 +80,7 @@ case "$action" in
         say "deploys paused: $(cat "$PAUSE_FILE")"
         exit 0 ;;
     resume)
-        rm -f "$PAUSE_FILE"
+        rm -f "$PAUSE_FILE" "$HOLD_FILE"
         say "deploys resumed"
         exit 0 ;;
     status)
@@ -86,7 +88,8 @@ case "$action" in
         say "applied:  $(cat "$APPLIED" 2>/dev/null || echo none)"
         if [[ -e "$PENDING" ]]; then say "pending:  apply of $(cat "$PENDING")"; fi
         if [[ -e "$PAUSE_FILE" ]]; then say "paused:   $(cat "$PAUSE_FILE")"; else say "paused:   no"; fi
-        last="$(find "$LOG_DIR" -maxdepth 1 -name '*.log' 2>/dev/null | LC_ALL=C sort | tail -1)"
+        if [[ -e "$HOLD_FILE" ]]; then say "held:     by a role run since $(date -u -d "@$(cat "$HOLD_FILE")" '+%F %T UTC' 2>/dev/null || echo '?')"; fi
+        last="$(find "$LOG_DIR" -maxdepth 1 -name '*.log' 2>/dev/null | LC_ALL=C sort | tail -1 || true)"
         say "last CD log: ${last:-none}"
         exit 0 ;;
 esac
@@ -100,10 +103,11 @@ if [[ $ci == 1 ]]; then
     mapfile -t old < <(find "$LOG_DIR" -maxdepth 1 -name '*.log' | LC_ALL=C sort | head -n -30)
     [[ ${#old[@]} == 0 ]] || rm -f -- "${old[@]}"
 fi
-stage="start"
+stage="start" locked=0
 on_exit() {
     local rc=$?
-    rm -f "$STAMP.tmp" "$APPLIED.tmp" "$PENDING.tmp" "$TELEPHONY_APPLIED.tmp"
+    # The temporary names are shared: only the holder of the lock may own them.
+    [[ $locked == 0 ]] || rm -f "$STAMP.tmp" "$APPLIED.tmp" "$PENDING.tmp" "$TELEPHONY_APPLIED.tmp"
     [[ $rc == 0 ]] || say "deploy of ${commit:0:12} FAILED at: $stage${log_file:+ (log on the server: $log_file)}"
 }
 trap on_exit EXIT
@@ -111,8 +115,19 @@ trap on_exit EXIT
 say "deploy of $commit"
 stage="lock"
 lock_wait
+locked=1
 export ESPOCRM_OPS_LOCKED=1
-[[ ! -e "$PAUSE_FILE" ]] || die "deploys are paused on the server: $(cat "$PAUSE_FILE") (espocrm-deploy --resume)"
+if [[ -e "$PAUSE_FILE" ]]; then
+    log "paused: $(cat "$PAUSE_FILE")"   # the reason stays on the server
+    die "deploys are paused on the server (espocrm-deploy --status, --resume)"
+fi
+if [[ -e "$HOLD_FILE" ]]; then
+    held_at="$(cat "$HOLD_FILE" 2>/dev/null || true)"
+    [[ "$held_at" =~ ^[0-9]+$ ]] || held_at=0
+    (( $(date +%s) - held_at >= HOLD_MAX_AGE )) \
+        || die "a run of the role espocrm holds deploys (it releases them at its end); deploy again after it"
+    say "warning: a hold older than $((HOLD_MAX_AGE / 3600)) h (a role run that failed before its end) is ignored"
+fi
 core="$(cat "$ESPO_ROOT/.espocrm-core" 2>/dev/null || true)"
 [[ "${core%% *}" == "$ESPO_VERSION" ]] \
     || die "the core stamp of $ESPO_ROOT is not EspoCRM $ESPO_VERSION (deploy the role espocrm first)"
@@ -145,6 +160,14 @@ fi
 
 # --- Staging copy of the commit (the paths and the archive name of the role) ------------------------------------
 stage="stage"
+# Only directories and regular files: a symbolic link — above all one in place of a module directory, which the
+# trailing slash of rsync follows — would let this root process copy files from outside the commit into the EspoCRM
+# root; a submodule has no content in the archive.
+for p in "${paths[@]}"; do
+    [[ "$(repo cat-file -t "$commit:$p" 2>/dev/null)" == tree ]] || die "commit ${commit:0:12}: $p is not a directory"
+done
+bad="$(repo ls-tree -r "$commit" -- "${paths[@]}" | awk '$1 == "120000" || $2 == "commit"' | wc -l)"
+[[ $bad == 0 ]] || die "commit ${commit:0:12}: $bad symbolic links or submodules in the module (not deployed)"
 tar_file="$MODULE_DIR/itvolga-module-$commit.tar"
 stage_dir="$MODULE_DIR/$commit"
 if [[ ! -f "$stage_dir.complete" ]]; then
@@ -156,6 +179,10 @@ if [[ ! -f "$stage_dir.complete" ]]; then
     tar -xf "$tar_file" -C "$stage_dir" --no-same-owner
     write_file "$stage_dir.complete" 0644 "$commit"
 fi
+for p in "${paths[@]}"; do
+    [[ -d "$stage_dir/$p" && ! -L "$stage_dir/$p" ]] || die "the staging copy has no directory $p"
+done
+[[ -z "$(find "$stage_dir" -type l -print -quit)" ]] || die "the staging copy of ${commit:0:12} holds a symbolic link"
 
 rsync_module() { # path [--dry-run] — the flags of the role
     rsync -a --omit-dir-times --delete --checksum --itemize-changes --chown=root:root --chmod=D0755,F0644 "${@:2}" \

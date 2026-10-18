@@ -437,6 +437,13 @@ refused() { # expected-text request
 }
 commit_as_test() { git -C "$1" -c user.name=cd-test -c user.email=cd-test commit -q "${@:2}"; }
 
+step "Status before the first deploy"
+espocrm-deploy --resume >/dev/null   # no pause or hold left by an earlier interrupted run of this step
+rm -rf "$STATE_DIR/deploy"
+status="$(espocrm-deploy --status)"
+printf '%s\n' "$status"
+grep -q "^last CD log: none" <<<"$status"
+
 step "GitHub of the test: $CD_REPO_URL, main = the commit of the role"
 rm -rf "$CD_REPO_URL"
 git init -q --bare --initial-branch=main "$CD_REPO_URL"
@@ -459,10 +466,18 @@ git -C "$work" push -q origin HEAD:refs/heads/side
 refused "is not on the branch main" "deploy $side"
 refused "is not on the branch main" "deploy 0123456789abcdef0123456789abcdef01234567"
 
-step "Paused deploys are refused"
-espocrm-deploy --pause "cutover test"
-refused "deploys are paused" "deploy $HEAD_COMMIT"
+step "Paused deploys are refused; the reason stays on the server"
+espocrm-deploy --pause "private-sentinel-7"
+out="$(ssh_cmd "deploy $HEAD_COMMIT" 2>&1)" && { echo "UNEXPECTED: deployed while paused"; exit 1; }
+printf '%s\n' "$out"
+grep -q "deploys are paused" <<<"$out" && ! grep -q "private-sentinel-7" <<<"$out"
+grep -q "private-sentinel-7" <<<"$(espocrm-deploy --status)"   # no early exit of grep -q into a pipe
 espocrm-deploy --resume
+
+step "A run of the role holds deploys; a hold older than 2 h is ignored"
+date -u +%s >"$STATE_DIR/deploy-held-by-role"
+refused "a run of the role espocrm holds deploys" "deploy $HEAD_COMMIT"
+echo 1 >"$STATE_DIR/deploy-held-by-role"
 espocrm-deploy --status
 
 step "Deploy of the commit of the role through the forced command and sudo"
@@ -470,6 +485,7 @@ out="$(ssh_cmd "deploy $HEAD_COMMIT")"
 printf '%s\n' "$out"
 grep -q "applied yes" <<<"$out"
 grep -q "^health: 0 failed" <<<"$out"
+grep -q "a hold older than 2 h" <<<"$out"
 [[ "$(wc -l <<<"$out")" -le 6 ]]   # summary lines only; the full log stays on the server
 [[ "$(cat "$ESPO_ROOT/.itvolga-module")" == "$HEAD_COMMIT" ]]
 grep -q " $HEAD_COMMIT\$" "$STATE_DIR/apply-applied"
@@ -489,6 +505,16 @@ step() { printf '\n=== %s\n' "$*"; }
 ssh_cmd() { runuser -u espocrm-deploy -- env SSH_ORIGINAL_COMMAND="$1" "$LIB_DIR/espocrm-deploy-ssh"; }
 commit_as_test() { git -C "$1" -c user.name=cd-test -c user.email=cd-test commit -q "${@:2}"; }
 marker=client/custom/modules/itvolga/cd-test.txt
+refused() { # expected-text request
+    local out rc=0
+    out="$(ssh_cmd "$2" 2>&1)" || rc=$?
+    printf '%s\n' "$out"
+    [[ $rc != 0 ]] || { echo "UNEXPECTED: '$2' succeeded"; exit 1; }
+    grep -qF "$1" <<<"$out" || { echo "UNEXPECTED: '$2' failed without '$1'"; exit 1; }
+}
+
+step "The role released its hold at its end"
+test ! -e "$STATE_DIR/deploy-held-by-role"
 
 step "A new commit of main that changes the module: backup, files, apply, health"
 work="$(mktemp -d)"
@@ -530,6 +556,21 @@ printf '%s\n' "$out"
 grep -q "files changed [1-9][0-9]*, applied yes" <<<"$out"
 test ! -e "$ESPO_ROOT/$marker"
 [[ "$(cat "$ESPO_ROOT/.itvolga-module")" == "$reverted" ]]
+
+step "Symbolic links in the module, and in place of a module directory, are refused"
+ln -s /etc "$work/client/custom/modules/itvolga/etc-link"
+git -C "$work" add client/custom/modules/itvolga/etc-link
+commit_as_test "$work" -m "cd test: a symbolic link in the module"
+git -C "$work" push -q origin HEAD:refs/heads/main
+refused "symbolic links or submodules in the module" "deploy $(git -C "$work" rev-parse HEAD)"
+git -C "$work" rm -q -r client/custom/modules/itvolga
+ln -s /etc "$work/client/custom/modules/itvolga"
+git -C "$work" add client/custom/modules/itvolga
+commit_as_test "$work" -m "cd test: a symbolic link in place of the module"
+git -C "$work" push -q origin HEAD:refs/heads/main
+refused "client/custom/modules/itvolga is not a directory" "deploy $(git -C "$work" rev-parse HEAD)"
+test ! -e "$ESPO_ROOT/client/custom/modules/itvolga/etc-link" && test ! -e "$ESPO_ROOT/client/custom/modules/itvolga/passwd"
+[[ "$(cat "$ESPO_ROOT/.itvolga-module")" == "$reverted" ]]
 SCENARIO
     sed -n 's/^=== /    /p' "$LOGS/cd-2.log" >&2
     # The deployed revert is unknown to the controller: the role refuses until git pull or an explicit rollback.
@@ -539,7 +580,7 @@ SCENARIO
     assert_unchanged cd-back-again
     [[ "$(docker exec "$CONTAINER" cat /var/www/espocrm/.itvolga-module)" == "$head" ]] \
         || die "cd: the role did not bring the module back to $head"
-    log "cd: forced command, main only, pause, deploys with backup, revert; the role guards and converges back"
+    log "cd: forced command, main only, pause, role hold, symbolic links, deploys with backup, revert; the role guards and converges back"
 }
 
 down() {

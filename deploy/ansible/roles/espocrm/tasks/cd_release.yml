@@ -1,0 +1,8 @@
+---
+# Конец прогона роли: CD снова может выкладывать модуль (отметка — cd_hold.yml).
+- name: Release the CD of the module
+  ansible.builtin.file:
+    path: "{{ espocrm_state_dir }}/deploy-held-by-role"
+    state: absent
+  changed_when: false
+  when: not ansible_check_mode

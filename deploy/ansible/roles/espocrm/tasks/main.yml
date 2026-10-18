@@ -8,6 +8,9 @@
 - name: Prepare packages, the system user and directories
   ansible.builtin.import_tasks: system.yml
 
+- name: Hold the CD of the module until the end of the run
+  ansible.builtin.import_tasks: cd_hold.yml
+
 - name: Deploy the EspoCRM core of the pinned release
   ansible.builtin.import_tasks: core.yml
 
@@ -46,3 +49,6 @@
 
 - name: Configure fail2ban for the EspoCRM login
   ansible.builtin.import_tasks: fail2ban.yml
+
+- name: Release the CD of the module
+  ansible.builtin.import_tasks: cd_release.yml
