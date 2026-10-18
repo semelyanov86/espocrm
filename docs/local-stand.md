@@ -117,7 +117,7 @@ Restore (`restore.sh`):
 3. образ `itvolga-espo-telephony:22.5.2` (Ubuntu 26.04 по digest + пакет Asterisk production + socat) и три контейнера
    `pbx`, `phones`, `pstn` во внутренней сети `<TELEPHONY_NET_PREFIX>.0/24` (`stand.conf`) (без выхода наружу и опубликованных портов);
 4. ожидание версии 22.5.2 и регистрации 8 телефонов; настройки EspoCRM (`itvolga-setup-telephony`, stdin; запасной
-   внутренний номер 119 — только если в EspoCRM он не задан) и самопроверка прав AMI (`--check`);
+   внутренний номер 108, как на production, D-192, — только если в EspoCRM он не задан) и самопроверка прав AMI (`--check`);
 5. служба `itvolga-espo-telephony` (шаблон `deploy/local/templates/itvolga-espo-telephony.service.tmpl`, пользователь
    `espocrm`, без автозапуска при загрузке) и ожидание подключения слушателя.
 

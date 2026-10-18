@@ -58,7 +58,8 @@ task test:stage08                           # тесты этапа 08 без с
 task ansible:lint | ansible:syntax           # собственные проверки Ansible сервера на наложении (этап 09): клон /data/server + роль espocrm + патч
 task ansible:test [-- шаг]                  # одноразовая Ubuntu 26.04 с systemd (Docker): роли сервера, роль espocrm дважды, --check, backup/restore, телефония, переключение
 task ansible:check | ansible:test-down      # дрейф --check --diff на проверочной машине | удалить её
-scripts/deploy/overlay.sh status            # база патча и HEAD /data/server; install --stage10 — только этап 10
+scripts/deploy/overlay.sh status            # база патча, HEAD /data/server, совпадают ли роль и плейбуки; install --stage10 — выполнен на этапе 10
+scripts/deploy/overlay.sh sync              # после этапа 10: роль и плейбуки 11/12 → /data/server (затем коммит там, D-193)
 scripts/deploy/bundle.sh push|pull …        # пакет EspoCRM стенд ⇄ production (этапы 10–11, D-187)
 scripts/deploy/stand-admin.sh park|unpark   # администратор пакета production на стенде на время дельты (этап 11, D-187); почту и ящики пакета restore стенда выключает сам (park-mail), unpark возвращает
 ```

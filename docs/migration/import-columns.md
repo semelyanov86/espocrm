@@ -2,7 +2,7 @@
 
 Генерируется вместе с `import-summary.md`: `task import:summary -- <прогон>` (`scripts/import/importer.py summary`). Только имена колонок, судьбы и счётчики — ни значений, ни идентификаторов записей. Контракт сверки — `import.md` («Сверка», «Полная сверка колонок»).
 
-- Прогон: `20261017T141529`; снимок: `20261012T191003`; код: `d4a3bf1` (незакоммиченных файлов инструмента: 0).
+- Прогон: `20261018T104535`; снимок: `20261018T091226`; код: `0c51d23` (незакоммиченных файлов инструмента: 0).
 
 ## Колонки, которые читает импорт
 
@@ -190,25 +190,25 @@
 | Attachments | vtiger7 | `vtiger_attachments.subject` | empty | пусто — данных нет |  | 0 |  |  |  |  |
 | Attachments | vtiger7 | `vtiger_attachments.type` | rule | перенос |  | 204 | 204 | 0 | 0 | carried=204 |
 | CDR | asteriskcdrdb | `cdr.accountcode` | rule | исключено: диалпланом не заполняется |  | 0 | 0 | 0 | 0 |  |
-| CDR | asteriskcdrdb | `cdr.amaflags` | rule | исключено: служебный флаг учёта Asterisk |  | 124 | 0 | 0 | 0 | excluded=124 |
-| CDR | asteriskcdrdb | `cdr.billsec` | rule | перенос: Call.cBillDuration, cAnsweredAt |  | 124 | 65 | 0 | 0 | carried=65, not_applicable:trainer=59 |
-| CDR | asteriskcdrdb | `cdr.calldate` | rule | перенос: Call.dateStart/dateEnd (местное время АТС Europe/Berlin → UTC; у строки с парой в CSV — время CSV) |  | 124 | 65 | 0 | 0 | carried=65, not_applicable:trainer=59 |
-| CDR | asteriskcdrdb | `cdr.channel` | rule | перенос: направление звонка, внутренний номер звонящего |  | 124 | 65 | 0 | 0 | carried=65, not_applicable:trainer=59 |
-| CDR | asteriskcdrdb | `cdr.clid` | rule | исключено: имя и номер звонящего — то же, что src (Call.cPhoneNumber) |  | 124 | 0 | 0 | 0 | excluded=124 |
-| CDR | asteriskcdrdb | `cdr.dcontext` | rule | перенос: признак класса звонка (тренажёр, конференция, линия), отдельного поля нет |  | 124 | 65 | 0 | 0 | carried=65, not_applicable:trainer=59 |
-| CDR | asteriskcdrdb | `cdr.disposition` | rule | перенос: Call.status, cCallStatusRaw |  | 124 | 65 | 0 | 0 | carried=65, not_applicable:trainer=59 |
-| CDR | asteriskcdrdb | `cdr.dst` | rule | перенос: Call.cPhoneNumber исходящего, cIncomingLine |  | 124 | 65 | 0 | 0 | carried=65, not_applicable:trainer=59 |
-| CDR | asteriskcdrdb | `cdr.dstchannel` | rule | перенос: ответственный и участники (телефоны, которые звонили и ответили) |  | 50 | 50 | 0 | 0 | carried=50 |
-| CDR | asteriskcdrdb | `cdr.duration` | rule | перенос: Call.dateEnd (начало + duration) |  | 124 | 65 | 0 | 0 | carried=65, not_applicable:trainer=59 |
-| CDR | asteriskcdrdb | `cdr.id` | key | только ключ записи: номер строки CDR MySQL (в приватном отчёте) |  | 124 |  |  |  | key=124 |
-| CDR | asteriskcdrdb | `cdr.lastapp` | rule | перенос: признак ответа человека (плечо Dial) и класса звонка, отдельного поля нет |  | 124 | 65 | 0 | 0 | carried=65, not_applicable:trainer=59 |
-| CDR | asteriskcdrdb | `cdr.lastdata` | rule | исключено: аргументы приложения диалплана (строки набора, параметры) |  | 110 | 0 | 0 | 0 | excluded=110 |
-| CDR | asteriskcdrdb | `cdr.linkedid` | key | только ключ записи: Call.cAsteriskLinkedId (плечи одного звонка) |  | 124 |  |  |  | key=124 |
+| CDR | asteriskcdrdb | `cdr.amaflags` | rule | исключено: служебный флаг учёта Asterisk |  | 129 | 0 | 0 | 0 | excluded=129 |
+| CDR | asteriskcdrdb | `cdr.billsec` | rule | перенос: Call.cBillDuration, cAnsweredAt |  | 129 | 69 | 0 | 0 | carried=69, not_applicable:trainer=60 |
+| CDR | asteriskcdrdb | `cdr.calldate` | rule | перенос: Call.dateStart/dateEnd (местное время АТС Europe/Berlin → UTC; у строки с парой в CSV — время CSV) |  | 129 | 69 | 0 | 0 | carried=69, not_applicable:trainer=60 |
+| CDR | asteriskcdrdb | `cdr.channel` | rule | перенос: направление звонка, внутренний номер звонящего |  | 129 | 69 | 0 | 0 | carried=69, not_applicable:trainer=60 |
+| CDR | asteriskcdrdb | `cdr.clid` | rule | исключено: имя и номер звонящего — то же, что src (Call.cPhoneNumber) |  | 129 | 0 | 0 | 0 | excluded=129 |
+| CDR | asteriskcdrdb | `cdr.dcontext` | rule | перенос: признак класса звонка (тренажёр, конференция, линия), отдельного поля нет |  | 129 | 69 | 0 | 0 | carried=69, not_applicable:trainer=60 |
+| CDR | asteriskcdrdb | `cdr.disposition` | rule | перенос: Call.status, cCallStatusRaw |  | 129 | 69 | 0 | 0 | carried=69, not_applicable:trainer=60 |
+| CDR | asteriskcdrdb | `cdr.dst` | rule | перенос: Call.cPhoneNumber исходящего, cIncomingLine |  | 129 | 69 | 0 | 0 | carried=69, not_applicable:trainer=60 |
+| CDR | asteriskcdrdb | `cdr.dstchannel` | rule | перенос: ответственный и участники (телефоны, которые звонили и ответили) |  | 54 | 54 | 0 | 0 | carried=54 |
+| CDR | asteriskcdrdb | `cdr.duration` | rule | перенос: Call.dateEnd (начало + duration) |  | 129 | 69 | 0 | 0 | carried=69, not_applicable:trainer=60 |
+| CDR | asteriskcdrdb | `cdr.id` | key | только ключ записи: номер строки CDR MySQL (в приватном отчёте) |  | 129 |  |  |  | key=129 |
+| CDR | asteriskcdrdb | `cdr.lastapp` | rule | перенос: признак ответа человека (плечо Dial) и класса звонка, отдельного поля нет |  | 129 | 69 | 0 | 0 | carried=69, not_applicable:trainer=60 |
+| CDR | asteriskcdrdb | `cdr.lastdata` | rule | исключено: аргументы приложения диалплана (строки набора, параметры) |  | 114 | 0 | 0 | 0 | excluded=114 |
+| CDR | asteriskcdrdb | `cdr.linkedid` | key | только ключ записи: Call.cAsteriskLinkedId (плечи одного звонка) |  | 129 |  |  |  | key=129 |
 | CDR | asteriskcdrdb | `cdr.peeraccount` | rule | исключено: диалпланом не заполняется |  | 0 | 0 | 0 | 0 |  |
-| CDR | asteriskcdrdb | `cdr.recordingpath` | rule | перенос: Call.cRecordingPath/cRecording после проверки размера и sha256 |  | 107 | 51 | 0 | 0 | carried=51, not_applicable:recording_without_audio=1, not_applicable:trainer=55 |
-| CDR | asteriskcdrdb | `cdr.sequence` | key | только ключ записи: строка CDR (uniqueid, sequence) |  | 124 |  |  |  | key=124 |
-| CDR | asteriskcdrdb | `cdr.src` | rule | перенос: Call.cPhoneNumber входящего, звонящий для сопоставления записи (D-31) |  | 116 | 65 | 0 | 0 | carried=65, not_applicable:trainer=51 |
-| CDR | asteriskcdrdb | `cdr.uniqueid` | key | только ключ записи: строка CDR (uniqueid, sequence), ключ звонка CSV |  | 124 |  |  |  | key=124 |
+| CDR | asteriskcdrdb | `cdr.recordingpath` | rule | перенос: Call.cRecordingPath/cRecording после проверки размера и sha256 |  | 112 | 55 | 0 | 0 | carried=55, not_applicable:recording_without_audio=1, not_applicable:trainer=56 |
+| CDR | asteriskcdrdb | `cdr.sequence` | key | только ключ записи: строка CDR (uniqueid, sequence) |  | 129 |  |  |  | key=129 |
+| CDR | asteriskcdrdb | `cdr.src` | rule | перенос: Call.cPhoneNumber входящего, звонящий для сопоставления записи (D-31) |  | 121 | 69 | 0 | 0 | carried=69, not_applicable:trainer=52 |
+| CDR | asteriskcdrdb | `cdr.uniqueid` | key | только ключ записи: строка CDR (uniqueid, sequence), ключ звонка CSV |  | 129 |  |  |  | key=129 |
 | CDR | asteriskcdrdb | `cdr.userfield` | rule | исключено: диалпланом не заполняется |  | 0 | 0 | 0 | 0 |  |
 | Calendar | vtiger7 | `vtiger_activity.activityid` | key | перенос |  | 34 |  |  |  |  |
 | Calendar | vtiger7 | `vtiger_activity.activitytype` | rule | исключено: служебное: Task |  | 34 | 34 | 0 | 0 | carried=34 |
@@ -1595,24 +1595,24 @@
 
 | Колонка | Класс | Значений | Ненулевых | Живых | Сверено | Расхождений | Неучтённых | Удалённых в Vtiger | Вне границ | Судьбы |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `asteriskcdrdb.cdr.amaflags` | import | 124 | 124 | 124 | 0 | 0 | 0 | 0 | 0 | rule=1 |
-| `asteriskcdrdb.cdr.billsec` | import | 124 | 112 | 124 | 65 | 0 | 0 | 0 | 0 | rule=1 |
-| `asteriskcdrdb.cdr.calldate` | import | 124 |  | 124 | 65 | 0 | 0 | 0 | 0 | rule=1 |
-| `asteriskcdrdb.cdr.channel` | import | 124 |  | 124 | 65 | 0 | 0 | 0 | 0 | rule=1 |
-| `asteriskcdrdb.cdr.clid` | import | 124 |  | 124 | 0 | 0 | 0 | 0 | 0 | rule=1 |
-| `asteriskcdrdb.cdr.dcontext` | import | 124 |  | 124 | 65 | 0 | 0 | 0 | 0 | rule=1 |
-| `asteriskcdrdb.cdr.disposition` | import | 124 |  | 124 | 65 | 0 | 0 | 0 | 0 | rule=1 |
-| `asteriskcdrdb.cdr.dst` | import | 124 |  | 124 | 65 | 0 | 0 | 0 | 0 | rule=1 |
-| `asteriskcdrdb.cdr.dstchannel` | import | 50 |  | 50 | 50 | 0 | 0 | 0 | 0 | rule=1 |
-| `asteriskcdrdb.cdr.duration` | import | 124 | 120 | 124 | 65 | 0 | 0 | 0 | 0 | rule=1 |
-| `asteriskcdrdb.cdr.id` | import | 124 | 124 | 124 | 0 | 0 | 0 | 0 | 0 | key=1 |
-| `asteriskcdrdb.cdr.lastapp` | import | 124 |  | 124 | 65 | 0 | 0 | 0 | 0 | rule=1 |
-| `asteriskcdrdb.cdr.lastdata` | import | 110 |  | 110 | 0 | 0 | 0 | 0 | 0 | rule=1 |
-| `asteriskcdrdb.cdr.linkedid` | import | 124 |  | 124 | 0 | 0 | 0 | 0 | 0 | key=1 |
-| `asteriskcdrdb.cdr.recordingpath` | import | 107 |  | 107 | 51 | 0 | 0 | 0 | 0 | rule=1 |
-| `asteriskcdrdb.cdr.sequence` | import | 124 | 92 | 124 | 0 | 0 | 0 | 0 | 0 | key=1 |
-| `asteriskcdrdb.cdr.src` | import | 116 |  | 116 | 65 | 0 | 0 | 0 | 0 | rule=1 |
-| `asteriskcdrdb.cdr.uniqueid` | import | 124 |  | 124 | 0 | 0 | 0 | 0 | 0 | key=1 |
+| `asteriskcdrdb.cdr.amaflags` | import | 129 | 129 | 129 | 0 | 0 | 0 | 0 | 0 | rule=1 |
+| `asteriskcdrdb.cdr.billsec` | import | 129 | 116 | 129 | 69 | 0 | 0 | 0 | 0 | rule=1 |
+| `asteriskcdrdb.cdr.calldate` | import | 129 |  | 129 | 69 | 0 | 0 | 0 | 0 | rule=1 |
+| `asteriskcdrdb.cdr.channel` | import | 129 |  | 129 | 69 | 0 | 0 | 0 | 0 | rule=1 |
+| `asteriskcdrdb.cdr.clid` | import | 129 |  | 129 | 0 | 0 | 0 | 0 | 0 | rule=1 |
+| `asteriskcdrdb.cdr.dcontext` | import | 129 |  | 129 | 69 | 0 | 0 | 0 | 0 | rule=1 |
+| `asteriskcdrdb.cdr.disposition` | import | 129 |  | 129 | 69 | 0 | 0 | 0 | 0 | rule=1 |
+| `asteriskcdrdb.cdr.dst` | import | 129 |  | 129 | 69 | 0 | 0 | 0 | 0 | rule=1 |
+| `asteriskcdrdb.cdr.dstchannel` | import | 54 |  | 54 | 54 | 0 | 0 | 0 | 0 | rule=1 |
+| `asteriskcdrdb.cdr.duration` | import | 129 | 125 | 129 | 69 | 0 | 0 | 0 | 0 | rule=1 |
+| `asteriskcdrdb.cdr.id` | import | 129 | 129 | 129 | 0 | 0 | 0 | 0 | 0 | key=1 |
+| `asteriskcdrdb.cdr.lastapp` | import | 129 |  | 129 | 69 | 0 | 0 | 0 | 0 | rule=1 |
+| `asteriskcdrdb.cdr.lastdata` | import | 114 |  | 114 | 0 | 0 | 0 | 0 | 0 | rule=1 |
+| `asteriskcdrdb.cdr.linkedid` | import | 129 |  | 129 | 0 | 0 | 0 | 0 | 0 | key=1 |
+| `asteriskcdrdb.cdr.recordingpath` | import | 112 |  | 112 | 55 | 0 | 0 | 0 | 0 | rule=1 |
+| `asteriskcdrdb.cdr.sequence` | import | 129 | 96 | 129 | 0 | 0 | 0 | 0 | 0 | key=1 |
+| `asteriskcdrdb.cdr.src` | import | 121 |  | 121 | 69 | 0 | 0 | 0 | 0 | rule=1 |
+| `asteriskcdrdb.cdr.uniqueid` | import | 129 |  | 129 | 0 | 0 | 0 | 0 | 0 | key=1 |
 | `vtiger7.berli_globalsearch_data.gscrmid` | excluded | 5147 | 5147 |  |  |  |  |  |  | excluded |
 | `vtiger7.berli_globalsearch_settings.gstabid` | excluded | 38 | 38 |  |  |  |  |  |  | excluded |
 | `vtiger7.berli_globalsearch_settings.searchall` | excluded | 38 | 38 |  |  |  |  |  |  | excluded |

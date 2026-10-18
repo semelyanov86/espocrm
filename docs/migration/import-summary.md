@@ -2,7 +2,7 @@
 
 Генерируется: `task import:summary -- <прогон>` (`scripts/import/importer.py summary`). Только счётчики: ни значений, ни идентификаторов записей. Машинный отчёт с причинами по каждой записи и колонке — вне Git (`/data/itvolga/espo-private/import/<прогон>/`). Контракт импорта — `import.md`.
 
-- Прогон: `20261017T141529`; снимок: `20261012T191003`; код: `d4a3bf1` (незакоммиченных файлов инструмента: 0).
+- Прогон: `20261018T104535`; снимок: `20261018T091226`; код: `0c51d23` (незакоммиченных файлов инструмента: 0).
 - Итог: **findings**; проблемы: нет; находки: conflict=47, dangling=24, discrepancy:invoice_act_total=5, external_url_invalid=1, no_target=66, recording_unavailable:without_audio=4, type_conflict=23.
 - «Тишина» (изменение числа строк стенда: уведомления, напоминания, подписки, записи ленты без vtigerId, письма, вебхуки, журнал действий): action_history_record=0, email_not_imported=0, note_not_imported=0, notification=0, reminder=0, stream_subscription=0, webhook_queue_item=0.
 
@@ -54,7 +54,7 @@
 | Act | 50 | 15871 | 15473 | 0 | 0 | 6 | 12/3243 | 6/404 | 0/0 |
 | Assets | 21 | 51 | 51 | 0 | 0 | 3 | 5/15 | 5/3 | 0/0 |
 | Attachments | 4 | 615 | 615 | 0 | 0 | 1 | 0/0 | 1/0 | 0/0 |
-| CDR | 17 | 1623 | 686 | 0 | 0 | 4 | 0/0 | 0/0 | 0/0 |
+| CDR | 17 | 1691 | 730 | 0 | 0 | 4 | 0/0 | 0/0 | 0/0 |
 | Calendar | 13 | 398 | 398 | 0 | 0 | 3 | 14/374 | 8/34 | 5/0 |
 | Consignment | 57 | 60 | 60 | 0 | 0 | 6 | 7/8 | 7/1 | 0/0 |
 | Contacts | 46 | 8540 | 8428 | 0 | 0 | 7 | 11/3410 | 17/1023 | 0/0 |
@@ -91,7 +91,7 @@
 | Act | archived=1252, carried=11361, linked=2456, mapped=404, zero_empty=398 |
 | Assets | archived=51 |
 | Attachments | archived=3, carried=612 |
-| CDR | carried=686, excluded=358, key=496, not_applicable:recording_without_audio=1, not_applicable:trainer=578 |
+| CDR | carried=730, excluded=372, key=516, not_applicable:recording_without_audio=1, not_applicable:trainer=588 |
 | Calendar | carried=292, linked=102, mapped=4 |
 | Consignment | archived=60 |
 | Contacts | archived=684, carried=5760, duplicate=5, linked=1258, mapped=42, no_target=14, normalized=152, not_applicable:D-23=5, protected=493, type_conflict=20, zero_empty=107 |
@@ -478,9 +478,9 @@
 
 Каждая непустая колонка каждой таблицы обеих схем снимка (счётчики сервера в `tables.json`) — класс по судьбе карты; колонки таблиц импорта — значения живых записей сверены по одному, значения удалённых в Vtiger записей и строк вне границ импорта — отдельными счётчиками. Строки — в приватном `ledger.jsonl`.
 
-- Итог: **pass**; колонок: 2361; значений: 843157; проверка карт снимка (C4/C5): pass.
+- Итог: **pass**; колонок: 2361; значений: 843245; проверка карт снимка (C4/C5): pass.
 - Проблемы: нет.
-- Таблицы импорта: значений живых записей 206390 (сверено 114969, расхождений 0, неучтённых 0), удалённых в Vtiger записей 14591, вне границ импорта 13798.
+- Таблицы импорта: значений живых записей 206478 (сверено 115013, расхождений 0, неучтённых 0), удалённых в Vtiger записей 14591, вне границ импорта 13798.
 
 | Класс | Колонок | Значений |
 |---|---|---|
@@ -488,7 +488,7 @@
 | empty | 2 | 67 |
 | empty/excluded | 1 | 5156 |
 | excluded | 1138 | 596736 |
-| import | 753 | 234779 |
+| import | 753 | 234867 |
 | key | 10 | 2360 |
 | module_code | 68 | 1397 |
 
@@ -496,18 +496,18 @@
 
 PBXManager: записей 1116, перенесено 907, внутренних не переносится 209, удержано по другим причинам 0; SPCallPopup 210 (слито 204); архивных ссылок коннектора (не аудио, D-10) 1033; клиенты по номеру — matches 8, none 819, parent 67.
 
-CDR (граница T0 снимка 2026-10-12 17:10:09 UTC; записи — режим `place`): строк MySQL 124, строк CSV 215; звонков (групп плеч) 207.
+CDR (граница T0 снимка 2026-10-18 07:12:28 UTC; записи — режим `place`): строк MySQL 129, строк CSV 220; звонков (групп плеч) 212.
 
 | Что | Счётчики |
 |---|---|
-| Строки MySQL | call 65, not_imported:trainer 59 |
-| Строки CSV | call 18, duplicate_of_mysql 124, not_imported:conference 2, not_imported:trainer 71 |
-| Звонки по классам | Inbound 31, Outbound 48, conference 2, trainer 126 |
-| Звонки по источнику | csv:call 18, csv:not_imported 73, mysql:call 61, mysql:not_imported 55 |
-| Запись и проверка | apply:created 79, check:equal 79 |
-| Файлы записей | ambiguous 9, attached 62, claimed_twice 1, no_call:trainer 107, without_audio 5 |
+| Строки MySQL | call 69, not_imported:trainer 60 |
+| Строки CSV | call 18, duplicate_of_mysql 129, not_imported:conference 2, not_imported:trainer 71 |
+| Звонки по классам | Inbound 33, Outbound 50, conference 2, trainer 127 |
+| Звонки по источнику | csv:call 18, csv:not_imported 73, mysql:call 65, mysql:not_imported 56 |
+| Запись и проверка | apply:created 83, check:equal 83 |
+| Файлы записей | ambiguous 9, attached 66, claimed_twice 1, no_call:trainer 108, without_audio 5 |
 | Нет записи у звонка | without_audio 4 |
-| D-31 на известных парах | ambiguous 4, correct 98 |
+| D-31 на известных парах | ambiguous 4, correct 103 |
 | Нет в источнике (не удаляются) | 0 |
 
 По месяцам (звонки — месяц начала по UTC, файлы — каталог записи; D-16 — источников нет):
@@ -597,7 +597,7 @@ CDR (граница T0 снимка 2026-10-12 17:10:09 UTC; записи — р
 | 2026-07 |  |  |  | 47 | 9 | 38 | 44 | 5 | 39 |  |
 | 2026-08 |  |  | 33 | 51 | 16 | 35 | 46 | 15 | 31 |  |
 | 2026-09 |  |  | 77 | 77 | 46 | 23 | 58 | 34 | 24 |  |
-| 2026-10 |  |  | 14 | 15 | 7 | 8 | 15 | 7 | 8 |  |
+| 2026-10 |  |  | 19 | 20 | 11 | 9 | 20 | 11 | 9 |  |
 
 ## Каждая колонка (этап 08)
 

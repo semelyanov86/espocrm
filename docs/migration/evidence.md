@@ -1917,6 +1917,146 @@ pending before the module changes» и применение, повтор change
   (`cutover.md` §1.6). `bundle.sh` по ssh не запускался.
 - Отправка писем через Migadu не проверялась (на проверочной машине — синтетический сервер, письма не отправлялись).
 
+## Этап 10 — EspoCRM рядом с Vtiger на production (2026-10-18)
+
+Задание — промпт 10 (`git show 2052380:MIGRATION_PROMPTS.md`), разрешение владельца — сообщение сессии 2026-10-18;
+порядок — `cutover.md` §1. Изменения production — только по runbook; Vtiger остаётся системой записи, `serv.itvolga.com`
+не переключался. Секреты, значения строк и имена файлов не выводились (на production — счётчики, флаги, коды; маска цифр
+и адресов в выводах обёртки записи). Время — UTC, если не сказано иное; T0 развёртывания — `2026-10-18 07:32:53`.
+
+### Порядок разрешений
+
+Автоматический режим Claude Code отклонил запись в vault сервера и восстановление дампа из restic; владелец перешёл в
+ручной режим и подтверждал команды production по одной. Секреты EspoCRM в vault — скриптом сессии (4 случайных значения,
+без вывода; прежний зашифрованный vault — `/data/itvolga/espo-private/production/`, 600).
+
+### Локальные результаты заново (2026-10-18)
+
+| Проверка | Результат |
+|---|---|
+| `task ansible:lint` (наложение) | 0 нарушений, 0 предупреждений, 304 файла |
+| `task ansible:syntax` | 5 плейбуков OK |
+| `task ansible:test` с нуля | **код 0, 23 мин 35 с** (параллельно со стендом): роль дважды changed=0, `--check` changed=0, дрейф, сценарий, телефония (повтор, прерванное применение, выключение), переключение maintenance → espocrm → vtiger, повторы changed=0 |
+| `/data/server` после `overlay.sh install --stage10` | lint 0/0 (297 файлов), syntax 5 плейбуков; коммит `a6508c1` |
+
+### Production только чтением (до изменений)
+
+`scripts/audit/lib.sh` (`remote_sh`, `sudo -n bash -s` со скриптом из stdin):
+
+| Факт | Значение |
+|---|---|
+| Каталоги записей | `/var/spool/asterisk` `asterisk:root 750`, `monitor` `asterisk:asterisk 750`, ACL нет (`setfacl` нет); 189 WAV, 1,4 ГБ; файлы за 30 дней — 57, `asterisk:asterisk 644` |
+| PHP, диск, память, расписание backup | 6 нужных расширений `php8.5`; 738 ГБ свободно; 7,6 ГиБ свободно; 5 таймеров `backup-*`, ночные `db` и `system` 2026-10-18 — success |
+| Apache | модули `headers proxy proxy_fcgi rewrite setenvif ssl` включены; `127.0.0.1:8443` свободен; vhost Vtiger `serv_itvolga` включён; сертификат `serv.itvolga.com` до 2027-01-09 |
+| EspoCRM | нет `/var/www/espocrm`, `/etc/espocrm`, `/opt/espocrm`, пользователя `espocrm`, БД `espo%`; MySQL 8.4.11 |
+| Asterisk | uptime 2 дня, `manager show users` — пользователей нет; `manager.conf`: `bindaddr 127.0.0.1`, `#include manager.d/*.conf` |
+| Q-54 | `MixMonitor(${Recdir}/${Filename}.wav,,…/send_recording_wrapper.sh ^{MIXMONITOR_FILENAME})`; обёртка (sha256 `bf7cf1ad…`) пишет журнал и запускает бинарь Go `send_recording` (2026-10-04, sha256 `a07c2cad…`): в нём `.ogg` и `os.Remove`, но в корне 189 WAV, 0 `.ogg` (и в `/tmp`), 17 WAV с 2026-10-05 на месте, 97 успешных запусков в журнале — WAV не переносятся и не перекодируются; `phones-out` — 6 шаблонов, = тестовой АТС |
+| fail2ban, cron | jail `apache-auth, apache-badbots, asterisk, mcp-secret, sshd`; `/etc/cron.d/vtiger` — одна активная строка |
+
+### Backup и практическое восстановление Vtiger
+
+| Команда | Результат |
+|---|---|
+| сервер: `task backup:run tier=db`, `tier=system` | код 0; 1 мин 15 с и 38 с; `rclone sync` в `mailru:server/{db,system}` |
+| сервер: `task restore:db name=vtiger7` | дамп 12,4 МиБ из снимка restic 09:04 CEST → `/var/backups/restore/…` |
+| на сервере: дамп проверен (`USE`/`CREATE DATABASE` — 0, `DEFINER` — 0, 784 `CREATE TABLE`, «Dump completed»), `CREATE DATABASE vtiger7__check`, импорт с `sql_log_bin=0` (18 с), точные `COUNT(*)` каждой таблицы обеих БД, `DROP DATABASE`, удаление каталога (`trap`) | **784 таблицы, 197 076 строк — равны живой `vtiger7`, таблиц с другим числом строк 0**; временных БД и каталога не осталось |
+| после развёртывания: `espocrm-restore-check --mysql vtiger7` | 784 таблицы, 197 076 строк, набор таблиц = живому, 0 FAIL |
+
+### Наложение, роль backup
+
+- `scripts/deploy/overlay.sh install --stage10` → `/data/server`; из копии роли удалён `__pycache__` локальных запусков
+  (исправлено в `overlay.sh`); коммит `a6508c1`.
+- `task ansible:backup-check` (production) — changed=5 (библиотека, документ DR, скрипты тиров, юниты systemd `.service` и `.timer` тира
+  `recordings`); `task ansible:backup` — changed=6, failed=0; `task backup:run tier=recordings` — первый снимок 1,302 ГиБ
+  (монитор и `cdr-csv`), `rclone sync` в облако, 31 с.
+
+### Развёртывание (сервер: `task ansible:espocrm -- -e espocrm_module_ref=e698dab…`)
+
+- Первый прогон: ok=90, **changed=51**, failed=0, 2 мин 30 с (из них health с ожиданием cron — 65 с). Health — 0 FAIL,
+  предупреждения: администратор без 2FA, ночного пакета нет. Ключевые строки: версия 10.0.9, модуль `e698dab` (обе части),
+  `siteUrl` `https://serv.itvolga.com:8443`, 2FA обязательна (Totp, ключ безопасности), `cleanupDeletedRecords` True,
+  почта «configured: True, port 465, SSL», превью — 200 через PHP-FPM, служебные пути 403/404, анонимный API 401, вход и
+  выход, «mode vtiger: Vtiger vhost enabled, EspoCRM public no», cron 24 с назад, права (`data/` 770, `config-internal.php`
+  не читается www-data, код неизменяем для `espocrm`, родители модуля 1775), записи читаются `espocrm`, слушатель
+  `connected`, сертификат 83 дня.
+- Соседство: `https://serv.itvolga.com/` снаружи — 401 (Basic Vtiger, как до); `:8443` снаружи недоступен, слушает только
+  `127.0.0.1`; Apache не перезапускался (главный процесс с 2026-10-16, был reload); Asterisk — uptime 2 дня, без reload;
+  `manager show users` — `itvolga-espo-listener`, `itvolga-espo-dialer`; `manager.d/itvolga-espo.conf` `root:asterisk 640`;
+  ACL `user:espocrm:--x` на `/var/spool/asterisk`, `r-x` и default на `monitor`; контейнер `php74-fpm` работает; jail
+  `espocrm-auth` загружен.
+- Повтор — changed=0; `task ansible:espocrm-check` (`--check --diff`) — changed=0.
+
+### Данные: снимок, импорт на стенде, перенос
+
+| Шаг | Результат |
+|---|---|
+| `task snapshot:create` | `20261018T091226`, 1444,5 МиБ, 2 мин 20 с; проверка 19/19 (vtiger7 784 таблицы / 197 076 строк, CDR 129 строк, вложения живых 238/238, записи CDR 108/108, WAV 189) |
+| разница с `20261012T191003` | `vtiger7` без изменений; CDR +5 строк; записи +5 (`snapshot-delta.md`) |
+| стенд | `stand:backup` `pre-stage10` → restore чистой установки (1 мин 20 с) → корень записей пуст (`aside-stage10`) → `model:apply` → телефония (права AMI как задумано) |
+| импорт `20261018T091749` | код 2 (только находки), создано 7321, `equal` 7323, проблем 0; находки = этапа 08 по видам и числам |
+| повтор `20261018T092008` | 0 записей, `unchanged=7323`; отпечаток до = после (`83bef47438a8d4d0`) |
+| пакет `20261018T092458-for-production` → `bundle.sh push` (21 с, SHA256SUMS на сервере) → `espocrm-restore … --carry-calls-from '2026-10-18 07:32:53'` | 1 мин 3 с; страховочный `pre-restore`; 177 таблиц, строки = пакету; звонков слушателя с T0 — 0; health 0 FAIL |
+| `espocrm-fingerprint take after-transfer` | **`83bef47438a8d4d0` = стенду** |
+| роль с `espocrm_admin_reset=true` | changed=2 (сброс и каталоги `data/upload`, `data/logs` — ниже); вход health 200; 66 звонков с записью, 0 файлов нет; повтор changed=0; отпечаток отличается таблицами `user`, `user_data` |
+
+### Интерфейс production (туннель `:8443`, отдельный headless Chrome `--host-resolver-rules`)
+
+Вход администратора (пароль — из vault в память сценария), сценарий администратора этапа 08 (`ui_check.js`, каталог
+доказательств этапа 10; записи подобраны запросами фикстуры 08 на стенде, равном production по отпечатку): карточка
+клиента с панелями; счёт (позиции, акт, клиент) и PDF 200 `application/pdf`; переход в акт, PDF; распределение →
+платёж, ПКО PDF; тикет ↔ клиент; документ — скачивание 200, **sha256 = файлу снимка**; звонок CDR — плеер, запись
+оригинала сервера: Range → 206 `audio/wav` RIFF, целиком 200. API: 29 стандартных отчётов, 5 из 5 запусков 200, карточки
+телефонии 200, списки 10 сущностей с записями. Ошибок страницы 0. Снимки и PDF — `/data/itvolga/espo-private/stand/evidence/stage10/` (600).
+
+### Обратный путь и находка (D-192)
+
+- Сервер `task espocrm:backup label=roundtrip-test` → `bundle.sh pull` → `ESPO_HEALTH_LOGIN=0 task stand:restore … --skip-custom`
+  (почта и ящики production выключены на стенде) → `stand-admin.sh park` → телефония → `task import:run -- --snapshot
+  20261018T091226 --check-only` (`20261018T102931`): **`differs=17`**, проблемы `cdr_call_not_equal=17`,
+  `cdr_values_mismatch=11` — у всех 17 отличается только `cExtension`.
+- Причина: входящий звонок CDR, который не принял ни один телефон пользователя, получает запасной внутренний номер
+  настроек EspoCRM (`CallParties::assigneeExtension`); стенд импортировал со своим умолчанием 119 (тестовая АТС), на
+  production — 108. Проверочный проход после restore пакета production (запасной 108) это и увидел. Прочие факты звонков
+  совпали — другие правила CDR результат не меняют.
+- `stand-admin.sh unpark` → отпечаток стенда = до `park` (`64856ec6e3224481`). Остальные отличия пакета production от
+  перенесённого — журнал просмотров и миниатюра изображения (проверка интерфейса), `user`/`user_data` (сброс пароля).
+- Исправлено (`0c51d23`): умолчание стенда — 108 (`stand.conf`); `espocrm-restore` ставит 0770 и `data/upload`,
+  `data/logs` (пакет стенда приносит `data/upload` 0775 и не имеет `data/logs` — следующий прогон роли менял их);
+  `overlay.sh sync` (D-193) → `/data/server` `3914215` → роль changed=1 (`espocrm-restore`).
+- Повтор с нуля: restore чистой установки, корень записей пуст, `model:apply`, телефония (запасной 108), импорт
+  `20261018T104535` (создано 7321, `equal` 7323, проблем 0; 17 звонков — `fallback`, номер 108 с ответственным; 119 нет),
+  повтор `…104715` — 0 записей, отпечаток `d4a4b661092f5369` до = после; пакет `20261018T104855-for-production-b` → push →
+  restore (1 мин 15 с; `data/upload`, `data/logs` — 770 сразу) → **отпечаток production `d4a4b661092f5369` = стенду**;
+  сброс пароля — changed=1 (только сброс); повтор changed=0. Интерфейс повторён на новых id — все признаки.
+- Второй обратный путь (`roundtrip-test-b`): проверочный проход `20261018T105830` — **`equal=7323`, проблем 0**; отпечаток
+  после `unpark` = до `park` (`f072cee067d0f0c5`); весь цикл pull → restore → park → телефония → проверка → unpark — 113 с.
+  Стенд возвращён к `for-production-b` (`d4a4b661092f5369`).
+
+### ACL ролей (стенд с данными production)
+
+`tests/stage08/ui_fixture.py create` (синтетические «Директор» и «Менеджер по продажам») → `ui_check.js`: «Директор» —
+плеер, запись 206 `audio/wav`; «Менеджер» — `Call` API 403, запись 403, на странице нет полей и плеера → `delete` (по id),
+стенд снова возвращён к пакету. На production синтетические пользователи не создавались (обычным пользователям нужна 2FA).
+
+### Backup EspoCRM и практическое восстановление
+
+| Команда | Результат |
+|---|---|
+| сервер: `task backup:run tier=db` | код 0, 1 мин 40 с; хук `espocrm-backup --nightly` (писатели на секунды остановлены) → `/var/backups/espocrm/nightly` (102 МБ) → restic → облако |
+| сервер: `task espocrm:restore-check` | ночной пакет из restic: 177 таблиц, 12 824 строки = записи пакета; 1086 файлов = MANIFEST; 205 вложений, без файла 0; выборка 20 из 20 побайтно = живым; тир `recordings`: 189 файлов, 189 равны; 0 FAIL, 16 с |
+| `espocrm-restore-check --mysql vtiger7` | 0 FAIL (выше) |
+
+Health в конце: 0 FAIL, 1 предупреждение (администратор без 2FA); «mode vtiger»; ночной пакет 1 ч; слушатель подключён.
+Звонков с T0 — 0 (ни у слушателя, ни в CDR); журнал слушателя — только `exit 0` на остановках backup/restore.
+
+### Не сделано / ограничения
+
+- Звонок из CRM и живой звонок, записанный слушателем, не проверялись на production (звонков не было; настоящий вызов не
+  делался). Отправка писем, бан fail2ban, продление сертификата этим vhost — не проверялись.
+- Администратор EspoCRM без 2FA (ядро не требует её от администраторов) — включить владельцу при первом входе через туннель.
+- На сервере лежат пакеты первого переноса (`…092458-for-production`, номер 119 у 17 звонков) и проб — 549 МБ всего в
+  `/var/backups/espocrm` (700/600); удаление — решение владельца.
+
 ## Вне этапов — контрагент и адреса нового документа (D-179), 2026-10-17
 
 Факты источника (локальная копия кода Vtiger 7.1.0 SP01, только чтение): `Potentials_Record_Model::getInventoryMappingFields` — `related_to` → `account_id`, `contact_id` → `contact_id` для документов, создаваемых со сделки (`Inventory_Edit_View`: `setParentRecordData` при `sourceModule` Accounts, Contacts, Potentials); адреса документа копирует клиент `Inventory_Edit_Js.copyAddressDetails` (`addressFieldsMapping.Accounts`: `bill_*` → `bill_*`, `ship_*` → `ship_*`), у организации без адреса — сообщение `JS_SELECTED_ACCOUNT_DOES_NOT_HAVE_AN_ADDRESS` без изменений. Сделка в EspoCRM: `Opportunity.contact` заполняет импорт (`spec.py`, `contact_id` → `contact`).

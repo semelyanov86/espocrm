@@ -11,6 +11,9 @@
 #   overlay.sh status              the recorded base vs the HEAD of /data/server
 #   overlay.sh install --stage10   stage 10 only, with the owner's permission: copy the role and the playbooks into
 #                                  /data/server and apply the patch there (clean tree at the recorded base required)
+#   overlay.sh sync                after install: copy the role and the playbooks into /data/server again (a later
+#                                  change of deploy/ansible here; clean tree required), then review and commit there;
+#                                  the shared files are not touched (a change of them is a commit in /data/server)
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -67,6 +70,24 @@ status() {
     echo "base:   $BASE"
     echo "server: $head ($([[ "$head" == "$BASE" ]] && echo same || echo DIFFERENT))"
     echo "patch:  $(grep -c '^diff --git' "$PATCH") shared files; own: ${OWN[*]}"
+    if [[ -d "$SERVER_REPO/ansible/roles/espocrm" ]]; then
+        local own=same p
+        diff -rq -x __pycache__ "$OVERLAY_SRC/roles/espocrm" "$SERVER_REPO/ansible/roles/espocrm" >/dev/null || own=DIFFERENT
+        for p in 11-espocrm.yml 12-crm-switch.yml; do
+            cmp -s "$OVERLAY_SRC/playbooks/$p" "$SERVER_REPO/ansible/playbooks/$p" || own=DIFFERENT
+        done
+        echo "installed: yes; role and playbooks in the server repository: $own (overlay.sh sync)"
+    else
+        echo "installed: no (overlay.sh install --stage10)"
+    fi
+}
+
+sync() {
+    [[ -d "$SERVER_REPO/ansible/roles/espocrm" ]] || die "the overlay is not installed in $SERVER_REPO (install --stage10)"
+    [[ -z "$(git -C "$SERVER_REPO" status --porcelain)" ]] || die "$SERVER_REPO has uncommitted changes"
+    copy_own "$SERVER_REPO"
+    git -C "$SERVER_REPO" status --short -- "${OWN[@]}" >&2
+    log "synced into $SERVER_REPO: review, then commit there"
 }
 
 install() {
@@ -86,5 +107,6 @@ case "$cmd" in
     patch) patch "$@" ;;
     status) status ;;
     install) install "$@" ;;
-    *) die "usage: overlay.sh build [DIR] | patch [DIR] | status | install --stage10" ;;
+    sync) sync ;;
+    *) die "usage: overlay.sh build [DIR] | patch [DIR] | status | install --stage10 | sync" ;;
 esac
